@@ -1,0 +1,4 @@
+# Per-machine runtime state — PIDs, last-up timestamps, service status.
+# Each rig writes its state to <id>.state/ alongside <id>.json. Not portable
+# across machines.
+*.state/

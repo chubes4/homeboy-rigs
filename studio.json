@@ -1,0 +1,277 @@
+{
+  "id": "studio",
+  "description": "Studio + Playground combined-fixes dev environment. The 'use the dev copy' setup: forks rebased onto trunk + open PRs cherry-picked + Docker-compiled PHP-WASM glue + tarball server + Studio CLI rewired to the local tarballs. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev. Run `homeboy rig check studio` to preflight, `homeboy rig up studio` to recover when broken.",
+
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio",
+      "branch": "dev/combined-fixes"
+    },
+    "wordpress-playground": {
+      "path": "~/Developer/wordpress-playground",
+      "branch": "dev/combined-fixes"
+    }
+  },
+
+  "services": {
+    "tarball-server": {
+      "kind": "http-static",
+      "cwd": "${components.wordpress-playground.path}/dist/packages-for-self-hosting",
+      "port": 9724,
+      "health": {
+        "http": "http://127.0.0.1:9724/",
+        "expect_status": 200
+      }
+    },
+    "studio-daemon": {
+      "kind": "external",
+      "discover": {
+        "pattern": "wordpress-server-child.mjs"
+      }
+    }
+  },
+
+  "symlinks": [
+    {
+      "link": "~/.local/bin/studio",
+      "target": "~/.local/bin/studio-dev"
+    },
+    {
+      "link": "${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds",
+      "target": "../../packages/playground/wordpress-builds"
+    }
+  ],
+
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Docker daemon running",
+        "command": "docker info >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "Docker buildx plugin available",
+        "command": "docker buildx version >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "health"
+      },
+      {
+        "kind": "symlink",
+        "op": "verify"
+      },
+      {
+        "kind": "check",
+        "label": "Studio apps/cli wired to local tarballs",
+        "file": "${components.studio.path}/apps/cli/package.json",
+        "contains": "http://127.0.0.1:9724/studio-dev/"
+      },
+      {
+        "kind": "patch",
+        "component": "wordpress-playground",
+        "file": "packages/php-wasm/compile/php-wasm-dns-polyfill/dns_polyfill.c",
+        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
+        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback */\n#ifndef TSRMLS_CC\n#define TSRMLS_CC\n#endif\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
+        "op": "verify",
+        "label": "TSRMLS_CC fallback patched (dns_polyfill.c)"
+      },
+      {
+        "kind": "patch",
+        "component": "wordpress-playground",
+        "file": "packages/php-wasm/compile/php-post-message-to-js/post_message_to_js.c",
+        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
+        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback */\n#ifndef TSRMLS_CC\n#define TSRMLS_CC\n#endif\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
+        "op": "verify",
+        "label": "TSRMLS_CC fallback patched (post_message_to_js.c)"
+      },
+      {
+        "kind": "check",
+        "label": "Compiled jspi glue has proc_open VFS-cwd fix",
+        "command": "test \"$(grep -c 'cwdstr = null' ~/Developer/studio/node_modules/@php-wasm/node-8-3/jspi/php_8_3.js)\" -ge 3",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "Compiled asyncify glue has proc_open VFS-cwd fix",
+        "command": "test \"$(grep -c 'cwdstr = null' ~/Developer/studio/node_modules/@php-wasm/node-8-3/asyncify/php_8_3.js)\" -ge 3",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "Studio daemon (if any) is newer than CLI bundle (no stale daemon)",
+        "newer_than": {
+          "left": {
+            "process_start": {
+              "pattern": "wordpress-server-child.mjs"
+            }
+          },
+          "right": {
+            "file_mtime": "${components.studio.path}/apps/cli/dist/cli/main.mjs"
+          }
+        }
+      },
+      {
+        "kind": "check",
+        "label": "Live proc_open end-to-end (the truth)",
+        "command": "rm -f /tmp/_studio_rig_check_marker && out=$(studio wp eval '$h = proc_open(\"touch /tmp/_studio_rig_check_marker && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f /tmp/_studio_rig_check_marker && echo \"$out\" | grep -q ok",
+        "expect_exit": 0
+      }
+    ],
+
+    "up": [
+      {
+        "kind": "check",
+        "label": "Docker daemon running (precondition for compile)",
+        "command": "docker info >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "git",
+        "component": "studio",
+        "op": "fetch",
+        "args": ["origin"],
+        "label": "Fetch latest origin (Studio)"
+      },
+      {
+        "kind": "git",
+        "component": "studio",
+        "op": "checkout",
+        "args": ["dev/combined-fixes"],
+        "label": "Checkout dev/combined-fixes (Studio)"
+      },
+      {
+        "kind": "git",
+        "component": "studio",
+        "op": "rebase",
+        "args": ["--autostash", "origin/trunk"],
+        "label": "Rebase Studio onto origin/trunk"
+      },
+      {
+        "kind": "git",
+        "component": "wordpress-playground",
+        "op": "fetch",
+        "args": ["upstream"],
+        "label": "Fetch latest upstream (Playground)"
+      },
+      {
+        "kind": "git",
+        "component": "wordpress-playground",
+        "op": "checkout",
+        "args": ["dev/combined-fixes"],
+        "label": "Checkout dev/combined-fixes (Playground)"
+      },
+      {
+        "kind": "git",
+        "component": "wordpress-playground",
+        "op": "rebase",
+        "args": ["--autostash", "upstream/trunk"],
+        "label": "Rebase Playground onto upstream/trunk"
+      },
+      {
+        "kind": "patch",
+        "component": "wordpress-playground",
+        "file": "packages/php-wasm/compile/php-wasm-dns-polyfill/dns_polyfill.c",
+        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
+        "after": "#define TSRMLS_CC",
+        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback (DC/C/D missing upstream) */\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
+        "op": "apply",
+        "label": "Apply TSRMLS_DC/C/D fallback (dns_polyfill.c)"
+      },
+      {
+        "kind": "patch",
+        "component": "wordpress-playground",
+        "file": "packages/php-wasm/compile/php-post-message-to-js/post_message_to_js.c",
+        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
+        "after": "#define TSRMLS_CC",
+        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback (DC/C/D missing upstream) */\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
+        "op": "apply",
+        "label": "Apply TSRMLS_DC/C/D fallback (post_message_to_js.c)"
+      },
+      {
+        "kind": "command",
+        "label": "Compile PHP-WASM 8.3 (JSPI variant)",
+        "command": "node packages/php-wasm/compile/build.js --PLATFORM=node --PHP_VERSION=8.3 --WITH_JSPI=yes",
+        "cwd": "${components.wordpress-playground.path}"
+      },
+      {
+        "kind": "command",
+        "label": "Compile PHP-WASM 8.3 (asyncify variant)",
+        "command": "node packages/php-wasm/compile/build.js --PLATFORM=node --PHP_VERSION=8.3",
+        "cwd": "${components.wordpress-playground.path}"
+      },
+      {
+        "kind": "command",
+        "label": "Stage compiled artifacts into dist",
+        "command": "for variant in jspi asyncify; do cp packages/php-wasm/node-builds/8-3/$variant/php_8_3.js dist/packages/php-wasm/node-builds/8-3/$variant/php_8_3.js && cp packages/php-wasm/node-builds/8-3/$variant/8_3_30/php_8_3.wasm dist/packages/php-wasm/node-builds/8-3/$variant/8_3_30/php_8_3.wasm; done",
+        "cwd": "${components.wordpress-playground.path}"
+      },
+      {
+        "kind": "symlink",
+        "op": "ensure"
+      },
+      {
+        "kind": "command",
+        "label": "Build Playground tarballs",
+        "command": "npx nx run-many --all --target=package-for-self-hosting -- --hostingBaseUrl=http://127.0.0.1:9724/studio-dev",
+        "cwd": "${components.wordpress-playground.path}"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "start"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "health"
+      },
+      {
+        "kind": "command",
+        "label": "Rewire Studio package.jsons to local tarballs",
+        "command": "VER=$(jq -r '.version' ~/Developer/wordpress-playground/lerna.json); for pkg in apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json; do PACKAGE_BASE_URL=http://127.0.0.1:9724/studio-dev PACKAGE_VERSION=$VER bash ~/Developer/wordpress-playground/packages/playground/test-built-npm-packages/use-local-packages.sh \"$pkg\"; done",
+        "cwd": "${components.studio.path}"
+      },
+      {
+        "kind": "command",
+        "label": "Bust stale Studio node_modules",
+        "command": "rm -rf node_modules/@wp-playground node_modules/@php-wasm apps/cli/node_modules/@wp-playground apps/cli/node_modules/@php-wasm",
+        "cwd": "${components.studio.path}"
+      },
+      {
+        "kind": "command",
+        "label": "npm install Studio",
+        "command": "npm install",
+        "cwd": "${components.studio.path}"
+      },
+      {
+        "kind": "command",
+        "label": "Build Studio CLI",
+        "command": "npm run build",
+        "cwd": "${components.studio.path}/apps/cli"
+      },
+      {
+        "kind": "service",
+        "id": "studio-daemon",
+        "op": "stop"
+      }
+    ],
+
+    "down": [
+      {
+        "kind": "service",
+        "id": "studio-daemon",
+        "op": "stop"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "stop"
+      }
+    ]
+  }
+}
