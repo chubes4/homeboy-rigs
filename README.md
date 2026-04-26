@@ -39,6 +39,17 @@ The intelligence-chubes4 site runtime — points the live WordPress plugin symli
 
 Currently a placeholder shape; expand as more components join the site.
 
+### `isolated-block-editor.json`
+
+The Isolated Block Editor maintenance rig. Runs the checks used while shaving IBE toward modern Gutenberg APIs:
+
+```bash
+homeboy rig up isolated-block-editor      # preflight checkout + node_modules
+homeboy rig check isolated-block-editor   # npm run build + npm test -- --runInBand
+```
+
+Edit `components.isolated-block-editor.path` to point at a worktree such as `/var/lib/datamachine/workspace/isolated-block-editor@feature-branch` when validating a PR branch. The rig temporarily symlinks the primary checkout's `node_modules` if the worktree does not have its own install.
+
 ## Conventions
 
 - **Component paths** use `~/Developer/<repo>` for primary checkouts and `~/Developer/<repo>@<branch-slug>` for worktrees, mirroring the data-machine-code workspace convention.

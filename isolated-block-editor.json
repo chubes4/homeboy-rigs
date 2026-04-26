@@ -1,0 +1,51 @@
+{
+  "id": "isolated-block-editor",
+  "description": "Isolated Block Editor maintenance rig. Runs the build and unit test checks used when shaving IBE toward modern Gutenberg APIs. Worktree-friendly: if node_modules is missing, temporarily symlinks the primary checkout's node_modules for the command duration.",
+  "components": {
+    "isolated-block-editor": {
+      "path": "/var/lib/datamachine/workspace/isolated-block-editor",
+      "branch": "trunk"
+    }
+  },
+  "pipeline": {
+    "up": [
+      {
+        "kind": "check",
+        "label": "IBE checkout exists",
+        "file": "${components.isolated-block-editor.path}/package.json",
+        "contains": "@chubes4/isolated-block-editor"
+      },
+      {
+        "kind": "check",
+        "label": "Primary node_modules is available",
+        "file": "/var/lib/datamachine/workspace/isolated-block-editor/node_modules/.bin/babel"
+      }
+    ],
+    "check": [
+      {
+        "kind": "check",
+        "label": "IBE checkout exists",
+        "file": "${components.isolated-block-editor.path}/package.json",
+        "contains": "@chubes4/isolated-block-editor"
+      },
+      {
+        "kind": "check",
+        "label": "Primary node_modules is available",
+        "file": "/var/lib/datamachine/workspace/isolated-block-editor/node_modules/.bin/babel"
+      },
+      {
+        "kind": "command",
+        "label": "npm run build",
+        "cwd": "${components.isolated-block-editor.path}",
+        "command": "if [ ! -e node_modules ]; then ln -s /var/lib/datamachine/workspace/isolated-block-editor/node_modules node_modules; trap 'rm node_modules' EXIT; fi; npm run build"
+      },
+      {
+        "kind": "command",
+        "label": "npm test -- --runInBand",
+        "cwd": "${components.isolated-block-editor.path}",
+        "command": "if [ ! -e node_modules ]; then ln -s /var/lib/datamachine/workspace/isolated-block-editor/node_modules node_modules; trap 'rm node_modules' EXIT; fi; npm test -- --runInBand"
+      }
+    ],
+    "down": []
+  }
+}
