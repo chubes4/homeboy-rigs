@@ -6,7 +6,9 @@
       "path": "~/Developer/studio@agent-sdk-baseline",
       "branch": "agent-sdk-baseline",
       "extensions": {
-        "nodejs": {}
+        "nodejs": {
+          "studio_bench_variant": "trunk"
+        }
       }
     }
   },
@@ -15,7 +17,8 @@
   },
   "bench_workloads": {
     "nodejs": [
-      "~/Developer/homeboy-rigs/Automattic/studio/bench/studio-agent-runtime.bench.mjs"
+      "${package.root}/bench/studio-agent-runtime.bench.mjs",
+      "${package.root}/bench/studio-agent-site-build.bench.mjs"
     ]
   },
   "pipeline": {

@@ -15,7 +15,7 @@
   },
   "bench_workloads": {
     "nodejs": [
-      "~/Developer/homeboy-rigs/Automattic/studio/bench/studio-agent-runtime.bench.mjs"
+      "${package.root}/bench/studio-agent-runtime.bench.mjs"
     ]
   },
   "pipeline": {

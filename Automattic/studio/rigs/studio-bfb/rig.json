@@ -4,7 +4,13 @@
   "components": {
     "studio": {
       "path": "~/Developer/studio@bfb-mu-plugin-agent-output",
-      "branch": "bfb-mu-plugin-agent-output"
+      "branch": "bfb-mu-plugin-agent-output",
+      "extensions": {
+        "nodejs": {
+          "studio_bench_variant": "bfb",
+          "studio_bfb_plugin_path": "~/Developer/block-format-bridge@refresh-expanded-h2bc"
+        }
+      }
     },
     "block-format-bridge": {
       "path": "~/Developer/block-format-bridge@refresh-expanded-h2bc",
@@ -18,6 +24,28 @@
         "pattern": "wordpress-server-child.mjs"
       }
     }
+  },
+  "resources": {
+    "exclusive": [
+      "studio-agent-bfb-bench"
+    ],
+    "paths": [
+      "${components.studio.path}",
+      "${components.block-format-bridge.path}"
+    ],
+    "process_patterns": [
+      "wordpress-server-child.mjs"
+    ]
+  },
+  "bench": {
+    "default_component": "studio",
+    "default_baseline_rig": "studio-agent-sdk"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      "${package.root}/bench/studio-agent-runtime.bench.mjs",
+      "${package.root}/bench/studio-agent-site-build.bench.mjs"
+    ]
   },
   "pipeline": {
     "check": [

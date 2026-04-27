@@ -78,6 +78,11 @@ export default async function studioAgentRuntimeBench() {
     JSON.stringify({ prompt, exitCode, stderr, resultFile, result }, null, 2)
   );
 
+  if (result.success !== true) {
+    const detail = typeof result.error === 'string' ? result.error : `exit=${exitCode}`;
+    throw new Error(`Studio eval failed: ${detail}; raw_result=${artifactFile}`);
+  }
+
   const toolCalls = Array.isArray(result.toolCalls) ? result.toolCalls : [];
   const toolResults = Array.isArray(result.toolResults) ? result.toolResults : [];
   const questions = Array.isArray(result.questions) ? result.questions : [];
