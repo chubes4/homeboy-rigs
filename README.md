@@ -1,6 +1,6 @@
 # homeboy-rigs
 
-Personal `homeboy rig` specs. Lives at `~/.config/homeboy/rigs/` on every machine.
+Personal `homeboy rig` and `homeboy stack` specs. Lives at `~/.config/homeboy/rigs/` and `~/.config/homeboy/stacks/` on every machine.
 
 A **rig** is a declarative spec for a reproducible local dev environment — components, services, symlinks, patches, pipelines for `up` / `check` / `down`. Replaces multi-step bash runbooks with one command.
 
@@ -49,6 +49,33 @@ homeboy rig check isolated-block-editor   # npm run build + npm test -- --runInB
 ```
 
 Edit `components.isolated-block-editor.path` to point at a worktree such as `/var/lib/datamachine/workspace/isolated-block-editor@feature-branch` when validating a PR branch. The rig temporarily symlinks the primary checkout's `node_modules` if the worktree does not have its own install.
+
+## Stacks in this repo
+
+Stack specs live under `stacks/`. Install them by copying the JSON files into `~/.config/homeboy/stacks/` until Homeboy grows a package install verb for stacks.
+
+```bash
+mkdir -p ~/.config/homeboy/stacks
+cp stacks/*.json ~/.config/homeboy/stacks/
+```
+
+### `studio-combined`
+
+The PR stack for `~/Developer/studio` on `dev/combined-fixes`. It rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.
+
+```bash
+homeboy stack status studio-combined
+homeboy stack sync --dry-run studio-combined
+```
+
+### `playground-combined`
+
+The PR stack for `~/Developer/wordpress-playground` on `dev/combined-fixes`. It rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active WordPress/wordpress-playground PHP-WASM and worker-pool PRs.
+
+```bash
+homeboy stack status playground-combined
+homeboy stack sync --dry-run playground-combined
+```
 
 ## Conventions
 
