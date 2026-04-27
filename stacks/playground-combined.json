@@ -1,0 +1,31 @@
+{
+  "id": "playground-combined",
+  "description": "WordPress Playground dev/combined-fixes stack: upstream trunk plus Chris's active PHP-WASM and worker-pool PRs.",
+  "component": "wordpress-playground",
+  "component_path": "~/Developer/wordpress-playground",
+  "base": {
+    "remote": "upstream",
+    "branch": "trunk"
+  },
+  "target": {
+    "remote": "origin",
+    "branch": "dev/combined-fixes"
+  },
+  "prs": [
+    {
+      "repo": "WordPress/wordpress-playground",
+      "number": 3494,
+      "note": "Fix intermittent 500 errors from worker pool concurrency issues"
+    },
+    {
+      "repo": "WordPress/wordpress-playground",
+      "number": 3481,
+      "note": "Add nativeSpawn option to RunCLIArgs for host process spawning"
+    },
+    {
+      "repo": "WordPress/wordpress-playground",
+      "number": 3523,
+      "note": "Add stdin option to PHP.cli()"
+    }
+  ]
+}

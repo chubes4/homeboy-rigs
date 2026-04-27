@@ -1,0 +1,41 @@
+{
+  "id": "studio-combined",
+  "description": "Studio dev/combined-fixes stack: Automattic/studio trunk plus Chris's active local-dev PRs.",
+  "component": "studio",
+  "component_path": "~/Developer/studio",
+  "base": {
+    "remote": "origin",
+    "branch": "trunk"
+  },
+  "target": {
+    "remote": "fork",
+    "branch": "dev/combined-fixes"
+  },
+  "prs": [
+    {
+      "repo": "Automattic/studio",
+      "number": 3095,
+      "note": "Preserve custom db.php drop-ins during SQLite integration updates"
+    },
+    {
+      "repo": "Automattic/studio",
+      "number": 3057,
+      "note": "Replace no-op spawn handler with native child_process.spawn bridge"
+    },
+    {
+      "repo": "Automattic/studio",
+      "number": 3099,
+      "note": "Auto-mount host directories referenced in wp-config.php"
+    },
+    {
+      "repo": "Automattic/studio",
+      "number": 3120,
+      "note": "Allow longer time-to-first-byte for AI API requests"
+    },
+    {
+      "repo": "Automattic/studio",
+      "number": 3211,
+      "note": "Forward host stdin to wp-cli through the server daemon"
+    }
+  ]
+}
