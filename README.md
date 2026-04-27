@@ -52,7 +52,7 @@ Edit `components.isolated-block-editor.path` to point at a worktree such as `/va
 
 ## Stacks in this repo
 
-Stack specs live under `stacks/`. Install them by copying the JSON files into `~/.config/homeboy/stacks/` until Homeboy grows a package install verb for stacks.
+Stack specs live under `stacks/`. Install them by copying the JSON files into `~/.config/homeboy/stacks/` until Homeboy's rig package lifecycle installs stack specs too (tracked in Extra-Chill/homeboy#1734).
 
 ```bash
 mkdir -p ~/.config/homeboy/stacks
