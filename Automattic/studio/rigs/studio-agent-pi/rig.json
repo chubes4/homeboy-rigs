@@ -1,0 +1,49 @@
+{
+  "id": "studio-agent-pi",
+  "description": "Studio agent runtime candidate: Automattic/studio PR #3246 / pi-agent-core unified runtime. Compared against studio-agent-sdk via Homeboy bench.",
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio@pi-runtime-candidate",
+      "branch": "pi-runtime-candidate",
+      "extensions": {
+        "nodejs": {}
+      }
+    }
+  },
+  "bench": {
+    "default_component": "studio"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      "~/Developer/homeboy-rigs/Automattic/studio/bench/studio-agent-runtime.bench.mjs"
+    ]
+  },
+  "pipeline": {
+    "up": [
+      {
+        "kind": "command",
+        "label": "Install Studio dependencies",
+        "cwd": "${components.studio.path}",
+        "command": "npm install"
+      },
+      {
+        "kind": "command",
+        "label": "Build Studio CLI",
+        "cwd": "${components.studio.path}",
+        "command": "npm run cli:build --silent"
+      }
+    ],
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio CLI eval runner built",
+        "file": "${components.studio.path}/apps/cli/dist/cli/eval-runner.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Studio package dependencies installed",
+        "file": "${components.studio.path}/node_modules"
+      }
+    ]
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "id": "studio-bfb",
+  "description": "Local Studio/BFB mu-plugin playground. Builds the hacked Studio CLI that honors STUDIO_BFB_MU_PLUGIN_PATH and stops any stale Studio daemon so local `studio wp`/CLI runs use the BFB mu-plugin substrate. Local play rig only; not a PR shape.",
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio@bfb-mu-plugin-agent-output",
+      "branch": "bfb-mu-plugin-agent-output"
+    },
+    "block-format-bridge": {
+      "path": "~/Developer/block-format-bridge@refresh-expanded-h2bc",
+      "branch": "studio-bfb-fixed-main"
+    }
+  },
+  "services": {
+    "studio-daemon": {
+      "kind": "external",
+      "discover": {
+        "pattern": "wordpress-server-child.mjs"
+      }
+    }
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio experiment worktree exists",
+        "file": "${components.studio.path}/apps/cli/ai/system-prompt.ts"
+      },
+      {
+        "kind": "check",
+        "label": "BFB refresh worktree has bundled artifact",
+        "file": "${components.block-format-bridge.path}/vendor_prefixed/autoload.php"
+      },
+      {
+        "kind": "check",
+        "label": "BFB scoped h2bc hook fix is present",
+        "file": "${components.block-format-bridge.path}/vendor_prefixed/chubes4/html-to-blocks-converter/includes/hooks.php",
+        "contains": "function_exists('add_filter')"
+      },
+      {
+        "kind": "check",
+        "label": "Studio BFB env hook is present",
+        "file": "${components.studio.path}/tools/common/lib/mu-plugins.ts",
+        "contains": "STUDIO_BFB_MU_PLUGIN_PATH"
+      },
+      {
+        "kind": "check",
+        "label": "Studio prompt asks for semantic raw HTML",
+        "file": "${components.studio.path}/apps/cli/ai/system-prompt.ts",
+        "contains": "semantic raw HTML"
+      },
+      {
+        "kind": "check",
+        "label": "Direct page/template raw HTML writes store native blocks",
+        "command": "STUDIO_BFB_MU_PLUGIN_PATH=${components.block-format-bridge.path} /Users/chubes/.nvm/versions/node/v24.13.1/bin/node ${components.studio.path}/apps/cli/scripts/studio-bfb-smoke.mjs",
+        "expect_exit": 0
+      }
+    ],
+    "up": [
+      {
+        "kind": "command",
+        "label": "npm install Studio experiment worktree",
+        "command": "/Users/chubes/.nvm/versions/node/v24.13.1/bin/npm install",
+        "cwd": "${components.studio.path}"
+      },
+      {
+        "kind": "command",
+        "label": "Build Studio CLI experiment worktree",
+        "command": "/Users/chubes/.nvm/versions/node/v24.13.1/bin/npm run build",
+        "cwd": "${components.studio.path}/apps/cli"
+      },
+      {
+        "kind": "service",
+        "id": "studio-daemon",
+        "op": "stop"
+      }
+    ],
+    "down": [
+      {
+        "kind": "service",
+        "id": "studio-daemon",
+        "op": "stop"
+      }
+    ]
+  }
+}
