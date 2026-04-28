@@ -92,12 +92,25 @@ function expandHome(value) {
 }
 
 function variant() {
-  return process.env.HOMEBOY_SETTINGS_STUDIO_BENCH_VARIANT || path.basename(STUDIO_PATH);
+  return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
+}
+
+function setting(key) {
+  try {
+    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
+    if (settings && typeof settings[key] === 'string') {
+      return settings[key];
+    }
+  } catch {
+    // Ignore malformed settings and fall back to direct env/debug defaults.
+  }
+  const envKey = `HOMEBOY_SETTINGS_${key.toUpperCase()}`;
+  return process.env[envKey] || '';
 }
 
 function cliEnv(extra = {}) {
   const bfbPath = expandHome(
-    process.env.HOMEBOY_SETTINGS_STUDIO_BFB_PLUGIN_PATH || process.env.STUDIO_BFB_MU_PLUGIN_PATH || ''
+    setting('studio_bfb_plugin_path') || process.env.STUDIO_BFB_MU_PLUGIN_PATH || ''
   );
   return {
     ...process.env,
