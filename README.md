@@ -59,7 +59,7 @@ homeboy rig up studio-bfb
 homeboy bench --rig studio-bfb --iterations 1 --shared-state /tmp/studio-bfb-bench
 ```
 
-The site-build workload is `bench/studio-agent-site-build.bench.mjs`. It creates a fresh Studio site per run, sends the same prompt to both variants, and reports speed plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `validate_call_count`, etc.).
+The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`. It creates a fresh Studio site per run, inserts one raw HTML page, and reports phase timings plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `serialized_block_comments`, etc.) scoped to that inserted page.
 
 `rigs/studio-agent-sdk/rig.json` and `rigs/studio-agent-pi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
 
