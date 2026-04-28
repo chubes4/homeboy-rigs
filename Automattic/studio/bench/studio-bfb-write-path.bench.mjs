@@ -20,20 +20,11 @@ const RAW_HTML = `
   </section>
   <section class="highlights">
     <h2>Bakery favorites</h2>
-    <div class="cards">
-      <article>
-        <h3>Sea Salt Croissants</h3>
-        <p>Layered butter pastry finished with a quiet sparkle of Atlantic salt.</p>
-      </article>
-      <article>
-        <h3>Brown Sugar Morning Buns</h3>
-        <p>Soft spirals with citrus, cinnamon, and a caramelized edge.</p>
-      </article>
-      <article>
-        <h3>Harbor Sourdough</h3>
-        <p>A slow-fermented loaf with a blistered crust and tender crumb.</p>
-      </article>
-    </div>
+    <ul>
+      <li><strong>Sea Salt Croissants</strong> — layered butter pastry finished with Atlantic salt.</li>
+      <li><strong>Brown Sugar Morning Buns</strong> — soft spirals with citrus, cinnamon, and caramelized edges.</li>
+      <li><strong>Harbor Sourdough</strong> — a slow-fermented loaf with a blistered crust and tender crumb.</li>
+    </ul>
   </section>
   <blockquote>
     <p>"The kind of neighborhood bakery that makes Saturday feel planned by someone who loves you."</p>
@@ -105,7 +96,9 @@ function variant() {
 }
 
 function cliEnv(extra = {}) {
-  const bfbPath = expandHome(process.env.HOMEBOY_SETTINGS_STUDIO_BFB_PLUGIN_PATH || '');
+  const bfbPath = expandHome(
+    process.env.HOMEBOY_SETTINGS_STUDIO_BFB_PLUGIN_PATH || process.env.STUDIO_BFB_MU_PLUGIN_PATH || ''
+  );
   return {
     ...process.env,
     ...(bfbPath ? { STUDIO_BFB_MU_PLUGIN_PATH: bfbPath } : {}),
@@ -157,6 +150,10 @@ async function createFreshSite(sitePath) {
   ]);
 }
 
+async function stopSite(sitePath) {
+  await runCli(['site', 'stop', '--path', sitePath], { allowFailure: true });
+}
+
 async function writeRawHtmlPage(sitePath) {
   const encodedContent = Buffer.from(RAW_HTML).toString('base64');
   const insertCode = `
@@ -203,6 +200,7 @@ export default async function studioBfbWritePathBench() {
   const started = Date.now();
   const siteCreateStarted = Date.now();
   await createFreshSite(sitePath);
+  await stopSite(sitePath);
   const siteCreateMs = Date.now() - siteCreateStarted;
 
   const writeStarted = Date.now();
