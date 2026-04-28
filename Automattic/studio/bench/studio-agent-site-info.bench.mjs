@@ -20,12 +20,7 @@ function runEval(prompt, vars) {
       [evalRunner, prompt, 'unused-provider-slot', JSON.stringify({ vars: { prompt, ...vars } })],
       {
         cwd: STUDIO_PATH,
-        env: {
-          ...process.env,
-          // The eval runner intentionally deletes CLAUDECODE, but clearing it
-          // here keeps child-process behaviour stable if that implementation changes.
-          CLAUDECODE: '',
-        },
+        env: { ...process.env, CLAUDECODE: '' },
       }
     );
 
@@ -60,62 +55,65 @@ function runEval(prompt, vars) {
   });
 }
 
-export default async function studioAgentRuntimeBench() {
-  const prompt = 'In one short sentence, tell me who you are. Do not call any tools.';
+function metric(value) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+export default async function studioAgentSiteInfoBench() {
+  const prompt = 'Use only the Studio site_info tool for the site named intelligence-chubes4, then answer with its running status in one sentence. Do not use any other tools.';
   const started = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
-    maxTurns: 12,
+    maxTurns: 5,
     timeoutMs: 60000,
-    askUserPolicy: 'allow_all',
   });
   const elapsedMs = Date.now() - started;
 
-  const artifactDir = path.join(SHARED_STATE, 'studio-agent-runtime-artifacts');
+  const artifactDir = path.join(SHARED_STATE, 'studio-agent-site-info-artifacts');
   await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${process.pid}-${Date.now()}.json`);
-  await writeFile(
-    artifactFile,
-    JSON.stringify({ prompt, exitCode, stderr, resultFile, result }, null, 2)
-  );
+  await writeFile(artifactFile, JSON.stringify({ prompt, exitCode, stderr, resultFile, result }, null, 2));
 
   if (result.success !== true) {
     const detail = typeof result.error === 'string' ? result.error : `exit=${exitCode}`;
     throw new Error(`Studio eval failed: ${detail}; raw_result=${artifactFile}`);
   }
 
-  const toolCalls = Array.isArray(result.toolCalls) ? result.toolCalls : [];
-  const toolResults = Array.isArray(result.toolResults) ? result.toolResults : [];
-  const questions = Array.isArray(result.questions) ? result.questions : [];
-  const turnDurations = Array.isArray(result.turnDurationsMs) ? result.turnDurationsMs : [];
   const phaseTimings = result.phaseTimingsMs && typeof result.phaseTimingsMs === 'object' ? result.phaseTimingsMs : {};
   const toolEvents = Array.isArray(result.toolEvents) ? result.toolEvents : [];
+  const siteInfoEvents = toolEvents.filter((event) => event && event.toolName === 'site_info');
+  const toolDurations = toolEvents.map((event) => metric(event?.durationMs)).filter((value) => value > 0);
   const text = Array.isArray(result.textSegments) ? result.textSegments.join('\n') : '';
-  const identifiesStudio = /WordPress\s+Studio/i.test(text) ? 1 : 0;
-  const success = result.success === true ? 1 : 0;
-  const completedToolDurations = toolEvents
-    .map((item) => Number(item?.durationMs ?? 0))
-    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (siteInfoEvents.length !== 1 || toolEvents.length !== 1) {
+    throw new Error(
+      `Expected exactly one site_info tool call and no other tools; saw ${siteInfoEvents.length}/${toolEvents.length}; raw_result=${artifactFile}`
+    );
+  }
+  if (siteInfoEvents[0].isError === true) {
+    throw new Error(`site_info returned an error; raw_result=${artifactFile}`);
+  }
+  if (!/offline/i.test(text)) {
+    throw new Error(`Expected assistant answer to mention offline status; raw_result=${artifactFile}`);
+  }
 
   return {
     metrics: {
-      success_rate: success,
-      identifies_studio_rate: identifiesStudio,
+      success_rate: 1,
       elapsed_ms: elapsedMs,
-      phase_resolve_initial_provider_ms: Number(phaseTimings.resolve_initial_provider_ms ?? 0),
-      phase_resolve_unavailable_provider_ms: Number(phaseTimings.resolve_unavailable_provider_ms ?? 0),
-      phase_resolve_ai_environment_ms: Number(phaseTimings.resolve_ai_environment_ms ?? 0),
-      phase_start_ai_agent_ms: Number(phaseTimings.start_ai_agent_ms ?? 0),
-      phase_first_assistant_message_ms: Number(phaseTimings.first_assistant_message_ms ?? 0),
-      phase_total_eval_ms: Number(phaseTimings.total_eval_ms ?? 0),
-      turn_count: Number(result.numTurns ?? turnDurations.length ?? 0),
-      assistant_message_count: turnDurations.length,
-      max_turn_ms: turnDurations.length ? Math.max(...turnDurations) : 0,
-      tool_call_count: toolCalls.length,
-      tool_error_count: toolResults.filter((item) => item && item.isError === true).length,
+      phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
+      phase_resolve_unavailable_provider_ms: metric(phaseTimings.resolve_unavailable_provider_ms),
+      phase_resolve_ai_environment_ms: metric(phaseTimings.resolve_ai_environment_ms),
+      phase_start_ai_agent_ms: metric(phaseTimings.start_ai_agent_ms),
+      phase_first_assistant_message_ms: metric(phaseTimings.first_assistant_message_ms),
+      phase_total_eval_ms: metric(phaseTimings.total_eval_ms),
+      turn_count: metric(result.numTurns),
       tool_event_count: toolEvents.length,
-      max_tool_duration_ms: completedToolDurations.length ? Math.max(...completedToolDurations) : 0,
-      question_count: questions.length,
-      permission_question_count: questions.filter((item) => item && item.isPermission === true).length,
+      site_info_tool_count: siteInfoEvents.length,
+      max_tool_duration_ms: toolDurations.length ? Math.max(...toolDurations) : 0,
+      site_info_duration_ms: siteInfoEvents.length ? metric(siteInfoEvents[0].durationMs) : 0,
+      tool_error_count: toolEvents.filter((event) => event && event.isError === true).length,
+      answered_offline_rate: /offline/i.test(text) ? 1 : 0,
     },
     artifacts: {
       raw_result: artifactFile,
