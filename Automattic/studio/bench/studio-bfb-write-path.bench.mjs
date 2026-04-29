@@ -269,9 +269,6 @@ export default async function studioBfbWritePathBench() {
     artifacts: {
       raw_result: artifactFile,
       site_path: sitePath,
-      page_id: writeResult.page_id,
-      stored_content_hash: quality.stored_content_hash,
-      stored_content_bytes: quality.stored_content_bytes,
     },
   };
 }

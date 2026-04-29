@@ -52,6 +52,14 @@ homeboy rig up studio
 homeboy rig down studio
 ```
 
+`rigs/studio/rig.json` also declares the `studio-site-create` bench workload for timing fresh Studio site provisioning through the combined-fixes dev copy.
+
+```bash
+homeboy bench --rig studio --scenario studio-site-create --iterations 1 --shared-state /tmp/studio-site-create-bench
+```
+
+The workload creates one `--no-start` site and one normally-started site per iteration, then reports create, started-site status, stop, and total timings. Artifacts are written below the shared-state directory for inspection.
+
 `rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-sdk` as its default benchmark baseline for trunk-vs-BFB agent site-build comparisons.
 
 ```bash
