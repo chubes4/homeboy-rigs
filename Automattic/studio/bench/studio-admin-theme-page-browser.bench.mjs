@@ -119,7 +119,7 @@ function redact(text) {
   return String(text || '')
     .replace(/("adminPassword"\s*:\s*")[^"]+(")/g, '$1[redacted]$2')
     .replace(/("autoLoginUrl"\s*:\s*")[^"]+(")/g, '$1[redacted]$2')
-    .replace(/([?&](?:token|password|key|nonce)=[^&\s"']+)/gi, '[redacted-query]');
+    .replace(/([?&](?:token|password|key|nonce|_ajax_nonce|_wpnonce)=)[^&\s"']+/gi, '$1[redacted]');
 }
 
 function safeResult(result) {
