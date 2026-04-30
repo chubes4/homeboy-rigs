@@ -60,6 +60,28 @@ homeboy bench --rig studio --scenario studio-site-create --iterations 1 --shared
 
 The workload creates one `--no-start` site and one normally-started site per iteration, then reports create, started-site status, stop, and total timings. Artifacts are written below the shared-state directory for inspection.
 
+The Studio trace workload exercises the packaged app at `apps/studio/out` and records create-site readiness boundaries across the desktop shell, CLI log output, `cli.json`, HTTP readiness, `getSiteDetails()`, and the visible running-state UI.
+
+```bash
+homeboy trace --rig studio studio list
+homeboy trace --rig studio studio studio-app-create-site --output /tmp/studio-app-create-site-trace.json
+```
+
+Canonical Studio create-site trace spans, pending Homeboy's trace span summary support:
+
+| Span | From | To |
+|---|---|---|
+| `app_launch` | `desktop.app_launch_start` | `desktop.first_window.ready` |
+| `submit_to_temp_site` | `ui.create_site.submit_clicked` | `probe.site_details_seen` |
+| `submit_to_cli` | `ui.create_site.submit_clicked` | `cli.validating_site_configuration` |
+| `site_scaffold` | `cli.validating_site_configuration` | `cli.starting_wordpress_server` |
+| `server_to_port` | `cli.starting_wordpress_server` | `probe.cli_config_port_known` |
+| `port_to_first_http` | `probe.cli_config_port_known` | `probe.http_first_response` |
+| `http_warmup` | `probe.http_first_response` | `probe.http_ready` |
+| `ready_to_state` | `probe.http_ready` | `probe.site_details_running_true` |
+| `state_to_ui` | `probe.site_details_running_true` | `ui.site.running_visible` |
+| `submit_to_running` | `ui.create_site.submit_clicked` | `ui.site.running_visible` |
+
 `rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-sdk` as its default benchmark baseline for trunk-vs-BFB agent site-build comparisons.
 
 ```bash

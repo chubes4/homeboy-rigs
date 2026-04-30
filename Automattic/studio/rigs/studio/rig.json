@@ -59,6 +59,15 @@
     ]
   },
 
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/studio-app-create-site.trace.mjs",
+        "check_groups": []
+      }
+    ]
+  },
+
   "pipeline": {
     "check": [
       {
