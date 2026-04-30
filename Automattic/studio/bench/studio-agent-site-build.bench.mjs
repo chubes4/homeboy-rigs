@@ -25,11 +25,24 @@ function expandHome(value) {
 }
 
 function variant() {
-  return process.env.HOMEBOY_SETTINGS_STUDIO_BENCH_VARIANT || path.basename(STUDIO_PATH);
+  return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
+}
+
+function setting(key) {
+  try {
+    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
+    if (settings && typeof settings[key] === 'string') {
+      return settings[key];
+    }
+  } catch {
+    // Ignore malformed settings and fall back to direct env/debug defaults.
+  }
+
+  return process.env[`HOMEBOY_SETTINGS_${key.toUpperCase()}`] || '';
 }
 
 function cliEnv(extra = {}) {
-  const bfbPath = expandHome(process.env.HOMEBOY_SETTINGS_STUDIO_BFB_PLUGIN_PATH || '');
+  const bfbPath = expandHome(setting('studio_bfb_plugin_path') || '');
   return {
     ...process.env,
     ...(bfbPath ? { STUDIO_BFB_MU_PLUGIN_PATH: bfbPath } : {}),
@@ -99,7 +112,10 @@ Requirements:
 - Include a hero section, three product highlights, one customer quote, hours/location details, and a clear call-to-action.
 - Keep the content concise but visually complete.
 - Use the normal Studio WordPress tools available to you.
-- Validate the final stored block content with validate_blocks.
+- Provide a raw HTML body fragment for page content; block conversion happens automatically when WordPress stores it.
+- Put CSS in the theme stylesheet if styling is needed.
+- Do not create additional pages, plugins, screenshots, SEO audits, or performance audits.
+- This is a benchmark: write the single page, then stop.
 - Do not ask the user questions; make reasonable choices and finish.`;
 }
 
@@ -135,11 +151,22 @@ function bench_count_blocks( $blocks, &$counts ) {
 $counts = array(
     'posts_seen' => 0,
     'posts_with_blocks' => 0,
+    'pages_seen' => 0,
+    'templates_seen' => 0,
+    'template_parts_seen' => 0,
+    'target_pages_seen' => 0,
+    'target_posts_with_blocks' => 0,
+    'target_raw_html_unconverted' => 0,
+    'target_total_blocks' => 0,
+    'target_core_html_blocks' => 0,
+    'target_serialized_block_comments' => 0,
     'total_blocks' => 0,
     'core_html_blocks' => 0,
     'serialized_block_comments' => 0,
     'bfb_fallback_count' => (int) get_option( 'studio_bfb_unsupported_fallback_count', 0 ),
 );
+
+$front_page_id = (int) get_option( 'page_on_front', 0 );
 
 $posts = get_posts( array(
     'post_type' => array( 'page', 'wp_template', 'wp_template_part' ),
@@ -153,12 +180,40 @@ foreach ( $posts as $post ) {
         continue;
     }
     $counts['posts_seen']++;
+    if ( 'page' === $post->post_type ) {
+        $counts['pages_seen']++;
+    }
+    if ( 'wp_template' === $post->post_type ) {
+        $counts['templates_seen']++;
+    }
+    if ( 'wp_template_part' === $post->post_type ) {
+        $counts['template_parts_seen']++;
+    }
     $counts['serialized_block_comments'] += substr_count( $content, '<!-- wp:' );
     if ( false !== strpos( $content, '<!-- wp:' ) ) {
         $counts['posts_with_blocks']++;
     }
+    $before_total     = $counts['total_blocks'];
+    $before_core_html = $counts['core_html_blocks'];
     bench_count_blocks( parse_blocks( $content ), $counts );
+
+    $is_target_page = 'page' === $post->post_type && ( (int) $post->ID === $front_page_id || 'Salt & Star' === $post->post_title );
+    if ( $is_target_page ) {
+        $counts['target_pages_seen']++;
+        $counts['target_serialized_block_comments'] += substr_count( $content, '<!-- wp:' );
+        if ( false !== strpos( $content, '<!-- wp:' ) ) {
+            $counts['target_posts_with_blocks']++;
+        }
+        if ( false === strpos( $content, '<!-- wp:' ) && preg_match( '/<\/?[a-z][\s>]/i', $content ) ) {
+            $counts['target_raw_html_unconverted']++;
+        }
+        $counts['target_total_blocks'] += $counts['total_blocks'] - $before_total;
+        $counts['target_core_html_blocks'] += $counts['core_html_blocks'] - $before_core_html;
+    }
 }
+
+$counts['core_html_without_bfb_fallback'] = max( 0, $counts['core_html_blocks'] - $counts['bfb_fallback_count'] );
+$counts['target_core_html_without_bfb_fallback'] = max( 0, $counts['target_core_html_blocks'] - $counts['bfb_fallback_count'] );
 
 echo wp_json_encode( $counts, JSON_PRETTY_PRINT ) . PHP_EOL;
 `;
@@ -187,6 +242,39 @@ function validationMetrics(result) {
   return { validateCallCount, validateErrorCount, validatedAllCount };
 }
 
+function metric(value) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function toolMetrics(result) {
+  const toolEvents = Array.isArray(result.toolEvents) ? result.toolEvents : [];
+  const names = ['site_info', 'wp_cli', 'validate_blocks', 'take_screenshot', 'Write', 'Edit'];
+  const metrics = {
+    tool_event_count: toolEvents.length,
+    max_tool_duration_ms: 0,
+  };
+
+  for (const event of toolEvents) {
+    const duration = metric(event?.durationMs);
+    if (duration > metrics.max_tool_duration_ms) {
+      metrics.max_tool_duration_ms = duration;
+    }
+  }
+
+  for (const name of names) {
+    const events = toolEvents.filter((event) => event && event.toolName === name);
+    const durations = events.map((event) => metric(event?.durationMs)).filter((value) => value > 0);
+    const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    metrics[`${key}_tool_count`] = events.length;
+    metrics[`${key}_error_count`] = events.filter((event) => event.isError === true).length;
+    metrics[`${key}_duration_ms`] = durations.reduce((sum, value) => sum + value, 0);
+    metrics[`${key}_max_duration_ms`] = durations.length ? Math.max(...durations) : 0;
+  }
+
+  return metrics;
+}
+
 export default async function studioAgentSiteBuildBench() {
   const currentVariant = variant();
   const runId = `${currentVariant}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -194,7 +282,10 @@ export default async function studioAgentSiteBuildBench() {
   const sitePath = path.join(artifactDir, 'sites', runId);
   await mkdir(path.dirname(sitePath), { recursive: true });
 
+  const totalStarted = Date.now();
+  const siteCreateStarted = Date.now();
   await createFreshSite(sitePath);
+  const siteCreateMs = Date.now() - siteCreateStarted;
 
   const prompt = siteBuildPrompt(sitePath);
   const agentStarted = Date.now();
@@ -203,41 +294,84 @@ export default async function studioAgentSiteBuildBench() {
     timeoutMs: 420000,
   });
   const agentElapsedMs = Date.now() - agentStarted;
+  const qualityProbeStarted = Date.now();
   const quality = await probeQuality(sitePath);
+  const qualityProbeMs = Date.now() - qualityProbeStarted;
+  const totalElapsedMs = Date.now() - totalStarted;
   const validation = validationMetrics(result);
 
   await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
   await writeFile(
     artifactFile,
-    JSON.stringify({ variant: currentVariant, prompt, sitePath, exitCode, stderr, resultFile, result, quality }, null, 2)
+    JSON.stringify(
+      {
+        variant: currentVariant,
+        prompt,
+        sitePath,
+        exitCode,
+        stderr,
+        resultFile,
+        result,
+        timings: {
+          site_create_ms: siteCreateMs,
+          agent_elapsed_ms: agentElapsedMs,
+          quality_probe_ms: qualityProbeMs,
+          total_elapsed_ms: totalElapsedMs,
+        },
+        quality,
+        validation,
+      },
+      null,
+      2
+    )
   );
-
-  if (result.success !== true) {
-    const detail = typeof result.error === 'string' ? result.error : `exit=${exitCode}`;
-    throw new Error(`Studio site-build eval failed: ${detail}; raw_result=${artifactFile}`);
-  }
 
   const toolCalls = Array.isArray(result.toolCalls) ? result.toolCalls : [];
   const toolResults = Array.isArray(result.toolResults) ? result.toolResults : [];
   const turnDurations = Array.isArray(result.turnDurationsMs) ? result.turnDurationsMs : [];
+  const phaseTimings = result.phaseTimingsMs && typeof result.phaseTimingsMs === 'object' ? result.phaseTimingsMs : {};
+  const toolBreakdown = toolMetrics(result);
 
   return {
     metrics: {
-      success_rate: 1,
+      success_rate: result.success === true ? 1 : 0,
+      agent_error_rate: result.success === true ? 0 : 1,
+      elapsed_ms: totalElapsedMs,
+      site_create_ms: siteCreateMs,
       agent_elapsed_ms: agentElapsedMs,
+      quality_probe_ms: qualityProbeMs,
+      total_elapsed_ms: totalElapsedMs,
+      phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
+      phase_resolve_unavailable_provider_ms: metric(phaseTimings.resolve_unavailable_provider_ms),
+      phase_resolve_ai_environment_ms: metric(phaseTimings.resolve_ai_environment_ms),
+      phase_start_ai_agent_ms: metric(phaseTimings.start_ai_agent_ms),
+      phase_first_assistant_message_ms: metric(phaseTimings.first_assistant_message_ms),
+      phase_total_eval_ms: metric(phaseTimings.total_eval_ms),
       turn_count: Number(result.numTurns ?? turnDurations.length ?? 0),
       assistant_message_count: turnDurations.length,
       max_turn_ms: turnDurations.length ? Math.max(...turnDurations) : 0,
       tool_call_count: toolCalls.length,
       tool_error_count: toolResults.filter((item) => item && item.isError === true).length,
+      ...toolBreakdown,
       validate_call_count: validation.validateCallCount,
       validate_error_count: validation.validateErrorCount,
       validated_all_count: validation.validatedAllCount,
       posts_seen: Number(quality.posts_seen || 0),
       posts_with_blocks: Number(quality.posts_with_blocks || 0),
+      pages_seen: Number(quality.pages_seen || 0),
+      templates_seen: Number(quality.templates_seen || 0),
+      template_parts_seen: Number(quality.template_parts_seen || 0),
+      target_pages_seen: Number(quality.target_pages_seen || 0),
+      target_posts_with_blocks: Number(quality.target_posts_with_blocks || 0),
+      target_raw_html_unconverted: Number(quality.target_raw_html_unconverted || 0),
+      target_total_blocks: Number(quality.target_total_blocks || 0),
+      target_core_html_blocks: Number(quality.target_core_html_blocks || 0),
+      target_serialized_block_comments: Number(quality.target_serialized_block_comments || 0),
       total_blocks: Number(quality.total_blocks || 0),
       core_html_blocks: Number(quality.core_html_blocks || 0),
+      core_html_without_bfb_fallback: Number(quality.core_html_without_bfb_fallback || 0),
+      target_core_html_without_bfb_fallback: Number(quality.target_core_html_without_bfb_fallback || 0),
       serialized_block_comments: Number(quality.serialized_block_comments || 0),
       bfb_fallback_count: Number(quality.bfb_fallback_count || 0),
     },

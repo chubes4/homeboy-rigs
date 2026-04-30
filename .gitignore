@@ -2,3 +2,6 @@
 # Each rig writes its state to <id>.state/ alongside <id>.json. Not portable
 # across machines.
 *.state/
+
+# Local benchmark outputs and artifacts.
+.bench-output/

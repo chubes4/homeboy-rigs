@@ -5,7 +5,12 @@
   "components": {
     "studio": {
       "path": "~/Developer/studio",
-      "branch": "dev/combined-fixes"
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "studio_bench_variant": "combined-fixes"
+        }
+      }
     },
     "wordpress-playground": {
       "path": "~/Developer/wordpress-playground",
@@ -41,6 +46,18 @@
       "target": "../../packages/playground/wordpress-builds"
     }
   ],
+
+  "bench": {
+    "default_component": "studio"
+  },
+
+  "bench_workloads": {
+    "nodejs": [
+      "${package.root}/bench/studio-site-create.bench.mjs",
+      "${package.root}/bench/studio-admin-theme-page.bench.mjs",
+      "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs"
+    ]
+  },
 
   "pipeline": {
     "check": [
@@ -118,7 +135,7 @@
       {
         "kind": "check",
         "label": "Live proc_open end-to-end (the truth)",
-        "command": "rm -f /tmp/_studio_rig_check_marker && out=$(studio wp eval '$h = proc_open(\"touch /tmp/_studio_rig_check_marker && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f /tmp/_studio_rig_check_marker && echo \"$out\" | grep -q ok",
+        "command": "rm -f /tmp/_studio_rig_check_marker && out=$(studio wp --path ~/Studio/intelligence-chubes4 eval '$h = proc_open(\"touch /tmp/_studio_rig_check_marker && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f /tmp/_studio_rig_check_marker && echo \"$out\" | grep -q ok",
         "expect_exit": 0
       }
     ],

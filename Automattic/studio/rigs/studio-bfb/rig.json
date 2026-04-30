@@ -44,6 +44,7 @@
   "bench_workloads": {
     "nodejs": [
       "${package.root}/bench/studio-agent-runtime.bench.mjs",
+      "${package.root}/bench/studio-agent-site-build.bench.mjs",
       "${package.root}/bench/studio-bfb-write-path.bench.mjs"
     ]
   },
@@ -73,9 +74,9 @@
       },
       {
         "kind": "check",
-        "label": "Studio prompt asks for semantic raw HTML",
+        "label": "Studio prompt asks for raw HTML",
         "file": "${components.studio.path}/apps/cli/ai/system-prompt.ts",
-        "contains": "semantic raw HTML"
+        "contains": "Block conversion happens automatically"
       },
       {
         "kind": "check",
