@@ -242,6 +242,57 @@ function validationMetrics(result) {
   return { validateCallCount, validateErrorCount, validatedAllCount };
 }
 
+function countMatches(value, pattern) {
+  return typeof value === 'string' ? (value.match(pattern) || []).length : 0;
+}
+
+export function agentAuthoredBlockMetrics(result) {
+  const toolCalls = Array.isArray(result?.toolCalls) ? result.toolCalls : [];
+  const writeCalls = toolCalls.filter((item) => item && item.name === 'Write');
+  let agentAuthoredWpHtmlOpeners = 0;
+  let agentAuthoredWpBlockComments = 0;
+  let agentAuthoredWpHtmlWriteCalls = 0;
+
+  for (const call of writeCalls) {
+    const content = typeof call?.input?.content === 'string' ? call.input.content : '';
+    const wpHtmlOpeners = countMatches(content, /<!--\s+wp:html\b/g);
+    agentAuthoredWpHtmlOpeners += wpHtmlOpeners;
+    agentAuthoredWpBlockComments += countMatches(content, /<!--\s+\/?wp:/g);
+    if (wpHtmlOpeners > 0) {
+      agentAuthoredWpHtmlWriteCalls++;
+    }
+  }
+
+  return {
+    agent_authored_wp_html_openers: agentAuthoredWpHtmlOpeners,
+    agent_authored_wp_html_write_calls: agentAuthoredWpHtmlWriteCalls,
+    agent_authored_wp_block_comments: agentAuthoredWpBlockComments,
+  };
+}
+
+export function nativeBlockQualityMetrics(quality, authoredBlocks) {
+  const reasons = [];
+  const bfbFallbackCount = metric(quality?.bfb_fallback_count);
+  const coreHtmlWithoutBfbFallback = metric(quality?.core_html_without_bfb_fallback);
+  const agentAuthoredWpHtmlOpeners = metric(authoredBlocks.agent_authored_wp_html_openers);
+
+  if (agentAuthoredWpHtmlOpeners > 0) {
+    reasons.push('agent_authored_wp_html');
+  }
+  if (coreHtmlWithoutBfbFallback > 0) {
+    reasons.push('core_html_without_bfb_fallback');
+  }
+  if (bfbFallbackCount > 0) {
+    reasons.push('bfb_fallback');
+  }
+
+  return {
+    native_block_quality_pass: reasons.length === 0,
+    native_block_quality_failure_count: reasons.length,
+    native_block_quality_failure_reasons: reasons,
+  };
+}
+
 function metric(value) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
@@ -299,6 +350,8 @@ export default async function studioAgentSiteBuildBench() {
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const totalElapsedMs = Date.now() - totalStarted;
   const validation = validationMetrics(result);
+  const authoredBlocks = agentAuthoredBlockMetrics(result);
+  const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks);
 
   await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
@@ -320,6 +373,8 @@ export default async function studioAgentSiteBuildBench() {
           total_elapsed_ms: totalElapsedMs,
         },
         quality,
+        authoredBlocks,
+        nativeBlockQuality,
         validation,
       },
       null,
@@ -357,6 +412,9 @@ export default async function studioAgentSiteBuildBench() {
       validate_call_count: validation.validateCallCount,
       validate_error_count: validation.validateErrorCount,
       validated_all_count: validation.validatedAllCount,
+      ...authoredBlocks,
+      native_block_quality_pass: nativeBlockQuality.native_block_quality_pass ? 1 : 0,
+      native_block_quality_failure_count: nativeBlockQuality.native_block_quality_failure_count,
       posts_seen: Number(quality.posts_seen || 0),
       posts_with_blocks: Number(quality.posts_with_blocks || 0),
       pages_seen: Number(quality.pages_seen || 0),
