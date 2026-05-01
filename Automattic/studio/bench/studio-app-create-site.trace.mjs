@@ -14,6 +14,8 @@ const COMPONENT_ID = process.env.HOMEBOY_COMPONENT_ID || 'studio';
 const SITE_READY_TIMEOUT_MS = Number(process.env.STUDIO_TRACE_SITE_READY_TIMEOUT_MS || 300_000);
 const CAPTURE_SEED_DB_PATH = process.env.STUDIO_TRACE_CAPTURE_SEED_DB_PATH;
 const HELPER_DIR = process.env.HOMEBOY_TRACE_HELPER_DIR;
+const HTTP_PROBE_HOST = process.env.STUDIO_TRACE_HTTP_PROBE_HOST || '127.0.0.1';
+const HTTP_REQUEST_TIMEOUT_MS = Number(process.env.STUDIO_TRACE_HTTP_REQUEST_TIMEOUT_MS || 500);
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -233,11 +235,11 @@ function extractStudioFailureMessage(log) {
 async function pollHttp(port, timeoutMs, getFailureMessage = () => null) {
   if (helperPollHttp) {
     const result = await Promise.race([
-      helperPollHttp(`http://127.0.0.1:${port}/`, {
+      helperPollHttp(`http://${HTTP_PROBE_HOST}:${port}/`, {
         source: 'probe',
         intervalMs: 250,
         readyStatus: 200,
-        requestTimeoutMs: 500,
+        requestTimeoutMs: HTTP_REQUEST_TIMEOUT_MS,
         timeoutMs,
         onEvent: (source, name, data) => {
           event(source, name, data);
@@ -269,8 +271,8 @@ async function pollHttp(port, timeoutMs, getFailureMessage = () => null) {
       throw new Error(failureMessage);
     }
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/`, {
-        signal: AbortSignal.timeout(500),
+      const response = await fetch(`http://${HTTP_PROBE_HOST}:${port}/`, {
+        signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
       });
       if (!sawResponse) {
         event('probe', 'http_first_response', { port, status: response.status });
