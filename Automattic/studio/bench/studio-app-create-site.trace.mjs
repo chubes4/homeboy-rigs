@@ -1,8 +1,9 @@
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
@@ -11,6 +12,8 @@ const ARTIFACT_DIR = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join(tmpdir(
 const SCENARIO_ID = process.env.HOMEBOY_TRACE_SCENARIO || 'studio-app-create-site';
 const COMPONENT_ID = process.env.HOMEBOY_COMPONENT_ID || 'studio';
 const SITE_READY_TIMEOUT_MS = Number(process.env.STUDIO_TRACE_SITE_READY_TIMEOUT_MS || 300_000);
+const CAPTURE_SEED_DB_PATH = process.env.STUDIO_TRACE_CAPTURE_SEED_DB_PATH;
+const HELPER_DIR = process.env.HOMEBOY_TRACE_HELPER_DIR;
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -23,6 +26,9 @@ const playwright = require(require.resolve('playwright', { paths: [STUDIO_PATH] 
 const { findLatestBuild, parseElectronApp } = require(
   require.resolve('electron-playwright-helpers', { paths: [STUDIO_PATH] })
 );
+const { pollHttp: helperPollHttp } = HELPER_DIR
+  ? await import(pathToFileURL(`${HELPER_DIR}/probes.mjs`).href)
+  : { pollHttp: null };
 
 const timeline = [];
 const assertions = [];
@@ -51,15 +57,20 @@ function eventNameFromCliMessage(message) {
 }
 
 function captureCliEvents(chunk) {
-  for (const line of chunk.toString().split(/\r?\n/)) {
-    const match = line.match(
-      /^\[CLI - ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\s+(.*)$/i
-    );
+	for (const line of chunk.toString().split(/\r?\n/)) {
+		captureHarnessEvent(line);
+		const match = line.match(
+			/^\[CLI - ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\s+(.*)$/i
+		);
     if (!match) {
       continue;
     }
-    const [, commandId, message] = match;
-    const eventName = eventNameFromCliMessage(message);
+		const [, commandId, message] = match;
+		if (message.startsWith('[HOMEBOY_TRACE] ')) {
+			captureHarnessEvent(message);
+			continue;
+		}
+		const eventName = eventNameFromCliMessage(message);
     const key = `${commandId}:${eventName}`;
     if (!eventName || seenCliMessages.has(key)) {
       continue;
@@ -141,14 +152,122 @@ async function installIpcProbe(mainWindow) {
   });
 }
 
+async function installRendererStateProbe(mainWindow, siteName) {
+  const result = await mainWindow.evaluate((name) => {
+    if (window.__homeboyRendererStateProbeInstalled) {
+      return { installed: true, alreadyInstalled: true };
+    }
+
+    const emit = (eventName, data = {}) => {
+      console.log(`[HOMEBOY_TRACE] ${JSON.stringify({ source: 'renderer', event: eventName, data })}`);
+    };
+
+    window.ipcListener?.subscribe?.('site-event', (_event, siteEvent) => {
+      const site = siteEvent?.site;
+      if (site?.name === name || siteEvent?.running) {
+        emit('site_event_received', {
+          event: siteEvent?.event,
+          siteId: siteEvent?.siteId,
+          name: site?.name,
+          running: siteEvent?.running,
+          isAddingSite: site?.isAddingSite,
+        });
+      }
+      if (siteEvent?.running) {
+        emit('site_running_event_received', {
+          event: siteEvent?.event,
+          siteId: siteEvent?.siteId,
+          name: site?.name,
+          running: siteEvent?.running,
+          isAddingSite: site?.isAddingSite,
+        });
+      }
+    });
+
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('[data-testid="site-status-running"]')) {
+        emit('dom_status_running_seen');
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+
+    window.__homeboyRendererStateProbeInstalled = true;
+    return { installed: true, alreadyInstalled: false };
+  }, siteName);
+  event('probe', 'renderer_state_probe_installed', result);
+}
+
 async function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function pollHttp(port, timeoutMs) {
+async function withTimeout(promise, timeoutMs) {
+  let timeout;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve) => {
+        timeout = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractStudioFailureMessage(log) {
+  const startServerFailure = log.match(/Failed to start WordPress server: ([^\n]+)/);
+  const createSiteFailure = log.match(/Error occurred in handler for 'createSite': \[CliCommandError: ([\s\S]*?)\n\s*\[Exit code\]/);
+  const exitCode = log.match(/\[Exit code\] (\d+)/);
+
+  if (startServerFailure) {
+    return `${startServerFailure[0]}${exitCode ? ` (${exitCode[0]})` : ''}`;
+  }
+  if (createSiteFailure) {
+    return `${createSiteFailure[1].replace(/\s+/g, ' ').trim()}${exitCode ? ` (${exitCode[0]})` : ''}`;
+  }
+  return null;
+}
+
+async function pollHttp(port, timeoutMs, getFailureMessage = () => null) {
+  if (helperPollHttp) {
+    const result = await Promise.race([
+      helperPollHttp(`http://127.0.0.1:${port}/`, {
+        source: 'probe',
+        intervalMs: 250,
+        readyStatus: 200,
+        requestTimeoutMs: 500,
+        timeoutMs,
+        onEvent: (source, name, data) => {
+          event(source, name, data);
+          if (source === 'probe' && name === 'http.first_response') {
+            event('probe', 'http_first_response', { port, status: data.status });
+          }
+          if (source === 'probe' && name === 'http.ready') {
+            event('probe', 'http_ready', { port, status: data.status });
+          }
+          if (source === 'probe' && name === 'http.timeout') {
+            event('probe', 'http_timeout', { port });
+          }
+        },
+      }),
+      waitForStudioFailure(getFailureMessage, timeoutMs),
+    ]);
+    if (result.status !== 'ready') {
+      throw new Error(`HTTP did not become ready on port ${port}`);
+    }
+    return result;
+  }
+
   const deadline = Date.now() + timeoutMs;
   let sawResponse = false;
   while (Date.now() < deadline) {
+    const failureMessage = getFailureMessage();
+    if (failureMessage) {
+      event('probe', 'studio_failure_detected', { message: failureMessage });
+      throw new Error(failureMessage);
+    }
     try {
       const response = await fetch(`http://127.0.0.1:${port}/`, {
         signal: AbortSignal.timeout(500),
@@ -167,6 +286,21 @@ async function pollHttp(port, timeoutMs) {
     }
   }
   event('probe', 'http_timeout', { port });
+  const failureMessage = getFailureMessage();
+  throw new Error(failureMessage || `HTTP did not become ready on port ${port}`);
+}
+
+async function waitForStudioFailure(getFailureMessage, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const failureMessage = getFailureMessage();
+    if (failureMessage) {
+      event('probe', 'studio_failure_detected', { message: failureMessage });
+      throw new Error(failureMessage);
+    }
+    await wait(100);
+  }
+  return { status: 'timeout' };
 }
 
 async function pollSiteDetailsSeen(mainWindow, siteName, timeoutMs) {
@@ -203,16 +337,32 @@ async function pollSiteDetailsSeen(mainWindow, siteName, timeoutMs) {
   return null;
 }
 
-async function pollSiteDetailsRunning(mainWindow, siteName, timeoutMs) {
+async function pollSiteDetailsRunning(mainWindow, siteName, timeoutMs, getFailureMessage = () => null) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const site = await mainWindow.evaluate((name) => {
-      return window.ipcApi
-        .getSiteDetails()
-        .then((sites) => sites.find((candidate) => candidate.name === name) || null)
-        .catch(() => null);
-    }, siteName);
+    const failureMessage = getFailureMessage();
+    if (failureMessage) {
+      event('probe', 'studio_failure_detected', { message: failureMessage });
+      throw new Error(failureMessage);
+    }
+
+    let site;
+    try {
+      site = await mainWindow.evaluate((name) => {
+        return window.ipcApi
+          .getSiteDetails()
+          .then((sites) => sites.find((candidate) => candidate.name === name) || null)
+          .catch(() => null);
+      }, siteName);
+    } catch (error) {
+      const message = getFailureMessage();
+      if (message) {
+        event('probe', 'studio_failure_detected', { message });
+        throw new Error(message);
+      }
+      throw error;
+    }
 
     if (site?.running) {
       event('probe', 'site_details_running_true', { id: site.id, port: site.port });
@@ -223,7 +373,19 @@ async function pollSiteDetailsRunning(mainWindow, siteName, timeoutMs) {
   }
 
   event('probe', 'site_details_running_timeout', { site_name: siteName });
-  return null;
+  const failureMessage = getFailureMessage();
+  throw new Error(failureMessage || `Site details never reported running for ${siteName}`);
+}
+
+async function captureSeedDatabase(site) {
+  if (!CAPTURE_SEED_DB_PATH || !site?.path) {
+    return;
+  }
+
+  const source = path.join(site.path, 'wp-content', 'database', '.ht.sqlite');
+  await mkdir(path.dirname(CAPTURE_SEED_DB_PATH), { recursive: true });
+  await copyFile(source, CAPTURE_SEED_DB_PATH);
+  event('probe', 'seed_database_captured', { source, target: CAPTURE_SEED_DB_PATH });
 }
 
 async function pollCliConfig(cliConfigPath, siteName, timeoutMs) {
@@ -409,6 +571,7 @@ async function main() {
     await mainWindow.context().tracing.start({ screenshots: true, snapshots: true, sources: true });
     mainWindow.on('console', (message) => captureHarnessEvent(message.text()));
     await installIpcProbe(mainWindow);
+    await installRendererStateProbe(mainWindow, siteName);
 
     await waitFor(mainWindow.getByTestId('onboarding-welcome-title'), 'onboarding');
     await mainWindow.getByTestId('onboarding').getByRole('button', { name: 'Skip' }).click();
@@ -423,21 +586,28 @@ async function main() {
     await mainWindow.getByTestId('stepper-action-button').click();
     event('ui', 'create_site.submit_clicked');
     const siteDetailsSeenProbe = pollSiteDetailsSeen(mainWindow, siteName, SITE_READY_TIMEOUT_MS).catch(() => {});
-    const httpProbe = pollCliConfig(cliConfigPath, siteName, SITE_READY_TIMEOUT_MS)
-      .then((site) => (site?.port > 0 ? pollHttp(site.port, 60_000) : undefined))
-      .catch(() => {});
+    const currentStudioFailure = () => extractStudioFailureMessage(mainProcessLog);
+    const httpProbe = pollCliConfig(cliConfigPath, siteName, SITE_READY_TIMEOUT_MS).then((site) =>
+      site?.port > 0 ? pollHttp(site.port, 60_000, currentStudioFailure) : undefined
+    );
 
     await waitFor(mainWindow.getByText(siteName, { exact: true }).first(), 'site_shell');
 
     const siteContent = mainWindow.getByTestId('site-content');
     await siteDetailsSeenProbe;
     await httpProbe;
-    await pollSiteDetailsRunning(mainWindow, siteName, SITE_READY_TIMEOUT_MS);
+    const runningSite = await pollSiteDetailsRunning(
+      mainWindow,
+      siteName,
+      SITE_READY_TIMEOUT_MS,
+      currentStudioFailure
+    );
     await siteContent
       .getByTestId('site-status-running')
       .or(siteContent.getByRole('button', { name: 'Running' }))
       .waitFor({ state: 'attached', timeout: SITE_READY_TIMEOUT_MS });
     event('ui', 'site.running_visible');
+    await captureSeedDatabase(runningSite);
 
     await captureArtifacts(mainWindow, mainProcessLog);
 
@@ -454,17 +624,20 @@ async function main() {
   } finally {
     if (electronApp) {
       try {
-        await electronApp.evaluate(({ app }) => app.quit());
+        await withTimeout(electronApp.evaluate(({ app }) => app.quit()), 5_000);
       } catch {
         // Process may already be gone.
       }
       try {
-        await electronApp.close();
+        await withTimeout(electronApp.close(), 5_000);
       } catch {
         // Playwright close can race with app quit.
       }
     }
     await rm(sessionPath, { recursive: true, force: true }).catch(() => {});
+    if (process.env.STUDIO_TRACE_FORCE_EXIT_AFTER_RESULTS === '1') {
+      process.exit(0);
+    }
   }
 }
 
