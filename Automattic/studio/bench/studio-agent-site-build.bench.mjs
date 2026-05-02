@@ -1,11 +1,13 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
+const requireFromBench = createRequire(import.meta.url);
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -42,10 +44,12 @@ function setting(key) {
 }
 
 function cliEnv(extra = {}) {
-  const bfbPath = expandHome(setting('studio_bfb_plugin_path') || '');
+  const staticSiteImporterPath = expandHome(setting('studio_static_site_importer_plugin_path') || '');
   return {
     ...process.env,
-    ...(bfbPath ? { STUDIO_BFB_MU_PLUGIN_PATH: bfbPath } : {}),
+    ...(staticSiteImporterPath
+      ? { STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH: staticSiteImporterPath }
+      : {}),
     ...extra,
   };
 }
@@ -103,20 +107,17 @@ async function runEval(prompt, vars) {
 }
 
 function siteBuildPrompt(sitePath) {
-  return `Build a polished one-page marketing site for a fictional Charleston bakery named Salt & Star.
+  return `Build a polished one-page marketing site for Studio Code, a new Studio feature for Automattic and WordPress developers that makes custom site generation faster, simpler, and easier to maintain.
 
-Use the existing local Studio site at this exact path: ${sitePath}
+The page should pitch the feature as a better developer workflow: agents can work with normal HTML/CSS or customer-provided raw HTML templates, Studio converts that output into clean WordPress blocks in PHP, and the final site still opens cleanly in the Site Editor.
 
-Requirements:
-- Create or update one published page titled "Salt & Star" and make it the homepage if needed.
-- Include a hero section, three product highlights, one customer quote, hours/location details, and a clear call-to-action.
-- Keep the content concise but visually complete.
-- Use the normal Studio WordPress tools available to you.
-- Provide a raw HTML body fragment for page content; block conversion happens automatically when WordPress stores it.
-- Put CSS in the theme stylesheet if styling is needed.
-- Do not create additional pages, plugins, screenshots, SEO audits, or performance audits.
-- This is a benchmark: write the single page, then stop.
-- Do not ask the user questions; make reasonable choices and finish.`;
+Make it feel like a real product launch page for the Studio team. Emphasize the practical benefits: less block-format prompting, fewer fragile skills to maintain, one reusable conversion pipeline, faster one-shot site generation, easier debugging, and editable WordPress output.
+
+Include a strong hero, proof/benefits section, example use cases, workflow section, testimonial or quote, and final call to action.
+
+Work in this Studio site: ${sitePath}
+
+Use the normal Studio WordPress tools available to you. This is a one-page benchmark, so make reasonable choices, build the page, and stop.`;
 }
 
 async function createFreshSite(sitePath) {
@@ -197,7 +198,7 @@ foreach ( $posts as $post ) {
     $before_core_html = $counts['core_html_blocks'];
     bench_count_blocks( parse_blocks( $content ), $counts );
 
-    $is_target_page = 'page' === $post->post_type && ( (int) $post->ID === $front_page_id || 'Salt & Star' === $post->post_title );
+    $is_target_page = 'page' === $post->post_type && ( (int) $post->ID === $front_page_id || 'Studio Code' === $post->post_title );
     if ( $is_target_page ) {
         $counts['target_pages_seen']++;
         $counts['target_serialized_block_comments'] += substr_count( $content, '<!-- wp:' );
@@ -225,6 +226,291 @@ async function probeQuality(sitePath) {
     throw new Error(`quality probe did not emit JSON: ${stdout.slice(0, 1000)}`);
   }
   return JSON.parse(stdout.slice(jsonStart));
+}
+
+async function siteStatus(sitePath) {
+  const { stdout } = await runCli(['site', 'status', '--path', sitePath, '--format', 'json']);
+  const jsonStart = stdout.indexOf('{');
+  if (jsonStart === -1) {
+    throw new Error(`site status did not emit JSON: ${stdout.slice(0, 1000)}`);
+  }
+  return JSON.parse(stdout.slice(jsonStart));
+}
+
+async function collectThemeBlockDocuments(sitePath) {
+  const themesRoot = path.join(sitePath, 'wp-content/themes');
+  let themeEntries = [];
+  try {
+    themeEntries = await readdir(themesRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const generatedThemes = [];
+  for (const entry of themeEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const themeRoot = path.join(themesRoot, entry.name);
+    const reportPath = path.join(themeRoot, 'import-report.json');
+    try {
+      const reportStat = await stat(reportPath);
+      generatedThemes.push({ themeRoot, mtimeMs: reportStat.mtimeMs });
+    } catch {
+      // Only validate importer-generated themes. Default themes can contain
+      // historical/core patterns that are irrelevant to this benchmark.
+    }
+  }
+
+  generatedThemes.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const themeRoot = generatedThemes[0]?.themeRoot;
+  if (!themeRoot) {
+    return [];
+  }
+
+  const documents = [];
+
+  async function collectDir(relativeDir, extension) {
+    const dir = path.join(themeRoot, relativeDir);
+    let entries = [];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(extension)) {
+        continue;
+      }
+      const file = path.join(dir, entry.name);
+      let content = await readFile(file, 'utf8');
+      if (extension === '.php') {
+        content = content.replace(/^\s*<\?php[\s\S]*?\?>\s*/, '');
+      }
+      if (content.includes('<!-- wp:')) {
+        documents.push({
+          source: path.relative(themeRoot, file),
+          content,
+        });
+      }
+    }
+  }
+
+  await collectDir('templates', '.html');
+  await collectDir('parts', '.html');
+  await collectDir('patterns', '.php');
+
+  return documents;
+}
+
+async function collectLatestImportReport(sitePath) {
+  const themesRoot = path.join(sitePath, 'wp-content/themes');
+  let themeEntries = [];
+  try {
+    themeEntries = await readdir(themesRoot, { withFileTypes: true });
+  } catch {
+    return { report: null, reportPath: '', error: 'Themes directory not found.' };
+  }
+
+  const reports = [];
+  for (const entry of themeEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const reportPath = path.join(themesRoot, entry.name, 'import-report.json');
+    try {
+      const reportStat = await stat(reportPath);
+      reports.push({ reportPath, mtimeMs: reportStat.mtimeMs });
+    } catch {
+      // Ignore non-importer themes.
+    }
+  }
+
+  reports.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const reportPath = reports[0]?.reportPath || '';
+  if (!reportPath) {
+    return { report: null, reportPath: '', error: 'No Static Site Importer report found.' };
+  }
+
+  try {
+    return { report: JSON.parse(await readFile(reportPath, 'utf8')), reportPath, error: '' };
+  } catch (error) {
+    return {
+      report: null,
+      reportPath,
+      error: `Failed to read Static Site Importer report: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+async function validateThemeBlocks(sitePath, siteUrl) {
+  const documents = await collectThemeBlockDocuments(sitePath);
+  if (documents.length === 0) {
+    return {
+      document_count: 0,
+      total_blocks: 0,
+      valid_blocks: 0,
+      invalid_blocks: 0,
+      error: 'No generated theme block documents found.',
+      results: [],
+    };
+  }
+
+  const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
+  const { chromium } = requireFromBench(playwrightPackage);
+  let browser;
+  let page;
+
+  try {
+    browser = await chromium.launch({ args: ['--ignore-certificate-errors'] });
+    page = await browser.newPage({ ignoreHTTPSErrors: true });
+    const normalizedSiteUrl = siteUrl.replace(/\/+$/, '');
+    await page.goto(`${normalizedSiteUrl}/studio-auto-login?redirect_to=%2Fwp-admin%2Fpost-new.php`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    });
+    await page.waitForFunction(
+      () => {
+        try {
+          const wp = window.wp;
+          return (
+            wp &&
+            wp.blocks &&
+            typeof wp.blocks.getBlockTypes === 'function' &&
+            wp.blocks.getBlockTypes().length > 0
+          );
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 30_000 }
+    );
+
+    const report = await page.evaluate((docs) => {
+      const wpBlocks = window.wp?.blocks;
+      const results = [];
+
+      function issueStrings(validationIssues) {
+        const issues = [];
+        for (const issue of validationIssues || []) {
+          if (!issue?.args) {
+            continue;
+          }
+          const message = String(issue.args[0] || '');
+          if (message.startsWith('Block validation failed')) {
+            continue;
+          }
+          issues.push(
+            issue.args
+              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg).slice(0, 200) : String(arg).slice(0, 500)))
+              .join(' ')
+          );
+        }
+        return issues;
+      }
+
+      function validateRecursive(block, source) {
+        if (!block?.name || block.name === 'core/freeform' || block.name === 'core/missing') {
+          return;
+        }
+
+        const blockType = wpBlocks.getBlockType(block.name);
+        let isValid = true;
+        let issues = [];
+        let expectedContent;
+
+        if (!blockType) {
+          isValid = false;
+          issues = [`Block type "${block.name}" is not registered.`];
+        } else {
+          const validation = wpBlocks.validateBlock(block, blockType);
+          if (Array.isArray(validation)) {
+            isValid = validation[0];
+            if (!isValid) {
+              issues = issueStrings(validation[1]);
+            }
+          } else {
+            isValid = validation.isValid;
+            if (!isValid) {
+              issues = issueStrings(validation.validationIssues);
+            }
+          }
+
+          if (!isValid) {
+            try {
+              expectedContent = wpBlocks.getSaveContent(blockType, block.attributes, block.innerBlocks);
+            } catch {
+              expectedContent = undefined;
+            }
+          }
+        }
+
+        results.push({
+          source,
+          blockName: block.name,
+          isValid,
+          issues,
+          originalContent: block.originalContent || '',
+          expectedContent,
+        });
+
+        for (const inner of block.innerBlocks || []) {
+          validateRecursive(inner, source);
+        }
+      }
+
+      for (const doc of docs) {
+        for (const block of wpBlocks.parse(doc.content)) {
+          validateRecursive(block, doc.source);
+        }
+      }
+
+      const validBlocks = results.filter((result) => result.isValid).length;
+      return {
+        document_count: docs.length,
+        total_blocks: results.length,
+        valid_blocks: validBlocks,
+        invalid_blocks: results.length - validBlocks,
+        results,
+      };
+    }, documents);
+
+    await page.close();
+    return report;
+  } catch (error) {
+    let diagnostics = '';
+    if (page && !page.isClosed()) {
+      try {
+        diagnostics = await page.evaluate(() => {
+          const wp = window.wp;
+          return JSON.stringify({
+            url: window.location.href,
+            title: document.title,
+            bodyClass: document.body?.className || '',
+            hasWp: typeof wp !== 'undefined',
+            hasBlocks: !!wp?.blocks,
+            blockTypeCount: wp?.blocks?.getBlockTypes?.()?.length || 0,
+          });
+        });
+      } catch (diagnosticError) {
+        diagnostics = `diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+      }
+    }
+
+    return {
+      document_count: documents.length,
+      total_blocks: 0,
+      valid_blocks: 0,
+      invalid_blocks: 0,
+      error: `Editor block validation failed: ${error instanceof Error ? error.message : String(error)}${diagnostics ? `; ${diagnostics}` : ''}`,
+      results: [],
+    };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 }
 
 function validationMetrics(result) {
@@ -270,11 +556,21 @@ export function agentAuthoredBlockMetrics(result) {
   };
 }
 
-export function nativeBlockQualityMetrics(quality, authoredBlocks) {
+export function nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport) {
   const reasons = [];
   const bfbFallbackCount = metric(quality?.bfb_fallback_count);
   const coreHtmlWithoutBfbFallback = metric(quality?.core_html_without_bfb_fallback);
+  const importerQuality = importReport?.report?.quality || {};
+  const importerCoreHtmlBlocks = metric(importerQuality.core_html_block_count);
+  const importerInvalidBlocks = metric(importerQuality.invalid_block_count);
   const agentAuthoredWpHtmlOpeners = metric(authoredBlocks.agent_authored_wp_html_openers);
+  const invalidEditorBlocks = metric(editorValidation?.invalid_blocks);
+  const targetPagesSeen = metric(quality?.target_pages_seen);
+  const targetPostsWithBlocks = metric(quality?.target_posts_with_blocks);
+
+  if (targetPagesSeen === 0 || targetPostsWithBlocks === 0) {
+    reasons.push('missing_target_block_page');
+  }
 
   if (agentAuthoredWpHtmlOpeners > 0) {
     reasons.push('agent_authored_wp_html');
@@ -284,6 +580,21 @@ export function nativeBlockQualityMetrics(quality, authoredBlocks) {
   }
   if (bfbFallbackCount > 0) {
     reasons.push('bfb_fallback');
+  }
+  if (importerCoreHtmlBlocks > 0) {
+    reasons.push('importer_core_html_blocks');
+  }
+  if (importerInvalidBlocks > 0) {
+    reasons.push('importer_invalid_blocks');
+  }
+  if (importReport?.error) {
+    reasons.push('importer_report_error');
+  }
+  if (invalidEditorBlocks > 0) {
+    reasons.push('editor_invalid_blocks');
+  }
+  if (editorValidation?.error) {
+    reasons.push('editor_validation_error');
   }
 
   return {
@@ -348,10 +659,15 @@ export default async function studioAgentSiteBuildBench() {
   const qualityProbeStarted = Date.now();
   const quality = await probeQuality(sitePath);
   const qualityProbeMs = Date.now() - qualityProbeStarted;
+  const status = await siteStatus(sitePath);
+  const importReport = await collectLatestImportReport(sitePath);
+  const editorValidationStarted = Date.now();
+  const editorValidation = await validateThemeBlocks(sitePath, status.siteUrl);
+  const editorValidationMs = Date.now() - editorValidationStarted;
   const totalElapsedMs = Date.now() - totalStarted;
   const validation = validationMetrics(result);
   const authoredBlocks = agentAuthoredBlockMetrics(result);
-  const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks);
+  const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
 
   await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
@@ -370,9 +686,12 @@ export default async function studioAgentSiteBuildBench() {
           site_create_ms: siteCreateMs,
           agent_elapsed_ms: agentElapsedMs,
           quality_probe_ms: qualityProbeMs,
+          editor_validation_ms: editorValidationMs,
           total_elapsed_ms: totalElapsedMs,
         },
         quality,
+        importReport,
+        editorValidation,
         authoredBlocks,
         nativeBlockQuality,
         validation,
@@ -387,15 +706,17 @@ export default async function studioAgentSiteBuildBench() {
   const turnDurations = Array.isArray(result.turnDurationsMs) ? result.turnDurationsMs : [];
   const phaseTimings = result.phaseTimingsMs && typeof result.phaseTimingsMs === 'object' ? result.phaseTimingsMs : {};
   const toolBreakdown = toolMetrics(result);
+  const agentSucceeded = result.success === true && !result.error;
 
   return {
     metrics: {
-      success_rate: result.success === true ? 1 : 0,
-      agent_error_rate: result.success === true ? 0 : 1,
+      success_rate: agentSucceeded ? 1 : 0,
+      agent_error_rate: agentSucceeded ? 0 : 1,
       elapsed_ms: totalElapsedMs,
       site_create_ms: siteCreateMs,
       agent_elapsed_ms: agentElapsedMs,
       quality_probe_ms: qualityProbeMs,
+      editor_validation_ms: editorValidationMs,
       total_elapsed_ms: totalElapsedMs,
       phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
       phase_resolve_unavailable_provider_ms: metric(phaseTimings.resolve_unavailable_provider_ms),
@@ -415,6 +736,17 @@ export default async function studioAgentSiteBuildBench() {
       ...authoredBlocks,
       native_block_quality_pass: nativeBlockQuality.native_block_quality_pass ? 1 : 0,
       native_block_quality_failure_count: nativeBlockQuality.native_block_quality_failure_count,
+      editor_validation_document_count: Number(editorValidation.document_count || 0),
+      editor_validation_total_blocks: Number(editorValidation.total_blocks || 0),
+      editor_validation_valid_blocks: Number(editorValidation.valid_blocks || 0),
+      editor_validation_invalid_blocks: Number(editorValidation.invalid_blocks || 0),
+      editor_validation_error_count: editorValidation.error ? 1 : 0,
+      importer_report_error_count: importReport.error ? 1 : 0,
+      importer_fallback_count: Number(importReport.report?.quality?.fallback_count || 0),
+      importer_core_html_block_count: Number(importReport.report?.quality?.core_html_block_count || 0),
+      importer_invalid_block_count: Number(importReport.report?.quality?.invalid_block_count || 0),
+      importer_invalid_block_document_count: Number(importReport.report?.quality?.invalid_block_document_count || 0),
+      importer_generated_block_document_count: Number(importReport.report?.generated_theme?.block_documents?.length || 0),
       posts_seen: Number(quality.posts_seen || 0),
       posts_with_blocks: Number(quality.posts_with_blocks || 0),
       pages_seen: Number(quality.pages_seen || 0),
