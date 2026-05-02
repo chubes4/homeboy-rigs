@@ -678,6 +678,8 @@ export default async function studioAgentSiteBuildBench() {
         variant: currentVariant,
         prompt,
         sitePath,
+        siteUrl: status.siteUrl,
+        autoLoginUrl: status.autoLoginUrl,
         exitCode,
         stderr,
         resultFile,
@@ -768,6 +770,8 @@ export default async function studioAgentSiteBuildBench() {
     artifacts: {
       raw_result: artifactFile,
       site_path: sitePath,
+      frontend_url: status.siteUrl,
+      admin_auto_login_url: status.autoLoginUrl,
     },
   };
 }
