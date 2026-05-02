@@ -63,7 +63,42 @@
     "nodejs": [
       {
         "path": "${package.root}/bench/studio-app-create-site.trace.mjs",
-        "check_groups": []
+        "check_groups": [],
+        "trace_default_phase_preset": "create-site",
+        "trace_phase_presets": {
+          "create-site": [
+            "start:scenario.start",
+            "launch:desktop.app_launch_start",
+            "window:desktop.first_window.ready",
+            "submit:ui.create_site.submit_clicked",
+            "copy_wp:cli.copying_bundled_wordpress",
+            "sqlite:cli.setting_up_sqlite_integration",
+            "daemon:cli.starting_process_daemon",
+            "pg_start:playground.run_cli.start",
+            "pg_bound:playground.server.bound",
+            "workers_ready:playground.workers.all.await.ready",
+            "wp_boot_start:playground.wordpress.boot.start",
+            "wp_boot_ready:playground.wordpress.boot.ready",
+            "blueprint_ready:playground.blueprint.run.ready",
+            "pg_ready:playground.run_cli.ready",
+            "running_event:renderer.site_running_event_received",
+            "dom_running:renderer.dom_status_running_seen",
+            "http_ready:probe.http_ready",
+            "running_state:probe.site_details_running_true",
+            "ui_running:ui.site.running_visible"
+          ],
+          "wordpress-boot": [
+            "boot_start:wordpress_boot.boot_wordpress.start",
+            "wp_config:wordpress_boot.wp_config.ensure.ready",
+            "db_prereqs:wordpress_boot.database.prerequisites.ready",
+            "installed_check:wordpress_boot.wordpress.installed_check.ready",
+            "install_request:wordpress_boot.install.request.ready",
+            "install_verify:wordpress_boot.install.verify.ready",
+            "install_permalink:wordpress_boot.install.permalink.ready",
+            "db_validate:wordpress_boot.database.validate.ready",
+            "boot_ready:wordpress_boot.boot_wordpress.ready"
+          ]
+        }
       }
     ]
   },
