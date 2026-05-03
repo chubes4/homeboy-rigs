@@ -379,6 +379,33 @@ async function pollSiteDetailsRunning(mainWindow, siteName, timeoutMs, getFailur
   throw new Error(failureMessage || `Site details never reported running for ${siteName}`);
 }
 
+async function assertHttpEndpoint(port, pathName, label, acceptStatus = (status) => status >= 200 && status < 400) {
+  const url = `http://${HTTP_PROBE_HOST}:${port}${pathName}`;
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+  });
+  event('probe', 'http_endpoint_checked', {
+    label,
+    path: pathName,
+    status: response.status,
+    finalUrl: response.url,
+  });
+  if (!acceptStatus(response.status)) {
+    throw new Error(`${label} returned HTTP ${response.status}`);
+  }
+}
+
+async function assertSiteHttpSurface(site) {
+  const port = site?.port;
+  if (!port) {
+    throw new Error('Cannot validate site HTTP surface without a known port');
+  }
+
+  await assertHttpEndpoint(port, '/', 'frontend');
+  await assertHttpEndpoint(port, '/wp-json/', 'REST API');
+  await assertHttpEndpoint(port, '/wp-admin/', 'wp-admin');
+}
+
 async function captureSeedDatabase(site) {
   if (!CAPTURE_SEED_DB_PATH || !site?.path) {
     return;
@@ -609,6 +636,7 @@ async function main() {
       .or(siteContent.getByRole('button', { name: 'Running' }))
       .waitFor({ state: 'attached', timeout: SITE_READY_TIMEOUT_MS });
     event('ui', 'site.running_visible');
+    await assertSiteHttpSurface(runningSite);
     await captureSeedDatabase(runningSite);
 
     await captureArtifacts(mainWindow, mainProcessLog);

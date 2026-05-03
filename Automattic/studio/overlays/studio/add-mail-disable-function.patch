@@ -1,0 +1,12 @@
+diff --git a/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/node_modules/@wp-playground/wordpress/index.js b/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/node_modules/@wp-playground/wordpress/index.js
+--- a/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/node_modules/@wp-playground/wordpress/index.js
++++ b/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/node_modules/@wp-playground/wordpress/index.js
+@@ -3131,6 +3131,6 @@ async function O(e) {
+   const t = await N(
+     e,
+     {
+-      disable_functions: "fsockopen,pfsockopen,curl_init,curl_exec,curl_multi_exec",
++      disable_functions: "fsockopen,pfsockopen,curl_init,curl_exec,curl_multi_exec,mail",
+       allow_url_fopen: "0"
+     },
+     async () => await e.request({
