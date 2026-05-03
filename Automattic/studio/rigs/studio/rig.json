@@ -63,9 +63,225 @@
     "nodejs": [
       {
         "path": "${package.root}/bench/studio-app-create-site.trace.mjs",
-        "check_groups": []
+        "check_groups": [],
+        "trace_default_phase_preset": "create-site",
+        "trace_phase_presets": {
+          "create-site": [
+            "start:scenario.start",
+            "launch:desktop.app_launch_start",
+            "window:desktop.first_window.ready",
+            "submit:ui.create_site.submit_clicked",
+            "copy_wp:cli.copying_bundled_wordpress",
+            "sqlite:cli.setting_up_sqlite_integration",
+            "daemon:cli.starting_process_daemon",
+            "pg_start:playground.run_cli.start",
+            "pg_bound:playground.server.bound",
+            "workers_ready:playground.workers.all.await.ready",
+            "wp_boot_start:playground.wordpress.boot.start",
+            "wp_boot_ready:playground.wordpress.boot.ready",
+            "blueprint_ready:playground.blueprint.run.ready",
+            "pg_ready:playground.run_cli.ready",
+            "running_event:renderer.site_running_event_received",
+            "dom_running:renderer.dom_status_running_seen",
+            "http_ready:probe.http_ready",
+            "running_state:probe.site_details_running_true",
+            "ui_running:ui.site.running_visible"
+          ],
+          "wordpress-boot": [
+            "boot_start:wordpress_boot.boot_wordpress.start",
+            "wp_config:wordpress_boot.wp_config.ensure.ready",
+            "db_prereqs:wordpress_boot.database.prerequisites.ready",
+            "installed_check:wordpress_boot.wordpress.installed_check.ready",
+            "install_request:wordpress_boot.install.request.ready",
+            "install_verify:wordpress_boot.install.verify.ready",
+            "install_permalink:wordpress_boot.install.permalink.ready",
+            "db_validate:wordpress_boot.database.validate.ready",
+            "boot_ready:wordpress_boot.boot_wordpress.ready"
+          ],
+          "wordpress-boot-steps": [
+            "wp_config_start:wordpress_boot.wp_config.ensure.start",
+            "wp_config_ready:wordpress_boot.wp_config.ensure.ready",
+            "db_prereqs_start:wordpress_boot.database.prerequisites.start",
+            "db_prereqs_ready:wordpress_boot.database.prerequisites.ready",
+            "installed_check_start:wordpress_boot.wordpress.installed_check.start",
+            "installed_check_ready:wordpress_boot.wordpress.installed_check.ready",
+            "install_request_start:wordpress_boot.install.request.start",
+            "install_request_ready:wordpress_boot.install.request.ready",
+            "install_verify_start:wordpress_boot.install.verify.start",
+            "install_verify_ready:wordpress_boot.install.verify.ready",
+            "install_permalink_start:wordpress_boot.install.permalink.start",
+            "install_permalink_ready:wordpress_boot.install.permalink.ready",
+            "db_validate_start:wordpress_boot.database.validate.start",
+            "db_validate_ready:wordpress_boot.database.validate.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.launch_to_window": {
+            "critical": true,
+            "blocking": true,
+            "prewarmable": true,
+            "blocks": "first_window_ready",
+            "category": "app_launch"
+          },
+          "phase.submit_to_copy_wp": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "site_running_visible",
+            "category": "site_materialization"
+          },
+          "phase.copy_wp_to_sqlite": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "site_running_visible",
+            "category": "site_materialization"
+          },
+          "phase.sqlite_to_daemon": {
+            "critical": true,
+            "blocking": true,
+            "prewarmable": true,
+            "blocks": "site_running_visible",
+            "category": "daemon_start"
+          },
+          "phase.daemon_to_pg_start": {
+            "critical": true,
+            "blocking": true,
+            "prewarmable": true,
+            "blocks": "site_running_visible",
+            "category": "daemon_start"
+          },
+          "phase.pg_bound_to_workers_ready": {
+            "critical": true,
+            "blocking": true,
+            "prewarmable": true,
+            "blocks": "site_running_visible",
+            "category": "playground_runtime"
+          },
+          "phase.wp_boot_start_to_wp_boot_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "site_running_visible",
+            "category": "wordpress_boot"
+          },
+          "phase.wp_boot_ready_to_blueprint_ready": {
+            "critical": true,
+            "blocking": true,
+            "deferrable": true,
+            "blocks": "site_running_visible",
+            "category": "blueprint_finalize"
+          },
+          "phase.pg_ready_to_running_event": {
+            "critical": true,
+            "blocking": true,
+            "deferrable": true,
+            "blocks": "site_running_visible",
+            "category": "state_propagation"
+          },
+          "phase.total": {
+            "critical": true,
+            "blocking": true,
+            "blocks": "site_running_visible",
+            "category": "wordpress_boot"
+          },
+          "phase.wp_config_start_to_wp_config_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "wordpress_boot_ready",
+            "category": "wordpress_config"
+          },
+          "phase.installed_check_start_to_installed_check_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "wordpress_boot_ready",
+            "category": "install_state"
+          },
+          "phase.install_request_start_to_install_request_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "wordpress_boot_ready",
+            "category": "wordpress_install"
+          },
+          "phase.install_verify_start_to_install_verify_ready": {
+            "critical": true,
+            "blocking": true,
+            "deferrable": true,
+            "blocks": "wordpress_boot_ready",
+            "category": "install_verification"
+          },
+          "phase.install_permalink_start_to_install_permalink_ready": {
+            "critical": true,
+            "blocking": true,
+            "deferrable": true,
+            "blocks": "wordpress_boot_ready",
+            "category": "permalink_setup"
+          },
+          "phase.db_validate_start_to_db_validate_ready": {
+            "critical": true,
+            "blocking": true,
+            "deferrable": true,
+            "blocks": "wordpress_boot_ready",
+            "category": "database_validation"
+          }
+        },
+        "trace_guardrails": [
+          {
+            "label": "packaged Studio app exists",
+            "file": "${components.studio.path}/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/playground-server-child.mjs"
+          },
+          {
+            "label": "packaged Playground bundle exists",
+            "file": "${components.studio.path}/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/node_modules/@wp-playground/wordpress/index.js"
+          }
+        ]
       }
     ]
+  },
+
+  "trace_variants": {
+    "fresh-install-mode": {
+      "component": "studio",
+      "overlay": "overlays/studio/fresh-install-mode.patch"
+    },
+    "add-mail-disable-function": {
+      "component": "studio",
+      "overlay": "overlays/studio/add-mail-disable-function.patch"
+    },
+    "combined-fast-create-site": {
+      "overlays": [
+        {
+          "component": "studio",
+          "overlay": "overlays/studio/fresh-install-mode.patch"
+        },
+        {
+          "component": "studio",
+          "overlay": "overlays/studio/add-mail-disable-function.patch"
+        }
+      ]
+    }
+  },
+
+  "trace_experiments": {
+    "diagnostic-seeded-sqlite-db": {
+      "setup": [
+        {
+          "command": "test -f /tmp/studio-template-probe/seed.ht.sqlite"
+        }
+      ],
+      "env": {
+        "STUDIO_TRACE_SEED_DB_PATH": "/tmp/studio-template-probe/seed.ht.sqlite"
+      },
+      "artifacts": [
+        {
+          "label": "diagnostic seed SQLite DB",
+          "path": "/tmp/studio-template-probe/seed.ht.sqlite"
+        }
+      ]
+    }
   },
 
   "pipeline": {

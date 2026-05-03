@@ -310,32 +310,7 @@ async function siteStatus(sitePath) {
 }
 
 async function collectThemeBlockDocuments(sitePath) {
-  const themesRoot = path.join(sitePath, 'wp-content/themes');
-  let themeEntries = [];
-  try {
-    themeEntries = await readdir(themesRoot, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
-  const generatedThemes = [];
-  for (const entry of themeEntries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const themeRoot = path.join(themesRoot, entry.name);
-    const reportPath = path.join(themeRoot, 'import-report.json');
-    try {
-      const reportStat = await stat(reportPath);
-      generatedThemes.push({ themeRoot, mtimeMs: reportStat.mtimeMs });
-    } catch {
-      // Only validate importer-generated themes. Default themes can contain
-      // historical/core patterns that are irrelevant to this benchmark.
-    }
-  }
-
-  generatedThemes.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  const themeRoot = generatedThemes[0]?.themeRoot;
+  const { themeRoot } = await collectLatestGeneratedTheme(sitePath);
   if (!themeRoot) {
     return [];
   }
@@ -376,33 +351,38 @@ async function collectThemeBlockDocuments(sitePath) {
   return documents;
 }
 
-async function collectLatestImportReport(sitePath) {
+async function collectLatestGeneratedTheme(sitePath) {
   const themesRoot = path.join(sitePath, 'wp-content/themes');
   let themeEntries = [];
   try {
     themeEntries = await readdir(themesRoot, { withFileTypes: true });
   } catch {
-    return { report: null, reportPath: '', error: 'Themes directory not found.' };
+    return { themeRoot: '', themeSlug: '', reportPath: '', error: 'Themes directory not found.' };
   }
 
-  const reports = [];
+  const generatedThemes = [];
   for (const entry of themeEntries) {
     if (!entry.isDirectory()) {
       continue;
     }
-    const reportPath = path.join(themesRoot, entry.name, 'import-report.json');
+    const themeRoot = path.join(themesRoot, entry.name);
+    const reportPath = path.join(themeRoot, 'import-report.json');
     try {
       const reportStat = await stat(reportPath);
-      reports.push({ reportPath, mtimeMs: reportStat.mtimeMs });
+      generatedThemes.push({ themeRoot, themeSlug: entry.name, reportPath, mtimeMs: reportStat.mtimeMs });
     } catch {
       // Ignore non-importer themes.
     }
   }
 
-  reports.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  const reportPath = reports[0]?.reportPath || '';
+  generatedThemes.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return generatedThemes[0] || { themeRoot: '', themeSlug: '', reportPath: '', error: 'No Static Site Importer report found.' };
+}
+
+async function collectLatestImportReport(sitePath) {
+  const { reportPath, error } = await collectLatestGeneratedTheme(sitePath);
   if (!reportPath) {
-    return { report: null, reportPath: '', error: 'No Static Site Importer report found.' };
+    return { report: null, reportPath: '', error };
   }
 
   try {
@@ -1108,6 +1088,210 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   };
 }
 
+async function readIfExists(file) {
+  try {
+    return await readFile(file, 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+async function collectCssFiles(root, maxFiles = 40) {
+  const files = [];
+
+  async function visit(dir) {
+    if (files.length >= maxFiles) {
+      return;
+    }
+    let entries = [];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (files.length >= maxFiles) {
+        return;
+      }
+      if (entry.name === 'node_modules' || entry.name === '.git') {
+        continue;
+      }
+      const absolute = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await visit(absolute);
+      } else if (entry.isFile() && entry.name.endsWith('.css')) {
+        files.push(absolute);
+      }
+    }
+  }
+
+  await visit(root);
+  return files;
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function countRegex(value, pattern) {
+  return typeof value === 'string' ? (value.match(pattern) || []).length : 0;
+}
+
+function normalizeFontFamily(value) {
+  return value
+    .replace(/\\["']/g, '')
+    .replace(/["']/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function extractFontFamilies(text) {
+  const families = [];
+  for (const match of text.matchAll(/fonts\.googleapis\.com\/css2?[^"')\s]+/gi)) {
+    try {
+      const url = new URL(match[0].startsWith('http') ? match[0] : `https://${match[0]}`);
+      for (const family of url.searchParams.getAll('family')) {
+        families.push(normalizeFontFamily(family.split(':')[0].replaceAll('+', ' ')));
+      }
+    } catch {
+      // Keep parsing local font-family declarations even if an import URL is malformed.
+    }
+  }
+
+  for (const match of text.matchAll(/font-family\s*:\s*([^;}]+)/gi)) {
+    const declaration = match[1] || '';
+    for (const family of declaration.split(',')) {
+      const normalized = normalizeFontFamily(family);
+      if (!/^(sans-serif|serif|monospace|system-ui|inherit|initial|unset)$/i.test(normalized)) {
+        families.push(normalized);
+      }
+    }
+  }
+
+  return uniqueSorted(families);
+}
+
+function extractColors(text) {
+  const hexColors = [...text.matchAll(/#[0-9a-f]{3,8}\b/gi)].map((match) => match[0].toLowerCase());
+  const functionalColors = [...text.matchAll(/\b(?:rgb|rgba|hsl|hsla)\([^)]*\)/gi)].map((match) =>
+    match[0].toLowerCase().replace(/\s+/g, '')
+  );
+  return uniqueSorted([...hexColors, ...functionalColors]);
+}
+
+function includesAny(text, patterns) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function extractMotifs(text) {
+  const motifs = [];
+  const checks = {
+    bento_grid: [/\bbento\b/i],
+    cards_grid: [/\bcard(s)?\b/i, /grid-template-columns/i],
+    code_preview: [/code-window/i, /code-preview/i, /<pre\b/i, /<code\b/i],
+    dashboard_mockup: [/dashboard/i, /metric-card/i, /analytics/i],
+    glow_overlay: [/\bglow\b/i, /blur\(/i, /radial-gradient\(/i],
+    marquee: [/\bmarquee\b/i, /ticker/i],
+    pricing: [/\bpricing\b/i, /\bplans?\b/i],
+    social_proof: [/testimonial/i, /customer/i, /trusted by/i],
+    split_hero: [/split-hero/i, /hero-grid/i],
+    terminal_window: [/terminal/i, /traffic-light/i, /window-chrome/i, /code-window/i],
+  };
+
+  for (const [motif, patterns] of Object.entries(checks)) {
+    if (includesAny(text, patterns)) {
+      motifs.push(motif);
+    }
+  }
+
+  return motifs.sort();
+}
+
+function extractPaletteLabels(text, colors) {
+  const labels = [];
+  const lower = text.toLowerCase();
+  const colorText = colors.join(' ');
+  if (/purple|violet|indigo|#6|#7|#8|#9|#a/i.test(`${lower} ${colorText}`) && /lime|chartreuse|#bef|#a3e|#ccff|#d9f99d/i.test(`${lower} ${colorText}`)) {
+    labels.push('purple_lime');
+  }
+  if (/orange|amber|coral|#f59|#fb7|#ff8/i.test(`${lower} ${colorText}`)) {
+    labels.push('warm_orange');
+  }
+  if (/cyan|teal|aqua|#06b6|#14b8|#22d3/i.test(`${lower} ${colorText}`)) {
+    labels.push('cyan_teal');
+  }
+  if (/black|charcoal|slate|#0[0-9a-f]{2,6}|#111|#18181b/i.test(`${lower} ${colorText}`)) {
+    labels.push('dark_base');
+  }
+  return labels.sort();
+}
+
+async function collectDesignFingerprint(sitePath) {
+  const { themeRoot, themeSlug } = await collectLatestGeneratedTheme(sitePath);
+  const sourceHtml = await readIfExists(path.join(sitePath, 'tmp/static-site/index.html'));
+  const cssFiles = themeRoot ? await collectCssFiles(themeRoot) : [];
+  const cssParts = [];
+  for (const file of cssFiles) {
+    cssParts.push(await readIfExists(file));
+  }
+
+  const text = [sourceHtml, ...cssParts].join('\n');
+  const lower = text.toLowerCase();
+  const fontFamilies = extractFontFamilies(text);
+  const colors = extractColors(text);
+  const cssVariables = uniqueSorted([...text.matchAll(/--([a-z0-9-]+)\s*:/gi)].map((match) => match[1].toLowerCase()));
+  const motifs = extractMotifs(text);
+  const paletteLabels = extractPaletteLabels(lower, colors);
+
+  return {
+    theme_slug: themeSlug,
+    source_html_present: sourceHtml ? true : false,
+    css_file_count: cssFiles.length,
+    font_families: fontFamilies,
+    dominant_font_family: fontFamilies[0] || '',
+    color_values: colors,
+    css_variables: cssVariables,
+    motifs,
+    palette_labels: paletteLabels,
+    gradient_count: countRegex(text, /(?:linear|radial|conic)-gradient\(/gi),
+    animation_count: countRegex(text, /@keyframes\b|\banimation(?:-[a-z]+)?\s*:/gi),
+    transition_count: countRegex(text, /\btransition(?:-[a-z]+)?\s*:/gi),
+    dark_theme: /#0[0-9a-f]{2,6}|#111|#18181b|#020617|background(?:-color)?\s*:\s*(?:black|rgb\(0[,\s]+0[,\s]+0\))/i.test(text),
+  };
+}
+
+function designFingerprintMetrics(fingerprint) {
+  const motifs = new Set(fingerprint?.motifs || []);
+  const paletteLabels = new Set(fingerprint?.palette_labels || []);
+  const fonts = (fingerprint?.font_families || []).map((font) => font.toLowerCase());
+
+  return {
+    design_source_html_present: fingerprint?.source_html_present ? 1 : 0,
+    design_css_file_count: Number(fingerprint?.css_file_count || 0),
+    design_font_unique_count: Number(fingerprint?.font_families?.length || 0),
+    design_color_unique_count: Number(fingerprint?.color_values?.length || 0),
+    design_css_variable_count: Number(fingerprint?.css_variables?.length || 0),
+    design_motif_count: Number(fingerprint?.motifs?.length || 0),
+    design_palette_label_count: Number(fingerprint?.palette_labels?.length || 0),
+    design_gradient_count: Number(fingerprint?.gradient_count || 0),
+    design_animation_count: Number(fingerprint?.animation_count || 0),
+    design_transition_count: Number(fingerprint?.transition_count || 0),
+    design_uses_inter: fonts.includes('inter') ? 1 : 0,
+    design_uses_syne: fonts.includes('syne') ? 1 : 0,
+    design_uses_space_grotesk: fonts.includes('space grotesk') ? 1 : 0,
+    design_uses_purple_lime: paletteLabels.has('purple_lime') ? 1 : 0,
+    design_uses_dark_base: paletteLabels.has('dark_base') || fingerprint?.dark_theme ? 1 : 0,
+    design_uses_bento_grid: motifs.has('bento_grid') ? 1 : 0,
+    design_uses_cards_grid: motifs.has('cards_grid') ? 1 : 0,
+    design_uses_code_preview: motifs.has('code_preview') ? 1 : 0,
+    design_uses_dashboard_mockup: motifs.has('dashboard_mockup') ? 1 : 0,
+    design_uses_glow_overlay: motifs.has('glow_overlay') ? 1 : 0,
+    design_uses_marquee: motifs.has('marquee') ? 1 : 0,
+    design_uses_terminal_window: motifs.has('terminal_window') ? 1 : 0,
+  };
+}
+
 async function validateThemeBlocks(sitePath, siteUrl) {
   const documents = await collectThemeBlockDocuments(sitePath);
   if (documents.length === 0) {
@@ -1440,6 +1624,8 @@ export default async function studioAgentSiteBuildBench() {
   const validation = validationMetrics(result);
   const authoredBlocks = agentAuthoredBlockMetrics(result);
   const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
+  const designFingerprint = await collectDesignFingerprint(sitePath);
+  const designMetrics = designFingerprintMetrics(designFingerprint);
 
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
   await writeFile(
@@ -1471,6 +1657,7 @@ export default async function studioAgentSiteBuildBench() {
         importReport,
         visualComparison,
         editorValidation,
+        designFingerprint,
         authoredBlocks,
         nativeBlockQuality,
         validation,
@@ -1540,6 +1727,7 @@ export default async function studioAgentSiteBuildBench() {
       visual_nav_probe_parity_mismatch_count: Number(visualComparison.nav_probe_parity_mismatch_count || 0),
       visual_footer_probe_parity_mismatch_count: Number(visualComparison.footer_probe_parity_mismatch_count || 0),
       visual_hero_probe_parity_mismatch_count: Number(visualComparison.hero_probe_parity_mismatch_count || 0),
+      ...designMetrics,
       posts_seen: Number(quality.posts_seen || 0),
       posts_with_blocks: Number(quality.posts_with_blocks || 0),
       pages_seen: Number(quality.pages_seen || 0),
@@ -1571,6 +1759,7 @@ export default async function studioAgentSiteBuildBench() {
       prompt_variant: selectedPromptVariant,
       prompt_file: selectedPromptFile,
       prompt_category: PROMPT_CATEGORY,
+      design: designFingerprint,
       ...systemPrompt,
     },
   };
