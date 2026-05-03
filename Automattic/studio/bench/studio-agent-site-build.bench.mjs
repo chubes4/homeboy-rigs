@@ -1134,6 +1134,21 @@ function uniqueSorted(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+function uniqueInOrder(values) {
+  const seen = new Set();
+  const ordered = [];
+  for (const value of values) {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    ordered.push(normalized);
+  }
+  return ordered;
+}
+
 function countRegex(value, pattern) {
   return typeof value === 'string' ? (value.match(pattern) || []).length : 0;
 }
@@ -1170,6 +1185,119 @@ function extractFontFamilies(text) {
   }
 
   return uniqueSorted(families);
+}
+
+function firstFontFamilyFromDeclaration(declaration) {
+  for (const family of String(declaration || '').split(',')) {
+    const normalized = normalizeFontFamily(family);
+    if (!/^(sans-serif|serif|monospace|system-ui|ui-sans-serif|ui-serif|inherit|initial|unset)$/i.test(normalized)) {
+      return normalized;
+    }
+  }
+  return '';
+}
+
+function extractFontFamilyDeclarations(text, selectorPattern) {
+  const declarations = [];
+  const pattern = new RegExp(`${selectorPattern}[^{}]*\\{[^{}]*?font-family\\s*:\\s*([^;}]+)`, 'gi');
+  for (const match of text.matchAll(pattern)) {
+    declarations.push(firstFontFamilyFromDeclaration(match[1]));
+  }
+  return uniqueInOrder(declarations);
+}
+
+function extractTypePairing(text, fontFamilies) {
+  const displayFonts = extractFontFamilyDeclarations(
+    text,
+    '(?:h1|h2|h3|\\.display|\\.headline|\\.hero-title|\\.section-title|\\.title)'
+  );
+  const bodyFonts = extractFontFamilyDeclarations(text, '(?:body|html|:root|\\.site|main|p)');
+  const orderedFonts = uniqueInOrder(fontFamilies);
+  const primaryFont = bodyFonts[0] || orderedFonts[0] || '';
+  const displayFont =
+    displayFonts[0] || orderedFonts.find((font) => font.toLowerCase() !== primaryFont.toLowerCase()) || primaryFont;
+
+  return {
+    primary_font_family: primaryFont,
+    display_font_family: displayFont,
+    type_pairing_signature: [displayFont, primaryFont].filter(Boolean).join(' / '),
+  };
+}
+
+function htmlAttributeValue(attributes, name) {
+  const pattern = new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'i');
+  return attributes.match(pattern)?.[2] || '';
+}
+
+function extractSections(html) {
+  const sections = [];
+  for (const match of String(html || '').matchAll(/<section\b([^>]*)>([\s\S]*?)<\/section>/gi)) {
+    const attributes = match[1] || '';
+    const content = match[2] || '';
+    sections.push({
+      attributes,
+      className: htmlAttributeValue(attributes, 'class'),
+      style: htmlAttributeValue(attributes, 'style'),
+      content,
+    });
+  }
+  return sections;
+}
+
+export function extractDesignPatternFingerprint({ sourceHtml = '', cssText = '', fontFamilies = [] } = {}) {
+  const text = [sourceHtml, cssText].join('\n');
+  const sections = extractSections(sourceHtml);
+  const heroGridBackgroundCount = countRegex(
+    text,
+    /(?:hero[-_\s]*(?:grid|mesh|background)|(?:grid|mesh)[-_\s]*hero|hero[\s\S]{0,240}(?:radial-gradient|linear-gradient|background-image|background(?:-size)?\s*:|grid-template|mesh)|(?:background|bg)[-_\s]*mesh)/gi
+  );
+  const panelSections = sections.filter((section) =>
+    /\b(?:panel|section-panel|content-panel|full-bleed|full-width|feature-section|pricing-section|testimonial-section|dark-section|light-section)\b/i.test(
+      `${section.className} ${section.style}`
+    )
+  );
+  const fullWidthSections = sections.filter((section) =>
+    /\b(?:full-bleed|full-width|w-full|wide|alignfull|panel)\b/i.test(`${section.className} ${section.style}`) ||
+    /(?:width\s*:\s*100(?:vw|%)|margin-inline\s*:\s*calc\(|left\s*:\s*50%|right\s*:\s*50%)/i.test(section.style)
+  );
+  const eyebrowLabelCount = countRegex(
+    sourceHtml,
+    /class\s*=\s*["'][^"']*\b(?:eyebrow|kicker|overline|label|section-label|pretitle|subheading-label)\b[^"']*["']/gi
+  );
+  const sectionsWithEyebrowTitle = sections.filter((section) =>
+    /class\s*=\s*["'][^"']*\b(?:eyebrow|kicker|overline|label|section-label|pretitle|subheading-label)\b[^"']*["'][\s\S]{0,700}<h[1-3]\b/i.test(
+      section.content
+    )
+  );
+  const typePairing = extractTypePairing(cssText || text, fontFamilies);
+  const patternTokens = [];
+
+  if (heroGridBackgroundCount > 0) {
+    patternTokens.push('hero-grid-background');
+  }
+  if (fullWidthSections.length >= 3) {
+    patternTokens.push('stacked-full-width-panels');
+  } else if (panelSections.length > 0) {
+    patternTokens.push('panel-sections');
+  }
+  if (eyebrowLabelCount > 0) {
+    patternTokens.push('eyebrow-title-labels');
+  }
+  if (typePairing.type_pairing_signature) {
+    patternTokens.push(`type:${typePairing.type_pairing_signature.toLowerCase()}`);
+  }
+
+  return {
+    hero_grid_background_count: heroGridBackgroundCount,
+    hero_grid_background_present: heroGridBackgroundCount > 0,
+    stacked_full_width_section_count: fullWidthSections.length,
+    panel_section_count: panelSections.length,
+    eyebrow_label_count: eyebrowLabelCount,
+    sections_with_eyebrow_title_count: sectionsWithEyebrowTitle.length,
+    font_family_count: fontFamilies.length,
+    ...typePairing,
+    repetition_signature: patternTokens.join('|'),
+  };
 }
 
 function extractColors(text) {
@@ -1243,6 +1371,11 @@ async function collectDesignFingerprint(sitePath) {
   const cssVariables = uniqueSorted([...text.matchAll(/--([a-z0-9-]+)\s*:/gi)].map((match) => match[1].toLowerCase()));
   const motifs = extractMotifs(text);
   const paletteLabels = extractPaletteLabels(lower, colors);
+  const patternFingerprint = extractDesignPatternFingerprint({
+    sourceHtml,
+    cssText: cssParts.join('\n'),
+    fontFamilies,
+  });
 
   return {
     theme_slug: themeSlug,
@@ -1258,6 +1391,7 @@ async function collectDesignFingerprint(sitePath) {
     animation_count: countRegex(text, /@keyframes\b|\banimation(?:-[a-z]+)?\s*:/gi),
     transition_count: countRegex(text, /\btransition(?:-[a-z]+)?\s*:/gi),
     dark_theme: /#0[0-9a-f]{2,6}|#111|#18181b|#020617|background(?:-color)?\s*:\s*(?:black|rgb\(0[,\s]+0[,\s]+0\))/i.test(text),
+    patterns: patternFingerprint,
   };
 }
 
@@ -1265,6 +1399,7 @@ function designFingerprintMetrics(fingerprint) {
   const motifs = new Set(fingerprint?.motifs || []);
   const paletteLabels = new Set(fingerprint?.palette_labels || []);
   const fonts = (fingerprint?.font_families || []).map((font) => font.toLowerCase());
+  const patterns = fingerprint?.patterns || {};
 
   return {
     design_source_html_present: fingerprint?.source_html_present ? 1 : 0,
@@ -1277,6 +1412,13 @@ function designFingerprintMetrics(fingerprint) {
     design_gradient_count: Number(fingerprint?.gradient_count || 0),
     design_animation_count: Number(fingerprint?.animation_count || 0),
     design_transition_count: Number(fingerprint?.transition_count || 0),
+    design_hero_grid_background_count: Number(patterns.hero_grid_background_count || 0),
+    design_hero_grid_background_present: patterns.hero_grid_background_present ? 1 : 0,
+    design_stacked_full_width_section_count: Number(patterns.stacked_full_width_section_count || 0),
+    design_panel_section_count: Number(patterns.panel_section_count || 0),
+    design_eyebrow_label_count: Number(patterns.eyebrow_label_count || 0),
+    design_sections_with_eyebrow_title_count: Number(patterns.sections_with_eyebrow_title_count || 0),
+    design_font_family_count: Number(patterns.font_family_count || fingerprint?.font_families?.length || 0),
     design_uses_inter: fonts.includes('inter') ? 1 : 0,
     design_uses_syne: fonts.includes('syne') ? 1 : 0,
     design_uses_space_grotesk: fonts.includes('space grotesk') ? 1 : 0,
@@ -1759,6 +1901,10 @@ export default async function studioAgentSiteBuildBench() {
       prompt_variant: selectedPromptVariant,
       prompt_file: selectedPromptFile,
       prompt_category: PROMPT_CATEGORY,
+      design_primary_font_family: designFingerprint.patterns?.primary_font_family || '',
+      design_display_font_family: designFingerprint.patterns?.display_font_family || '',
+      design_type_pairing_signature: designFingerprint.patterns?.type_pairing_signature || '',
+      design_repetition_signature: designFingerprint.patterns?.repetition_signature || '',
       design: designFingerprint,
       ...systemPrompt,
     },
