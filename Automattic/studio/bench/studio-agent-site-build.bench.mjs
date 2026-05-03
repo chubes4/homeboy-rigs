@@ -1008,7 +1008,7 @@ function visualParity(sourceGroups, frontendGroups) {
   };
 }
 
-function emptyVisualComparison(error = '') {
+function emptyVisualComparison(error = '', diagnosticsArtifact = '', diagnostics = null) {
   return {
     target_count: 0,
     checked_target_count: 0,
@@ -1025,22 +1025,37 @@ function emptyVisualComparison(error = '') {
     editor_surface_ready: true,
     error,
     results: [],
-    diagnostics: {
-      artifact: '',
-      mismatch_count: 0,
-      optional_probe_absent_count: 0,
-      top_failing_groups: [],
-      targets: [],
-      mismatches: [],
-      optional_probe_absences: [],
-    },
+    ...(diagnosticsArtifact
+      ? { artifact_dir: path.dirname(diagnosticsArtifact), diagnostics_artifact: diagnosticsArtifact }
+      : {}),
+    diagnostics:
+      diagnostics ||
+      {
+        ...(diagnosticsArtifact ? { artifact: diagnosticsArtifact } : {}),
+        mismatch_count: 0,
+        optional_probe_absent_count: 0,
+        top_failing_groups: [],
+        targets: [],
+        mismatches: [],
+        optional_probe_absences: [],
+      },
   };
 }
 
-async function compareVisualFidelity(importReport, artifactDir, sitePath) {
+export async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   const targets = comparisonTargets(importReport);
   if (!targets.length) {
-    return emptyVisualComparison(importReport?.error || 'No visual fidelity comparison targets found.');
+    const visualDir = path.join(artifactDir, 'visual-comparisons');
+    const diagnosticsPath = path.join(visualDir, 'visual-comparison-skipped.json');
+    const reason = importReport?.error || 'No visual fidelity comparison targets found.';
+    const diagnostics = {
+      ...buildVisualDiagnostics([], diagnosticsPath),
+      skipped: true,
+      reason,
+    };
+    await mkdir(visualDir, { recursive: true });
+    await writeFile(diagnosticsPath, JSON.stringify(diagnostics, null, 2));
+    return emptyVisualComparison(reason, diagnosticsPath, diagnostics);
   }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
@@ -1167,7 +1182,7 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   };
 }
 
-function emptySemanticComparison(error = '') {
+function emptySemanticComparison(error = '', artifactPath = '', diagnostics = null) {
   return {
     target_count: 0,
     checked_target_count: 0,
@@ -1183,9 +1198,10 @@ function emptySemanticComparison(error = '') {
     landmark_mismatch_count: 0,
     repeated_count_delta_count: 0,
     brand_logo_missing_count: 0,
-    artifact: '',
     error,
     results: [],
+    ...(artifactPath ? { artifact_dir: path.dirname(artifactPath), artifact: artifactPath } : {}),
+    ...(diagnostics ? { diagnostics } : {}),
   };
 }
 
@@ -1740,10 +1756,20 @@ function buildSemanticArtifact(results, artifactPath) {
   };
 }
 
-async function compareSemanticFidelity(importReport, artifactDir, sitePath) {
+export async function compareSemanticFidelity(importReport, artifactDir, sitePath) {
   const targets = semanticComparisonTargets(importReport);
   if (!targets.length) {
-    return emptySemanticComparison(importReport?.error || 'No semantic or visual fidelity comparison targets found.');
+    const semanticDir = path.join(artifactDir, 'semantic-comparisons');
+    const artifactPath = path.join(semanticDir, 'semantic-fidelity-skipped.json');
+    const reason = importReport?.error || 'No semantic or visual fidelity comparison targets found.';
+    const artifact = {
+      ...buildSemanticArtifact([], artifactPath),
+      skipped: true,
+      reason,
+    };
+    await mkdir(semanticDir, { recursive: true });
+    await writeFile(artifactPath, JSON.stringify(artifact, null, 2));
+    return emptySemanticComparison(reason, artifactPath, artifact);
   }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
@@ -2503,6 +2529,10 @@ function toolMetrics(result) {
   return metrics;
 }
 
+function optionalArtifactPath(name, value) {
+  return typeof value === 'string' && value.length > 0 ? { [name]: value } : {};
+}
+
 export default async function studioAgentSiteBuildBench() {
   const currentVariant = variant();
   const runId = `${currentVariant}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -2690,10 +2720,10 @@ export default async function studioAgentSiteBuildBench() {
       site_path: sitePath,
       frontend_url: status.siteUrl,
       admin_auto_login_url: status.autoLoginUrl,
-      visual_comparison_dir: visualComparison.artifact_dir || '',
-      visual_comparison_mismatches: visualComparison.diagnostics_artifact || '',
-      semantic_fidelity: semanticComparison.artifact || '',
-      semantic_comparison_dir: semanticComparison.artifact_dir || '',
+      ...optionalArtifactPath('visual_comparison_dir', visualComparison.artifact_dir),
+      ...optionalArtifactPath('visual_comparison_mismatches', visualComparison.diagnostics_artifact),
+      ...optionalArtifactPath('semantic_fidelity', semanticComparison.artifact),
+      ...optionalArtifactPath('semantic_comparison_dir', semanticComparison.artifact_dir),
     },
     metadata: {
       benchmark_variant: currentVariant,
