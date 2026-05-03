@@ -20,7 +20,6 @@ Automattic/studio/rigs/studio/rig.json
 Automattic/studio/stacks/studio-combined.json
 Automattic/studio/bench/studio-agent-runtime.bench.mjs
 WordPress/wordpress-playground/stacks/playground-combined.json
-chubes4/intelligence-chubes4/rigs/intelligence-chubes4/rig.json
 ```
 
 This keeps bench workloads beside the rig that uses them and makes ownership obvious when this repo becomes a shared rig package.
@@ -31,7 +30,6 @@ Install a package subpath with Homeboy's rig package lifecycle:
 
 ```bash
 homeboy rig install --all https://github.com/chubes4/homeboy-rigs.git//Automattic/studio
-homeboy rig install --all https://github.com/chubes4/homeboy-rigs.git//chubes4/intelligence-chubes4
 ```
 
 Stack specs currently need to be copied into `~/.config/homeboy/stacks/` until stack package installation lands:
@@ -98,10 +96,6 @@ The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`
 ## WordPress/wordpress-playground
 
 `stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs.
-
-## chubes4/intelligence-chubes4
-
-`rigs/intelligence-chubes4/rig.json` points the live WordPress plugin symlinks at the worktree being tested. Edit `components.<id>.path`, then run `homeboy rig up intelligence-chubes4`.
 
 ## chubes4/isolated-block-editor
 
