@@ -7,6 +7,10 @@ import { createRequire } from 'node:module';
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
+const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
+const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
+const DEFAULT_PROMPT_VARIANT = 'studio-code';
+const PROMPT_CATEGORY = 'site-build';
 const requireFromBench = createRequire(import.meta.url);
 
 if (!STUDIO_PATH) {
@@ -106,18 +110,49 @@ async function runEval(prompt, vars) {
   return { result, resultFile, exitCode: code, stderr };
 }
 
-function siteBuildPrompt(sitePath) {
-  return `Build a polished one-page marketing site for Studio Code, a new Studio feature for Automattic and WordPress developers that makes custom site generation faster, simpler, and easier to maintain.
+function promptVariant() {
+  return setting(PROMPT_VARIANT_SETTING) || DEFAULT_PROMPT_VARIANT;
+}
 
-The page should pitch the feature as a better developer workflow: agents can work with normal HTML/CSS or customer-provided raw HTML templates, Studio converts that output into clean WordPress blocks in PHP, and the final site still opens cleanly in the Site Editor.
+async function availablePromptVariants() {
+  const promptsDir = new URL('./prompts/site-build/', import.meta.url);
+  const entries = await readdir(promptsDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => entry.name.replace(/\.md$/, ''))
+    .sort();
+}
 
-Make it feel like a real product launch page for the Studio team. Emphasize the practical benefits: less block-format prompting, fewer fragile skills to maintain, one reusable conversion pipeline, faster one-shot site generation, easier debugging, and editable WordPress output.
+async function promptTemplatePath() {
+  const explicitPromptFile = expandHome(setting(PROMPT_FILE_SETTING) || '');
+  if (explicitPromptFile) {
+    return explicitPromptFile;
+  }
 
-Include a strong hero, proof/benefits section, example use cases, workflow section, testimonial or quote, and final call to action.
+  const variantName = promptVariant();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(variantName)) {
+    throw new Error(`Invalid ${PROMPT_VARIANT_SETTING}: ${variantName}`);
+  }
 
-Work in this Studio site: ${sitePath}
+  return new URL(`./prompts/site-build/${variantName}.md`, import.meta.url);
+}
 
-Use the normal Studio WordPress tools available to you. This is a one-page benchmark, so make reasonable choices, build the page, and stop.`;
+async function siteBuildPrompt(sitePath) {
+  const promptPath = await promptTemplatePath();
+  let template;
+  try {
+    template = await readFile(promptPath, 'utf8');
+  } catch (error) {
+    const variants = await availablePromptVariants().catch(() => []);
+    const hint = variants.length ? ` Available variants: ${variants.join(', ')}.` : '';
+    throw new Error(
+      `Failed to read Studio site-build prompt for variant "${promptVariant()}" from ${String(promptPath)}.${hint} ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  return template.trim().replaceAll('{{sitePath}}', sitePath).replaceAll('${sitePath}', sitePath);
 }
 
 async function createFreshSite(sitePath) {
@@ -649,7 +684,9 @@ export default async function studioAgentSiteBuildBench() {
   await createFreshSite(sitePath);
   const siteCreateMs = Date.now() - siteCreateStarted;
 
-  const prompt = siteBuildPrompt(sitePath);
+  const selectedPromptVariant = promptVariant();
+  const selectedPromptFile = String(await promptTemplatePath());
+  const prompt = await siteBuildPrompt(sitePath);
   const agentStarted = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
     maxTurns: 40,
@@ -676,6 +713,9 @@ export default async function studioAgentSiteBuildBench() {
     JSON.stringify(
       {
         variant: currentVariant,
+        prompt_variant: selectedPromptVariant,
+        prompt_file: selectedPromptFile,
+        prompt_category: PROMPT_CATEGORY,
         prompt,
         sitePath,
         siteUrl: status.siteUrl,
@@ -772,6 +812,12 @@ export default async function studioAgentSiteBuildBench() {
       site_path: sitePath,
       frontend_url: status.siteUrl,
       admin_auto_login_url: status.autoLoginUrl,
+    },
+    metadata: {
+      benchmark_variant: currentVariant,
+      prompt_variant: selectedPromptVariant,
+      prompt_file: selectedPromptFile,
+      prompt_category: PROMPT_CATEGORY,
     },
   };
 }
