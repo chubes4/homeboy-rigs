@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
@@ -12,6 +13,7 @@ const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
 const requireFromBench = createRequire(import.meta.url);
+const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -379,6 +381,381 @@ async function collectLatestImportReport(sitePath) {
   }
 }
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringArray(value) {
+  return asArray(value).filter((item) => typeof item === 'string' && item.trim() !== '');
+}
+
+function safeSlug(value, fallback) {
+  const slug = String(value || fallback || 'target')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return slug || 'target';
+}
+
+function comparisonTargets(importReport) {
+  return asArray(importReport?.report?.visual_fidelity?.comparison_targets).filter(
+    (target) => target && typeof target === 'object'
+  );
+}
+
+function surfaceUrl(target, surface, reportPath) {
+  const surfaces = target?.comparison_hooks?.render_surfaces || {};
+  const configured = surfaces[surface]?.url || '';
+  if (surface === 'source_static') {
+    const sourceFile = configured || target?.source_file || '';
+    if (!sourceFile) {
+      return '';
+    }
+    const absoluteSource = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(path.dirname(reportPath), sourceFile);
+    return pathToFileURL(absoluteSource).toString();
+  }
+
+  if (surface === 'wordpress_frontend') {
+    return configured || target?.wordpress_url || '';
+  }
+
+  return configured;
+}
+
+function visualProbeGroups(target) {
+  const hooks = target?.comparison_hooks || {};
+  const layoutProbes = hooks.layout_probes && typeof hooks.layout_probes === 'object' ? hooks.layout_probes : {};
+  const groups = [];
+  const seen = new Set();
+
+  function add(name, selectors) {
+    const normalizedSelectors = stringArray(selectors);
+    if (!normalizedSelectors.length || seen.has(name)) {
+      return;
+    }
+    seen.add(name);
+    groups.push({ name, selectors: normalizedSelectors });
+  }
+
+  for (const [name, probe] of Object.entries(layoutProbes)) {
+    add(name, probe?.selectors);
+  }
+
+  add('hero_probe', hooks.hero);
+  add('visible_chrome', hooks.visible_chrome);
+  add('footer_chrome', ['footer', '.site-footer', '[class*=footer]']);
+
+  return groups;
+}
+
+async function loadVisualSurface(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(300);
+}
+
+async function evaluateVisualSurface(page, groups) {
+  const evaluatedGroups = [];
+
+  for (const group of groups) {
+    const selectors = [];
+
+    for (const selector of group.selectors) {
+      try {
+        const matches = await page.$$eval(selector, (elements) =>
+          elements.map((element) => {
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+            const visible =
+              rect.width > 0 &&
+              rect.height > 0 &&
+              style.display !== 'none' &&
+              style.visibility !== 'hidden' &&
+              Number(style.opacity || '1') > 0;
+
+            return {
+              visible,
+              boundingBox: {
+                x: Math.round(rect.x),
+                y: Math.round(rect.y),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+              },
+              text: String(element.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160),
+            };
+          })
+        );
+        selectors.push({
+          selector,
+          count: matches.length,
+          visible_count: matches.filter((match) => match.visible).length,
+          nonzero_bounding_box_count: matches.filter(
+            (match) => match.boundingBox.width > 0 && match.boundingBox.height > 0
+          ).length,
+          first_match: matches[0] || null,
+        });
+      } catch (error) {
+        selectors.push({
+          selector,
+          count: 0,
+          visible_count: 0,
+          nonzero_bounding_box_count: 0,
+          error: error instanceof Error ? error.message : String(error),
+          first_match: null,
+        });
+      }
+    }
+
+    evaluatedGroups.push({
+      name: group.name,
+      selectors,
+      selector_count: selectors.length,
+      missing_selector_count: selectors.filter((item) => item.count === 0).length,
+      errored_selector_count: selectors.filter((item) => item.error).length,
+      matched_selector_count: selectors.filter((item) => item.count > 0).length,
+      visible_selector_count: selectors.filter((item) => item.visible_count > 0).length,
+      nonzero_bounding_box_selector_count: selectors.filter((item) => item.nonzero_bounding_box_count > 0).length,
+    });
+  }
+
+  return evaluatedGroups;
+}
+
+function visualSurfaceTotals(groups) {
+  return groups.reduce(
+    (totals, group) => {
+      totals.selector_count += group.selector_count;
+      totals.missing_selector_count += group.missing_selector_count;
+      totals.errored_selector_count += group.errored_selector_count;
+      totals.matched_selector_count += group.matched_selector_count;
+      totals.visible_selector_count += group.visible_selector_count;
+      totals.nonzero_bounding_box_selector_count += group.nonzero_bounding_box_selector_count;
+      return totals;
+    },
+    {
+      selector_count: 0,
+      missing_selector_count: 0,
+      errored_selector_count: 0,
+      matched_selector_count: 0,
+      visible_selector_count: 0,
+      nonzero_bounding_box_selector_count: 0,
+    }
+  );
+}
+
+function visualParity(sourceGroups, frontendGroups) {
+  const frontendByName = new Map(frontendGroups.map((group) => [group.name, group]));
+  const groupComparisons = [];
+  let missingSelectorCount = 0;
+  let visibilityMismatchCount = 0;
+  let nonzeroBoundingBoxMismatchCount = 0;
+  let simpleProbeParityMismatchCount = 0;
+  const simpleProbeFamilies = {
+    nav: new Set(['nav_chrome']),
+    footer: new Set(['footer_chrome']),
+    hero: new Set(['hero_region', 'hero_probe']),
+  };
+  const simpleProbeNames = new Set(Object.values(simpleProbeFamilies).flatMap((names) => [...names]));
+  const simpleProbeMismatches = { nav: 0, footer: 0, hero: 0 };
+
+  for (const sourceGroup of sourceGroups) {
+    const frontendGroup = frontendByName.get(sourceGroup.name);
+    if (!frontendGroup) {
+      continue;
+    }
+
+    const frontendSelectors = new Map(frontendGroup.selectors.map((selector) => [selector.selector, selector]));
+    for (const sourceSelector of sourceGroup.selectors) {
+      const frontendSelector = frontendSelectors.get(sourceSelector.selector);
+      if (!frontendSelector) {
+        continue;
+      }
+
+      const sourceVisible = sourceSelector.visible_count > 0;
+      const frontendVisible = frontendSelector.visible_count > 0;
+      const sourceNonzero = sourceSelector.nonzero_bounding_box_count > 0;
+      const frontendNonzero = frontendSelector.nonzero_bounding_box_count > 0;
+
+      if (sourceSelector.count === 0 || frontendSelector.count === 0) {
+        missingSelectorCount++;
+      }
+      if (sourceVisible !== frontendVisible) {
+        visibilityMismatchCount++;
+      }
+      if (sourceNonzero !== frontendNonzero) {
+        nonzeroBoundingBoxMismatchCount++;
+      }
+    }
+
+    const sourceGroupVisible = sourceGroup.visible_selector_count > 0;
+    const frontendGroupVisible = frontendGroup.visible_selector_count > 0;
+    const simpleProbeMismatch = simpleProbeNames.has(sourceGroup.name) && sourceGroupVisible !== frontendGroupVisible;
+    if (simpleProbeMismatch) {
+      simpleProbeParityMismatchCount++;
+      for (const [family, names] of Object.entries(simpleProbeFamilies)) {
+        if (names.has(sourceGroup.name)) {
+          simpleProbeMismatches[family]++;
+        }
+      }
+    }
+
+    groupComparisons.push({
+      name: sourceGroup.name,
+      source_visible: sourceGroupVisible,
+      frontend_visible: frontendGroupVisible,
+      source_nonzero_bounding_box: sourceGroup.nonzero_bounding_box_selector_count > 0,
+      frontend_nonzero_bounding_box: frontendGroup.nonzero_bounding_box_selector_count > 0,
+      simple_probe_parity: simpleProbeNames.has(sourceGroup.name) ? !simpleProbeMismatch : null,
+    });
+  }
+
+  return {
+    missing_selector_count: missingSelectorCount,
+    visibility_mismatch_count: visibilityMismatchCount,
+    nonzero_bounding_box_mismatch_count: nonzeroBoundingBoxMismatchCount,
+    simple_probe_parity_mismatch_count: simpleProbeParityMismatchCount,
+    simple_probe_mismatches: simpleProbeMismatches,
+    groups: groupComparisons,
+  };
+}
+
+function emptyVisualComparison(error = '') {
+  return {
+    target_count: 0,
+    checked_target_count: 0,
+    error_count: error ? 1 : 0,
+    missing_selector_count: 0,
+    visibility_mismatch_count: 0,
+    nonzero_bounding_box_count: 0,
+    nonzero_bounding_box_mismatch_count: 0,
+    simple_probe_parity_mismatch_count: 0,
+    nav_probe_parity_mismatch_count: 0,
+    footer_probe_parity_mismatch_count: 0,
+    hero_probe_parity_mismatch_count: 0,
+    surfaces: ['source_static', 'wordpress_frontend'],
+    editor_surface_ready: true,
+    error,
+    results: [],
+  };
+}
+
+async function compareVisualFidelity(importReport, artifactDir) {
+  const targets = comparisonTargets(importReport);
+  if (!targets.length) {
+    return emptyVisualComparison(importReport?.error || 'No visual fidelity comparison targets found.');
+  }
+
+  const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
+  const { chromium } = requireFromBench(playwrightPackage);
+  const visualDir = path.join(artifactDir, 'visual-comparisons');
+  await mkdir(visualDir, { recursive: true });
+
+  let browser;
+  const results = [];
+
+  try {
+    browser = await chromium.launch({ args: ['--ignore-certificate-errors'] });
+
+    for (const [index, target] of targets.entries()) {
+      const targetSlug = safeSlug(target.source_filename || target.wordpress_page_id, `target-${index + 1}`);
+      const groups = visualProbeGroups(target);
+      const result = {
+        source_filename: target.source_filename || '',
+        wordpress_page_id: target.wordpress_page_id || null,
+        generated_template: target.generated_template || '',
+        generated_pattern: target.generated_pattern || '',
+        comparison_hooks: target.comparison_hooks || {},
+        source_probe_counts: target.source_probe_counts || {},
+        generated_probe_counts: target.generated_probe_counts || {},
+        surfaces: {},
+        parity: null,
+        errors: [],
+      };
+
+      for (const surface of ['source_static', 'wordpress_frontend']) {
+        const url = surfaceUrl(target, surface, importReport.reportPath);
+        const screenshotPath = path.join(visualDir, `${targetSlug}-${surface}.png`);
+        const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
+
+        try {
+          if (!url) {
+            throw new Error(`Missing ${surface} render URL.`);
+          }
+          await loadVisualSurface(page, url);
+          const probeGroups = await evaluateVisualSurface(page, groups);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          result.surfaces[surface] = {
+            url,
+            screenshot: screenshotPath,
+            probes: probeGroups,
+            totals: visualSurfaceTotals(probeGroups),
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          result.errors.push(`${surface}: ${message}`);
+          result.surfaces[surface] = { url, screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
+        } finally {
+          await page.close();
+        }
+      }
+
+      result.parity = visualParity(
+        result.surfaces.source_static?.probes || [],
+        result.surfaces.wordpress_frontend?.probes || []
+      );
+      results.push(result);
+    }
+  } catch (error) {
+    return emptyVisualComparison(`Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+
+  const totals = results.reduce(
+    (summary, result) => {
+      const sourceTotals = result.surfaces.source_static?.totals || visualSurfaceTotals([]);
+      const frontendTotals = result.surfaces.wordpress_frontend?.totals || visualSurfaceTotals([]);
+      const parity = result.parity || visualParity([], []);
+      summary.error_count += result.errors.length;
+      summary.checked_target_count += result.errors.length === 0 ? 1 : 0;
+      summary.missing_selector_count += sourceTotals.missing_selector_count + frontendTotals.missing_selector_count;
+      summary.visibility_mismatch_count += parity.visibility_mismatch_count;
+      summary.nonzero_bounding_box_count +=
+        sourceTotals.nonzero_bounding_box_selector_count + frontendTotals.nonzero_bounding_box_selector_count;
+      summary.nonzero_bounding_box_mismatch_count += parity.nonzero_bounding_box_mismatch_count;
+      summary.simple_probe_parity_mismatch_count += parity.simple_probe_parity_mismatch_count;
+      summary.nav_probe_parity_mismatch_count += parity.simple_probe_mismatches?.nav || 0;
+      summary.footer_probe_parity_mismatch_count += parity.simple_probe_mismatches?.footer || 0;
+      summary.hero_probe_parity_mismatch_count += parity.simple_probe_mismatches?.hero || 0;
+      return summary;
+    },
+    {
+      target_count: targets.length,
+      checked_target_count: 0,
+      error_count: 0,
+      missing_selector_count: 0,
+      visibility_mismatch_count: 0,
+      nonzero_bounding_box_count: 0,
+      nonzero_bounding_box_mismatch_count: 0,
+      simple_probe_parity_mismatch_count: 0,
+      nav_probe_parity_mismatch_count: 0,
+      footer_probe_parity_mismatch_count: 0,
+      hero_probe_parity_mismatch_count: 0,
+    }
+  );
+
+  return {
+    ...totals,
+    surfaces: ['source_static', 'wordpress_frontend'],
+    editor_surface_ready: true,
+    artifact_dir: visualDir,
+    results,
+  };
+}
+
 async function validateThemeBlocks(sitePath, siteUrl) {
   const documents = await collectThemeBlockDocuments(sitePath);
   if (documents.length === 0) {
@@ -698,6 +1075,10 @@ export default async function studioAgentSiteBuildBench() {
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const status = await siteStatus(sitePath);
   const importReport = await collectLatestImportReport(sitePath);
+  await mkdir(artifactDir, { recursive: true });
+  const visualComparisonStarted = Date.now();
+  const visualComparison = await compareVisualFidelity(importReport, artifactDir);
+  const visualComparisonMs = Date.now() - visualComparisonStarted;
   const editorValidationStarted = Date.now();
   const editorValidation = await validateThemeBlocks(sitePath, status.siteUrl);
   const editorValidationMs = Date.now() - editorValidationStarted;
@@ -706,7 +1087,6 @@ export default async function studioAgentSiteBuildBench() {
   const authoredBlocks = agentAuthoredBlockMetrics(result);
   const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
 
-  await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
   await writeFile(
     artifactFile,
@@ -728,11 +1108,13 @@ export default async function studioAgentSiteBuildBench() {
           site_create_ms: siteCreateMs,
           agent_elapsed_ms: agentElapsedMs,
           quality_probe_ms: qualityProbeMs,
+          visual_comparison_ms: visualComparisonMs,
           editor_validation_ms: editorValidationMs,
           total_elapsed_ms: totalElapsedMs,
         },
         quality,
         importReport,
+        visualComparison,
         editorValidation,
         authoredBlocks,
         nativeBlockQuality,
@@ -758,6 +1140,7 @@ export default async function studioAgentSiteBuildBench() {
       site_create_ms: siteCreateMs,
       agent_elapsed_ms: agentElapsedMs,
       quality_probe_ms: qualityProbeMs,
+      visual_comparison_ms: visualComparisonMs,
       editor_validation_ms: editorValidationMs,
       total_elapsed_ms: totalElapsedMs,
       phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
@@ -789,6 +1172,17 @@ export default async function studioAgentSiteBuildBench() {
       importer_invalid_block_count: Number(importReport.report?.quality?.invalid_block_count || 0),
       importer_invalid_block_document_count: Number(importReport.report?.quality?.invalid_block_document_count || 0),
       importer_generated_block_document_count: Number(importReport.report?.generated_theme?.block_documents?.length || 0),
+      visual_comparison_target_count: Number(visualComparison.target_count || 0),
+      visual_comparison_checked_target_count: Number(visualComparison.checked_target_count || 0),
+      visual_comparison_error_count: Number(visualComparison.error_count || 0),
+      visual_missing_selector_count: Number(visualComparison.missing_selector_count || 0),
+      visual_visibility_mismatch_count: Number(visualComparison.visibility_mismatch_count || 0),
+      visual_nonzero_bounding_box_count: Number(visualComparison.nonzero_bounding_box_count || 0),
+      visual_nonzero_bounding_box_mismatch_count: Number(visualComparison.nonzero_bounding_box_mismatch_count || 0),
+      visual_simple_probe_parity_mismatch_count: Number(visualComparison.simple_probe_parity_mismatch_count || 0),
+      visual_nav_probe_parity_mismatch_count: Number(visualComparison.nav_probe_parity_mismatch_count || 0),
+      visual_footer_probe_parity_mismatch_count: Number(visualComparison.footer_probe_parity_mismatch_count || 0),
+      visual_hero_probe_parity_mismatch_count: Number(visualComparison.hero_probe_parity_mismatch_count || 0),
       posts_seen: Number(quality.posts_seen || 0),
       posts_with_blocks: Number(quality.posts_with_blocks || 0),
       pages_seen: Number(quality.pages_seen || 0),
@@ -812,6 +1206,7 @@ export default async function studioAgentSiteBuildBench() {
       site_path: sitePath,
       frontend_url: status.siteUrl,
       admin_auto_login_url: status.autoLoginUrl,
+      visual_comparison_dir: visualComparison.artifact_dir || '',
     },
     metadata: {
       benchmark_variant: currentVariant,
