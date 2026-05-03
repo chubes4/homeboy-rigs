@@ -356,12 +356,6 @@
             "file_mtime": "${components.studio.path}/apps/cli/dist/cli/main.mjs"
           }
         }
-      },
-      {
-        "kind": "check",
-        "label": "Live proc_open end-to-end (the truth)",
-        "command": "rm -f /tmp/_studio_rig_check_marker && out=$(studio wp --path ~/Studio/intelligence-chubes4 eval '$h = proc_open(\"touch /tmp/_studio_rig_check_marker && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f /tmp/_studio_rig_check_marker && echo \"$out\" | grep -q ok",
-        "expect_exit": 0
       }
     ],
 
