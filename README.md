@@ -89,6 +89,8 @@ homeboy bench --rig studio-bfb --iterations 1 --shared-state /tmp/studio-bfb-ben
 
 The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`. It creates a fresh Studio site per run, inserts one raw HTML page, and reports phase timings plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `serialized_block_comments`, etc.) scoped to that inserted page.
 
+`bench/studio-ssi-woo-fixture-validation.bench.mjs` carries a disabled fixture scaffold for Static Site Importer WooCommerce primitives. It records the static store fixture and `products.json` manifest, then reports a skip until SSI implements manifest validation, product seeding, and product context forwarding. Enable it with `HOMEBOY_ENABLE_SSI_WOO_FIXTURE=1` only against an SSI branch that exposes those primitives; the rig must not seed WooCommerce products itself.
+
 `rigs/studio-agent-sdk/rig.json` and `rigs/studio-agent-pi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
 
 `stacks/studio-combined.json` rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.
