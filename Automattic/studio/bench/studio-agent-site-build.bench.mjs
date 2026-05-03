@@ -13,6 +13,25 @@ const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
 const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
+const PROMPT_VARIANTS = [
+  'artist-music',
+  'course-education',
+  'documentation-knowledge-base',
+  'editorial-magazine',
+  'event-conference',
+  'local-service-business',
+  'membership-community',
+  'nonprofit',
+  'nonprofit-campaign',
+  'portfolio',
+  'product-catalog',
+  'radical-speed-month',
+  'restaurant',
+  'saas',
+  'realistic-small-business',
+  'studio-code',
+  'wordpress-is-dead',
+];
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
 const requireFromBench = createRequire(import.meta.url);
 const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
@@ -119,13 +138,32 @@ function promptVariant() {
   return setting(PROMPT_VARIANT_SETTING) || DEFAULT_PROMPT_VARIANT;
 }
 
-async function availablePromptVariants() {
+export async function availablePromptVariants() {
+  await validatePromptVariantCatalog();
+  return [...PROMPT_VARIANTS];
+}
+
+export async function validatePromptVariantCatalog() {
   const promptsDir = new URL('./prompts/site-build/', import.meta.url);
   const entries = await readdir(promptsDir, { withFileTypes: true });
-  return entries
+  const files = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
     .map((entry) => entry.name.replace(/\.md$/, ''))
     .sort();
+
+  const registered = [...PROMPT_VARIANTS].sort();
+  const missingFiles = registered.filter((variantName) => !files.includes(variantName));
+  const unregisteredFiles = files.filter((variantName) => !registered.includes(variantName));
+
+  if (missingFiles.length || unregisteredFiles.length) {
+    throw new Error(
+      `Studio site-build prompt catalog mismatch. Missing files: ${
+        missingFiles.join(', ') || 'none'
+      }. Unregistered files: ${unregisteredFiles.join(', ') || 'none'}.`
+    );
+  }
+
+  return registered;
 }
 
 async function promptTemplatePath() {
@@ -138,11 +176,15 @@ async function promptTemplatePath() {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(variantName)) {
     throw new Error(`Invalid ${PROMPT_VARIANT_SETTING}: ${variantName}`);
   }
+  if (!PROMPT_VARIANTS.includes(variantName)) {
+    const variants = await availablePromptVariants();
+    throw new Error(`Unknown ${PROMPT_VARIANT_SETTING}: ${variantName}. Available variants: ${variants.join(', ')}.`);
+  }
 
   return new URL(`./prompts/site-build/${variantName}.md`, import.meta.url);
 }
 
-async function siteBuildPrompt(sitePath) {
+export async function siteBuildPrompt(sitePath) {
   const promptPath = await promptTemplatePath();
   let template;
   try {
