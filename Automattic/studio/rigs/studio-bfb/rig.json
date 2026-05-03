@@ -1,6 +1,6 @@
 {
   "id": "studio-bfb",
-  "description": "Local Studio/BFB mu-plugin playground. Builds the hacked Studio CLI that honors STUDIO_BFB_MU_PLUGIN_PATH and stops any stale Studio daemon so local `studio wp`/CLI runs use the BFB mu-plugin substrate. Local play rig only; not a PR shape.",
+  "description": "Local Studio Static Site Importer playground. Builds the hacked Studio CLI that honors STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH and stops any stale Studio daemon so local `studio wp`/CLI runs use the importer substrate. Local play rig only; not a PR shape.",
   "components": {
     "studio": {
       "path": "~/Developer/studio@bfb-mu-plugin-agent-output",
@@ -8,13 +8,13 @@
       "extensions": {
         "nodejs": {
           "studio_bench_variant": "bfb",
-          "studio_bfb_plugin_path": "~/Developer/block-format-bridge@refresh-expanded-h2bc"
+          "studio_static_site_importer_plugin_path": "~/Developer/static-site-importer"
         }
       }
     },
-    "block-format-bridge": {
-      "path": "~/Developer/block-format-bridge@refresh-expanded-h2bc",
-      "branch": "studio-bfb-fixed-main"
+    "static-site-importer": {
+      "path": "~/Developer/static-site-importer",
+      "branch": "main"
     }
   },
   "services": {
@@ -31,7 +31,7 @@
     ],
     "paths": [
       "${components.studio.path}",
-      "${components.block-format-bridge.path}"
+      "${components.static-site-importer.path}"
     ],
     "process_patterns": [
       "wordpress-server-child.mjs"
@@ -44,8 +44,7 @@
   "bench_workloads": {
     "nodejs": [
       "${package.root}/bench/studio-agent-runtime.bench.mjs",
-      "${package.root}/bench/studio-agent-site-build.bench.mjs",
-      "${package.root}/bench/studio-bfb-write-path.bench.mjs"
+      "${package.root}/bench/studio-agent-site-build.bench.mjs"
     ]
   },
   "pipeline": {
@@ -57,31 +56,31 @@
       },
       {
         "kind": "check",
-        "label": "BFB refresh worktree has bundled artifact",
-        "file": "${components.block-format-bridge.path}/vendor_prefixed/autoload.php"
+        "label": "Static Site Importer has Composer autoload",
+        "file": "${components.static-site-importer.path}/vendor/autoload.php"
       },
       {
         "kind": "check",
-        "label": "BFB scoped h2bc hook fix is present",
-        "file": "${components.block-format-bridge.path}/vendor_prefixed/chubes4/html-to-blocks-converter/includes/hooks.php",
-        "contains": "function_exists('add_filter')"
+        "label": "Static Site Importer CLI command is present",
+        "file": "${components.static-site-importer.path}/includes/class-static-site-importer-cli-command.php",
+        "contains": "import-theme"
       },
       {
         "kind": "check",
-        "label": "Studio BFB env hook is present",
+        "label": "Studio Static Site Importer env hook is present",
         "file": "${components.studio.path}/tools/common/lib/mu-plugins.ts",
-        "contains": "STUDIO_BFB_MU_PLUGIN_PATH"
+        "contains": "STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH"
       },
       {
         "kind": "check",
-        "label": "Studio prompt asks for raw HTML",
+        "label": "Studio prompt documents Static Site Importer workflow",
         "file": "${components.studio.path}/apps/cli/ai/system-prompt.ts",
-        "contains": "Block conversion happens automatically"
+        "contains": "static-site-importer import-theme"
       },
       {
         "kind": "check",
-        "label": "Direct page/template raw HTML writes store native blocks",
-        "command": "STUDIO_BFB_MU_PLUGIN_PATH=${components.block-format-bridge.path} /Users/chubes/.nvm/versions/node/v24.13.1/bin/node ${components.studio.path}/apps/cli/scripts/studio-bfb-smoke.mjs",
+        "label": "Static HTML import generates block theme",
+        "command": "STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH=${components.static-site-importer.path} /Users/chubes/.nvm/versions/node/v24.13.1/bin/node ${components.studio.path}/apps/cli/scripts/studio-bfb-smoke.mjs",
         "expect_exit": 0
       }
     ],

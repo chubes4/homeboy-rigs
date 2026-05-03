@@ -1,11 +1,19 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
+const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
+const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
+const DEFAULT_PROMPT_VARIANT = 'studio-code';
+const PROMPT_CATEGORY = 'site-build';
+const requireFromBench = createRequire(import.meta.url);
+const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -42,10 +50,12 @@ function setting(key) {
 }
 
 function cliEnv(extra = {}) {
-  const bfbPath = expandHome(setting('studio_bfb_plugin_path') || '');
+  const staticSiteImporterPath = expandHome(setting('studio_static_site_importer_plugin_path') || '');
   return {
     ...process.env,
-    ...(bfbPath ? { STUDIO_BFB_MU_PLUGIN_PATH: bfbPath } : {}),
+    ...(staticSiteImporterPath
+      ? { STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH: staticSiteImporterPath }
+      : {}),
     ...extra,
   };
 }
@@ -102,21 +112,49 @@ async function runEval(prompt, vars) {
   return { result, resultFile, exitCode: code, stderr };
 }
 
-function siteBuildPrompt(sitePath) {
-  return `Build a polished one-page marketing site for a fictional Charleston bakery named Salt & Star.
+function promptVariant() {
+  return setting(PROMPT_VARIANT_SETTING) || DEFAULT_PROMPT_VARIANT;
+}
 
-Use the existing local Studio site at this exact path: ${sitePath}
+async function availablePromptVariants() {
+  const promptsDir = new URL('./prompts/site-build/', import.meta.url);
+  const entries = await readdir(promptsDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => entry.name.replace(/\.md$/, ''))
+    .sort();
+}
 
-Requirements:
-- Create or update one published page titled "Salt & Star" and make it the homepage if needed.
-- Include a hero section, three product highlights, one customer quote, hours/location details, and a clear call-to-action.
-- Keep the content concise but visually complete.
-- Use the normal Studio WordPress tools available to you.
-- Provide a raw HTML body fragment for page content; block conversion happens automatically when WordPress stores it.
-- Put CSS in the theme stylesheet if styling is needed.
-- Do not create additional pages, plugins, screenshots, SEO audits, or performance audits.
-- This is a benchmark: write the single page, then stop.
-- Do not ask the user questions; make reasonable choices and finish.`;
+async function promptTemplatePath() {
+  const explicitPromptFile = expandHome(setting(PROMPT_FILE_SETTING) || '');
+  if (explicitPromptFile) {
+    return explicitPromptFile;
+  }
+
+  const variantName = promptVariant();
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(variantName)) {
+    throw new Error(`Invalid ${PROMPT_VARIANT_SETTING}: ${variantName}`);
+  }
+
+  return new URL(`./prompts/site-build/${variantName}.md`, import.meta.url);
+}
+
+async function siteBuildPrompt(sitePath) {
+  const promptPath = await promptTemplatePath();
+  let template;
+  try {
+    template = await readFile(promptPath, 'utf8');
+  } catch (error) {
+    const variants = await availablePromptVariants().catch(() => []);
+    const hint = variants.length ? ` Available variants: ${variants.join(', ')}.` : '';
+    throw new Error(
+      `Failed to read Studio site-build prompt for variant "${promptVariant()}" from ${String(promptPath)}.${hint} ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+
+  return template.trim().replaceAll('{{sitePath}}', sitePath).replaceAll('${sitePath}', sitePath);
 }
 
 async function createFreshSite(sitePath) {
@@ -197,7 +235,7 @@ foreach ( $posts as $post ) {
     $before_core_html = $counts['core_html_blocks'];
     bench_count_blocks( parse_blocks( $content ), $counts );
 
-    $is_target_page = 'page' === $post->post_type && ( (int) $post->ID === $front_page_id || 'Salt & Star' === $post->post_title );
+    $is_target_page = 'page' === $post->post_type && ( (int) $post->ID === $front_page_id || 'Studio Code' === $post->post_title );
     if ( $is_target_page ) {
         $counts['target_pages_seen']++;
         $counts['target_serialized_block_comments'] += substr_count( $content, '<!-- wp:' );
@@ -225,6 +263,666 @@ async function probeQuality(sitePath) {
     throw new Error(`quality probe did not emit JSON: ${stdout.slice(0, 1000)}`);
   }
   return JSON.parse(stdout.slice(jsonStart));
+}
+
+async function siteStatus(sitePath) {
+  const { stdout } = await runCli(['site', 'status', '--path', sitePath, '--format', 'json']);
+  const jsonStart = stdout.indexOf('{');
+  if (jsonStart === -1) {
+    throw new Error(`site status did not emit JSON: ${stdout.slice(0, 1000)}`);
+  }
+  return JSON.parse(stdout.slice(jsonStart));
+}
+
+async function collectThemeBlockDocuments(sitePath) {
+  const themesRoot = path.join(sitePath, 'wp-content/themes');
+  let themeEntries = [];
+  try {
+    themeEntries = await readdir(themesRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const generatedThemes = [];
+  for (const entry of themeEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const themeRoot = path.join(themesRoot, entry.name);
+    const reportPath = path.join(themeRoot, 'import-report.json');
+    try {
+      const reportStat = await stat(reportPath);
+      generatedThemes.push({ themeRoot, mtimeMs: reportStat.mtimeMs });
+    } catch {
+      // Only validate importer-generated themes. Default themes can contain
+      // historical/core patterns that are irrelevant to this benchmark.
+    }
+  }
+
+  generatedThemes.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const themeRoot = generatedThemes[0]?.themeRoot;
+  if (!themeRoot) {
+    return [];
+  }
+
+  const documents = [];
+
+  async function collectDir(relativeDir, extension) {
+    const dir = path.join(themeRoot, relativeDir);
+    let entries = [];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(extension)) {
+        continue;
+      }
+      const file = path.join(dir, entry.name);
+      let content = await readFile(file, 'utf8');
+      if (extension === '.php') {
+        content = content.replace(/^\s*<\?php[\s\S]*?\?>\s*/, '');
+      }
+      if (content.includes('<!-- wp:')) {
+        documents.push({
+          source: path.relative(themeRoot, file),
+          content,
+        });
+      }
+    }
+  }
+
+  await collectDir('templates', '.html');
+  await collectDir('parts', '.html');
+  await collectDir('patterns', '.php');
+
+  return documents;
+}
+
+async function collectLatestImportReport(sitePath) {
+  const themesRoot = path.join(sitePath, 'wp-content/themes');
+  let themeEntries = [];
+  try {
+    themeEntries = await readdir(themesRoot, { withFileTypes: true });
+  } catch {
+    return { report: null, reportPath: '', error: 'Themes directory not found.' };
+  }
+
+  const reports = [];
+  for (const entry of themeEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const reportPath = path.join(themesRoot, entry.name, 'import-report.json');
+    try {
+      const reportStat = await stat(reportPath);
+      reports.push({ reportPath, mtimeMs: reportStat.mtimeMs });
+    } catch {
+      // Ignore non-importer themes.
+    }
+  }
+
+  reports.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const reportPath = reports[0]?.reportPath || '';
+  if (!reportPath) {
+    return { report: null, reportPath: '', error: 'No Static Site Importer report found.' };
+  }
+
+  try {
+    return { report: JSON.parse(await readFile(reportPath, 'utf8')), reportPath, error: '' };
+  } catch (error) {
+    return {
+      report: null,
+      reportPath,
+      error: `Failed to read Static Site Importer report: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringArray(value) {
+  return asArray(value).filter((item) => typeof item === 'string' && item.trim() !== '');
+}
+
+function safeSlug(value, fallback) {
+  const slug = String(value || fallback || 'target')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return slug || 'target';
+}
+
+function comparisonTargets(importReport) {
+  return asArray(importReport?.report?.visual_fidelity?.comparison_targets).filter(
+    (target) => target && typeof target === 'object'
+  );
+}
+
+function surfaceUrl(target, surface, reportPath) {
+  const surfaces = target?.comparison_hooks?.render_surfaces || {};
+  const configured = surfaces[surface]?.url || '';
+  if (surface === 'source_static') {
+    const sourceFile = configured || target?.source_file || '';
+    if (!sourceFile) {
+      return '';
+    }
+    const absoluteSource = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(path.dirname(reportPath), sourceFile);
+    return pathToFileURL(absoluteSource).toString();
+  }
+
+  if (surface === 'wordpress_frontend') {
+    return configured || target?.wordpress_url || '';
+  }
+
+  return configured;
+}
+
+function visualProbeGroups(target) {
+  const hooks = target?.comparison_hooks || {};
+  const layoutProbes = hooks.layout_probes && typeof hooks.layout_probes === 'object' ? hooks.layout_probes : {};
+  const groups = [];
+  const seen = new Set();
+
+  function add(name, selectors) {
+    const normalizedSelectors = stringArray(selectors);
+    if (!normalizedSelectors.length || seen.has(name)) {
+      return;
+    }
+    seen.add(name);
+    groups.push({ name, selectors: normalizedSelectors });
+  }
+
+  for (const [name, probe] of Object.entries(layoutProbes)) {
+    add(name, probe?.selectors);
+  }
+
+  add('hero_probe', hooks.hero);
+  add('visible_chrome', hooks.visible_chrome);
+  add('footer_chrome', ['footer', '.site-footer', '[class*=footer]']);
+
+  return groups;
+}
+
+async function loadVisualSurface(page, url) {
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(300);
+}
+
+async function evaluateVisualSurface(page, groups) {
+  const evaluatedGroups = [];
+
+  for (const group of groups) {
+    const selectors = [];
+
+    for (const selector of group.selectors) {
+      try {
+        const matches = await page.$$eval(selector, (elements) =>
+          elements.map((element) => {
+            const rect = element.getBoundingClientRect();
+            const style = window.getComputedStyle(element);
+            const visible =
+              rect.width > 0 &&
+              rect.height > 0 &&
+              style.display !== 'none' &&
+              style.visibility !== 'hidden' &&
+              Number(style.opacity || '1') > 0;
+
+            return {
+              visible,
+              boundingBox: {
+                x: Math.round(rect.x),
+                y: Math.round(rect.y),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+              },
+              text: String(element.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160),
+            };
+          })
+        );
+        selectors.push({
+          selector,
+          count: matches.length,
+          visible_count: matches.filter((match) => match.visible).length,
+          nonzero_bounding_box_count: matches.filter(
+            (match) => match.boundingBox.width > 0 && match.boundingBox.height > 0
+          ).length,
+          first_match: matches[0] || null,
+        });
+      } catch (error) {
+        selectors.push({
+          selector,
+          count: 0,
+          visible_count: 0,
+          nonzero_bounding_box_count: 0,
+          error: error instanceof Error ? error.message : String(error),
+          first_match: null,
+        });
+      }
+    }
+
+    evaluatedGroups.push({
+      name: group.name,
+      selectors,
+      selector_count: selectors.length,
+      missing_selector_count: selectors.filter((item) => item.count === 0).length,
+      errored_selector_count: selectors.filter((item) => item.error).length,
+      matched_selector_count: selectors.filter((item) => item.count > 0).length,
+      visible_selector_count: selectors.filter((item) => item.visible_count > 0).length,
+      nonzero_bounding_box_selector_count: selectors.filter((item) => item.nonzero_bounding_box_count > 0).length,
+    });
+  }
+
+  return evaluatedGroups;
+}
+
+function visualSurfaceTotals(groups) {
+  return groups.reduce(
+    (totals, group) => {
+      totals.selector_count += group.selector_count;
+      totals.missing_selector_count += group.missing_selector_count;
+      totals.errored_selector_count += group.errored_selector_count;
+      totals.matched_selector_count += group.matched_selector_count;
+      totals.visible_selector_count += group.visible_selector_count;
+      totals.nonzero_bounding_box_selector_count += group.nonzero_bounding_box_selector_count;
+      return totals;
+    },
+    {
+      selector_count: 0,
+      missing_selector_count: 0,
+      errored_selector_count: 0,
+      matched_selector_count: 0,
+      visible_selector_count: 0,
+      nonzero_bounding_box_selector_count: 0,
+    }
+  );
+}
+
+function visualParity(sourceGroups, frontendGroups) {
+  const frontendByName = new Map(frontendGroups.map((group) => [group.name, group]));
+  const groupComparisons = [];
+  let missingSelectorCount = 0;
+  let visibilityMismatchCount = 0;
+  let nonzeroBoundingBoxMismatchCount = 0;
+  let simpleProbeParityMismatchCount = 0;
+  const simpleProbeFamilies = {
+    nav: new Set(['nav_chrome']),
+    footer: new Set(['footer_chrome']),
+    hero: new Set(['hero_region', 'hero_probe']),
+  };
+  const simpleProbeNames = new Set(Object.values(simpleProbeFamilies).flatMap((names) => [...names]));
+  const simpleProbeMismatches = { nav: 0, footer: 0, hero: 0 };
+
+  for (const sourceGroup of sourceGroups) {
+    const frontendGroup = frontendByName.get(sourceGroup.name);
+    if (!frontendGroup) {
+      continue;
+    }
+
+    const frontendSelectors = new Map(frontendGroup.selectors.map((selector) => [selector.selector, selector]));
+    for (const sourceSelector of sourceGroup.selectors) {
+      const frontendSelector = frontendSelectors.get(sourceSelector.selector);
+      if (!frontendSelector) {
+        continue;
+      }
+
+      const sourceVisible = sourceSelector.visible_count > 0;
+      const frontendVisible = frontendSelector.visible_count > 0;
+      const sourceNonzero = sourceSelector.nonzero_bounding_box_count > 0;
+      const frontendNonzero = frontendSelector.nonzero_bounding_box_count > 0;
+
+      if (sourceSelector.count === 0 || frontendSelector.count === 0) {
+        missingSelectorCount++;
+      }
+      if (sourceVisible !== frontendVisible) {
+        visibilityMismatchCount++;
+      }
+      if (sourceNonzero !== frontendNonzero) {
+        nonzeroBoundingBoxMismatchCount++;
+      }
+    }
+
+    const sourceGroupVisible = sourceGroup.visible_selector_count > 0;
+    const frontendGroupVisible = frontendGroup.visible_selector_count > 0;
+    const simpleProbeMismatch = simpleProbeNames.has(sourceGroup.name) && sourceGroupVisible !== frontendGroupVisible;
+    if (simpleProbeMismatch) {
+      simpleProbeParityMismatchCount++;
+      for (const [family, names] of Object.entries(simpleProbeFamilies)) {
+        if (names.has(sourceGroup.name)) {
+          simpleProbeMismatches[family]++;
+        }
+      }
+    }
+
+    groupComparisons.push({
+      name: sourceGroup.name,
+      source_visible: sourceGroupVisible,
+      frontend_visible: frontendGroupVisible,
+      source_nonzero_bounding_box: sourceGroup.nonzero_bounding_box_selector_count > 0,
+      frontend_nonzero_bounding_box: frontendGroup.nonzero_bounding_box_selector_count > 0,
+      simple_probe_parity: simpleProbeNames.has(sourceGroup.name) ? !simpleProbeMismatch : null,
+    });
+  }
+
+  return {
+    missing_selector_count: missingSelectorCount,
+    visibility_mismatch_count: visibilityMismatchCount,
+    nonzero_bounding_box_mismatch_count: nonzeroBoundingBoxMismatchCount,
+    simple_probe_parity_mismatch_count: simpleProbeParityMismatchCount,
+    simple_probe_mismatches: simpleProbeMismatches,
+    groups: groupComparisons,
+  };
+}
+
+function emptyVisualComparison(error = '') {
+  return {
+    target_count: 0,
+    checked_target_count: 0,
+    error_count: error ? 1 : 0,
+    missing_selector_count: 0,
+    visibility_mismatch_count: 0,
+    nonzero_bounding_box_count: 0,
+    nonzero_bounding_box_mismatch_count: 0,
+    simple_probe_parity_mismatch_count: 0,
+    nav_probe_parity_mismatch_count: 0,
+    footer_probe_parity_mismatch_count: 0,
+    hero_probe_parity_mismatch_count: 0,
+    surfaces: ['source_static', 'wordpress_frontend'],
+    editor_surface_ready: true,
+    error,
+    results: [],
+  };
+}
+
+async function compareVisualFidelity(importReport, artifactDir) {
+  const targets = comparisonTargets(importReport);
+  if (!targets.length) {
+    return emptyVisualComparison(importReport?.error || 'No visual fidelity comparison targets found.');
+  }
+
+  const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
+  const { chromium } = requireFromBench(playwrightPackage);
+  const visualDir = path.join(artifactDir, 'visual-comparisons');
+  await mkdir(visualDir, { recursive: true });
+
+  let browser;
+  const results = [];
+
+  try {
+    browser = await chromium.launch({ args: ['--ignore-certificate-errors'] });
+
+    for (const [index, target] of targets.entries()) {
+      const targetSlug = safeSlug(target.source_filename || target.wordpress_page_id, `target-${index + 1}`);
+      const groups = visualProbeGroups(target);
+      const result = {
+        source_filename: target.source_filename || '',
+        wordpress_page_id: target.wordpress_page_id || null,
+        generated_template: target.generated_template || '',
+        generated_pattern: target.generated_pattern || '',
+        comparison_hooks: target.comparison_hooks || {},
+        source_probe_counts: target.source_probe_counts || {},
+        generated_probe_counts: target.generated_probe_counts || {},
+        surfaces: {},
+        parity: null,
+        errors: [],
+      };
+
+      for (const surface of ['source_static', 'wordpress_frontend']) {
+        const url = surfaceUrl(target, surface, importReport.reportPath);
+        const screenshotPath = path.join(visualDir, `${targetSlug}-${surface}.png`);
+        const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
+
+        try {
+          if (!url) {
+            throw new Error(`Missing ${surface} render URL.`);
+          }
+          await loadVisualSurface(page, url);
+          const probeGroups = await evaluateVisualSurface(page, groups);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          result.surfaces[surface] = {
+            url,
+            screenshot: screenshotPath,
+            probes: probeGroups,
+            totals: visualSurfaceTotals(probeGroups),
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          result.errors.push(`${surface}: ${message}`);
+          result.surfaces[surface] = { url, screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
+        } finally {
+          await page.close();
+        }
+      }
+
+      result.parity = visualParity(
+        result.surfaces.source_static?.probes || [],
+        result.surfaces.wordpress_frontend?.probes || []
+      );
+      results.push(result);
+    }
+  } catch (error) {
+    return emptyVisualComparison(`Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+
+  const totals = results.reduce(
+    (summary, result) => {
+      const sourceTotals = result.surfaces.source_static?.totals || visualSurfaceTotals([]);
+      const frontendTotals = result.surfaces.wordpress_frontend?.totals || visualSurfaceTotals([]);
+      const parity = result.parity || visualParity([], []);
+      summary.error_count += result.errors.length;
+      summary.checked_target_count += result.errors.length === 0 ? 1 : 0;
+      summary.missing_selector_count += sourceTotals.missing_selector_count + frontendTotals.missing_selector_count;
+      summary.visibility_mismatch_count += parity.visibility_mismatch_count;
+      summary.nonzero_bounding_box_count +=
+        sourceTotals.nonzero_bounding_box_selector_count + frontendTotals.nonzero_bounding_box_selector_count;
+      summary.nonzero_bounding_box_mismatch_count += parity.nonzero_bounding_box_mismatch_count;
+      summary.simple_probe_parity_mismatch_count += parity.simple_probe_parity_mismatch_count;
+      summary.nav_probe_parity_mismatch_count += parity.simple_probe_mismatches?.nav || 0;
+      summary.footer_probe_parity_mismatch_count += parity.simple_probe_mismatches?.footer || 0;
+      summary.hero_probe_parity_mismatch_count += parity.simple_probe_mismatches?.hero || 0;
+      return summary;
+    },
+    {
+      target_count: targets.length,
+      checked_target_count: 0,
+      error_count: 0,
+      missing_selector_count: 0,
+      visibility_mismatch_count: 0,
+      nonzero_bounding_box_count: 0,
+      nonzero_bounding_box_mismatch_count: 0,
+      simple_probe_parity_mismatch_count: 0,
+      nav_probe_parity_mismatch_count: 0,
+      footer_probe_parity_mismatch_count: 0,
+      hero_probe_parity_mismatch_count: 0,
+    }
+  );
+
+  return {
+    ...totals,
+    surfaces: ['source_static', 'wordpress_frontend'],
+    editor_surface_ready: true,
+    artifact_dir: visualDir,
+    results,
+  };
+}
+
+async function validateThemeBlocks(sitePath, siteUrl) {
+  const documents = await collectThemeBlockDocuments(sitePath);
+  if (documents.length === 0) {
+    return {
+      document_count: 0,
+      total_blocks: 0,
+      valid_blocks: 0,
+      invalid_blocks: 0,
+      error: 'No generated theme block documents found.',
+      results: [],
+    };
+  }
+
+  const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
+  const { chromium } = requireFromBench(playwrightPackage);
+  let browser;
+  let page;
+
+  try {
+    browser = await chromium.launch({ args: ['--ignore-certificate-errors'] });
+    page = await browser.newPage({ ignoreHTTPSErrors: true });
+    const normalizedSiteUrl = siteUrl.replace(/\/+$/, '');
+    await page.goto(`${normalizedSiteUrl}/studio-auto-login?redirect_to=%2Fwp-admin%2Fpost-new.php`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30_000,
+    });
+    await page.waitForFunction(
+      () => {
+        try {
+          const wp = window.wp;
+          return (
+            wp &&
+            wp.blocks &&
+            typeof wp.blocks.getBlockTypes === 'function' &&
+            wp.blocks.getBlockTypes().length > 0
+          );
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 30_000 }
+    );
+
+    const report = await page.evaluate((docs) => {
+      const wpBlocks = window.wp?.blocks;
+      const results = [];
+
+      function issueStrings(validationIssues) {
+        const issues = [];
+        for (const issue of validationIssues || []) {
+          if (!issue?.args) {
+            continue;
+          }
+          const message = String(issue.args[0] || '');
+          if (message.startsWith('Block validation failed')) {
+            continue;
+          }
+          issues.push(
+            issue.args
+              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg).slice(0, 200) : String(arg).slice(0, 500)))
+              .join(' ')
+          );
+        }
+        return issues;
+      }
+
+      function validateRecursive(block, source) {
+        if (!block?.name || block.name === 'core/freeform' || block.name === 'core/missing') {
+          return;
+        }
+
+        const blockType = wpBlocks.getBlockType(block.name);
+        let isValid = true;
+        let issues = [];
+        let expectedContent;
+
+        if (!blockType) {
+          isValid = false;
+          issues = [`Block type "${block.name}" is not registered.`];
+        } else {
+          const validation = wpBlocks.validateBlock(block, blockType);
+          if (Array.isArray(validation)) {
+            isValid = validation[0];
+            if (!isValid) {
+              issues = issueStrings(validation[1]);
+            }
+          } else {
+            isValid = validation.isValid;
+            if (!isValid) {
+              issues = issueStrings(validation.validationIssues);
+            }
+          }
+
+          if (!isValid) {
+            try {
+              expectedContent = wpBlocks.getSaveContent(blockType, block.attributes, block.innerBlocks);
+            } catch {
+              expectedContent = undefined;
+            }
+          }
+        }
+
+        results.push({
+          source,
+          blockName: block.name,
+          isValid,
+          issues,
+          originalContent: block.originalContent || '',
+          expectedContent,
+        });
+
+        for (const inner of block.innerBlocks || []) {
+          validateRecursive(inner, source);
+        }
+      }
+
+      for (const doc of docs) {
+        for (const block of wpBlocks.parse(doc.content)) {
+          validateRecursive(block, doc.source);
+        }
+      }
+
+      const validBlocks = results.filter((result) => result.isValid).length;
+      return {
+        document_count: docs.length,
+        total_blocks: results.length,
+        valid_blocks: validBlocks,
+        invalid_blocks: results.length - validBlocks,
+        results,
+      };
+    }, documents);
+
+    await page.close();
+    return report;
+  } catch (error) {
+    let diagnostics = '';
+    if (page && !page.isClosed()) {
+      try {
+        diagnostics = await page.evaluate(() => {
+          const wp = window.wp;
+          return JSON.stringify({
+            url: window.location.href,
+            title: document.title,
+            bodyClass: document.body?.className || '',
+            hasWp: typeof wp !== 'undefined',
+            hasBlocks: !!wp?.blocks,
+            blockTypeCount: wp?.blocks?.getBlockTypes?.()?.length || 0,
+          });
+        });
+      } catch (diagnosticError) {
+        diagnostics = `diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+      }
+    }
+
+    return {
+      document_count: documents.length,
+      total_blocks: 0,
+      valid_blocks: 0,
+      invalid_blocks: 0,
+      error: `Editor block validation failed: ${error instanceof Error ? error.message : String(error)}${diagnostics ? `; ${diagnostics}` : ''}`,
+      results: [],
+    };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 }
 
 function validationMetrics(result) {
@@ -270,11 +968,21 @@ export function agentAuthoredBlockMetrics(result) {
   };
 }
 
-export function nativeBlockQualityMetrics(quality, authoredBlocks) {
+export function nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport) {
   const reasons = [];
   const bfbFallbackCount = metric(quality?.bfb_fallback_count);
   const coreHtmlWithoutBfbFallback = metric(quality?.core_html_without_bfb_fallback);
+  const importerQuality = importReport?.report?.quality || {};
+  const importerCoreHtmlBlocks = metric(importerQuality.core_html_block_count);
+  const importerInvalidBlocks = metric(importerQuality.invalid_block_count);
   const agentAuthoredWpHtmlOpeners = metric(authoredBlocks.agent_authored_wp_html_openers);
+  const invalidEditorBlocks = metric(editorValidation?.invalid_blocks);
+  const targetPagesSeen = metric(quality?.target_pages_seen);
+  const targetPostsWithBlocks = metric(quality?.target_posts_with_blocks);
+
+  if (targetPagesSeen === 0 || targetPostsWithBlocks === 0) {
+    reasons.push('missing_target_block_page');
+  }
 
   if (agentAuthoredWpHtmlOpeners > 0) {
     reasons.push('agent_authored_wp_html');
@@ -284,6 +992,21 @@ export function nativeBlockQualityMetrics(quality, authoredBlocks) {
   }
   if (bfbFallbackCount > 0) {
     reasons.push('bfb_fallback');
+  }
+  if (importerCoreHtmlBlocks > 0) {
+    reasons.push('importer_core_html_blocks');
+  }
+  if (importerInvalidBlocks > 0) {
+    reasons.push('importer_invalid_blocks');
+  }
+  if (importReport?.error) {
+    reasons.push('importer_report_error');
+  }
+  if (invalidEditorBlocks > 0) {
+    reasons.push('editor_invalid_blocks');
+  }
+  if (editorValidation?.error) {
+    reasons.push('editor_validation_error');
   }
 
   return {
@@ -338,7 +1061,9 @@ export default async function studioAgentSiteBuildBench() {
   await createFreshSite(sitePath);
   const siteCreateMs = Date.now() - siteCreateStarted;
 
-  const prompt = siteBuildPrompt(sitePath);
+  const selectedPromptVariant = promptVariant();
+  const selectedPromptFile = String(await promptTemplatePath());
+  const prompt = await siteBuildPrompt(sitePath);
   const agentStarted = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
     maxTurns: 40,
@@ -348,20 +1073,33 @@ export default async function studioAgentSiteBuildBench() {
   const qualityProbeStarted = Date.now();
   const quality = await probeQuality(sitePath);
   const qualityProbeMs = Date.now() - qualityProbeStarted;
+  const status = await siteStatus(sitePath);
+  const importReport = await collectLatestImportReport(sitePath);
+  await mkdir(artifactDir, { recursive: true });
+  const visualComparisonStarted = Date.now();
+  const visualComparison = await compareVisualFidelity(importReport, artifactDir);
+  const visualComparisonMs = Date.now() - visualComparisonStarted;
+  const editorValidationStarted = Date.now();
+  const editorValidation = await validateThemeBlocks(sitePath, status.siteUrl);
+  const editorValidationMs = Date.now() - editorValidationStarted;
   const totalElapsedMs = Date.now() - totalStarted;
   const validation = validationMetrics(result);
   const authoredBlocks = agentAuthoredBlockMetrics(result);
-  const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks);
+  const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
 
-  await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
   await writeFile(
     artifactFile,
     JSON.stringify(
       {
         variant: currentVariant,
+        prompt_variant: selectedPromptVariant,
+        prompt_file: selectedPromptFile,
+        prompt_category: PROMPT_CATEGORY,
         prompt,
         sitePath,
+        siteUrl: status.siteUrl,
+        autoLoginUrl: status.autoLoginUrl,
         exitCode,
         stderr,
         resultFile,
@@ -370,9 +1108,14 @@ export default async function studioAgentSiteBuildBench() {
           site_create_ms: siteCreateMs,
           agent_elapsed_ms: agentElapsedMs,
           quality_probe_ms: qualityProbeMs,
+          visual_comparison_ms: visualComparisonMs,
+          editor_validation_ms: editorValidationMs,
           total_elapsed_ms: totalElapsedMs,
         },
         quality,
+        importReport,
+        visualComparison,
+        editorValidation,
         authoredBlocks,
         nativeBlockQuality,
         validation,
@@ -387,15 +1130,18 @@ export default async function studioAgentSiteBuildBench() {
   const turnDurations = Array.isArray(result.turnDurationsMs) ? result.turnDurationsMs : [];
   const phaseTimings = result.phaseTimingsMs && typeof result.phaseTimingsMs === 'object' ? result.phaseTimingsMs : {};
   const toolBreakdown = toolMetrics(result);
+  const agentSucceeded = result.success === true && !result.error;
 
   return {
     metrics: {
-      success_rate: result.success === true ? 1 : 0,
-      agent_error_rate: result.success === true ? 0 : 1,
+      success_rate: agentSucceeded ? 1 : 0,
+      agent_error_rate: agentSucceeded ? 0 : 1,
       elapsed_ms: totalElapsedMs,
       site_create_ms: siteCreateMs,
       agent_elapsed_ms: agentElapsedMs,
       quality_probe_ms: qualityProbeMs,
+      visual_comparison_ms: visualComparisonMs,
+      editor_validation_ms: editorValidationMs,
       total_elapsed_ms: totalElapsedMs,
       phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
       phase_resolve_unavailable_provider_ms: metric(phaseTimings.resolve_unavailable_provider_ms),
@@ -415,6 +1161,28 @@ export default async function studioAgentSiteBuildBench() {
       ...authoredBlocks,
       native_block_quality_pass: nativeBlockQuality.native_block_quality_pass ? 1 : 0,
       native_block_quality_failure_count: nativeBlockQuality.native_block_quality_failure_count,
+      editor_validation_document_count: Number(editorValidation.document_count || 0),
+      editor_validation_total_blocks: Number(editorValidation.total_blocks || 0),
+      editor_validation_valid_blocks: Number(editorValidation.valid_blocks || 0),
+      editor_validation_invalid_blocks: Number(editorValidation.invalid_blocks || 0),
+      editor_validation_error_count: editorValidation.error ? 1 : 0,
+      importer_report_error_count: importReport.error ? 1 : 0,
+      importer_fallback_count: Number(importReport.report?.quality?.fallback_count || 0),
+      importer_core_html_block_count: Number(importReport.report?.quality?.core_html_block_count || 0),
+      importer_invalid_block_count: Number(importReport.report?.quality?.invalid_block_count || 0),
+      importer_invalid_block_document_count: Number(importReport.report?.quality?.invalid_block_document_count || 0),
+      importer_generated_block_document_count: Number(importReport.report?.generated_theme?.block_documents?.length || 0),
+      visual_comparison_target_count: Number(visualComparison.target_count || 0),
+      visual_comparison_checked_target_count: Number(visualComparison.checked_target_count || 0),
+      visual_comparison_error_count: Number(visualComparison.error_count || 0),
+      visual_missing_selector_count: Number(visualComparison.missing_selector_count || 0),
+      visual_visibility_mismatch_count: Number(visualComparison.visibility_mismatch_count || 0),
+      visual_nonzero_bounding_box_count: Number(visualComparison.nonzero_bounding_box_count || 0),
+      visual_nonzero_bounding_box_mismatch_count: Number(visualComparison.nonzero_bounding_box_mismatch_count || 0),
+      visual_simple_probe_parity_mismatch_count: Number(visualComparison.simple_probe_parity_mismatch_count || 0),
+      visual_nav_probe_parity_mismatch_count: Number(visualComparison.nav_probe_parity_mismatch_count || 0),
+      visual_footer_probe_parity_mismatch_count: Number(visualComparison.footer_probe_parity_mismatch_count || 0),
+      visual_hero_probe_parity_mismatch_count: Number(visualComparison.hero_probe_parity_mismatch_count || 0),
       posts_seen: Number(quality.posts_seen || 0),
       posts_with_blocks: Number(quality.posts_with_blocks || 0),
       pages_seen: Number(quality.pages_seen || 0),
@@ -436,6 +1204,15 @@ export default async function studioAgentSiteBuildBench() {
     artifacts: {
       raw_result: artifactFile,
       site_path: sitePath,
+      frontend_url: status.siteUrl,
+      admin_auto_login_url: status.autoLoginUrl,
+      visual_comparison_dir: visualComparison.artifact_dir || '',
+    },
+    metadata: {
+      benchmark_variant: currentVariant,
+      prompt_variant: selectedPromptVariant,
+      prompt_file: selectedPromptFile,
+      prompt_category: PROMPT_CATEGORY,
     },
   };
 }
