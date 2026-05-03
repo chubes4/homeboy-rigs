@@ -2074,6 +2074,152 @@ async function collectCssFiles(root, maxFiles = 40) {
   return files;
 }
 
+export function reportedFreeformBlockCount(importReport) {
+  const quality = importReport?.report?.quality || {};
+  const generatedTheme = importReport?.report?.generated_theme || {};
+  const candidates = [
+    quality.freeform_block_count,
+    quality.freeform_blocks,
+    generatedTheme.freeform_block_count,
+    generatedTheme.freeform_blocks,
+  ];
+
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
+function freeformDiagnostics(documents) {
+  const results = [];
+  let count = 0;
+
+  for (const document of documents) {
+    const documentCount = countRegex(document.content, /<!--\s+wp:freeform\b/gi);
+    if (documentCount === 0) {
+      continue;
+    }
+    count += documentCount;
+    results.push({
+      source: document.source,
+      freeform_block_count: documentCount,
+    });
+  }
+
+  return { count, results };
+}
+
+export function hiddenEditorContentDiagnostics(cssFiles) {
+  const hiddenRules = [];
+  const editorOverrideRules = [];
+  const revealSelectorPattern = /(?:^|[\s.#:[>,])(?:js[-_])?(?:reveal|revealed|aos|fade[-_]in|animate[-_]on[-_]scroll|scroll[-_]reveal)\b|\[data[-_](?:reveal|aos|animate)/i;
+  const hiddenDeclarationPattern = /(?:opacity\s*:\s*0(?:\.0+)?\b|visibility\s*:\s*hidden\b|display\s*:\s*none\b)/i;
+  const visibleDeclarationPattern = /(?:opacity\s*:\s*1(?:\.0+)?\b|visibility\s*:\s*visible\b|display\s*:\s*(?:block|grid|flex|contents)\b)/i;
+  const editorSelectorPattern = /(?:editor-styles-wrapper|block-editor|wp-admin|is-root-container)/i;
+
+  for (const file of cssFiles) {
+    const content = typeof file.content === 'string' ? file.content : '';
+    for (const match of content.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = match[1].trim().replace(/\s+/g, ' ');
+      const declarations = match[2].trim().replace(/\s+/g, ' ');
+      if (!revealSelectorPattern.test(selector)) {
+        continue;
+      }
+
+      const rule = {
+        source: file.source,
+        selector,
+        declarations: declarations.slice(0, 300),
+      };
+
+      if (hiddenDeclarationPattern.test(declarations)) {
+        hiddenRules.push(rule);
+      }
+      if (editorSelectorPattern.test(selector) && visibleDeclarationPattern.test(declarations)) {
+        editorOverrideRules.push(rule);
+      }
+    }
+  }
+
+  return {
+    hidden_rule_count: hiddenRules.length,
+    editor_override_rule_count: editorOverrideRules.length,
+    missing_editor_override_count: Math.max(0, hiddenRules.length - editorOverrideRules.length),
+    hidden_rules: hiddenRules.slice(0, 25),
+    editor_override_rules: editorOverrideRules.slice(0, 25),
+  };
+}
+
+export async function collectGeneratedThemeUxGates(sitePath, importReport, artifactDir) {
+  const { themeRoot, themeSlug, error } = await collectLatestGeneratedTheme(sitePath);
+  const artifactPath = path.join(artifactDir, 'generated-theme-ux-gates.json');
+  const reasons = [];
+
+  if (!themeRoot) {
+    const skipped = {
+      skipped: true,
+      error,
+      theme_slug: themeSlug,
+      artifact: artifactPath,
+      generated_theme_ux_quality_pass: false,
+      generated_theme_ux_quality_failure_count: 1,
+      generated_theme_ux_quality_failure_reasons: ['missing_generated_theme'],
+    };
+    await writeFile(artifactPath, JSON.stringify(skipped, null, 2));
+    return skipped;
+  }
+
+  const documents = await collectThemeBlockDocuments(sitePath);
+  const freeform = freeformDiagnostics(documents);
+  const importerFreeformCount = reportedFreeformBlockCount(importReport);
+  const cssFiles = await collectCssFiles(themeRoot);
+  const cssFileContents = [];
+  for (const file of cssFiles) {
+    cssFileContents.push({ source: path.relative(themeRoot, file), content: await readIfExists(file) });
+  }
+  const hiddenEditorContent = hiddenEditorContentDiagnostics(cssFileContents);
+
+  if (freeform.count !== importerFreeformCount) {
+    reasons.push('freeform_report_count_mismatch');
+  }
+  if (hiddenEditorContent.missing_editor_override_count > 0) {
+    reasons.push('css_hidden_editor_content_without_override');
+  }
+
+  const diagnostics = {
+    skipped: false,
+    theme_slug: themeSlug,
+    theme_root: themeRoot,
+    document_count: documents.length,
+    css_file_count: cssFiles.length,
+    actual_freeform_block_count: freeform.count,
+    importer_freeform_block_count: importerFreeformCount,
+    freeform_report_mismatch_count: freeform.count === importerFreeformCount ? 0 : 1,
+    freeform_documents: freeform.results,
+    css_hidden_editor_content_count: hiddenEditorContent.hidden_rule_count,
+    css_editor_reveal_override_count: hiddenEditorContent.editor_override_rule_count,
+    css_hidden_editor_content_without_override_count: hiddenEditorContent.missing_editor_override_count,
+    css_hidden_editor_content: hiddenEditorContent.hidden_rules,
+    css_editor_reveal_overrides: hiddenEditorContent.editor_override_rules,
+    generated_theme_ux_quality_pass: reasons.length === 0,
+    generated_theme_ux_quality_failure_count: reasons.length,
+    generated_theme_ux_quality_failure_reasons: reasons,
+    remaining_manual_gates: [
+      'site_editor_canvas_above_fold_visible_text',
+      'footer_utility_links_not_responsive_nav_overlay',
+      'admin_bar_not_obscured_by_fixed_or_sticky_chrome',
+    ],
+    artifact: artifactPath,
+  };
+
+  await writeFile(artifactPath, JSON.stringify(diagnostics, null, 2));
+  return diagnostics;
+}
+
 function uniqueSorted(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
@@ -2716,6 +2862,9 @@ export default async function studioAgentSiteBuildBench() {
   const editorValidationStarted = Date.now();
   const editorValidation = await validateThemeBlocks(sitePath, status.siteUrl);
   const editorValidationMs = Date.now() - editorValidationStarted;
+  const generatedThemeUxStarted = Date.now();
+  const generatedThemeUxGates = await collectGeneratedThemeUxGates(sitePath, importReport, artifactDir);
+  const generatedThemeUxMs = Date.now() - generatedThemeUxStarted;
   const totalElapsedMs = Date.now() - totalStarted;
   const validation = validationMetrics(result);
   const authoredBlocks = agentAuthoredBlockMetrics(result);
@@ -2750,6 +2899,7 @@ export default async function studioAgentSiteBuildBench() {
           visual_comparison_ms: visualComparisonMs,
           semantic_comparison_ms: semanticComparisonMs,
           editor_validation_ms: editorValidationMs,
+          generated_theme_ux_ms: generatedThemeUxMs,
           total_elapsed_ms: totalElapsedMs,
         },
         quality,
@@ -2757,6 +2907,7 @@ export default async function studioAgentSiteBuildBench() {
         visualComparison,
         semanticComparison,
         editorValidation,
+        generatedThemeUxGates,
         designFingerprint,
         authoredBlocks,
         nativeBlockQuality,
@@ -2785,6 +2936,7 @@ export default async function studioAgentSiteBuildBench() {
       visual_comparison_ms: visualComparisonMs,
       semantic_comparison_ms: semanticComparisonMs,
       editor_validation_ms: editorValidationMs,
+      generated_theme_ux_ms: generatedThemeUxMs,
       total_elapsed_ms: totalElapsedMs,
       phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
       phase_resolve_unavailable_provider_ms: metric(phaseTimings.resolve_unavailable_provider_ms),
@@ -2804,6 +2956,16 @@ export default async function studioAgentSiteBuildBench() {
       ...authoredBlocks,
       native_block_quality_pass: nativeBlockQuality.native_block_quality_pass ? 1 : 0,
       native_block_quality_failure_count: nativeBlockQuality.native_block_quality_failure_count,
+      generated_theme_ux_quality_pass: generatedThemeUxGates.generated_theme_ux_quality_pass ? 1 : 0,
+      generated_theme_ux_quality_failure_count: Number(generatedThemeUxGates.generated_theme_ux_quality_failure_count || 0),
+      generated_theme_actual_freeform_block_count: Number(generatedThemeUxGates.actual_freeform_block_count || 0),
+      generated_theme_importer_freeform_block_count: Number(generatedThemeUxGates.importer_freeform_block_count || 0),
+      generated_theme_freeform_report_mismatch_count: Number(generatedThemeUxGates.freeform_report_mismatch_count || 0),
+      generated_theme_css_hidden_editor_content_count: Number(generatedThemeUxGates.css_hidden_editor_content_count || 0),
+      generated_theme_css_editor_reveal_override_count: Number(generatedThemeUxGates.css_editor_reveal_override_count || 0),
+      generated_theme_css_hidden_editor_content_without_override_count: Number(
+        generatedThemeUxGates.css_hidden_editor_content_without_override_count || 0
+      ),
       editor_validation_document_count: Number(editorValidation.document_count || 0),
       editor_validation_total_blocks: Number(editorValidation.total_blocks || 0),
       editor_validation_valid_blocks: Number(editorValidation.valid_blocks || 0),
@@ -2871,6 +3033,7 @@ export default async function studioAgentSiteBuildBench() {
       ...optionalArtifactPath('visual_comparison_mismatches', visualComparison.diagnostics_artifact),
       ...optionalArtifactPath('semantic_fidelity', semanticComparison.artifact),
       ...optionalArtifactPath('semantic_comparison_dir', semanticComparison.artifact_dir),
+      ...optionalArtifactPath('generated_theme_ux_gates', generatedThemeUxGates.artifact),
     },
     metadata: {
       benchmark_variant: currentVariant,
