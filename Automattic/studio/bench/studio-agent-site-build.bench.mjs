@@ -680,6 +680,9 @@ function visualMismatchReason(sourceSelector, frontendSelector) {
   if (sourceSelector?.error || frontendSelector?.error) {
     return 'selector_error';
   }
+  if (sourceSelector.visible_count === 0 && frontendSelector.visible_count === 0) {
+    return 'missing_on_both_surfaces';
+  }
   if (sourceSelector.count === 0 && frontendSelector.count === 0) {
     return 'missing_on_both_surfaces';
   }
@@ -1499,6 +1502,20 @@ function semanticHasMaterialRepeatedDelta(sourceCount, frontendCount) {
   return Math.abs(sourceCount - frontendCount) >= Math.max(3, Math.ceil(sourceCount * 0.35));
 }
 
+function semanticAllowsNavigationClassRoleChange(sourceOwner, frontendOwner) {
+  const sourceRole = semanticRole(sourceOwner);
+  const frontendRole = semanticRole(frontendOwner);
+  const key = semanticPrimaryClassKey(sourceOwner);
+  if (!/nav|menu/i.test(key) || !['group', 'list'].includes(sourceRole) || frontendRole !== 'nav') {
+    return false;
+  }
+
+  return (
+    Number(sourceOwner.clickable_descendant_count || 0) === Number(frontendOwner.clickable_descendant_count || 0) &&
+    semanticTextTokens(sourceOwner.text).every((token) => new Set(semanticTextTokens(frontendOwner.text)).has(token))
+  );
+}
+
 function semanticMismatch(type, reason, source, frontend, extra = {}) {
   return {
     type,
@@ -1577,7 +1594,11 @@ function compareSemanticFingerprints(source, frontend) {
       continue;
     }
 
-    if (roleChanged && (sourceInteractive || frontendInteractive || sourceOwner.concept || frontendOwner.concept)) {
+    if (
+      roleChanged &&
+      !semanticAllowsNavigationClassRoleChange(sourceOwner, frontendOwner) &&
+      (sourceInteractive || frontendInteractive || sourceOwner.concept || frontendOwner.concept)
+    ) {
       counts.role_mismatch_count++;
       counts.class_owner_changed_count++;
       mismatches.push(
