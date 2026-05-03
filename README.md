@@ -87,6 +87,20 @@ homeboy rig up studio-bfb
 homeboy bench --rig studio-bfb --iterations 1 --shared-state /tmp/studio-bfb-bench
 ```
 
+The site-build workload accepts a runtime namespace for parallel prompt-variant runs. The prompt variant still controls benchmark semantics; `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
+
+```bash
+HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=restaurant \
+HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
+homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-bfb-bench &
+
+HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=saas \
+HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
+homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-bfb-bench &
+
+wait
+```
+
 The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`. It creates a fresh Studio site per run, inserts one raw HTML page, and reports phase timings plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `serialized_block_comments`, etc.) scoped to that inserted page.
 
 `rigs/studio-agent-sdk/rig.json` and `rigs/studio-agent-pi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
