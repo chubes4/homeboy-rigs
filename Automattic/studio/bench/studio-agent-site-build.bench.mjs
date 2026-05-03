@@ -16,9 +16,12 @@ const PROMPT_CATEGORY = 'site-build';
 const PROMPT_VARIANTS = [
   'artist-music',
   'course-education',
+  'data-machine',
   'documentation-knowledge-base',
   'editorial-magazine',
   'event-conference',
+  'homeboy',
+  'intelligence',
   'local-service-business',
   'membership-community',
   'nonprofit',
@@ -30,6 +33,7 @@ const PROMPT_VARIANTS = [
   'saas',
   'realistic-small-business',
   'studio-code',
+  'wp-coding-agents',
   'wordpress-is-dead',
 ];
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
@@ -1008,7 +1012,21 @@ function visualParity(sourceGroups, frontendGroups) {
   };
 }
 
-function emptyVisualComparison(error = '') {
+async function emptyVisualComparison(artifactDir, error = '') {
+  const visualDir = path.join(artifactDir, 'visual-comparisons');
+  await mkdir(visualDir, { recursive: true });
+  const diagnosticsPath = path.join(visualDir, 'visual-comparison-mismatches.json');
+  const diagnostics = {
+    artifact: diagnosticsPath,
+    mismatch_count: 0,
+    optional_probe_absent_count: 0,
+    top_failing_groups: [],
+    targets: [],
+    mismatches: [],
+    optional_probe_absences: [],
+  };
+  await writeFile(diagnosticsPath, JSON.stringify(diagnostics, null, 2));
+
   return {
     target_count: 0,
     checked_target_count: 0,
@@ -1023,24 +1041,18 @@ function emptyVisualComparison(error = '') {
     hero_probe_parity_mismatch_count: 0,
     surfaces: ['source_static', 'wordpress_frontend'],
     editor_surface_ready: true,
+    artifact_dir: visualDir,
+    diagnostics_artifact: diagnosticsPath,
     error,
     results: [],
-    diagnostics: {
-      artifact: '',
-      mismatch_count: 0,
-      optional_probe_absent_count: 0,
-      top_failing_groups: [],
-      targets: [],
-      mismatches: [],
-      optional_probe_absences: [],
-    },
+    diagnostics,
   };
 }
 
 async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   const targets = comparisonTargets(importReport);
   if (!targets.length) {
-    return emptyVisualComparison(importReport?.error || 'No visual fidelity comparison targets found.');
+    return emptyVisualComparison(artifactDir, importReport?.error || 'No visual fidelity comparison targets found.');
   }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
@@ -1113,7 +1125,7 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
       results.push(result);
     }
   } catch (error) {
-    return emptyVisualComparison(`Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`);
+    return emptyVisualComparison(artifactDir, `Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     if (browser) {
       await browser.close();
