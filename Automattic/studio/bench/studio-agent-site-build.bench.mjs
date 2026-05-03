@@ -16,6 +16,7 @@ const PROMPT_CATEGORY = 'site-build';
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
 const requireFromBench = createRequire(import.meta.url);
 const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
+const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -633,6 +634,249 @@ function visualSurfaceTotals(groups) {
   );
 }
 
+function visualSelectorSummary(selector) {
+  const firstMatch = selector?.first_match || null;
+  return {
+    count: Number(selector?.count || 0),
+    visible_count: Number(selector?.visible_count || 0),
+    nonzero_bounding_box_count: Number(selector?.nonzero_bounding_box_count || 0),
+    first_bounding_box: firstMatch?.boundingBox || null,
+    first_visible: firstMatch?.visible === true,
+    first_visible_text: firstMatch?.text || '',
+    error: selector?.error || '',
+  };
+}
+
+function visualMismatchReason(sourceSelector, frontendSelector) {
+  if (sourceSelector?.error || frontendSelector?.error) {
+    return 'selector_error';
+  }
+  if (sourceSelector.count === 0 && frontendSelector.count === 0) {
+    return 'missing_on_both_surfaces';
+  }
+  if (sourceSelector.count === 0) {
+    return 'missing_from_source_static';
+  }
+  if (frontendSelector.count === 0) {
+    return 'missing_from_wordpress_frontend';
+  }
+
+  const sourceVisible = sourceSelector.visible_count > 0;
+  const frontendVisible = frontendSelector.visible_count > 0;
+  if (sourceVisible !== frontendVisible) {
+    return sourceVisible ? 'hidden_on_wordpress_frontend' : 'hidden_on_source_static';
+  }
+
+  const sourceNonzero = sourceSelector.nonzero_bounding_box_count > 0;
+  const frontendNonzero = frontendSelector.nonzero_bounding_box_count > 0;
+  if (sourceNonzero !== frontendNonzero) {
+    return sourceNonzero ? 'zero_sized_on_wordpress_frontend' : 'zero_sized_on_source_static';
+  }
+
+  return '';
+}
+
+function visualMismatchSeverity(reason) {
+  const severities = {
+    selector_error: 100,
+    missing_from_wordpress_frontend: 90,
+    missing_from_source_static: 80,
+    missing_on_both_surfaces: 70,
+    hidden_on_wordpress_frontend: 60,
+    hidden_on_source_static: 50,
+    zero_sized_on_wordpress_frontend: 40,
+    zero_sized_on_source_static: 30,
+  };
+  return severities[reason] || 0;
+}
+
+function visualGroupMismatchSummary(groupName, mismatches) {
+  const reasons = {};
+  for (const mismatch of mismatches) {
+    reasons[mismatch.reason] = (reasons[mismatch.reason] || 0) + 1;
+  }
+  return {
+    group: groupName,
+    mismatch_count: mismatches.length,
+    reasons,
+    top_selectors: mismatches.slice(0, 5).map((mismatch) => ({
+      selector: mismatch.selector,
+      reason: mismatch.reason,
+      source_count: mismatch.source.count,
+      frontend_count: mismatch.frontend.count,
+      source_visible_count: mismatch.source.visible_count,
+      frontend_visible_count: mismatch.frontend.visible_count,
+    })),
+  };
+}
+
+function visualMismatchDetails(result) {
+  const sourceGroups = result.surfaces.source_static?.probes || [];
+  const frontendGroups = result.surfaces.wordpress_frontend?.probes || [];
+  const frontendGroupsByName = new Map(frontendGroups.map((group) => [group.name, group]));
+  const mismatches = [];
+
+  for (const sourceGroup of sourceGroups) {
+    const frontendGroup = frontendGroupsByName.get(sourceGroup.name);
+    if (!frontendGroup) {
+      continue;
+    }
+
+    const frontendSelectors = new Map(frontendGroup.selectors.map((selector) => [selector.selector, selector]));
+    for (const sourceSelector of sourceGroup.selectors) {
+      const frontendSelector = frontendSelectors.get(sourceSelector.selector);
+      if (!frontendSelector) {
+        continue;
+      }
+
+      const reason = visualMismatchReason(sourceSelector, frontendSelector);
+      if (!reason) {
+        continue;
+      }
+
+      mismatches.push({
+        group: sourceGroup.name,
+        selector: sourceSelector.selector,
+        reason,
+        severity: visualMismatchSeverity(reason),
+        source: visualSelectorSummary(sourceSelector),
+        frontend: visualSelectorSummary(frontendSelector),
+        screenshots: {},
+      });
+    }
+  }
+
+  mismatches.sort(
+    (a, b) => b.severity - a.severity || a.group.localeCompare(b.group) || a.selector.localeCompare(b.selector)
+  );
+  return mismatches;
+}
+
+async function captureSelectorScreenshot(page, selector, screenshotPath) {
+  try {
+    const locator = page.locator(selector).first();
+    if ((await locator.count()) === 0) {
+      return '';
+    }
+    await locator.screenshot({ path: screenshotPath, timeout: 5_000 });
+    return screenshotPath;
+  } catch {
+    return '';
+  }
+}
+
+async function captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug) {
+  if (!mismatches.length) {
+    return;
+  }
+
+  const screenshotsDir = path.join(visualDir, 'mismatch-screenshots');
+  const urls = {
+    source_static: result.surfaces.source_static?.url || '',
+    wordpress_frontend: result.surfaces.wordpress_frontend?.url || '',
+  };
+  const pages = {};
+
+  try {
+    await mkdir(screenshotsDir, { recursive: true });
+    for (const [surface, url] of Object.entries(urls)) {
+      if (!url) {
+        continue;
+      }
+      const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
+      await loadVisualSurface(page, url);
+      pages[surface] = page;
+    }
+
+    for (const [index, mismatch] of mismatches.slice(0, VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT).entries()) {
+      const screenshotSlug = safeSlug(
+        `${targetSlug}-${index + 1}-${mismatch.group}-${mismatch.selector}`,
+        `mismatch-${index + 1}`
+      );
+      for (const [surface, page] of Object.entries(pages)) {
+        const screenshotPath = path.join(screenshotsDir, `${screenshotSlug}-${surface}.png`);
+        const capturedPath = await captureSelectorScreenshot(page, mismatch.selector, screenshotPath);
+        if (capturedPath) {
+          mismatch.screenshots[surface] = capturedPath;
+        }
+      }
+    }
+  } catch (error) {
+    result.diagnostic_warnings = [
+      ...(result.diagnostic_warnings || []),
+      `mismatch screenshots: ${error instanceof Error ? error.message : String(error)}`,
+    ];
+  } finally {
+    await Promise.all(Object.values(pages).map((page) => page.close().catch(() => {})));
+  }
+}
+
+function buildVisualDiagnostics(results, artifactPath) {
+  const targetSummaries = [];
+  const allMismatches = [];
+
+  for (const result of results) {
+    const mismatches = asArray(result.diagnostics?.mismatches);
+    const byGroup = new Map();
+
+    for (const mismatch of mismatches) {
+      if (!byGroup.has(mismatch.group)) {
+        byGroup.set(mismatch.group, []);
+      }
+      byGroup.get(mismatch.group).push(mismatch);
+      allMismatches.push({
+        target: result.source_filename || String(result.wordpress_page_id || ''),
+        ...mismatch,
+      });
+    }
+
+    targetSummaries.push({
+      source_filename: result.source_filename || '',
+      wordpress_page_id: result.wordpress_page_id || null,
+      mismatch_count: mismatches.length,
+      top_failing_groups: [...byGroup.entries()]
+        .map(([groupName, groupMismatches]) => visualGroupMismatchSummary(groupName, groupMismatches))
+        .sort((a, b) => b.mismatch_count - a.mismatch_count || a.group.localeCompare(b.group))
+        .slice(0, 5),
+      top_failing_selectors: mismatches.slice(0, 10).map((mismatch) => ({
+        group: mismatch.group,
+        selector: mismatch.selector,
+        reason: mismatch.reason,
+        source_count: mismatch.source.count,
+        frontend_count: mismatch.frontend.count,
+        source_first_bounding_box: mismatch.source.first_bounding_box,
+        frontend_first_bounding_box: mismatch.frontend.first_bounding_box,
+        source_first_visible_text: mismatch.source.first_visible_text,
+        frontend_first_visible_text: mismatch.frontend.first_visible_text,
+        screenshots: mismatch.screenshots,
+      })),
+    });
+  }
+
+  const topFailingGroups = new Map();
+  for (const mismatch of allMismatches) {
+    const key = `${mismatch.target || 'target'}:${mismatch.group}`;
+    if (!topFailingGroups.has(key)) {
+      topFailingGroups.set(key, []);
+    }
+    topFailingGroups.get(key).push(mismatch);
+  }
+
+  return {
+    artifact: artifactPath,
+    mismatch_count: allMismatches.length,
+    top_failing_groups: [...topFailingGroups.entries()]
+      .map(([, mismatches]) => ({
+        target: mismatches[0]?.target || '',
+        ...visualGroupMismatchSummary(mismatches[0]?.group || '', mismatches),
+      }))
+      .sort((a, b) => b.mismatch_count - a.mismatch_count || a.group.localeCompare(b.group))
+      .slice(0, 10),
+    targets: targetSummaries,
+    mismatches: allMismatches,
+  };
+}
+
 function visualParity(sourceGroups, frontendGroups) {
   const frontendByName = new Map(frontendGroups.map((group) => [group.name, group]));
   const groupComparisons = [];
@@ -726,6 +970,13 @@ function emptyVisualComparison(error = '') {
     editor_surface_ready: true,
     error,
     results: [],
+    diagnostics: {
+      artifact: '',
+      mismatch_count: 0,
+      top_failing_groups: [],
+      targets: [],
+      mismatches: [],
+    },
   };
 }
 
@@ -793,6 +1044,13 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
         result.surfaces.source_static?.probes || [],
         result.surfaces.wordpress_frontend?.probes || []
       );
+      const mismatches = visualMismatchDetails(result);
+      result.diagnostics = {
+        mismatch_count: mismatches.length,
+        top_failing_groups: [],
+        mismatches,
+      };
+      await captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug);
       results.push(result);
     }
   } catch (error) {
@@ -835,12 +1093,17 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
       hero_probe_parity_mismatch_count: 0,
     }
   );
+  const diagnosticsPath = path.join(visualDir, 'visual-comparison-mismatches.json');
+  const diagnostics = buildVisualDiagnostics(results, diagnosticsPath);
+  await writeFile(diagnosticsPath, JSON.stringify(diagnostics, null, 2));
 
   return {
     ...totals,
     surfaces: ['source_static', 'wordpress_frontend'],
     editor_surface_ready: true,
     artifact_dir: visualDir,
+    diagnostics_artifact: diagnosticsPath,
+    diagnostics,
     results,
   };
 }
@@ -1272,6 +1535,7 @@ export default async function studioAgentSiteBuildBench() {
       visual_visibility_mismatch_count: Number(visualComparison.visibility_mismatch_count || 0),
       visual_nonzero_bounding_box_count: Number(visualComparison.nonzero_bounding_box_count || 0),
       visual_nonzero_bounding_box_mismatch_count: Number(visualComparison.nonzero_bounding_box_mismatch_count || 0),
+      visual_mismatch_detail_count: Number(visualComparison.diagnostics?.mismatch_count || 0),
       visual_simple_probe_parity_mismatch_count: Number(visualComparison.simple_probe_parity_mismatch_count || 0),
       visual_nav_probe_parity_mismatch_count: Number(visualComparison.nav_probe_parity_mismatch_count || 0),
       visual_footer_probe_parity_mismatch_count: Number(visualComparison.footer_probe_parity_mismatch_count || 0),
@@ -1300,6 +1564,7 @@ export default async function studioAgentSiteBuildBench() {
       frontend_url: status.siteUrl,
       admin_auto_login_url: status.autoLoginUrl,
       visual_comparison_dir: visualComparison.artifact_dir || '',
+      visual_comparison_mismatches: visualComparison.diagnostics_artifact || '',
     },
     metadata: {
       benchmark_variant: currentVariant,
