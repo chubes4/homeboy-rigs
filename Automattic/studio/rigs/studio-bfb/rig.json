@@ -44,7 +44,8 @@
   "bench_workloads": {
     "nodejs": [
       "${package.root}/bench/studio-agent-runtime.bench.mjs",
-      "${package.root}/bench/studio-agent-site-build.bench.mjs"
+      "${package.root}/bench/studio-agent-site-build.bench.mjs",
+      "${package.root}/bench/studio-ssi-woo-fixture-validation.bench.mjs"
     ]
   },
   "pipeline": {
