@@ -61,7 +61,7 @@ function metric(value) {
 }
 
 export default async function studioAgentSiteInfoBench() {
-  const siteName = process.env.STUDIO_SITE_INFO_BENCH_SITE || 'homeboy-bench-site';
+  const siteName = process.env.STUDIO_SITE_INFO_BENCH_SITE || 'intelligence-chubes4';
   const prompt = `Use only the Studio site_info tool for the site named ${siteName}, then answer with its running status in one sentence. Do not use any other tools.`;
   const started = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
