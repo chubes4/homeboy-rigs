@@ -1,4 +1,5 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -12,6 +13,7 @@ const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
 const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
+const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
 const requireFromBench = createRequire(import.meta.url);
 const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 
@@ -155,6 +157,38 @@ async function siteBuildPrompt(sitePath) {
   }
 
   return template.trim().replaceAll('{{sitePath}}', sitePath).replaceAll('${sitePath}', sitePath);
+}
+
+export async function systemPromptFingerprint() {
+  const hash = createHash('sha256');
+  const manifest = [];
+  let sizeBytes = 0;
+
+  for (const relativePath of SYSTEM_PROMPT_FILES) {
+    const content = await readFile(path.join(STUDIO_PATH, relativePath));
+    const contentSha = createHash('sha256').update(content).digest('hex');
+    sizeBytes += content.byteLength;
+    manifest.push({
+      path: relativePath,
+      sha256: contentSha,
+      size_bytes: content.byteLength,
+    });
+
+    hash.update(relativePath, 'utf8');
+    hash.update('\0');
+    hash.update(String(content.byteLength), 'utf8');
+    hash.update('\0');
+    hash.update(content);
+    hash.update('\0');
+  }
+
+  return {
+    system_prompt_sha: hash.digest('hex'),
+    system_prompt_file: SYSTEM_PROMPT_FILES.length === 1 ? SYSTEM_PROMPT_FILES[0] : undefined,
+    system_prompt_files: SYSTEM_PROMPT_FILES,
+    system_prompt_manifest: manifest,
+    system_prompt_size_bytes: sizeBytes,
+  };
 }
 
 async function createFreshSite(sitePath) {
@@ -1063,6 +1097,7 @@ export default async function studioAgentSiteBuildBench() {
 
   const selectedPromptVariant = promptVariant();
   const selectedPromptFile = String(await promptTemplatePath());
+  const systemPrompt = await systemPromptFingerprint();
   const prompt = await siteBuildPrompt(sitePath);
   const agentStarted = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
@@ -1096,6 +1131,7 @@ export default async function studioAgentSiteBuildBench() {
         prompt_variant: selectedPromptVariant,
         prompt_file: selectedPromptFile,
         prompt_category: PROMPT_CATEGORY,
+        ...systemPrompt,
         prompt,
         sitePath,
         siteUrl: status.siteUrl,
@@ -1172,6 +1208,7 @@ export default async function studioAgentSiteBuildBench() {
       importer_invalid_block_count: Number(importReport.report?.quality?.invalid_block_count || 0),
       importer_invalid_block_document_count: Number(importReport.report?.quality?.invalid_block_document_count || 0),
       importer_generated_block_document_count: Number(importReport.report?.generated_theme?.block_documents?.length || 0),
+      system_prompt_size_bytes: systemPrompt.system_prompt_size_bytes,
       visual_comparison_target_count: Number(visualComparison.target_count || 0),
       visual_comparison_checked_target_count: Number(visualComparison.checked_target_count || 0),
       visual_comparison_error_count: Number(visualComparison.error_count || 0),
@@ -1213,6 +1250,7 @@ export default async function studioAgentSiteBuildBench() {
       prompt_variant: selectedPromptVariant,
       prompt_file: selectedPromptFile,
       prompt_category: PROMPT_CATEGORY,
+      ...systemPrompt,
     },
   };
 }
