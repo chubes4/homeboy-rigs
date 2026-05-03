@@ -9,8 +9,13 @@ import { pathToFileURL } from 'node:url';
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
+const DEFAULT_STUDIO_PORT = 8881;
+const NAMESPACE_PORT_RANGE_SIZE = 10;
+const NAMESPACE_PORT_RANGE_START = 8900;
+const NAMESPACE_PORT_RANGE_COUNT = 100;
 const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
 const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
+const BENCH_NAMESPACE_SETTING = 'studio_bench_namespace';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
 const PROMPT_VARIANTS = [
@@ -62,6 +67,71 @@ function variant() {
   return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
 }
 
+function benchmarkNamespace() {
+  return (
+    setting(BENCH_NAMESPACE_SETTING) ||
+    process.env.STUDIO_BENCH_NAMESPACE ||
+    process.env.studio_bench_namespace ||
+    ''
+  );
+}
+
+function namespacePortBase(namespace) {
+  const digest = createHash('sha256').update(namespace).digest();
+  const bucket = digest.readUInt16BE(0) % NAMESPACE_PORT_RANGE_COUNT;
+  return NAMESPACE_PORT_RANGE_START + bucket * NAMESPACE_PORT_RANGE_SIZE;
+}
+
+export function resolveBenchRuntime(namespace = benchmarkNamespace(), sharedState = SHARED_STATE) {
+  if (!namespace) {
+    const artifactDir = path.join(sharedState, 'studio-agent-site-build-artifacts');
+    return {
+      namespace: '',
+      namespaceSlug: '',
+      artifactDir,
+      siteRoot: path.join(artifactDir, 'sites'),
+      stateDir: '',
+      cliConfigDir: '',
+      appDataDir: '',
+      processManagerHome: '',
+      tmpDir: '',
+      portBase: null,
+      portMax: null,
+      env: {},
+    };
+  }
+
+  const namespaceSlug = safeSlug(namespace, 'namespace');
+  const stateDir = path.join(sharedState, 'studio-agent-site-build-runtime', namespaceSlug);
+  const cliConfigDir = path.join(stateDir, 'cli-config');
+  const appDataDir = path.join(stateDir, 'appdata');
+  const processManagerHome = path.join(stateDir, 'daemon');
+  const tmpDir = path.join(stateDir, 'tmp');
+  const portBase = namespacePortBase(namespaceSlug);
+
+  return {
+    namespace,
+    namespaceSlug,
+    artifactDir: path.join(sharedState, 'studio-agent-site-build-artifacts', namespaceSlug),
+    siteRoot: path.join(sharedState, 'studio-agent-site-build-sites', namespaceSlug),
+    stateDir,
+    cliConfigDir,
+    appDataDir,
+    processManagerHome,
+    tmpDir,
+    portBase,
+    portMax: portBase + NAMESPACE_PORT_RANGE_SIZE - 1,
+    env: {
+      E2E: '1',
+      E2E_CLI_CONFIG_PATH: cliConfigDir,
+      E2E_APP_DATA_PATH: appDataDir,
+      STUDIO_PROCESS_MANAGER_HOME: processManagerHome,
+      STUDIO_BENCH_NAMESPACE: namespaceSlug,
+      TMPDIR: tmpDir,
+    },
+  };
+}
+
 function setting(key) {
   try {
     const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
@@ -77,13 +147,92 @@ function setting(key) {
 
 function cliEnv(extra = {}) {
   const staticSiteImporterPath = expandHome(setting('studio_static_site_importer_plugin_path') || '');
+  const runtime = resolveBenchRuntime();
   return {
     ...process.env,
     ...(staticSiteImporterPath
       ? { STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH: staticSiteImporterPath }
       : {}),
+    ...runtime.env,
     ...extra,
   };
+}
+
+async function prepareNamespacedStudioRuntime(runtime) {
+  if (!runtime.namespaceSlug) {
+    return;
+  }
+
+  await reserveNamespacePortRange(runtime);
+  await mkdir(runtime.cliConfigDir, { recursive: true });
+  await mkdir(runtime.appDataDir, { recursive: true });
+  await mkdir(runtime.processManagerHome, { recursive: true });
+  await mkdir(runtime.tmpDir, { recursive: true });
+  await mkdir(runtime.siteRoot, { recursive: true });
+
+  const reservedSites = [];
+  for (let port = DEFAULT_STUDIO_PORT; port < runtime.portBase; port++) {
+    reservedSites.push({
+      id: `bench-reserved-${runtime.namespaceSlug}-${port}`,
+      name: `Bench reserved ${port}`,
+      path: path.join(runtime.stateDir, 'reserved-ports', String(port)),
+      port,
+      phpVersion: '8.3',
+      url: `http://localhost:${port}`,
+      running: false,
+    });
+  }
+
+  const configPath = path.join(runtime.cliConfigDir, 'cli.json');
+  await writeFile(configPath, JSON.stringify({ version: 1, sites: reservedSites, snapshots: [] }, null, 2) + '\n');
+}
+
+async function reserveNamespacePortRange(runtime) {
+  const rangeDir = path.join(SHARED_STATE, 'studio-agent-site-build-runtime', 'port-ranges');
+  await mkdir(rangeDir, { recursive: true });
+
+  const markerPath = path.join(rangeDir, `${runtime.portBase}-${runtime.portMax}.json`);
+  const marker = {
+    namespace: runtime.namespaceSlug,
+    portBase: runtime.portBase,
+    portMax: runtime.portMax,
+  };
+
+  try {
+    await writeFile(markerPath, JSON.stringify(marker, null, 2) + '\n', { flag: 'wx' });
+    return;
+  } catch (error) {
+    if (error?.code !== 'EEXIST') {
+      throw error;
+    }
+  }
+
+  const existing = JSON.parse(await readFile(markerPath, 'utf8'));
+  if (existing.namespace !== runtime.namespaceSlug) {
+    throw new Error(
+      `Studio benchmark namespace "${runtime.namespaceSlug}" maps to port range ${runtime.portBase}-${runtime.portMax}, already reserved by namespace "${existing.namespace}". Choose a different ${BENCH_NAMESPACE_SETTING}; isolated ports cannot be guaranteed.`
+    );
+  }
+}
+
+function assertNamespacedPort(status, runtime) {
+  if (!runtime.namespaceSlug || runtime.portBase === null || runtime.portMax === null) {
+    return;
+  }
+
+  const siteUrl = String(status?.siteUrl || status?.url || '');
+  let urlPort = 0;
+  try {
+    urlPort = Number(new URL(siteUrl).port || 0);
+  } catch {
+    urlPort = 0;
+  }
+  const port = Number(status?.port || urlPort || 0);
+  if (!Number.isInteger(port) || port < runtime.portBase || port > runtime.portMax) {
+    throw new Error(
+      `Studio benchmark namespace "${runtime.namespaceSlug}" expected a port in ${runtime.portBase}-${runtime.portMax}, but site status reported ${port || 'none'}. Isolated ports cannot be guaranteed.`
+    );
+  }
 }
 
 function run(args, options = {}) {
@@ -2516,11 +2665,13 @@ function toolMetrics(result) {
 }
 
 export default async function studioAgentSiteBuildBench() {
+  const runtime = resolveBenchRuntime();
   const currentVariant = variant();
   const runId = `${currentVariant}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const artifactDir = path.join(SHARED_STATE, 'studio-agent-site-build-artifacts');
-  const sitePath = path.join(artifactDir, 'sites', runId);
-  await mkdir(path.dirname(sitePath), { recursive: true });
+  const artifactDir = runtime.artifactDir;
+  const sitePath = path.join(runtime.siteRoot, runId);
+  await prepareNamespacedStudioRuntime(runtime);
+  await mkdir(runtime.siteRoot, { recursive: true });
 
   const totalStarted = Date.now();
   const siteCreateStarted = Date.now();
@@ -2541,6 +2692,7 @@ export default async function studioAgentSiteBuildBench() {
   const quality = await probeQuality(sitePath);
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const status = await siteStatus(sitePath);
+  assertNamespacedPort(status, runtime);
   const importReport = await collectLatestImportReport(sitePath);
   await mkdir(artifactDir, { recursive: true });
   await restoreMissingSourceStaticFiles(importReport, sitePath, result);
@@ -2566,6 +2718,8 @@ export default async function studioAgentSiteBuildBench() {
     JSON.stringify(
       {
         variant: currentVariant,
+        bench_namespace: runtime.namespaceSlug,
+        bench_port_range: runtime.namespaceSlug ? `${runtime.portBase}-${runtime.portMax}` : '',
         prompt_variant: selectedPromptVariant,
         prompt_file: selectedPromptFile,
         prompt_category: PROMPT_CATEGORY,
@@ -2709,6 +2863,8 @@ export default async function studioAgentSiteBuildBench() {
     },
     metadata: {
       benchmark_variant: currentVariant,
+      bench_namespace: runtime.namespaceSlug,
+      bench_port_range: runtime.namespaceSlug ? `${runtime.portBase}-${runtime.portMax}` : '',
       prompt_variant: selectedPromptVariant,
       prompt_file: selectedPromptFile,
       prompt_category: PROMPT_CATEGORY,
