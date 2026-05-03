@@ -681,7 +681,6 @@ function visualMismatchSeverity(reason) {
     selector_error: 100,
     missing_from_wordpress_frontend: 90,
     missing_from_source_static: 80,
-    missing_on_both_surfaces: 70,
     hidden_on_wordpress_frontend: 60,
     hidden_on_source_static: 50,
     zero_sized_on_wordpress_frontend: 40,
@@ -710,11 +709,24 @@ function visualGroupMismatchSummary(groupName, mismatches) {
   };
 }
 
-function visualMismatchDetails(result) {
+function visualSelectorComparisonDetail(sourceGroup, sourceSelector, frontendSelector, reason) {
+  return {
+    group: sourceGroup.name,
+    selector: sourceSelector.selector,
+    reason,
+    severity: visualMismatchSeverity(reason),
+    source: visualSelectorSummary(sourceSelector),
+    frontend: visualSelectorSummary(frontendSelector),
+    screenshots: {},
+  };
+}
+
+function visualSelectorComparisonDetails(result) {
   const sourceGroups = result.surfaces.source_static?.probes || [];
   const frontendGroups = result.surfaces.wordpress_frontend?.probes || [];
   const frontendGroupsByName = new Map(frontendGroups.map((group) => [group.name, group]));
   const mismatches = [];
+  const optionalProbeAbsences = [];
 
   for (const sourceGroup of sourceGroups) {
     const frontendGroup = frontendGroupsByName.get(sourceGroup.name);
@@ -734,22 +746,21 @@ function visualMismatchDetails(result) {
         continue;
       }
 
-      mismatches.push({
-        group: sourceGroup.name,
-        selector: sourceSelector.selector,
-        reason,
-        severity: visualMismatchSeverity(reason),
-        source: visualSelectorSummary(sourceSelector),
-        frontend: visualSelectorSummary(frontendSelector),
-        screenshots: {},
-      });
+      const detail = visualSelectorComparisonDetail(sourceGroup, sourceSelector, frontendSelector, reason);
+      if (reason === 'missing_on_both_surfaces') {
+        optionalProbeAbsences.push(detail);
+        continue;
+      }
+
+      mismatches.push(detail);
     }
   }
 
   mismatches.sort(
     (a, b) => b.severity - a.severity || a.group.localeCompare(b.group) || a.selector.localeCompare(b.selector)
   );
-  return mismatches;
+  optionalProbeAbsences.sort((a, b) => a.group.localeCompare(b.group) || a.selector.localeCompare(b.selector));
+  return { mismatches, optionalProbeAbsences };
 }
 
 async function captureSelectorScreenshot(page, selector, screenshotPath) {
@@ -814,9 +825,11 @@ async function captureVisualMismatchScreenshots(browser, result, mismatches, vis
 function buildVisualDiagnostics(results, artifactPath) {
   const targetSummaries = [];
   const allMismatches = [];
+  const allOptionalProbeAbsences = [];
 
   for (const result of results) {
     const mismatches = asArray(result.diagnostics?.mismatches);
+    const optionalProbeAbsences = asArray(result.diagnostics?.optional_probe_absences);
     const byGroup = new Map();
 
     for (const mismatch of mismatches) {
@@ -830,10 +843,18 @@ function buildVisualDiagnostics(results, artifactPath) {
       });
     }
 
+    for (const absence of optionalProbeAbsences) {
+      allOptionalProbeAbsences.push({
+        target: result.source_filename || String(result.wordpress_page_id || ''),
+        ...absence,
+      });
+    }
+
     targetSummaries.push({
       source_filename: result.source_filename || '',
       wordpress_page_id: result.wordpress_page_id || null,
       mismatch_count: mismatches.length,
+      optional_probe_absent_count: optionalProbeAbsences.length,
       top_failing_groups: [...byGroup.entries()]
         .map(([groupName, groupMismatches]) => visualGroupMismatchSummary(groupName, groupMismatches))
         .sort((a, b) => b.mismatch_count - a.mismatch_count || a.group.localeCompare(b.group))
@@ -865,6 +886,7 @@ function buildVisualDiagnostics(results, artifactPath) {
   return {
     artifact: artifactPath,
     mismatch_count: allMismatches.length,
+    optional_probe_absent_count: allOptionalProbeAbsences.length,
     top_failing_groups: [...topFailingGroups.entries()]
       .map(([, mismatches]) => ({
         target: mismatches[0]?.target || '',
@@ -874,6 +896,7 @@ function buildVisualDiagnostics(results, artifactPath) {
       .slice(0, 10),
     targets: targetSummaries,
     mismatches: allMismatches,
+    optional_probe_absences: allOptionalProbeAbsences,
   };
 }
 
@@ -973,9 +996,11 @@ function emptyVisualComparison(error = '') {
     diagnostics: {
       artifact: '',
       mismatch_count: 0,
+      optional_probe_absent_count: 0,
       top_failing_groups: [],
       targets: [],
       mismatches: [],
+      optional_probe_absences: [],
     },
   };
 }
@@ -1044,11 +1069,13 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
         result.surfaces.source_static?.probes || [],
         result.surfaces.wordpress_frontend?.probes || []
       );
-      const mismatches = visualMismatchDetails(result);
+      const { mismatches, optionalProbeAbsences } = visualSelectorComparisonDetails(result);
       result.diagnostics = {
         mismatch_count: mismatches.length,
+        optional_probe_absent_count: optionalProbeAbsences.length,
         top_failing_groups: [],
         mismatches,
+        optional_probe_absences: optionalProbeAbsences,
       };
       await captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug);
       results.push(result);
@@ -1536,6 +1563,7 @@ export default async function studioAgentSiteBuildBench() {
       visual_nonzero_bounding_box_count: Number(visualComparison.nonzero_bounding_box_count || 0),
       visual_nonzero_bounding_box_mismatch_count: Number(visualComparison.nonzero_bounding_box_mismatch_count || 0),
       visual_mismatch_detail_count: Number(visualComparison.diagnostics?.mismatch_count || 0),
+      visual_optional_probe_absent_count: Number(visualComparison.diagnostics?.optional_probe_absent_count || 0),
       visual_simple_probe_parity_mismatch_count: Number(visualComparison.simple_probe_parity_mismatch_count || 0),
       visual_nav_probe_parity_mismatch_count: Number(visualComparison.nav_probe_parity_mismatch_count || 0),
       visual_footer_probe_parity_mismatch_count: Number(visualComparison.footer_probe_parity_mismatch_count || 0),
