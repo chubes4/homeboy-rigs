@@ -438,7 +438,24 @@ function comparisonTargets(importReport) {
   );
 }
 
-function surfaceUrl(target, surface, reportPath) {
+export function resolveSourceStaticFile(sourceFile, reportPath, sitePath) {
+  if (!sourceFile) {
+    return '';
+  }
+
+  if (path.isAbsolute(sourceFile)) {
+    const wordpressRoot = '/wordpress';
+    if (sitePath && (sourceFile === wordpressRoot || sourceFile.startsWith(`${wordpressRoot}/`))) {
+      return path.join(sitePath, sourceFile.slice(wordpressRoot.length));
+    }
+
+    return sourceFile;
+  }
+
+  return path.resolve(path.dirname(reportPath), sourceFile);
+}
+
+function surfaceUrl(target, surface, reportPath, sitePath) {
   const surfaces = target?.comparison_hooks?.render_surfaces || {};
   const configured = surfaces[surface]?.url || '';
   if (surface === 'source_static') {
@@ -446,7 +463,7 @@ function surfaceUrl(target, surface, reportPath) {
     if (!sourceFile) {
       return '';
     }
-    const absoluteSource = path.isAbsolute(sourceFile) ? sourceFile : path.resolve(path.dirname(reportPath), sourceFile);
+    const absoluteSource = resolveSourceStaticFile(sourceFile, reportPath, sitePath);
     return pathToFileURL(absoluteSource).toString();
   }
 
@@ -455,6 +472,44 @@ function surfaceUrl(target, surface, reportPath) {
   }
 
   return configured;
+}
+
+async function restoreMissingSourceStaticFiles(importReport, sitePath, result) {
+  const writes = new Map();
+  for (const call of Array.isArray(result?.toolCalls) ? result.toolCalls : []) {
+    if (call?.name !== 'Write' || typeof call?.input?.file_path !== 'string' || typeof call?.input?.content !== 'string') {
+      continue;
+    }
+    writes.set(path.resolve(call.input.file_path), call.input.content);
+  }
+
+  if (!writes.size) {
+    return;
+  }
+
+  for (const target of comparisonTargets(importReport)) {
+    const surfaces = target?.comparison_hooks?.render_surfaces || {};
+    const sourceFile = surfaces.source_static?.url || target?.source_file || '';
+    const hostPath = resolveSourceStaticFile(sourceFile, importReport.reportPath, sitePath);
+    if (!hostPath) {
+      continue;
+    }
+
+    try {
+      await stat(hostPath);
+      continue;
+    } catch {
+      // Restore only files the agent authored during this benchmark run.
+    }
+
+    const content = writes.get(path.resolve(hostPath));
+    if (typeof content !== 'string') {
+      continue;
+    }
+
+    await mkdir(path.dirname(hostPath), { recursive: true });
+    await writeFile(hostPath, content);
+  }
 }
 
 function visualProbeGroups(target) {
@@ -674,7 +729,7 @@ function emptyVisualComparison(error = '') {
   };
 }
 
-async function compareVisualFidelity(importReport, artifactDir) {
+async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   const targets = comparisonTargets(importReport);
   if (!targets.length) {
     return emptyVisualComparison(importReport?.error || 'No visual fidelity comparison targets found.');
@@ -708,7 +763,7 @@ async function compareVisualFidelity(importReport, artifactDir) {
       };
 
       for (const surface of ['source_static', 'wordpress_frontend']) {
-        const url = surfaceUrl(target, surface, importReport.reportPath);
+        const url = surfaceUrl(target, surface, importReport.reportPath, sitePath);
         const screenshotPath = path.join(visualDir, `${targetSlug}-${surface}.png`);
         const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
 
@@ -1111,8 +1166,9 @@ export default async function studioAgentSiteBuildBench() {
   const status = await siteStatus(sitePath);
   const importReport = await collectLatestImportReport(sitePath);
   await mkdir(artifactDir, { recursive: true });
+  await restoreMissingSourceStaticFiles(importReport, sitePath, result);
   const visualComparisonStarted = Date.now();
-  const visualComparison = await compareVisualFidelity(importReport, artifactDir);
+  const visualComparison = await compareVisualFidelity(importReport, artifactDir, sitePath);
   const visualComparisonMs = Date.now() - visualComparisonStarted;
   const editorValidationStarted = Date.now();
   const editorValidation = await validateThemeBlocks(sitePath, status.siteUrl);
