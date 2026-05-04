@@ -2,6 +2,4 @@ Build a one-page landing page for WP Coding Agents, a self-hostable WordPress + 
 
 Make it feel like a practical workshop for shipping WordPress code with AI teammates. Show the path from a live Studio or VPS install to cloned workspaces, focused worktree sessions, evidence capture, commits, PRs, and cleanup. Include sections for setup, isolated workspaces, minion sessions, GitHub integration, safety rules, and examples of parallel agent work.
 
-Use normal semantic HTML and CSS. Studio should import the result into clean editable WordPress blocks through the Static Site Importer workflow.
-
 Work in this Studio site: {{sitePath}}
