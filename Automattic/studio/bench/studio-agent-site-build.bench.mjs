@@ -2937,14 +2937,14 @@ function optionalArtifactPath(name, value) {
   return typeof value === 'string' && value.length > 0 ? { [name]: value } : {};
 }
 
-function semanticTargetMetric(semanticComparison, key) {
+export function semanticTargetMetric(semanticComparison, key) {
   return (semanticComparison?.diagnostics?.targets || semanticComparison?.targets || []).reduce(
     (sum, target) => sum + metric(target?.[key]),
     0
   );
 }
 
-function semanticMismatchFailureDetails(semanticComparison) {
+export function semanticMismatchFailureDetails(semanticComparison) {
   const mismatches = semanticComparison?.diagnostics?.mismatches || semanticComparison?.mismatches || [];
   return mismatches.map((mismatch) => {
     const concept = mismatch.concept || mismatch.type || 'unknown';
@@ -2955,6 +2955,24 @@ function semanticMismatchFailureDetails(semanticComparison) {
     const reason = mismatch.reason ? ` reason=${mismatch.reason}` : '';
     return `semantic mismatch: ${concept}${sourceCount}${generatedCount}${reason}`;
   });
+}
+
+export function agentSuccessGate(result, semanticComparison) {
+  const semanticMismatchCount = metric(semanticComparison?.mismatch_count);
+  const agentTimedOut = result?.timedOut === true;
+  const agentSucceeded = result?.success === true && !result?.error && !agentTimedOut && semanticMismatchCount === 0;
+
+  return {
+    agentSucceeded,
+    semanticMismatchCount,
+    semanticFailureDetails: semanticMismatchCount > 0 ? semanticMismatchFailureDetails(semanticComparison) : [],
+    metrics: {
+      success_rate: agentSucceeded ? 1 : 0,
+      agent_error_rate: agentSucceeded ? 0 : 1,
+      timed_out: agentTimedOut ? 1 : 0,
+      agent_runner_error: typeof result?.error === 'string' ? 1 : 0,
+    },
+  };
 }
 
 export default async function studioAgentSiteBuildBench() {
@@ -3007,9 +3025,10 @@ export default async function studioAgentSiteBuildBench() {
   const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
   const designFingerprint = await collectDesignFingerprint(sitePath);
   const designMetrics = designFingerprintMetrics(designFingerprint);
-  const semanticMismatchCount = metric(semanticComparison.mismatch_count);
+  const gate = agentSuccessGate(result, semanticComparison);
+  const semanticMismatchCount = gate.semanticMismatchCount;
   const semanticOptionalSelectorAbsentCount = semanticTargetMetric(semanticComparison, 'optional_selector_absent_count');
-  const semanticFailureDetails = semanticMismatchCount > 0 ? semanticMismatchFailureDetails(semanticComparison) : [];
+  const semanticFailureDetails = gate.semanticFailureDetails;
 
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
   await writeFile(
@@ -3070,19 +3089,14 @@ export default async function studioAgentSiteBuildBench() {
   // exception, and from runs that timed out. timed_out is surfaced as its
   // own metric so timeout regressions are visible separately from agent
   // failures.
-  const agentTimedOut = result.timedOut === true;
   // Issue #60: Static Site Importer can produce a syntactically valid theme
   // while dropping meaningful source content. Any semantic-fidelity mismatch
   // means the generated site no longer preserves the source fixture, so the
   // correct threshold for this bench is zero mismatches rather than warnings.
-  const agentSucceeded = result.success === true && !result.error && !agentTimedOut && semanticMismatchCount === 0;
 
   return {
     metrics: {
-      success_rate: agentSucceeded ? 1 : 0,
-      agent_error_rate: agentSucceeded ? 0 : 1,
-      timed_out: agentTimedOut ? 1 : 0,
-      agent_runner_error: typeof result.error === 'string' ? 1 : 0,
+      ...gate.metrics,
       elapsed_ms: totalElapsedMs,
       site_create_ms: siteCreateMs,
       agent_elapsed_ms: agentElapsedMs,
