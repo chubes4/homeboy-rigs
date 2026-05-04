@@ -87,7 +87,33 @@ homeboy rig up studio-bfb
 homeboy bench --rig studio-bfb --iterations 1 --shared-state /tmp/studio-bfb-bench
 ```
 
+The site-build workload accepts a runtime namespace for parallel prompt-variant runs. The prompt variant still controls benchmark semantics; `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
+
+```bash
+HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=restaurant \
+HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
+homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-bfb-bench &
+
+HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=saas \
+HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
+homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-bfb-bench &
+
+wait
+```
+
+The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
+
+The site-build workload also emits a non-fatal **design-novelty diagnostic** that scans persisted prior `result-*.json` artifacts in the same `artifactDir`, scoped to the current `prompt_variant`. It compares fingerprint axes (`repetition_signature` tokens, motifs, palette labels, recipe flags, type pairing) against the new run and surfaces:
+
+- `design_repetition_prior_run_count` / `design_repetition_match_count` / `design_repetition_max_score` / `design_repetition_mean_score` metrics
+- recurrence counts for repetition tokens, motifs, palette labels, and recipe flags shared across multiple priors
+- a `design-novelty-<run>.json` artifact with per-prior scores and the top matches
+
+Defaults are conservative: no priors means zero metrics (one-off runs do not require a baseline). Tune via `studio_site_build_design_novelty_threshold` (default `0.7`) and `studio_site_build_design_novelty_max_priors` (default `20`). Set `studio_site_build_design_novelty_gate=1` to flip an info-only `design_novelty_gate_failed` metric; the workload itself stays non-fatal.
+
 The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`. It creates a fresh Studio site per run, inserts one raw HTML page, and reports phase timings plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `serialized_block_comments`, etc.) scoped to that inserted page.
+
+`bench/studio-ssi-woo-fixture-validation.bench.mjs` carries a disabled fixture scaffold for Static Site Importer WooCommerce primitives. It records the static store fixture and `products.json` manifest, then reports a skip until SSI implements manifest validation, product seeding, and product context forwarding. Enable it with `HOMEBOY_ENABLE_SSI_WOO_FIXTURE=1` only against an SSI branch that exposes those primitives; the rig must not seed WooCommerce products itself.
 
 `rigs/studio-agent-sdk/rig.json` and `rigs/studio-agent-pi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
 

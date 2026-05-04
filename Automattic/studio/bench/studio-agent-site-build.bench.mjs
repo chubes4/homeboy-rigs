@@ -9,16 +9,24 @@ import { pathToFileURL } from 'node:url';
 const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
+const DEFAULT_STUDIO_PORT = 8881;
+const NAMESPACE_PORT_RANGE_SIZE = 10;
+const NAMESPACE_PORT_RANGE_START = 8900;
+const NAMESPACE_PORT_RANGE_COUNT = 100;
 const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
 const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
+const BENCH_NAMESPACE_SETTING = 'studio_bench_namespace';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
 const PROMPT_VARIANTS = [
   'artist-music',
   'course-education',
+  'data-machine',
   'documentation-knowledge-base',
   'editorial-magazine',
   'event-conference',
+  'homeboy',
+  'intelligence',
   'local-service-business',
   'membership-community',
   'nonprofit',
@@ -31,6 +39,7 @@ const PROMPT_VARIANTS = [
   'realistic-small-business',
   'studio-code',
   'switchback-woocommerce-extra-hard',
+  'wp-coding-agents',
   'wordpress-is-dead',
 ];
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
@@ -59,6 +68,71 @@ function variant() {
   return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
 }
 
+function benchmarkNamespace() {
+  return (
+    setting(BENCH_NAMESPACE_SETTING) ||
+    process.env.STUDIO_BENCH_NAMESPACE ||
+    process.env.studio_bench_namespace ||
+    ''
+  );
+}
+
+function namespacePortBase(namespace) {
+  const digest = createHash('sha256').update(namespace).digest();
+  const bucket = digest.readUInt16BE(0) % NAMESPACE_PORT_RANGE_COUNT;
+  return NAMESPACE_PORT_RANGE_START + bucket * NAMESPACE_PORT_RANGE_SIZE;
+}
+
+export function resolveBenchRuntime(namespace = benchmarkNamespace(), sharedState = SHARED_STATE) {
+  if (!namespace) {
+    const artifactDir = path.join(sharedState, 'studio-agent-site-build-artifacts');
+    return {
+      namespace: '',
+      namespaceSlug: '',
+      artifactDir,
+      siteRoot: path.join(artifactDir, 'sites'),
+      stateDir: '',
+      cliConfigDir: '',
+      appDataDir: '',
+      processManagerHome: '',
+      tmpDir: '',
+      portBase: null,
+      portMax: null,
+      env: {},
+    };
+  }
+
+  const namespaceSlug = safeSlug(namespace, 'namespace');
+  const stateDir = path.join(sharedState, 'studio-agent-site-build-runtime', namespaceSlug);
+  const cliConfigDir = path.join(stateDir, 'cli-config');
+  const appDataDir = path.join(stateDir, 'appdata');
+  const processManagerHome = path.join(stateDir, 'daemon');
+  const tmpDir = path.join(stateDir, 'tmp');
+  const portBase = namespacePortBase(namespaceSlug);
+
+  return {
+    namespace,
+    namespaceSlug,
+    artifactDir: path.join(sharedState, 'studio-agent-site-build-artifacts', namespaceSlug),
+    siteRoot: path.join(sharedState, 'studio-agent-site-build-sites', namespaceSlug),
+    stateDir,
+    cliConfigDir,
+    appDataDir,
+    processManagerHome,
+    tmpDir,
+    portBase,
+    portMax: portBase + NAMESPACE_PORT_RANGE_SIZE - 1,
+    env: {
+      E2E: '1',
+      E2E_CLI_CONFIG_PATH: cliConfigDir,
+      E2E_APP_DATA_PATH: appDataDir,
+      STUDIO_PROCESS_MANAGER_HOME: processManagerHome,
+      STUDIO_BENCH_NAMESPACE: namespaceSlug,
+      TMPDIR: tmpDir,
+    },
+  };
+}
+
 function setting(key) {
   try {
     const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
@@ -74,13 +148,92 @@ function setting(key) {
 
 function cliEnv(extra = {}) {
   const staticSiteImporterPath = expandHome(setting('studio_static_site_importer_plugin_path') || '');
+  const runtime = resolveBenchRuntime();
   return {
     ...process.env,
     ...(staticSiteImporterPath
       ? { STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH: staticSiteImporterPath }
       : {}),
+    ...runtime.env,
     ...extra,
   };
+}
+
+async function prepareNamespacedStudioRuntime(runtime) {
+  if (!runtime.namespaceSlug) {
+    return;
+  }
+
+  await reserveNamespacePortRange(runtime);
+  await mkdir(runtime.cliConfigDir, { recursive: true });
+  await mkdir(runtime.appDataDir, { recursive: true });
+  await mkdir(runtime.processManagerHome, { recursive: true });
+  await mkdir(runtime.tmpDir, { recursive: true });
+  await mkdir(runtime.siteRoot, { recursive: true });
+
+  const reservedSites = [];
+  for (let port = DEFAULT_STUDIO_PORT; port < runtime.portBase; port++) {
+    reservedSites.push({
+      id: `bench-reserved-${runtime.namespaceSlug}-${port}`,
+      name: `Bench reserved ${port}`,
+      path: path.join(runtime.stateDir, 'reserved-ports', String(port)),
+      port,
+      phpVersion: '8.3',
+      url: `http://localhost:${port}`,
+      running: false,
+    });
+  }
+
+  const configPath = path.join(runtime.cliConfigDir, 'cli.json');
+  await writeFile(configPath, JSON.stringify({ version: 1, sites: reservedSites, snapshots: [] }, null, 2) + '\n');
+}
+
+async function reserveNamespacePortRange(runtime) {
+  const rangeDir = path.join(SHARED_STATE, 'studio-agent-site-build-runtime', 'port-ranges');
+  await mkdir(rangeDir, { recursive: true });
+
+  const markerPath = path.join(rangeDir, `${runtime.portBase}-${runtime.portMax}.json`);
+  const marker = {
+    namespace: runtime.namespaceSlug,
+    portBase: runtime.portBase,
+    portMax: runtime.portMax,
+  };
+
+  try {
+    await writeFile(markerPath, JSON.stringify(marker, null, 2) + '\n', { flag: 'wx' });
+    return;
+  } catch (error) {
+    if (error?.code !== 'EEXIST') {
+      throw error;
+    }
+  }
+
+  const existing = JSON.parse(await readFile(markerPath, 'utf8'));
+  if (existing.namespace !== runtime.namespaceSlug) {
+    throw new Error(
+      `Studio benchmark namespace "${runtime.namespaceSlug}" maps to port range ${runtime.portBase}-${runtime.portMax}, already reserved by namespace "${existing.namespace}". Choose a different ${BENCH_NAMESPACE_SETTING}; isolated ports cannot be guaranteed.`
+    );
+  }
+}
+
+function assertNamespacedPort(status, runtime) {
+  if (!runtime.namespaceSlug || runtime.portBase === null || runtime.portMax === null) {
+    return;
+  }
+
+  const siteUrl = String(status?.siteUrl || status?.url || '');
+  let urlPort = 0;
+  try {
+    urlPort = Number(new URL(siteUrl).port || 0);
+  } catch {
+    urlPort = 0;
+  }
+  const port = Number(status?.port || urlPort || 0);
+  if (!Number.isInteger(port) || port < runtime.portBase || port > runtime.portMax) {
+    throw new Error(
+      `Studio benchmark namespace "${runtime.namespaceSlug}" expected a port in ${runtime.portBase}-${runtime.portMax}, but site status reported ${port || 'none'}. Isolated ports cannot be guaranteed.`
+    );
+  }
 }
 
 function run(args, options = {}) {
@@ -681,6 +834,9 @@ function visualMismatchReason(sourceSelector, frontendSelector) {
   if (sourceSelector?.error || frontendSelector?.error) {
     return 'selector_error';
   }
+  if (sourceSelector.visible_count === 0 && frontendSelector.visible_count === 0) {
+    return 'missing_on_both_surfaces';
+  }
   if (sourceSelector.count === 0 && frontendSelector.count === 0) {
     return 'missing_on_both_surfaces';
   }
@@ -1006,7 +1162,17 @@ function visualParity(sourceGroups, frontendGroups) {
   };
 }
 
-function emptyVisualComparison(error = '') {
+async function emptyVisualComparison(artifactDir, error = '') {
+  const visualDir = path.join(artifactDir, 'visual-comparisons');
+  await mkdir(visualDir, { recursive: true });
+  const diagnosticsPath = path.join(visualDir, 'visual-comparison-skipped.json');
+  const diagnostics = {
+    ...buildVisualDiagnostics([], diagnosticsPath),
+    skipped: true,
+    reason: error,
+  };
+  await writeFile(diagnosticsPath, JSON.stringify(diagnostics, null, 2));
+
   return {
     target_count: 0,
     checked_target_count: 0,
@@ -1021,24 +1187,18 @@ function emptyVisualComparison(error = '') {
     hero_probe_parity_mismatch_count: 0,
     surfaces: ['source_static', 'wordpress_frontend'],
     editor_surface_ready: true,
+    artifact_dir: visualDir,
+    diagnostics_artifact: diagnosticsPath,
     error,
     results: [],
-    diagnostics: {
-      artifact: '',
-      mismatch_count: 0,
-      optional_probe_absent_count: 0,
-      top_failing_groups: [],
-      targets: [],
-      mismatches: [],
-      optional_probe_absences: [],
-    },
+    diagnostics,
   };
 }
 
-async function compareVisualFidelity(importReport, artifactDir, sitePath) {
+export async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   const targets = comparisonTargets(importReport);
   if (!targets.length) {
-    return emptyVisualComparison(importReport?.error || 'No visual fidelity comparison targets found.');
+    return emptyVisualComparison(artifactDir, importReport?.error || 'No visual fidelity comparison targets found.');
   }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
@@ -1111,7 +1271,7 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
       results.push(result);
     }
   } catch (error) {
-    return emptyVisualComparison(`Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`);
+    return emptyVisualComparison(artifactDir, `Visual comparison failed: ${error instanceof Error ? error.message : String(error)}`);
   } finally {
     if (browser) {
       await browser.close();
@@ -1165,7 +1325,7 @@ async function compareVisualFidelity(importReport, artifactDir, sitePath) {
   };
 }
 
-function emptySemanticComparison(error = '') {
+function emptySemanticComparison(error = '', artifactPath = '', diagnostics = null) {
   return {
     target_count: 0,
     checked_target_count: 0,
@@ -1181,9 +1341,10 @@ function emptySemanticComparison(error = '') {
     landmark_mismatch_count: 0,
     repeated_count_delta_count: 0,
     brand_logo_missing_count: 0,
-    artifact: '',
     error,
     results: [],
+    ...(artifactPath ? { artifact_dir: path.dirname(artifactPath), artifact: artifactPath } : {}),
+    ...(diagnostics ? { diagnostics } : {}),
   };
 }
 
@@ -1500,6 +1661,20 @@ function semanticHasMaterialRepeatedDelta(sourceCount, frontendCount) {
   return Math.abs(sourceCount - frontendCount) >= Math.max(3, Math.ceil(sourceCount * 0.35));
 }
 
+function semanticAllowsNavigationClassRoleChange(sourceOwner, frontendOwner) {
+  const sourceRole = semanticRole(sourceOwner);
+  const frontendRole = semanticRole(frontendOwner);
+  const key = semanticPrimaryClassKey(sourceOwner);
+  if (!/nav|menu/i.test(key) || !['group', 'list'].includes(sourceRole) || frontendRole !== 'nav') {
+    return false;
+  }
+
+  return (
+    Number(sourceOwner.clickable_descendant_count || 0) === Number(frontendOwner.clickable_descendant_count || 0) &&
+    semanticTextTokens(sourceOwner.text).every((token) => new Set(semanticTextTokens(frontendOwner.text)).has(token))
+  );
+}
+
 function semanticMismatch(type, reason, source, frontend, extra = {}) {
   return {
     type,
@@ -1578,7 +1753,11 @@ function compareSemanticFingerprints(source, frontend) {
       continue;
     }
 
-    if (roleChanged && (sourceInteractive || frontendInteractive || sourceOwner.concept || frontendOwner.concept)) {
+    if (
+      roleChanged &&
+      !semanticAllowsNavigationClassRoleChange(sourceOwner, frontendOwner) &&
+      (sourceInteractive || frontendInteractive || sourceOwner.concept || frontendOwner.concept)
+    ) {
       counts.role_mismatch_count++;
       counts.class_owner_changed_count++;
       mismatches.push(
@@ -1720,10 +1899,20 @@ function buildSemanticArtifact(results, artifactPath) {
   };
 }
 
-async function compareSemanticFidelity(importReport, artifactDir, sitePath) {
+export async function compareSemanticFidelity(importReport, artifactDir, sitePath) {
   const targets = semanticComparisonTargets(importReport);
   if (!targets.length) {
-    return emptySemanticComparison(importReport?.error || 'No semantic or visual fidelity comparison targets found.');
+    const semanticDir = path.join(artifactDir, 'semantic-comparisons');
+    const artifactPath = path.join(semanticDir, 'semantic-fidelity-skipped.json');
+    const reason = importReport?.error || 'No semantic or visual fidelity comparison targets found.';
+    const artifact = {
+      ...buildSemanticArtifact([], artifactPath),
+      skipped: true,
+      reason,
+    };
+    await mkdir(semanticDir, { recursive: true });
+    await writeFile(artifactPath, JSON.stringify(artifact, null, 2));
+    return emptySemanticComparison(reason, artifactPath, artifact);
   }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
@@ -1884,6 +2073,264 @@ async function collectCssFiles(root, maxFiles = 40) {
 
   await visit(root);
   return files;
+}
+
+export function reportedFreeformBlockCount(importReport) {
+  const quality = importReport?.report?.quality || {};
+  const generatedTheme = importReport?.report?.generated_theme || {};
+  const candidates = [
+    quality.freeform_block_count,
+    quality.freeform_blocks,
+    generatedTheme.freeform_block_count,
+    generatedTheme.freeform_blocks,
+  ];
+
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
+function freeformDiagnostics(documents) {
+  const results = [];
+  let count = 0;
+
+  for (const document of documents) {
+    const documentCount = countRegex(document.content, /<!--\s+wp:freeform\b/gi);
+    if (documentCount === 0) {
+      continue;
+    }
+    count += documentCount;
+    results.push({
+      source: document.source,
+      freeform_block_count: documentCount,
+    });
+  }
+
+  return { count, results };
+}
+
+function splitSelectorList(selector) {
+  const selectors = [];
+  let current = '';
+  let depth = 0;
+  let quote = '';
+
+  for (const char of String(selector || '')) {
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === '(' || char === '[') {
+      depth += 1;
+      current += char;
+      continue;
+    }
+    if (char === ')' || char === ']') {
+      depth = Math.max(0, depth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === ',' && depth === 0) {
+      const value = current.trim();
+      if (value) {
+        selectors.push(value);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const value = current.trim();
+  if (value) {
+    selectors.push(value);
+  }
+
+  return selectors;
+}
+
+function selectorCoverageTokens(selector) {
+  const tokens = new Set();
+  for (const match of String(selector || '').matchAll(/\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/g)) {
+    const name = match[1];
+    if (!/^(?:editor-styles-wrapper|block-editor|wp-admin|is-root-container)$/.test(name)) {
+      tokens.add(`.${name}`);
+    }
+  }
+  for (const match of String(selector || '').matchAll(/\[\s*([^\]\s~|^$*=]+)/g)) {
+    tokens.add(`[${match[1].toLowerCase()}]`);
+  }
+  return tokens;
+}
+
+function editorOverrideCoversHiddenSelector(hiddenSelector, overrideSelector) {
+  const hiddenTokens = selectorCoverageTokens(hiddenSelector);
+  if (hiddenTokens.size === 0) {
+    return false;
+  }
+
+  const overrideTokens = selectorCoverageTokens(overrideSelector);
+  if (overrideTokens.size === 0) {
+    return false;
+  }
+
+  for (const token of overrideTokens) {
+    if (!hiddenTokens.has(token)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function hiddenEditorContentDiagnostics(cssFiles) {
+  const hiddenRules = [];
+  const editorOverrideRules = [];
+  const hiddenSelectors = [];
+  const editorOverrideSelectors = [];
+  const revealSelectorPattern = /(?:^|[\s.#:[>,])(?:js[-_])?(?:reveal|revealed|aos|fade[-_]in|animate[-_]on[-_]scroll|scroll[-_]reveal)\b|\[data[-_](?:reveal|aos|animate)/i;
+  const hiddenSelectorPattern = /(?:^|[\s.#:[>,])hidden\b/i;
+  const hiddenDeclarationPattern = /(?:opacity\s*:\s*0(?:\.0+)?\b|visibility\s*:\s*hidden\b|display\s*:\s*none\b)/i;
+  const visibleDeclarationPattern = /(?:opacity\s*:\s*1(?:\.0+)?\b|visibility\s*:\s*visible\b|display\s*:\s*(?:block|grid|flex|contents)\b)/i;
+  const editorSelectorPattern = /(?:editor-styles-wrapper|block-editor|wp-admin|is-root-container)/i;
+
+  for (const file of cssFiles) {
+    const content = typeof file.content === 'string' ? file.content : '';
+    for (const match of content.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = match[1].trim().replace(/\s+/g, ' ');
+      const declarations = match[2].trim().replace(/\s+/g, ' ');
+      const isRevealSelector = revealSelectorPattern.test(selector);
+      const isBroadEditorHiddenOverride =
+        editorSelectorPattern.test(selector) && hiddenSelectorPattern.test(selector) && visibleDeclarationPattern.test(declarations);
+      if (!isRevealSelector && !isBroadEditorHiddenOverride) {
+        continue;
+      }
+
+      const rule = {
+        source: file.source,
+        selector,
+        declarations: declarations.slice(0, 300),
+      };
+
+      const selectorList = splitSelectorList(selector);
+
+      if (isRevealSelector && hiddenDeclarationPattern.test(declarations)) {
+        hiddenRules.push(rule);
+        for (const selectorItem of selectorList) {
+          if (revealSelectorPattern.test(selectorItem)) {
+            hiddenSelectors.push({ ...rule, selector: selectorItem });
+          }
+        }
+      }
+      if (editorSelectorPattern.test(selector) && visibleDeclarationPattern.test(declarations)) {
+        editorOverrideRules.push(rule);
+        for (const selectorItem of selectorList) {
+          if (editorSelectorPattern.test(selectorItem)) {
+            editorOverrideSelectors.push({ ...rule, selector: selectorItem });
+          }
+        }
+      }
+    }
+  }
+
+  const missingEditorOverrideSelectors = hiddenSelectors.filter(
+    (hiddenRule) =>
+      !editorOverrideSelectors.some((editorRule) =>
+        editorOverrideCoversHiddenSelector(hiddenRule.selector, editorRule.selector)
+      )
+  );
+
+  return {
+    hidden_rule_count: hiddenRules.length,
+    editor_override_rule_count: editorOverrideRules.length,
+    missing_editor_override_count: missingEditorOverrideSelectors.length,
+    hidden_rules: hiddenRules.slice(0, 25),
+    editor_override_rules: editorOverrideRules.slice(0, 25),
+    missing_editor_override_rules: missingEditorOverrideSelectors.slice(0, 25),
+  };
+}
+
+export async function collectGeneratedThemeUxGates(sitePath, importReport, artifactDir) {
+  const { themeRoot, themeSlug, error } = await collectLatestGeneratedTheme(sitePath);
+  const artifactPath = path.join(artifactDir, 'generated-theme-ux-gates.json');
+  const reasons = [];
+
+  if (!themeRoot) {
+    const skipped = {
+      skipped: true,
+      error,
+      theme_slug: themeSlug,
+      artifact: artifactPath,
+      generated_theme_ux_quality_pass: false,
+      generated_theme_ux_quality_failure_count: 1,
+      generated_theme_ux_quality_failure_reasons: ['missing_generated_theme'],
+    };
+    await writeFile(artifactPath, JSON.stringify(skipped, null, 2));
+    return skipped;
+  }
+
+  const documents = await collectThemeBlockDocuments(sitePath);
+  const freeform = freeformDiagnostics(documents);
+  const importerFreeformCount = reportedFreeformBlockCount(importReport);
+  const cssFiles = await collectCssFiles(themeRoot);
+  const cssFileContents = [];
+  for (const file of cssFiles) {
+    cssFileContents.push({ source: path.relative(themeRoot, file), content: await readIfExists(file) });
+  }
+  const hiddenEditorContent = hiddenEditorContentDiagnostics(cssFileContents);
+
+  if (freeform.count !== importerFreeformCount) {
+    reasons.push('freeform_report_count_mismatch');
+  }
+  if (hiddenEditorContent.missing_editor_override_count > 0) {
+    reasons.push('css_hidden_editor_content_without_override');
+  }
+
+  const diagnostics = {
+    skipped: false,
+    theme_slug: themeSlug,
+    theme_root: themeRoot,
+    document_count: documents.length,
+    css_file_count: cssFiles.length,
+    actual_freeform_block_count: freeform.count,
+    importer_freeform_block_count: importerFreeformCount,
+    freeform_report_mismatch_count: freeform.count === importerFreeformCount ? 0 : 1,
+    freeform_documents: freeform.results,
+    css_hidden_editor_content_count: hiddenEditorContent.hidden_rule_count,
+    css_editor_reveal_override_count: hiddenEditorContent.editor_override_rule_count,
+    css_hidden_editor_content_without_override_count: hiddenEditorContent.missing_editor_override_count,
+    css_hidden_editor_content: hiddenEditorContent.hidden_rules,
+    css_editor_reveal_overrides: hiddenEditorContent.editor_override_rules,
+    generated_theme_ux_quality_pass: reasons.length === 0,
+    generated_theme_ux_quality_failure_count: reasons.length,
+    generated_theme_ux_quality_failure_reasons: reasons,
+    remaining_manual_gates: [
+      'site_editor_canvas_above_fold_visible_text',
+      'footer_utility_links_not_responsive_nav_overlay',
+      'admin_bar_not_obscured_by_fixed_or_sticky_chrome',
+    ],
+    artifact: artifactPath,
+  };
+
+  await writeFile(artifactPath, JSON.stringify(diagnostics, null, 2));
+  return diagnostics;
 }
 
 function uniqueSorted(values) {
@@ -2149,6 +2596,422 @@ async function collectDesignFingerprint(sitePath) {
     dark_theme: /#0[0-9a-f]{2,6}|#111|#18181b|#020617|background(?:-color)?\s*:\s*(?:black|rgb\(0[,\s]+0[,\s]+0\))/i.test(text),
     patterns: patternFingerprint,
   };
+}
+
+const DESIGN_NOVELTY_DEFAULT_THRESHOLD = 0.7;
+const DESIGN_NOVELTY_DEFAULT_MAX_PRIORS = 20;
+const DESIGN_NOVELTY_TOP_MATCHES = 5;
+const DESIGN_NOVELTY_RECIPE_FLAGS = [
+  'design_uses_dark_base',
+  'design_uses_purple_lime',
+  'design_uses_cards_grid',
+  'design_uses_bento_grid',
+  'design_uses_glow_overlay',
+  'design_uses_marquee',
+  'design_uses_terminal_window',
+  'design_uses_inter',
+  'design_uses_syne',
+  'design_uses_space_grotesk',
+  'design_hero_grid_background_present',
+];
+
+function jaccard(setA, setB) {
+  if (!(setA instanceof Set) || !(setB instanceof Set)) {
+    return 0;
+  }
+  if (setA.size === 0 && setB.size === 0) {
+    return 0;
+  }
+  let intersection = 0;
+  for (const value of setA) {
+    if (setB.has(value)) {
+      intersection += 1;
+    }
+  }
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function tokenizeRepetitionSignature(signature) {
+  if (typeof signature !== 'string' || signature.length === 0) {
+    return new Set();
+  }
+  return new Set(
+    signature
+      .split('|')
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function fingerprintRecipeFlags(metrics) {
+  const flags = new Set();
+  if (!metrics || typeof metrics !== 'object') {
+    return flags;
+  }
+  for (const flag of DESIGN_NOVELTY_RECIPE_FLAGS) {
+    if (Number(metrics[flag]) === 1) {
+      flags.add(flag);
+    }
+  }
+  return flags;
+}
+
+function fingerprintMotifSet(fingerprint) {
+  return new Set(
+    Array.isArray(fingerprint?.motifs)
+      ? fingerprint.motifs.map((motif) => String(motif).toLowerCase())
+      : []
+  );
+}
+
+function fingerprintPaletteSet(fingerprint) {
+  return new Set(
+    Array.isArray(fingerprint?.palette_labels)
+      ? fingerprint.palette_labels.map((label) => String(label).toLowerCase())
+      : []
+  );
+}
+
+function priorRecipeFlags(prior) {
+  if (prior?.metrics && typeof prior.metrics === 'object') {
+    return fingerprintRecipeFlags(prior.metrics);
+  }
+  // Backfill from raw fingerprint when prior artifacts predate the metrics block.
+  const flags = new Set();
+  const fingerprint = prior?.designFingerprint || {};
+  const motifs = fingerprintMotifSet(fingerprint);
+  const palette = fingerprintPaletteSet(fingerprint);
+  const patterns = fingerprint?.patterns || {};
+  if (palette.has('dark_base') || fingerprint?.dark_theme) {
+    flags.add('design_uses_dark_base');
+  }
+  if (palette.has('purple_lime')) {
+    flags.add('design_uses_purple_lime');
+  }
+  if (motifs.has('cards_grid')) {
+    flags.add('design_uses_cards_grid');
+  }
+  if (motifs.has('bento_grid')) {
+    flags.add('design_uses_bento_grid');
+  }
+  if (motifs.has('glow_overlay')) {
+    flags.add('design_uses_glow_overlay');
+  }
+  if (motifs.has('marquee')) {
+    flags.add('design_uses_marquee');
+  }
+  if (motifs.has('terminal_window')) {
+    flags.add('design_uses_terminal_window');
+  }
+  const fonts = (fingerprint?.font_families || []).map((font) => String(font).toLowerCase());
+  if (fonts.includes('inter')) {
+    flags.add('design_uses_inter');
+  }
+  if (fonts.includes('syne')) {
+    flags.add('design_uses_syne');
+  }
+  if (fonts.includes('space grotesk')) {
+    flags.add('design_uses_space_grotesk');
+  }
+  if (patterns.hero_grid_background_present) {
+    flags.add('design_hero_grid_background_present');
+  }
+  return flags;
+}
+
+export function scoreDesignFingerprintAgainstPrior({
+  currentSignatureTokens,
+  currentMotifs,
+  currentPalette,
+  currentRecipeFlags,
+  currentTypePairing,
+  prior,
+}) {
+  const priorFingerprint = prior?.designFingerprint || {};
+  const priorPatterns = priorFingerprint?.patterns || {};
+  const priorTokens = tokenizeRepetitionSignature(priorPatterns.repetition_signature);
+  const priorMotifs = fingerprintMotifSet(priorFingerprint);
+  const priorPalette = fingerprintPaletteSet(priorFingerprint);
+  const priorFlags = priorRecipeFlags(prior);
+  const priorTypePairing = String(priorPatterns.type_pairing_signature || '').toLowerCase();
+
+  const tokenScore = jaccard(currentSignatureTokens, priorTokens);
+  const motifScore = jaccard(currentMotifs, priorMotifs);
+  const paletteScore = jaccard(currentPalette, priorPalette);
+  const recipeScore = jaccard(currentRecipeFlags, priorFlags);
+  const typeMatch =
+    currentTypePairing && priorTypePairing && currentTypePairing === priorTypePairing ? 1 : 0;
+
+  // Weighted combination — repetition tokens dominate, recipe flags reinforce,
+  // motif/palette/type pairing add nuance. Stays bounded in [0, 1].
+  const score =
+    tokenScore * 0.45 +
+    recipeScore * 0.2 +
+    motifScore * 0.15 +
+    paletteScore * 0.1 +
+    typeMatch * 0.1;
+
+  const sharedTokens = [...currentSignatureTokens].filter((token) => priorTokens.has(token)).sort();
+  const sharedMotifs = [...currentMotifs].filter((motif) => priorMotifs.has(motif)).sort();
+  const sharedPalette = [...currentPalette].filter((label) => priorPalette.has(label)).sort();
+  const sharedFlags = [...currentRecipeFlags].filter((flag) => priorFlags.has(flag)).sort();
+
+  return {
+    score,
+    component_scores: {
+      repetition_tokens: tokenScore,
+      recipe_flags: recipeScore,
+      motifs: motifScore,
+      palette_labels: paletteScore,
+      type_pairing: typeMatch,
+    },
+    shared: {
+      repetition_tokens: sharedTokens,
+      recipe_flags: sharedFlags,
+      motifs: sharedMotifs,
+      palette_labels: sharedPalette,
+      type_pairing_signature: typeMatch ? currentTypePairing : '',
+    },
+  };
+}
+
+export function summarizeDesignNoveltyAgainstPriors({
+  currentFingerprint,
+  currentMetrics,
+  priors = [],
+  threshold = DESIGN_NOVELTY_DEFAULT_THRESHOLD,
+  topMatches = DESIGN_NOVELTY_TOP_MATCHES,
+} = {}) {
+  const currentPatterns = currentFingerprint?.patterns || {};
+  const currentSignatureTokens = tokenizeRepetitionSignature(currentPatterns.repetition_signature);
+  const currentMotifs = fingerprintMotifSet(currentFingerprint);
+  const currentPalette = fingerprintPaletteSet(currentFingerprint);
+  const currentRecipeFlags = fingerprintRecipeFlags(currentMetrics);
+  const currentTypePairing = String(currentPatterns.type_pairing_signature || '').toLowerCase();
+
+  const empty = {
+    metrics: {
+      design_repetition_prior_run_count: 0,
+      design_repetition_match_count: 0,
+      design_repetition_max_score: 0,
+      design_repetition_mean_score: 0,
+      design_repetition_signal: 0,
+      design_repetition_recurring_motif_count: 0,
+      design_repetition_recurring_palette_count: 0,
+      design_repetition_recurring_recipe_flag_count: 0,
+      design_repetition_recurring_token_count: 0,
+      design_repetition_threshold: threshold,
+    },
+    diagnostics: {
+      threshold,
+      prompt_variant: '',
+      current: {
+        repetition_signature: currentPatterns.repetition_signature || '',
+        type_pairing_signature: currentPatterns.type_pairing_signature || '',
+        motifs: [...currentMotifs].sort(),
+        palette_labels: [...currentPalette].sort(),
+        recipe_flags: [...currentRecipeFlags].sort(),
+        repetition_tokens: [...currentSignatureTokens].sort(),
+      },
+      prior_run_count: 0,
+      matches: [],
+      top_matches: [],
+      recurring: {
+        repetition_tokens: [],
+        motifs: [],
+        palette_labels: [],
+        recipe_flags: [],
+      },
+    },
+  };
+
+  if (!Array.isArray(priors) || priors.length === 0) {
+    return empty;
+  }
+
+  const matches = [];
+  let scoreSum = 0;
+  let maxScore = 0;
+  // Recurrence counts: how many priors share each value with the current run.
+  const tokenRecurrence = new Map();
+  const motifRecurrence = new Map();
+  const paletteRecurrence = new Map();
+  const flagRecurrence = new Map();
+
+  for (const prior of priors) {
+    const detail = scoreDesignFingerprintAgainstPrior({
+      currentSignatureTokens,
+      currentMotifs,
+      currentPalette,
+      currentRecipeFlags,
+      currentTypePairing,
+      prior,
+    });
+
+    scoreSum += detail.score;
+    if (detail.score > maxScore) {
+      maxScore = detail.score;
+    }
+
+    for (const token of detail.shared.repetition_tokens) {
+      tokenRecurrence.set(token, (tokenRecurrence.get(token) || 0) + 1);
+    }
+    for (const motif of detail.shared.motifs) {
+      motifRecurrence.set(motif, (motifRecurrence.get(motif) || 0) + 1);
+    }
+    for (const label of detail.shared.palette_labels) {
+      paletteRecurrence.set(label, (paletteRecurrence.get(label) || 0) + 1);
+    }
+    for (const flag of detail.shared.recipe_flags) {
+      flagRecurrence.set(flag, (flagRecurrence.get(flag) || 0) + 1);
+    }
+
+    matches.push({
+      artifact: prior.artifact || '',
+      site_url: prior.siteUrl || '',
+      mtime_ms: Number(prior.mtimeMs || 0),
+      prompt_variant: prior.prompt_variant || '',
+      score: detail.score,
+      component_scores: detail.component_scores,
+      shared: detail.shared,
+      prior_repetition_signature:
+        prior.designFingerprint?.patterns?.repetition_signature || '',
+      prior_type_pairing_signature:
+        prior.designFingerprint?.patterns?.type_pairing_signature || '',
+    });
+  }
+
+  matches.sort((a, b) => b.score - a.score || b.mtime_ms - a.mtime_ms);
+  const matchCount = matches.filter((entry) => entry.score >= threshold).length;
+  const recurringTokens = [...tokenRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+  const recurringMotifs = [...motifRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+  const recurringPalette = [...paletteRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+  const recurringFlags = [...flagRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+
+  return {
+    metrics: {
+      design_repetition_prior_run_count: priors.length,
+      design_repetition_match_count: matchCount,
+      design_repetition_max_score: Number(maxScore.toFixed(4)),
+      design_repetition_mean_score: Number((scoreSum / priors.length).toFixed(4)),
+      design_repetition_signal: maxScore >= threshold ? 1 : 0,
+      design_repetition_recurring_motif_count: recurringMotifs.length,
+      design_repetition_recurring_palette_count: recurringPalette.length,
+      design_repetition_recurring_recipe_flag_count: recurringFlags.length,
+      design_repetition_recurring_token_count: recurringTokens.length,
+      design_repetition_threshold: threshold,
+    },
+    diagnostics: {
+      threshold,
+      prompt_variant: priors[0]?.prompt_variant || '',
+      current: {
+        repetition_signature: currentPatterns.repetition_signature || '',
+        type_pairing_signature: currentPatterns.type_pairing_signature || '',
+        motifs: [...currentMotifs].sort(),
+        palette_labels: [...currentPalette].sort(),
+        recipe_flags: [...currentRecipeFlags].sort(),
+        repetition_tokens: [...currentSignatureTokens].sort(),
+      },
+      prior_run_count: priors.length,
+      matches,
+      top_matches: matches.slice(0, Math.max(1, topMatches)),
+      recurring: {
+        repetition_tokens: recurringTokens,
+        motifs: recurringMotifs,
+        palette_labels: recurringPalette,
+        recipe_flags: recurringFlags,
+      },
+    },
+  };
+}
+
+export async function loadDesignNoveltyPriors({
+  artifactDir,
+  currentArtifactPath,
+  promptVariant,
+  maxPriors = DESIGN_NOVELTY_DEFAULT_MAX_PRIORS,
+} = {}) {
+  if (!artifactDir || !promptVariant) {
+    return [];
+  }
+  let entries;
+  try {
+    entries = await readdir(artifactDir);
+  } catch {
+    return [];
+  }
+  const candidates = [];
+  for (const entry of entries) {
+    if (!entry.startsWith('result-') || !entry.endsWith('.json')) {
+      continue;
+    }
+    const fullPath = path.join(artifactDir, entry);
+    if (currentArtifactPath && fullPath === currentArtifactPath) {
+      continue;
+    }
+    let stats;
+    try {
+      stats = await stat(fullPath);
+    } catch {
+      continue;
+    }
+    if (!stats.isFile()) {
+      continue;
+    }
+    candidates.push({ path: fullPath, mtimeMs: stats.mtimeMs });
+  }
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  const priors = [];
+  // Walk newest-first; take up to maxPriors that match the prompt variant.
+  // We bound by *scanned* count too, so a backlog of unrelated variants can
+  // never balloon I/O on a one-off run.
+  const scanCap = Math.max(maxPriors * 4, 40);
+  for (const candidate of candidates) {
+    if (priors.length >= maxPriors) {
+      break;
+    }
+    if (priors.length === 0 && candidates.indexOf(candidate) >= scanCap) {
+      break;
+    }
+    let raw;
+    try {
+      raw = await readFile(candidate.path, 'utf8');
+    } catch {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (parsed?.prompt_variant !== promptVariant) {
+      continue;
+    }
+    priors.push({
+      artifact: candidate.path,
+      mtimeMs: candidate.mtimeMs,
+      prompt_variant: parsed.prompt_variant || '',
+      siteUrl: parsed.siteUrl || '',
+      designFingerprint: parsed.designFingerprint || null,
+      metrics: parsed.metrics || null,
+    });
+  }
+  return priors;
 }
 
 function designFingerprintMetrics(fingerprint) {
@@ -2483,12 +3346,48 @@ function toolMetrics(result) {
   return metrics;
 }
 
+function optionalArtifactPath(name, value) {
+  return typeof value === 'string' && value.length > 0 ? { [name]: value } : {};
+}
+
+function clampNoveltyThreshold(raw) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return DESIGN_NOVELTY_DEFAULT_THRESHOLD;
+  }
+  if (value <= 0) {
+    return 0;
+  }
+  if (value >= 1) {
+    return 1;
+  }
+  return value;
+}
+
+function clampNoveltyMaxPriors(raw) {
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value <= 0) {
+    return DESIGN_NOVELTY_DEFAULT_MAX_PRIORS;
+  }
+  return Math.min(value, 200);
+}
+
+function parseBooleanSetting(raw) {
+  if (typeof raw !== 'string') {
+    return false;
+  }
+  const value = raw.trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
 export default async function studioAgentSiteBuildBench() {
+  const runtime = resolveBenchRuntime();
   const currentVariant = variant();
   const runId = `${currentVariant}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const artifactDir = path.join(SHARED_STATE, 'studio-agent-site-build-artifacts');
-  const sitePath = path.join(artifactDir, 'sites', runId);
-  await mkdir(path.dirname(sitePath), { recursive: true });
+  const artifactDir = runtime.artifactDir;
+  const sitePath = path.join(runtime.siteRoot, runId);
+  await prepareNamespacedStudioRuntime(runtime);
+  await mkdir(runtime.siteRoot, { recursive: true });
 
   const totalStarted = Date.now();
   const siteCreateStarted = Date.now();
@@ -2509,6 +3408,7 @@ export default async function studioAgentSiteBuildBench() {
   const quality = await probeQuality(sitePath);
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const status = await siteStatus(sitePath);
+  assertNamespacedPort(status, runtime);
   const importReport = await collectLatestImportReport(sitePath);
   await mkdir(artifactDir, { recursive: true });
   await restoreMissingSourceStaticFiles(importReport, sitePath, result);
@@ -2521,6 +3421,9 @@ export default async function studioAgentSiteBuildBench() {
   const editorValidationStarted = Date.now();
   const editorValidation = await validateThemeBlocks(sitePath, status.siteUrl);
   const editorValidationMs = Date.now() - editorValidationStarted;
+  const generatedThemeUxStarted = Date.now();
+  const generatedThemeUxGates = await collectGeneratedThemeUxGates(sitePath, importReport, artifactDir);
+  const generatedThemeUxMs = Date.now() - generatedThemeUxStarted;
   const totalElapsedMs = Date.now() - totalStarted;
   const validation = validationMetrics(result);
   const authoredBlocks = agentAuthoredBlockMetrics(result);
@@ -2534,6 +3437,8 @@ export default async function studioAgentSiteBuildBench() {
     JSON.stringify(
       {
         variant: currentVariant,
+        bench_namespace: runtime.namespaceSlug,
+        bench_port_range: runtime.namespaceSlug ? `${runtime.portBase}-${runtime.portMax}` : '',
         prompt_variant: selectedPromptVariant,
         prompt_file: selectedPromptFile,
         prompt_category: PROMPT_CATEGORY,
@@ -2553,6 +3458,7 @@ export default async function studioAgentSiteBuildBench() {
           visual_comparison_ms: visualComparisonMs,
           semantic_comparison_ms: semanticComparisonMs,
           editor_validation_ms: editorValidationMs,
+          generated_theme_ux_ms: generatedThemeUxMs,
           total_elapsed_ms: totalElapsedMs,
         },
         quality,
@@ -2560,6 +3466,7 @@ export default async function studioAgentSiteBuildBench() {
         visualComparison,
         semanticComparison,
         editorValidation,
+        generatedThemeUxGates,
         designFingerprint,
         authoredBlocks,
         nativeBlockQuality,
@@ -2577,6 +3484,43 @@ export default async function studioAgentSiteBuildBench() {
   const toolBreakdown = toolMetrics(result);
   const agentSucceeded = result.success === true && !result.error;
 
+  const designNoveltyThreshold = clampNoveltyThreshold(setting('studio_site_build_design_novelty_threshold'));
+  const designNoveltyMaxPriors = clampNoveltyMaxPriors(setting('studio_site_build_design_novelty_max_priors'));
+  const designNoveltyGateEnabled = parseBooleanSetting(setting('studio_site_build_design_novelty_gate'));
+  const designNoveltyPriors = await loadDesignNoveltyPriors({
+    artifactDir,
+    currentArtifactPath: artifactFile,
+    promptVariant: selectedPromptVariant,
+    maxPriors: designNoveltyMaxPriors,
+  });
+  const designNovelty = summarizeDesignNoveltyAgainstPriors({
+    currentFingerprint: designFingerprint,
+    currentMetrics: designMetrics,
+    priors: designNoveltyPriors,
+    threshold: designNoveltyThreshold,
+  });
+  let designNoveltyArtifactPath = '';
+  if (designNoveltyPriors.length > 0) {
+    designNoveltyArtifactPath = path.join(artifactDir, `design-novelty-${runId}.json`);
+    try {
+      await writeFile(
+        designNoveltyArtifactPath,
+        JSON.stringify(
+          {
+            run_id: runId,
+            prompt_variant: selectedPromptVariant,
+            current_artifact: artifactFile,
+            ...designNovelty.diagnostics,
+          },
+          null,
+          2
+        )
+      );
+    } catch {
+      designNoveltyArtifactPath = '';
+    }
+  }
+
   return {
     metrics: {
       success_rate: agentSucceeded ? 1 : 0,
@@ -2588,6 +3532,7 @@ export default async function studioAgentSiteBuildBench() {
       visual_comparison_ms: visualComparisonMs,
       semantic_comparison_ms: semanticComparisonMs,
       editor_validation_ms: editorValidationMs,
+      generated_theme_ux_ms: generatedThemeUxMs,
       total_elapsed_ms: totalElapsedMs,
       phase_resolve_initial_provider_ms: metric(phaseTimings.resolve_initial_provider_ms),
       phase_resolve_unavailable_provider_ms: metric(phaseTimings.resolve_unavailable_provider_ms),
@@ -2607,6 +3552,16 @@ export default async function studioAgentSiteBuildBench() {
       ...authoredBlocks,
       native_block_quality_pass: nativeBlockQuality.native_block_quality_pass ? 1 : 0,
       native_block_quality_failure_count: nativeBlockQuality.native_block_quality_failure_count,
+      generated_theme_ux_quality_pass: generatedThemeUxGates.generated_theme_ux_quality_pass ? 1 : 0,
+      generated_theme_ux_quality_failure_count: Number(generatedThemeUxGates.generated_theme_ux_quality_failure_count || 0),
+      generated_theme_actual_freeform_block_count: Number(generatedThemeUxGates.actual_freeform_block_count || 0),
+      generated_theme_importer_freeform_block_count: Number(generatedThemeUxGates.importer_freeform_block_count || 0),
+      generated_theme_freeform_report_mismatch_count: Number(generatedThemeUxGates.freeform_report_mismatch_count || 0),
+      generated_theme_css_hidden_editor_content_count: Number(generatedThemeUxGates.css_hidden_editor_content_count || 0),
+      generated_theme_css_editor_reveal_override_count: Number(generatedThemeUxGates.css_editor_reveal_override_count || 0),
+      generated_theme_css_hidden_editor_content_without_override_count: Number(
+        generatedThemeUxGates.css_hidden_editor_content_without_override_count || 0
+      ),
       editor_validation_document_count: Number(editorValidation.document_count || 0),
       editor_validation_total_blocks: Number(editorValidation.total_blocks || 0),
       editor_validation_valid_blocks: Number(editorValidation.valid_blocks || 0),
@@ -2664,19 +3619,27 @@ export default async function studioAgentSiteBuildBench() {
       target_core_html_without_bfb_fallback: Number(quality.target_core_html_without_bfb_fallback || 0),
       serialized_block_comments: Number(quality.serialized_block_comments || 0),
       bfb_fallback_count: Number(quality.bfb_fallback_count || 0),
+      ...designNovelty.metrics,
+      design_novelty_gate_enabled: designNoveltyGateEnabled ? 1 : 0,
+      design_novelty_gate_failed:
+        designNoveltyGateEnabled && designNovelty.metrics.design_repetition_signal === 1 ? 1 : 0,
     },
     artifacts: {
       raw_result: artifactFile,
       site_path: sitePath,
       frontend_url: status.siteUrl,
       admin_auto_login_url: status.autoLoginUrl,
-      visual_comparison_dir: visualComparison.artifact_dir || '',
-      visual_comparison_mismatches: visualComparison.diagnostics_artifact || '',
-      semantic_fidelity: semanticComparison.artifact || '',
-      semantic_comparison_dir: semanticComparison.artifact_dir || '',
+      ...optionalArtifactPath('visual_comparison_dir', visualComparison.artifact_dir),
+      ...optionalArtifactPath('visual_comparison_mismatches', visualComparison.diagnostics_artifact),
+      ...optionalArtifactPath('semantic_fidelity', semanticComparison.artifact),
+      ...optionalArtifactPath('semantic_comparison_dir', semanticComparison.artifact_dir),
+      ...optionalArtifactPath('generated_theme_ux_gates', generatedThemeUxGates.artifact),
+      ...optionalArtifactPath('design_novelty', designNoveltyArtifactPath),
     },
     metadata: {
       benchmark_variant: currentVariant,
+      bench_namespace: runtime.namespaceSlug,
+      bench_port_range: runtime.namespaceSlug ? `${runtime.portBase}-${runtime.portMax}` : '',
       prompt_variant: selectedPromptVariant,
       prompt_file: selectedPromptFile,
       prompt_category: PROMPT_CATEGORY,
@@ -2685,6 +3648,7 @@ export default async function studioAgentSiteBuildBench() {
       design_type_pairing_signature: designFingerprint.patterns?.type_pairing_signature || '',
       design_repetition_signature: designFingerprint.patterns?.repetition_signature || '',
       design: designFingerprint,
+      design_novelty: designNovelty.diagnostics,
       ...systemPrompt,
     },
   };
