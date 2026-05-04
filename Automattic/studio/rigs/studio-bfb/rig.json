@@ -39,7 +39,7 @@
   },
   "bench": {
     "default_component": "studio",
-    "default_baseline_rig": "studio-agent-sdk"
+    "default_baseline_rig": "studio-agent-claude-ssi"
   },
   "bench_workloads": {
     "nodejs": [
