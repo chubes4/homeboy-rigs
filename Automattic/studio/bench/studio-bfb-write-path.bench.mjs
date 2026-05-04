@@ -1,6 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { artifactDir as studioArtifactDir, expandHome, runCli, setting, variant } from './lib/studio-bench.mjs';
+import { spawn } from 'node:child_process';
+
+const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
+const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
+
+if (!STUDIO_PATH) {
+  throw new Error('HOMEBOY_COMPONENT_PATH is required');
+}
 
 const RAW_HTML = `
 <main class="salt-star-page">
@@ -76,22 +84,74 @@ echo wp_json_encode( $counts, JSON_PRETTY_PRINT ) . PHP_EOL;
 `;
 }
 
+function expandHome(value) {
+  if (!value) return value;
+  if (value === '~') return os.homedir();
+  if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2));
+  return value;
+}
+
+function variant() {
+  return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
+}
+
+function setting(key) {
+  try {
+    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
+    if (settings && typeof settings[key] === 'string') {
+      return settings[key];
+    }
+  } catch {
+    // Ignore malformed settings and fall back to direct env/debug defaults.
+  }
+  const envKey = `HOMEBOY_SETTINGS_${key.toUpperCase()}`;
+  return process.env[envKey] || '';
+}
+
 function cliEnv(extra = {}) {
   const bfbPath = expandHome(
     setting('studio_bfb_plugin_path') || process.env.STUDIO_BFB_MU_PLUGIN_PATH || ''
   );
   return {
+    ...process.env,
     ...(bfbPath ? { STUDIO_BFB_MU_PLUGIN_PATH: bfbPath } : {}),
     ...extra,
   };
 }
 
-async function runStudioCli(args, options = {}) {
-  return runCli(args, { ...options, env: cliEnv(options.env) });
+function run(args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      cwd: options.cwd || STUDIO_PATH,
+      env: cliEnv(options.env),
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0 && options.allowFailure !== true) {
+        reject(new Error(`${args.join(' ')} exited ${code}; stderr=${stderr.slice(0, 1500)}`));
+        return;
+      }
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+async function runCli(args, options = {}) {
+  const cliPath = path.join(STUDIO_PATH, 'apps/cli/dist/cli/main.mjs');
+  return run([cliPath, ...args], options);
 }
 
 async function createFreshSite(sitePath) {
-  await runStudioCli([
+  await runCli([
     'site',
     'create',
     '--name',
@@ -104,7 +164,7 @@ async function createFreshSite(sitePath) {
 }
 
 async function stopSite(sitePath) {
-  await runStudioCli(['site', 'stop', '--path', sitePath], { allowFailure: true });
+  await runCli(['site', 'stop', '--path', sitePath], { allowFailure: true });
 }
 
 async function writeRawHtmlPage(sitePath) {
@@ -126,7 +186,7 @@ async function writeRawHtmlPage(sitePath) {
     echo wp_json_encode(array('page_id' => $page_id)) . PHP_EOL;
   `;
 
-  const { stdout } = await runStudioCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', insertCode]);
+  const { stdout } = await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', insertCode]);
   const jsonStart = stdout.indexOf('{');
   if (jsonStart === -1) {
     throw new Error(`write step did not emit JSON: ${stdout.slice(0, 1000)}`);
@@ -135,7 +195,7 @@ async function writeRawHtmlPage(sitePath) {
 }
 
 async function probeQuality(sitePath, pageId) {
-  const { stdout } = await runStudioCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', qualityProbeCode(pageId)]);
+  const { stdout } = await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', qualityProbeCode(pageId)]);
   const jsonStart = stdout.indexOf('{');
   if (jsonStart === -1) {
     throw new Error(`quality probe did not emit JSON: ${stdout.slice(0, 1000)}`);
@@ -146,7 +206,7 @@ async function probeQuality(sitePath, pageId) {
 export default async function studioBfbWritePathBench() {
   const currentVariant = variant();
   const runId = `${currentVariant}-write-path-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const artifactDir = studioArtifactDir('studio-bfb-write-path-artifacts');
+  const artifactDir = path.join(SHARED_STATE, 'studio-bfb-write-path-artifacts');
   const sitePath = path.join(artifactDir, 'sites', runId);
   await mkdir(path.dirname(sitePath), { recursive: true });
 
