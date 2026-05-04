@@ -38,6 +38,7 @@ const PROMPT_VARIANTS = [
   'saas',
   'realistic-small-business',
   'studio-code',
+  'switchback-woocommerce-extra-hard',
   'wp-coding-agents',
   'wordpress-is-dead',
 ];
