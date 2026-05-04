@@ -7,6 +7,7 @@ const {
   agentSuccessGate,
   hiddenEditorContentDiagnostics,
   semanticTargetMetric,
+  structuralSelectorDriftDiagnostics,
 } = await import('./studio-agent-site-build.bench.mjs');
 
 test('semantic-fidelity mismatches hard-fail the agent success gate', () => {
@@ -121,4 +122,52 @@ test('generated-theme UX gate does not accept narrower editor overrides for comp
 
   assert.equal(diagnostics.editor_override_rule_count, 1);
   assert.equal(diagnostics.missing_editor_override_count, 1);
+});
+
+test('generated-theme UX gate fails source hero structural selector drift', () => {
+  const diagnostics = structuralSelectorDriftDiagnostics(
+    [
+      {
+        source: 'styles.css',
+        content: `
+          header#hero {
+            min-height: 90vh;
+            display: grid;
+            align-items: center;
+          }
+        `,
+      },
+    ],
+    [
+      {
+        source: 'templates/index.html',
+        content: '<!-- wp:group {"tagName":"div","className":"hero"} --><div class="wp-block-group hero"></div><!-- /wp:group -->',
+      },
+    ]
+  );
+
+  assert.equal(diagnostics.source_structural_selector_count, 1);
+  assert.equal(diagnostics.missing_structural_selector_count, 1);
+  assert.equal(diagnostics.missing_structural_selectors[0].selector, 'header#hero');
+  assert.equal(diagnostics.missing_structural_selectors[0].reason, 'missing_generated_dom_id');
+});
+
+test('generated-theme UX gate keeps matching source hero structural selectors clean', () => {
+  const diagnostics = structuralSelectorDriftDiagnostics(
+    [
+      {
+        source: 'styles.css',
+        content: 'header#hero { min-height: 90vh; display: grid; }',
+      },
+    ],
+    [
+      {
+        source: 'templates/index.html',
+        content: '<header id="hero" class="site-hero"><h1>Field Notes Live</h1></header>',
+      },
+    ]
+  );
+
+  assert.equal(diagnostics.source_structural_selector_count, 1);
+  assert.equal(diagnostics.missing_structural_selector_count, 0);
 });

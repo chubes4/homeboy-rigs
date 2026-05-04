@@ -2270,6 +2270,150 @@ export function hiddenEditorContentDiagnostics(cssFiles) {
   };
 }
 
+function cssRules(cssFiles) {
+  const rules = [];
+  for (const file of cssFiles) {
+    const content = typeof file.content === 'string' ? file.content : '';
+    for (const match of content.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = match[1].trim().replace(/\s+/g, ' ');
+      if (!selector || selector.startsWith('@')) {
+        continue;
+      }
+      rules.push({
+        source: file.source,
+        selector,
+        declarations: match[2].trim().replace(/\s+/g, ' '),
+      });
+    }
+  }
+  return rules;
+}
+
+function structuralSelectorTarget(selector) {
+  const normalizedSelector = String(selector || '')
+    .replace(/::?[a-z-]+(?:\([^)]*\))?/gi, '')
+    .trim();
+  const match = normalizedSelector.match(
+    /(?:^|[\s>+~])(?<tag>header|main|nav|footer|section|article|aside)(?<compound>(?:[#.][-_a-zA-Z0-9]+)*)/i
+  );
+  if (!match?.groups) {
+    return null;
+  }
+
+  const compound = match.groups.compound || '';
+  const id = compound.match(/#([-_a-zA-Z0-9]+)/)?.[1] || '';
+  const classes = [...compound.matchAll(/\.([-_a-zA-Z0-9]+)/g)].map((classMatch) => classMatch[1]);
+  const text = `${match.groups.tag} ${id} ${classes.join(' ')} ${selector}`;
+  const heroLike = /\bhero\b/i.test(text);
+  if (!id && classes.length === 0) {
+    return null;
+  }
+
+  return {
+    tag: match.groups.tag.toLowerCase(),
+    id,
+    classes,
+    hero_like: heroLike,
+  };
+}
+
+function hasMaterialStructuralLayout(declarations, target) {
+  const layoutPattern = /(?:display\s*:\s*(?:grid|flex)|grid-template|flex(?:-direction|-wrap)?\s*:|align-items\s*:|justify-content\s*:|min-height\s*:|height\s*:\s*(?:\d+(?:vh|dvh|svh)|100%)|padding(?:-[a-z]+)?\s*:|background(?:-|\s*:)|position\s*:\s*(?:relative|absolute|fixed|sticky))/i;
+  return target?.hero_like === true && layoutPattern.test(String(declarations || ''));
+}
+
+function htmlAttributeTokens(attributes, name) {
+  const values = [];
+  const pattern = new RegExp(`\\b${name}\\s*=\\s*(["'])(.*?)\\1`, 'gi');
+  for (const match of String(attributes || '').matchAll(pattern)) {
+    values.push(...String(match[2] || '').split(/\s+/).filter(Boolean));
+  }
+  return values;
+}
+
+function markupHasId(markup, id) {
+  if (!id) {
+    return true;
+  }
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return (
+    new RegExp(`\\bid\\s*=\\s*(["'])${escaped}\\1`, 'i').test(markup) ||
+    new RegExp(`"anchor"\\s*:\\s*"${escaped}"`, 'i').test(markup)
+  );
+}
+
+function markupHasClasses(markup, classes) {
+  const classValues = [];
+  const pattern = /\bclass(?:Name)?\s*=\s*(["'])(.*?)\1/gi;
+  for (const match of String(markup || '').matchAll(pattern)) {
+    classValues.push(...String(match[2] || '').split(/\s+/).filter(Boolean));
+  }
+  return classes.every((className) => classValues.includes(className));
+}
+
+function markupHasStructuralTarget(markup, target) {
+  const tagPattern = new RegExp(`<${target.tag}\\b([^>]*)>`, 'gi');
+  for (const match of String(markup || '').matchAll(tagPattern)) {
+    const attributes = match[1] || '';
+    const ids = htmlAttributeTokens(attributes, 'id');
+    const classes = htmlAttributeTokens(attributes, 'class');
+    const idMatches = !target.id || ids.includes(target.id);
+    const classesMatch = target.classes.every((className) => classes.includes(className));
+    if (idMatches && classesMatch) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function structuralSelectorDriftReason(markup, target) {
+  if (target.id && !markupHasId(markup, target.id)) {
+    return 'missing_generated_dom_id';
+  }
+  if (target.classes.length > 0 && !markupHasClasses(markup, target.classes)) {
+    return 'missing_generated_dom_class';
+  }
+  return 'generated_dom_tag_drift';
+}
+
+export function structuralSelectorDriftDiagnostics(cssFiles, generatedDocuments) {
+  const generatedMarkup = generatedDocuments.map((document) => document.content || '').join('\n');
+  const materialSelectors = [];
+  const missingSelectors = [];
+
+  for (const rule of cssRules(cssFiles)) {
+    for (const selector of splitSelectorList(rule.selector)) {
+      const target = structuralSelectorTarget(selector);
+      if (!target || !hasMaterialStructuralLayout(rule.declarations, target)) {
+        continue;
+      }
+
+      const diagnostic = {
+        source: rule.source,
+        selector,
+        expected_tag: target.tag,
+        expected_id: target.id,
+        expected_classes: target.classes,
+        declarations: rule.declarations.slice(0, 300),
+      };
+      materialSelectors.push(diagnostic);
+      if (!markupHasStructuralTarget(generatedMarkup, target)) {
+        missingSelectors.push({
+          ...diagnostic,
+          reason: structuralSelectorDriftReason(generatedMarkup, target),
+        });
+      }
+    }
+  }
+
+  return {
+    source_structural_selector_count: materialSelectors.length,
+    missing_structural_selector_count: missingSelectors.length,
+    source_structural_selectors: materialSelectors.slice(0, 25),
+    missing_structural_selectors: missingSelectors.slice(0, 25),
+  };
+}
+
 export async function collectGeneratedThemeUxGates(sitePath, importReport, artifactDir) {
   const { themeRoot, themeSlug, error } = await collectLatestGeneratedTheme(sitePath);
   const artifactPath = path.join(artifactDir, 'generated-theme-ux-gates.json');
@@ -2298,12 +2442,22 @@ export async function collectGeneratedThemeUxGates(sitePath, importReport, artif
     cssFileContents.push({ source: path.relative(themeRoot, file), content: await readIfExists(file) });
   }
   const hiddenEditorContent = hiddenEditorContentDiagnostics(cssFileContents);
+  const sourceRoot = path.join(sitePath, 'tmp/static-site');
+  const sourceCssFiles = await collectCssFiles(sourceRoot);
+  const sourceCssFileContents = [];
+  for (const file of sourceCssFiles) {
+    sourceCssFileContents.push({ source: path.relative(sourceRoot, file), content: await readIfExists(file) });
+  }
+  const structuralSelectorDrift = structuralSelectorDriftDiagnostics(sourceCssFileContents, documents);
 
   if (freeform.count !== importerFreeformCount) {
     reasons.push('freeform_report_count_mismatch');
   }
   if (hiddenEditorContent.missing_editor_override_count > 0) {
     reasons.push('css_hidden_editor_content_without_override');
+  }
+  if (structuralSelectorDrift.missing_structural_selector_count > 0) {
+    reasons.push('source_css_structural_selector_drift');
   }
 
   const diagnostics = {
@@ -2321,6 +2475,10 @@ export async function collectGeneratedThemeUxGates(sitePath, importReport, artif
     css_hidden_editor_content_without_override_count: hiddenEditorContent.missing_editor_override_count,
     css_hidden_editor_content: hiddenEditorContent.hidden_rules,
     css_editor_reveal_overrides: hiddenEditorContent.editor_override_rules,
+    source_css_file_count: sourceCssFiles.length,
+    source_css_structural_selector_count: structuralSelectorDrift.source_structural_selector_count,
+    source_css_missing_structural_selector_count: structuralSelectorDrift.missing_structural_selector_count,
+    source_css_missing_structural_selectors: structuralSelectorDrift.missing_structural_selectors,
     generated_theme_ux_quality_pass: reasons.length === 0,
     generated_theme_ux_quality_failure_count: reasons.length,
     generated_theme_ux_quality_failure_reasons: reasons,
