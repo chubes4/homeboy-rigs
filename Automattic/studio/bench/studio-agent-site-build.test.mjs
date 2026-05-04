@@ -6,6 +6,8 @@ process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 const {
   agentSuccessGate,
   hiddenEditorContentDiagnostics,
+  importerBlockQualityFailureDetails,
+  importerBlockQualityMetrics,
   semanticTargetMetric,
   structuralSelectorDriftDiagnostics,
 } = await import('./studio-agent-site-build.bench.mjs');
@@ -44,6 +46,54 @@ test('zero semantic-fidelity mismatches keep successful agent runs green', () =>
   assert.equal(gate.metrics.agent_error_rate, 0);
   assert.equal(gate.semanticMismatchCount, 0);
   assert.deepEqual(gate.semanticFailureDetails, []);
+});
+
+test('importer block-quality counters hard-fail the agent success gate', () => {
+  const importReport = {
+    report: {
+      quality: {
+        core_html_block_count: 4,
+        freeform_block_count: 1,
+        fallback_count: 4,
+      },
+    },
+  };
+  const gate = agentSuccessGate({ success: true, error: null, timedOut: false }, { mismatch_count: 0 }, importReport);
+
+  assert.equal(gate.agentSucceeded, false);
+  assert.equal(gate.metrics.success_rate, 0);
+  assert.equal(gate.metrics.agent_error_rate, 1);
+  assert.deepEqual(gate.importerBlockQuality, {
+    importerCoreHtmlBlockCount: 4,
+    importerFreeformBlockCount: 1,
+    importerFallbackCount: 4,
+  });
+  assert.deepEqual(gate.importerBlockQualityFailureDetails, [
+    'importer block quality: core/html=4, freeform=1, fallback=4',
+  ]);
+});
+
+test('importer block-quality metrics use zero as the clean threshold', () => {
+  const importReport = {
+    report: {
+      quality: {
+        core_html_block_count: 0,
+        freeform_block_count: 0,
+        fallback_count: 0,
+      },
+    },
+  };
+
+  assert.deepEqual(importerBlockQualityMetrics(importReport), {
+    importerCoreHtmlBlockCount: 0,
+    importerFreeformBlockCount: 0,
+    importerFallbackCount: 0,
+  });
+  assert.deepEqual(importerBlockQualityFailureDetails(importerBlockQualityMetrics(importReport)), []);
+  assert.equal(
+    agentSuccessGate({ success: true, error: null, timedOut: false }, { mismatch_count: 0 }, importReport).agentSucceeded,
+    true
+  );
 });
 
 test('semantic target metrics sum artifact target details for top-level output', () => {
