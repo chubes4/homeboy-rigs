@@ -1,23 +1,5 @@
-Build an importable mixed-source documentation site for SignalForge, a developer tool that monitors API reliability for small platform teams.
+I need a documentation site for SignalForge, a developer tool that helps small platform teams monitor API reliability and respond to incidents before customers start filing support tickets.
 
-This benchmark is specifically for the Static Site Importer mixed-source capability. Create a source tree that the importer can consume directly, with an HTML shell for shared chrome and plain Markdown content files for individual pages.
+The site should feel like a serious developer docs hub, not a generic SaaS landing page. Include a clear homepage, product overview, getting started path, incident workflow guidance, API reference preview, changelog or launch notes, support links, and practical examples that make the tool feel real.
 
-Required source shape:
-
-```text
-site/
-  index.html
-  styles.css
-  content/
-    about.md
-    docs/getting-started.md
-    docs/incident-workflows.md
-    docs/api-reference.md
-    changelog/launch-notes.markdown
-```
-
-Use `index.html` for the visual system, navigation, footer, homepage sections, and links into the Markdown pages. Use `styles.css` for all site styling. Give every Markdown file frontmatter with `title` and `slug`, and include internal links between the homepage and nested content pages.
-
-The Markdown pages should exercise rich GFM content: headings, ordered and unordered lists, tables, blockquotes, fenced code examples, task lists, and at least one image or downloadable-file link placeholder where the importer supports it.
-
-Import the source tree into this Studio site using the mixed HTML shell plus Markdown content importer path: {{sitePath}}
+Please build it in this Studio site: {{sitePath}}

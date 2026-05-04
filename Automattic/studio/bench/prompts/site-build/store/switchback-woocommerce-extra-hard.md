@@ -1,6 +1,6 @@
 Create a complete WooCommerce storefront concept for "Switchback," a specialist outdoor outfitter for dogs and their people.
 
-This is an extra-hard benchmark prompt. Act like a cracked WordPress developer who can plan and build the right WordPress/WooCommerce substrate: homepage structure, product catalog shape, collections, attributes, navigation, reusable content sections, and visual design as one coordinated implementation.
+This needs to be more than a generic design-only landing page. Plan the storefront like a real outdoor retail business: homepage structure, product catalog shape, collections, attributes, navigation, reusable content sections, and visual design as one coordinated store experience.
 
 Brand concept:
 Switchback sells terrain-aware and weather-aware trail gear for dog owners who hike, camp, visit lakes, and road-trip with their dogs. The store helps shoppers confidently outfit their dog for outdoor days with the right mix of safety, comfort, hydration, paw care, cleanup, and recovery products.
@@ -87,6 +87,6 @@ WooCommerce-specific expectations:
 Tone:
 Use plain outdoor language: heat, trail length, mud, night visibility, recovery, hydration, paw care, cleanup, fit, terrain, lake weekends, campouts, and car rides home.
 
-The page should prioritize directional shopping and conversion over long-form storytelling, while still proving that the generated WordPress site understands the underlying commerce model.
+The page should prioritize directional shopping and conversion over long-form storytelling, with enough merchandising detail to make the underlying commerce model clear.
 
 Work in this Studio site: {{sitePath}}
