@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { SHARED_STATE, metric, runEval } from './lib/studio-bench.mjs';
+import { artifactDir as studioArtifactDir, metric, runEval } from './lib/studio-bench.mjs';
 
 const SITE_INFO_TIMEOUT_MS = 60000;
 
@@ -14,7 +14,7 @@ export default async function studioAgentSiteInfoBench() {
   });
   const elapsedMs = Date.now() - started;
 
-  const artifactDir = path.join(SHARED_STATE, 'studio-agent-site-info-artifacts');
+  const artifactDir = studioArtifactDir('studio-agent-site-info-artifacts');
   await mkdir(artifactDir, { recursive: true });
   const artifactFile = path.join(artifactDir, `result-${process.pid}-${Date.now()}.json`);
   await writeFile(artifactFile, JSON.stringify({ prompt, exitCode, stderr, resultFile, result }, null, 2));
