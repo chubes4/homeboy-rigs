@@ -103,13 +103,35 @@ wait
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 
-The site-build workload also emits a non-fatal **design-novelty diagnostic** that scans persisted prior `result-*.json` artifacts in the same `artifactDir`, scoped to the current `prompt_variant`. It compares fingerprint axes (`repetition_signature` tokens, motifs, palette labels, recipe flags, type pairing) against the new run and surfaces:
+### Cross-run design repetition
 
-- `design_repetition_prior_run_count` / `design_repetition_match_count` / `design_repetition_max_score` / `design_repetition_mean_score` metrics
-- recurrence counts for repetition tokens, motifs, palette labels, and recipe flags shared across multiple priors
-- a `design-novelty-<run>.json` artifact with per-prior scores and the top matches
+Use Homeboy's persisted run store, not bench-side scanning, to detect when repeated `studio-agent-site-build` runs of the same `prompt_variant` are cooking the same visual recipe. Every bench run already records the design fingerprint (`design_repetition_signature`, motifs, palette labels, recipe flags, type pairing) under `results.scenarios[].metadata.*` and `results.scenarios[].metrics.*` in the run record, so `homeboy runs distribution` can aggregate them across runs by component, rig, and scenario.
 
-Defaults are conservative: no priors means zero metrics (one-off runs do not require a baseline). Tune via `studio_site_build_design_novelty_threshold` (default `0.7`) and `studio_site_build_design_novelty_max_priors` (default `20`). Set `studio_site_build_design_novelty_gate=1` to flip an info-only `design_novelty_gate_failed` metric; the workload itself stays non-fatal.
+```bash
+# Most-repeated repetition signatures across recent site-build runs.
+homeboy runs distribution \
+  --kind bench --component studio --rig studio-bfb \
+  --scenario studio-agent-site-build \
+  --field results.scenarios.metadata.design_repetition_signature \
+  --limit 30
+
+# Recurring motifs and palette labels (array fields are flattened automatically).
+homeboy runs distribution \
+  --kind bench --component studio --rig studio-bfb \
+  --scenario studio-agent-site-build \
+  --field results.scenarios.metadata.design.motifs \
+  --field results.scenarios.metadata.design.palette_labels \
+  --limit 30
+
+# Type-pairing concentration across runs.
+homeboy runs distribution \
+  --kind bench --component studio --rig studio-bfb \
+  --scenario studio-agent-site-build \
+  --field results.scenarios.metadata.design_type_pairing_signature \
+  --limit 30
+```
+
+`repeated_values` in the output is the human-meaningful signal: any value with `run_count > 1` is a fingerprint axis the bench has emitted on more than one site. When the latest run's signature shows up there too, the new site is reproducing a prior recipe. The same values are queryable per scenario, exportable across hosts via `homeboy runs export`, and never depend on a temp-dir cache surviving cleanup.
 
 The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`. It creates a fresh Studio site per run, inserts one raw HTML page, and reports phase timings plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `serialized_block_comments`, etc.) scoped to that inserted page.
 
