@@ -1,13 +1,16 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import zlib from 'node:zlib';
 
 import { STUDIO_PATH } from './studio-bench.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
 export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
+const VISUAL_PIXELMATCH_THRESHOLD = 0.1;
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -65,6 +68,24 @@ function surfaceUrl(target, surface, reportPath, sitePath) {
     return configured || target?.wordpress_url || '';
   }
 
+  if (surface === 'wordpress_editor') {
+    if (configured) {
+      return configured;
+    }
+
+    const postId = Number(target?.wordpress_page_id || target?.home_page_id || target?.front_page_id || 0);
+    const frontendUrl = surfaceUrl(target, 'wordpress_frontend', reportPath, sitePath);
+    if (!postId || !frontendUrl) {
+      return '';
+    }
+
+    const url = new URL(frontendUrl);
+    url.pathname = '/studio-auto-login';
+    url.search = '';
+    url.searchParams.set('redirect_to', `/wp-admin/post.php?post=${postId}&action=edit`);
+    return url.toString();
+  }
+
   return configured;
 }
 
@@ -95,9 +116,80 @@ function visualProbeGroups(target) {
 }
 
 export async function loadVisualSurface(page, url) {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
   await page.waitForTimeout(300);
+}
+
+async function loadEditorSurface(page, url) {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+  await page.waitForSelector('iframe[name="editor-canvas"]', { timeout: 30_000 });
+
+  const frameHandle = await page.locator('iframe[name="editor-canvas"]').elementHandle();
+  const frame = await frameHandle?.contentFrame();
+  if (!frame) {
+    throw new Error('Editor canvas iframe did not expose a content frame.');
+  }
+
+  await frame.waitForFunction(
+    () => {
+      const layout = document.querySelector('.block-editor-block-list__layout');
+      if (!layout) {
+        return false;
+      }
+
+      const rect = layout.getBoundingClientRect();
+      const isLoading =
+        layout.matches('.is-loading, [aria-busy="true"]') ||
+        layout.querySelector('.is-loading, [aria-busy="true"], .components-spinner');
+      const blockCount = layout.querySelectorAll('.block-editor-block-list__block, [data-block]').length;
+      return rect.width > 0 && rect.height > 0 && !isLoading && blockCount > 0;
+    },
+    { timeout: 30_000 }
+  );
+
+  await frame.addStyleTag({
+    content: `
+      *, *::before, *::after {
+        animation-delay: 0s !important;
+        animation-duration: 0.001ms !important;
+        caret-color: transparent !important;
+        transition-delay: 0s !important;
+        transition-duration: 0.001ms !important;
+      }
+      .block-editor-block-list__block,
+      .block-editor-block-list__block::before,
+      .block-editor-block-list__block::after,
+      .is-selected,
+      .is-highlighted,
+      .has-child-selected {
+        box-shadow: none !important;
+        outline: 0 !important;
+      }
+      .block-editor-block-contextual-toolbar,
+      .block-editor-block-list__insertion-point,
+      .block-editor-block-list__breadcrumb,
+      .block-editor-inserter,
+      .block-editor-inserter__quick-inserter,
+      .block-editor-rich-text__editable::after,
+      .components-popover,
+      .components-toolbar,
+      .components-toolbar-group,
+      .is-root-container > .block-list-appender {
+        display: none !important;
+      }
+    `,
+  });
+  await frame.waitForTimeout(300);
+  return frame;
+}
+
+async function captureEditorScreenshot(page, url, screenshotPath) {
+  const frame = await loadEditorSurface(page, url);
+  const layout = frame.locator('.block-editor-block-list__layout').first();
+  await layout.screenshot({ path: screenshotPath, timeout: 30_000 });
 }
 
 async function evaluateVisualSurface(page, groups) {
@@ -334,6 +426,229 @@ async function captureSelectorScreenshot(page, selector, screenshotPath) {
   }
 }
 
+function crc32(buffer) {
+  if (!crc32.table) {
+    crc32.table = Array.from({ length: 256 }, (_, index) => {
+      let value = index;
+      for (let bit = 0; bit < 8; bit++) {
+        value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+      }
+      return value >>> 0;
+    });
+  }
+
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = crc32.table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data = Buffer.alloc(0)) {
+  const typeBuffer = Buffer.from(type, 'ascii');
+  const chunk = Buffer.concat([typeBuffer, data]);
+  const output = Buffer.alloc(12 + data.length);
+  output.writeUInt32BE(data.length, 0);
+  typeBuffer.copy(output, 4);
+  data.copy(output, 8);
+  output.writeUInt32BE(crc32(chunk), 8 + data.length);
+  return output;
+}
+
+function decodePng(buffer) {
+  if (!buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+    throw new Error('Unsupported PNG signature.');
+  }
+
+  let offset = PNG_SIGNATURE.length;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idat = [];
+
+  while (offset < buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString('ascii', offset + 4, offset + 8);
+    const data = buffer.subarray(offset + 8, offset + 8 + length);
+    offset += 12 + length;
+
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+    } else if (type === 'IDAT') {
+      idat.push(data);
+    } else if (type === 'IEND') {
+      break;
+    }
+  }
+
+  if (bitDepth !== 8 || ![0, 2, 4, 6].includes(colorType)) {
+    throw new Error(`Unsupported PNG format: bitDepth=${bitDepth} colorType=${colorType}.`);
+  }
+
+  const channels = { 0: 1, 2: 3, 4: 2, 6: 4 }[colorType];
+  const bytesPerPixel = channels;
+  const stride = width * channels;
+  const inflated = zlib.inflateSync(Buffer.concat(idat));
+  const data = new Uint8ClampedArray(width * height * 4);
+  let inputOffset = 0;
+  let previous = Buffer.alloc(stride);
+
+  for (let y = 0; y < height; y++) {
+    const filter = inflated[inputOffset++];
+    const row = Buffer.from(inflated.subarray(inputOffset, inputOffset + stride));
+    inputOffset += stride;
+
+    for (let x = 0; x < stride; x++) {
+      const left = x >= bytesPerPixel ? row[x - bytesPerPixel] : 0;
+      const up = previous[x] || 0;
+      const upperLeft = x >= bytesPerPixel ? previous[x - bytesPerPixel] || 0 : 0;
+      let value = row[x];
+
+      if (filter === 1) {
+        value += left;
+      } else if (filter === 2) {
+        value += up;
+      } else if (filter === 3) {
+        value += Math.floor((left + up) / 2);
+      } else if (filter === 4) {
+        const p = left + up - upperLeft;
+        const pa = Math.abs(p - left);
+        const pb = Math.abs(p - up);
+        const pc = Math.abs(p - upperLeft);
+        value += pa <= pb && pa <= pc ? left : pb <= pc ? up : upperLeft;
+      } else if (filter !== 0) {
+        throw new Error(`Unsupported PNG row filter: ${filter}.`);
+      }
+
+      row[x] = value & 0xff;
+    }
+
+    for (let x = 0; x < width; x++) {
+      const source = x * channels;
+      const target = (y * width + x) * 4;
+      if (colorType === 0) {
+        data[target] = row[source];
+        data[target + 1] = row[source];
+        data[target + 2] = row[source];
+        data[target + 3] = 255;
+      } else if (colorType === 2) {
+        data[target] = row[source];
+        data[target + 1] = row[source + 1];
+        data[target + 2] = row[source + 2];
+        data[target + 3] = 255;
+      } else if (colorType === 4) {
+        data[target] = row[source];
+        data[target + 1] = row[source];
+        data[target + 2] = row[source];
+        data[target + 3] = row[source + 1];
+      } else {
+        data[target] = row[source];
+        data[target + 1] = row[source + 1];
+        data[target + 2] = row[source + 2];
+        data[target + 3] = row[source + 3];
+      }
+    }
+
+    previous = row;
+  }
+
+  return { width, height, data };
+}
+
+function encodePng({ width, height, data }) {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 6;
+
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * (width * 4 + 1);
+    rows[rowOffset] = 0;
+    Buffer.from(data.buffer, data.byteOffset + y * width * 4, width * 4).copy(rows, rowOffset + 1);
+  }
+
+  return Buffer.concat([
+    PNG_SIGNATURE,
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', zlib.deflateSync(rows)),
+    pngChunk('IEND'),
+  ]);
+}
+
+function normalizePng(image, width, height) {
+  if (image.width === width && image.height === height) {
+    return image.data;
+  }
+
+  const normalized = new Uint8ClampedArray(width * height * 4);
+  normalized.fill(255);
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const source = (y * image.width + x) * 4;
+      const target = (y * width + x) * 4;
+      normalized[target] = image.data[source];
+      normalized[target + 1] = image.data[source + 1];
+      normalized[target + 2] = image.data[source + 2];
+      normalized[target + 3] = image.data[source + 3];
+    }
+  }
+  return normalized;
+}
+
+function comparePixels(sourceData, targetData, diffData) {
+  let mismatched = 0;
+  for (let index = 0; index < sourceData.length; index += 4) {
+    const delta = Math.max(
+      Math.abs(sourceData[index] - targetData[index]),
+      Math.abs(sourceData[index + 1] - targetData[index + 1]),
+      Math.abs(sourceData[index + 2] - targetData[index + 2]),
+      Math.abs(sourceData[index + 3] - targetData[index + 3])
+    );
+
+    if (delta > 26) {
+      mismatched++;
+      diffData[index] = 255;
+      diffData[index + 1] = 0;
+      diffData[index + 2] = 0;
+      diffData[index + 3] = 255;
+    } else {
+      const gray = Math.round((sourceData[index] + sourceData[index + 1] + sourceData[index + 2]) / 3);
+      diffData[index] = gray;
+      diffData[index + 1] = gray;
+      diffData[index + 2] = gray;
+      diffData[index + 3] = 80;
+    }
+  }
+  return mismatched;
+}
+
+async function comparePngScreenshots(sourcePath, targetPath, diffPath) {
+  const sourceImage = decodePng(await readFile(sourcePath));
+  const targetImage = decodePng(await readFile(targetPath));
+  const width = Math.max(sourceImage.width, targetImage.width);
+  const height = Math.max(sourceImage.height, targetImage.height);
+  const sourceData = normalizePng(sourceImage, width, height);
+  const targetData = normalizePng(targetImage, width, height);
+  const diffData = new Uint8ClampedArray(width * height * 4);
+  const mismatchedPixels = comparePixels(sourceData, targetData, diffData);
+
+  await writeFile(diffPath, encodePng({ width, height, data: diffData }));
+  return {
+    diff_path: diffPath,
+    height,
+    mismatched_pixels: mismatchedPixels,
+    pixel_count: width * height,
+    ratio: width > 0 && height > 0 ? mismatchedPixels / (width * height) : 1,
+    width,
+  };
+}
+
 async function captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug) {
   if (!mismatches.length) {
     return;
@@ -378,6 +693,57 @@ async function captureVisualMismatchScreenshots(browser, result, mismatches, vis
   } finally {
     await Promise.all(Object.values(pages).map((page) => page.close().catch(() => {})));
   }
+}
+
+function loadPixelDiffDependencies() {
+  const playwrightCorePath = path.join(STUDIO_PATH, 'node_modules/playwright-core');
+  const pixelmatch = requireFromBench(path.join(playwrightCorePath, 'lib/third_party/pixelmatch'));
+  const { PNG } = requireFromBench(path.join(playwrightCorePath, 'lib/utilsBundle'));
+  return { pixelmatch, PNG };
+}
+
+function padPngToSize(image, width, height, PNG) {
+  if (image.width === width && image.height === height) {
+    return image;
+  }
+
+  const padded = new PNG({ width, height });
+  padded.data.fill(255);
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const sourceOffset = (y * image.width + x) * 4;
+      const targetOffset = (y * width + x) * 4;
+      image.data.copy(padded.data, targetOffset, sourceOffset, sourceOffset + 4);
+    }
+  }
+  return padded;
+}
+
+async function compareVisualScreenshots(sourcePath, frontendPath, diffPath) {
+  if (!sourcePath || !frontendPath) {
+    return { pixel_diff_ratio: 0, pixel_diff_pixel_count: 0, pixel_count: 0, diff_artifact: '' };
+  }
+
+  const { pixelmatch, PNG } = loadPixelDiffDependencies();
+  const source = PNG.sync.read(await readFile(sourcePath));
+  const frontend = PNG.sync.read(await readFile(frontendPath));
+  const width = Math.max(source.width, frontend.width);
+  const height = Math.max(source.height, frontend.height);
+  const sourcePixelCount = source.width * source.height;
+  const sourcePadded = padPngToSize(source, width, height, PNG);
+  const frontendPadded = padPngToSize(frontend, width, height, PNG);
+  const diff = new PNG({ width, height });
+  const pixelDiffCount = pixelmatch(sourcePadded.data, frontendPadded.data, diff.data, width, height, {
+    threshold: VISUAL_PIXELMATCH_THRESHOLD,
+  });
+
+  await writeFile(diffPath, PNG.sync.write(diff));
+  return {
+    pixel_diff_ratio: sourcePixelCount > 0 ? pixelDiffCount / sourcePixelCount : 0,
+    pixel_diff_pixel_count: pixelDiffCount,
+    pixel_count: sourcePixelCount,
+    diff_artifact: diffPath,
+  };
 }
 
 function buildVisualDiagnostics(results, artifactPath) {
@@ -549,6 +915,10 @@ async function emptyVisualComparison(artifactDir, error = '') {
     target_count: 0,
     checked_target_count: 0,
     error_count: error ? 1 : 0,
+    visual_editor_vs_source_pixel_diff_ratio: 0,
+    visual_editor_vs_frontend_pixel_diff_ratio: 0,
+    visual_source_vs_frontend_pixel_diff_ratio_diagnostic: 0,
+    visual_editor_parity_error_count: error ? 1 : 0,
     missing_selector_count: 0,
     visibility_mismatch_count: 0,
     nonzero_bounding_box_count: 0,
@@ -557,7 +927,9 @@ async function emptyVisualComparison(artifactDir, error = '') {
     nav_probe_parity_mismatch_count: 0,
     footer_probe_parity_mismatch_count: 0,
     hero_probe_parity_mismatch_count: 0,
-    surfaces: ['source_static', 'wordpress_frontend'],
+    pixel_diff_ratio: 0,
+    pixel_diff_pixel_count: 0,
+    surfaces: ['source_static', 'wordpress_frontend', 'wordpress_editor'],
     editor_surface_ready: true,
     artifact_dir: visualDir,
     diagnostics_artifact: diagnosticsPath,
@@ -627,10 +999,83 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
         }
       }
 
+      const editorUrl = surfaceUrl(target, 'wordpress_editor', importReport.reportPath, sitePath);
+      const editorScreenshotPath = path.join(visualDir, `${targetSlug}-wordpress_editor.png`);
+      const editorPage = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
+
+      try {
+        if (!editorUrl) {
+          throw new Error('Missing wordpress_editor render URL.');
+        }
+        await captureEditorScreenshot(editorPage, editorUrl, editorScreenshotPath);
+        result.surfaces.wordpress_editor = {
+          url: editorUrl,
+          screenshot: editorScreenshotPath,
+          probes: [],
+          totals: visualSurfaceTotals([]),
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push(`wordpress_editor: ${message}`);
+        result.surfaces.wordpress_editor = {
+          url: editorUrl,
+          screenshot: '',
+          probes: [],
+          totals: visualSurfaceTotals([]),
+          error: message,
+        };
+      } finally {
+        await editorPage.close();
+      }
+
+      result.pixel_diffs = {};
+      const sourceScreenshot = result.surfaces.source_static?.screenshot || '';
+      const frontendScreenshot = result.surfaces.wordpress_frontend?.screenshot || '';
+      const editorScreenshot = result.surfaces.wordpress_editor?.screenshot || '';
+      if (sourceScreenshot && editorScreenshot) {
+        result.pixel_diffs.editor_vs_source = await comparePngScreenshots(
+          sourceScreenshot,
+          editorScreenshot,
+          path.join(visualDir, `${targetSlug}-wordpress_editor-vs-source_static-diff.png`)
+        );
+      }
+      if (frontendScreenshot && editorScreenshot) {
+        result.pixel_diffs.editor_vs_frontend = await comparePngScreenshots(
+          frontendScreenshot,
+          editorScreenshot,
+          path.join(visualDir, `${targetSlug}-wordpress_editor-vs-wordpress_frontend-diff.png`)
+        );
+      }
+      if (sourceScreenshot && frontendScreenshot) {
+        result.pixel_diffs.source_vs_frontend_diagnostic = await comparePngScreenshots(
+          sourceScreenshot,
+          frontendScreenshot,
+          path.join(visualDir, `${targetSlug}-source_static-vs-wordpress_frontend-diagnostic-diff.png`)
+        );
+      }
+
       result.parity = visualParity(
         result.surfaces.source_static?.probes || [],
         result.surfaces.wordpress_frontend?.probes || []
       );
+      const pixelDiffPath = path.join(visualDir, `${targetSlug}-pixel-diff.png`);
+      try {
+        result.pixel_diff = await compareVisualScreenshots(
+          result.surfaces.source_static?.screenshot || '',
+          result.surfaces.wordpress_frontend?.screenshot || '',
+          pixelDiffPath
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push(`pixel_diff: ${message}`);
+        result.pixel_diff = {
+          pixel_diff_ratio: 0,
+          pixel_diff_pixel_count: 0,
+          pixel_count: 0,
+          diff_artifact: '',
+          error: message,
+        };
+      }
       const { mismatches, optionalProbeAbsences } = visualSelectorComparisonDetails(result);
       result.diagnostics = {
         mismatch_count: mismatches.length,
@@ -655,6 +1100,24 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
       const sourceTotals = result.surfaces.source_static?.totals || visualSurfaceTotals([]);
       const frontendTotals = result.surfaces.wordpress_frontend?.totals || visualSurfaceTotals([]);
       const parity = result.parity || visualParity([], []);
+      summary.visual_editor_vs_source_pixel_diff_ratio = Math.max(
+        summary.visual_editor_vs_source_pixel_diff_ratio,
+        Number(result.pixel_diffs?.editor_vs_source?.ratio || 0)
+      );
+      summary.visual_editor_vs_frontend_pixel_diff_ratio = Math.max(
+        summary.visual_editor_vs_frontend_pixel_diff_ratio,
+        Number(result.pixel_diffs?.editor_vs_frontend?.ratio || 0)
+      );
+      summary.visual_source_vs_frontend_pixel_diff_ratio_diagnostic = Math.max(
+        summary.visual_source_vs_frontend_pixel_diff_ratio_diagnostic,
+        Number(result.pixel_diffs?.source_vs_frontend_diagnostic?.ratio || 0)
+      );
+      if (!result.pixel_diffs?.editor_vs_source) {
+        summary.visual_editor_parity_error_count++;
+      }
+      if (!result.pixel_diffs?.editor_vs_frontend) {
+        summary.visual_editor_parity_error_count++;
+      }
       summary.error_count += result.errors.length;
       summary.checked_target_count += result.errors.length === 0 ? 1 : 0;
       summary.missing_selector_count += sourceTotals.missing_selector_count + frontendTotals.missing_selector_count;
@@ -666,12 +1129,23 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
       summary.nav_probe_parity_mismatch_count += parity.simple_probe_mismatches?.nav || 0;
       summary.footer_probe_parity_mismatch_count += parity.simple_probe_mismatches?.footer || 0;
       summary.hero_probe_parity_mismatch_count += parity.simple_probe_mismatches?.hero || 0;
+      summary.pixel_diff_pixel_count += Number(result.pixel_diff?.pixel_diff_pixel_count || 0);
+      summary.pixel_count += Number(result.pixel_diff?.pixel_count || 0);
+      const pixelDiffRatio = Number(result.pixel_diff?.pixel_diff_ratio || 0);
+      if (pixelDiffRatio > summary.pixel_diff_ratio) {
+        summary.pixel_diff_ratio = pixelDiffRatio;
+        summary.pixel_diff_artifact = result.pixel_diff?.diff_artifact || '';
+      }
       return summary;
     },
     {
       target_count: targets.length,
       checked_target_count: 0,
       error_count: 0,
+      visual_editor_vs_source_pixel_diff_ratio: 0,
+      visual_editor_vs_frontend_pixel_diff_ratio: 0,
+      visual_source_vs_frontend_pixel_diff_ratio_diagnostic: 0,
+      visual_editor_parity_error_count: 0,
       missing_selector_count: 0,
       visibility_mismatch_count: 0,
       nonzero_bounding_box_count: 0,
@@ -680,6 +1154,10 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
       nav_probe_parity_mismatch_count: 0,
       footer_probe_parity_mismatch_count: 0,
       hero_probe_parity_mismatch_count: 0,
+      pixel_diff_ratio: 0,
+      pixel_diff_pixel_count: 0,
+      pixel_count: 0,
+      pixel_diff_artifact: '',
     }
   );
   const diagnosticsPath = path.join(visualDir, 'visual-comparison-mismatches.json');
@@ -688,7 +1166,7 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
 
   return {
     ...totals,
-    surfaces: ['source_static', 'wordpress_frontend'],
+    surfaces: ['source_static', 'wordpress_frontend', 'wordpress_editor'],
     editor_surface_ready: true,
     artifact_dir: visualDir,
     diagnostics_artifact: diagnosticsPath,

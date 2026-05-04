@@ -1,14 +1,69 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 
 const {
   agentSuccessGate,
+  availablePromptVariants,
   hiddenEditorContentDiagnostics,
+  importerBlockQualityFailureDetails,
+  importerBlockQualityMetrics,
+  promptVariantCatalog,
   semanticTargetMetric,
+  siteBuildPrompt,
   structuralSelectorDriftDiagnostics,
+  validatePromptVariantCatalog,
+  VISUAL_PIXEL_DIFF_THRESHOLD,
+  visualEditorParityFailureDetails,
+  visualEditorParityMetrics,
 } = await import('./studio-agent-site-build.bench.mjs');
+
+test('site-build prompt variants are discovered from prompt files', async () => {
+  const variants = await availablePromptVariants();
+
+  assert.ok(variants.includes('restaurant'));
+  assert.ok(variants.includes('studio-code'));
+  assert.ok(variants.includes('static-content-library'));
+  assert.deepEqual(await validatePromptVariantCatalog(), variants);
+});
+
+test('site-build prompt catalog derives variant IDs from markdown basenames', () => {
+  assert.deepEqual(promptVariantCatalog(['plain-site/restaurant.md', 'static-markdown/static-content-library.md']), {
+    restaurant: 'plain-site/restaurant.md',
+    'static-content-library': 'static-markdown/static-content-library.md',
+  });
+});
+
+test('site-build prompt catalog fails clearly for duplicate basename-derived IDs', () => {
+  assert.throws(
+    () => promptVariantCatalog(['plain-site/restaurant.md', 'store/restaurant.md']),
+    /duplicate basename-derived variant IDs.*restaurant.*plain-site\/restaurant\.md.*store\/restaurant\.md/
+  );
+});
+
+test('site-build prompt file override bypasses discovered variants', async () => {
+  const previousSettings = process.env.HOMEBOY_SETTINGS_JSON;
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'studio-site-build-prompt-'));
+  const promptFile = path.join(tempDir, 'custom.md');
+
+  try {
+    await writeFile(promptFile, 'Build {{sitePath}} from ${sitePath}\n');
+    process.env.HOMEBOY_SETTINGS_JSON = JSON.stringify({ studio_site_build_prompt_file: promptFile });
+
+    assert.equal(await siteBuildPrompt('/tmp/example-site'), 'Build /tmp/example-site from /tmp/example-site');
+  } finally {
+    if (previousSettings === undefined) {
+      delete process.env.HOMEBOY_SETTINGS_JSON;
+    } else {
+      process.env.HOMEBOY_SETTINGS_JSON = previousSettings;
+    }
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test('semantic-fidelity mismatches hard-fail the agent success gate', () => {
   const gate = agentSuccessGate(
@@ -44,6 +99,120 @@ test('zero semantic-fidelity mismatches keep successful agent runs green', () =>
   assert.equal(gate.metrics.agent_error_rate, 0);
   assert.equal(gate.semanticMismatchCount, 0);
   assert.deepEqual(gate.semanticFailureDetails, []);
+});
+
+test('importer block-quality counters hard-fail the agent success gate', () => {
+  const importReport = {
+    report: {
+      quality: {
+        core_html_block_count: 4,
+        freeform_block_count: 1,
+        fallback_count: 4,
+      },
+    },
+  };
+  const gate = agentSuccessGate({ success: true, error: null, timedOut: false }, { mismatch_count: 0 }, importReport);
+
+  assert.equal(gate.agentSucceeded, false);
+  assert.equal(gate.metrics.success_rate, 0);
+  assert.equal(gate.metrics.agent_error_rate, 1);
+  assert.deepEqual(gate.importerBlockQuality, {
+    importerCoreHtmlBlockCount: 4,
+    importerFreeformBlockCount: 1,
+    importerFallbackCount: 4,
+  });
+  assert.deepEqual(gate.importerBlockQualityFailureDetails, [
+    'importer block quality: core/html=4, freeform=1, fallback=4',
+  ]);
+});
+
+test('importer block-quality metrics use zero as the clean threshold', () => {
+  const importReport = {
+    report: {
+      quality: {
+        core_html_block_count: 0,
+        freeform_block_count: 0,
+        fallback_count: 0,
+      },
+    },
+  };
+
+  assert.deepEqual(importerBlockQualityMetrics(importReport), {
+    importerCoreHtmlBlockCount: 0,
+    importerFreeformBlockCount: 0,
+    importerFallbackCount: 0,
+  });
+  assert.deepEqual(importerBlockQualityFailureDetails(importerBlockQualityMetrics(importReport)), []);
+  assert.equal(
+    agentSuccessGate({ success: true, error: null, timedOut: false }, { mismatch_count: 0 }, importReport).agentSucceeded,
+    true
+  );
+});
+
+test('editor visual parity metrics hard-fail the agent success gate', () => {
+  const visualComparison = {
+    visual_editor_vs_source_pixel_diff_ratio: 0.15,
+    visual_editor_vs_frontend_pixel_diff_ratio: 0.14,
+    visual_source_vs_frontend_pixel_diff_ratio_diagnostic: 0.03,
+  };
+  const gate = agentSuccessGate(
+    { success: true, error: null, timedOut: false },
+    { mismatch_count: 0 },
+    { report: { quality: {} } },
+    visualComparison
+  );
+
+  assert.equal(gate.agentSucceeded, false);
+  assert.equal(gate.metrics.success_rate, 0);
+  assert.equal(gate.metrics.agent_error_rate, 1);
+  assert.deepEqual(gate.visualEditorParity, {
+    visualEditorVsSourcePixelDiffRatio: 0.15,
+    visualEditorVsFrontendPixelDiffRatio: 0.14,
+    visualSourceVsFrontendPixelDiffRatio: 0.03,
+    visualEditorParityErrorCount: 0,
+  });
+  assert.deepEqual(gate.visualEditorFailureDetails, [
+    'editor render diverges from frontend (editor diff: 0.15, frontend diff: 0.03) - likely block-validation or unscoped CSS',
+  ]);
+});
+
+test('editor visual parity failure details distinguish upstream conversion failures', () => {
+  const visualEditorParity = visualEditorParityMetrics({
+    visual_editor_vs_source_pixel_diff_ratio: 0.15,
+    visual_editor_vs_frontend_pixel_diff_ratio: 0.04,
+    visual_source_vs_frontend_pixel_diff_ratio_diagnostic: 0.12,
+  });
+
+  assert.deepEqual(visualEditorParityFailureDetails(visualEditorParity), [
+    'editor and frontend both diverge from source (editor: 0.15, frontend: 0.12) - conversion failed before editor concern',
+  ]);
+});
+
+test('visual pixel diff ratio hard-fails the agent success gate', () => {
+  const gate = agentSuccessGate(
+    { success: true, error: null, timedOut: false },
+    { mismatch_count: 0 },
+    { report: { quality: { core_html_block_count: 0, freeform_block_count: 0, fallback_count: 0 } } },
+    { pixel_diff_ratio: VISUAL_PIXEL_DIFF_THRESHOLD + 0.034 }
+  );
+
+  assert.equal(gate.agentSucceeded, false);
+  assert.equal(gate.metrics.success_rate, 0);
+  assert.equal(gate.metrics.agent_error_rate, 1);
+  assert.equal(gate.visualPixelDiffRatio, 0.084);
+  assert.deepEqual(gate.visualPixelDiffFailureDetails, ['visual pixel diff: 0.084 (threshold: 0.050)']);
+});
+
+test('visual pixel diff ratio accepts values at the threshold', () => {
+  const gate = agentSuccessGate(
+    { success: true, error: null, timedOut: false },
+    { mismatch_count: 0 },
+    { report: { quality: { core_html_block_count: 0, freeform_block_count: 0, fallback_count: 0 } } },
+    { pixel_diff_ratio: VISUAL_PIXEL_DIFF_THRESHOLD }
+  );
+
+  assert.equal(gate.agentSucceeded, true);
+  assert.deepEqual(gate.visualPixelDiffFailureDetails, []);
 });
 
 test('semantic target metrics sum artifact target details for top-level output', () => {
