@@ -10,6 +10,7 @@ const {
   importerBlockQualityMetrics,
   semanticTargetMetric,
   structuralSelectorDriftDiagnostics,
+  VISUAL_PIXEL_DIFF_THRESHOLD,
   visualEditorParityFailureDetails,
   visualEditorParityMetrics,
 } = await import('./studio-agent-site-build.bench.mjs');
@@ -135,6 +136,33 @@ test('editor visual parity failure details distinguish upstream conversion failu
   assert.deepEqual(visualEditorParityFailureDetails(visualEditorParity), [
     'editor and frontend both diverge from source (editor: 0.15, frontend: 0.12) - conversion failed before editor concern',
   ]);
+});
+
+test('visual pixel diff ratio hard-fails the agent success gate', () => {
+  const gate = agentSuccessGate(
+    { success: true, error: null, timedOut: false },
+    { mismatch_count: 0 },
+    { report: { quality: { core_html_block_count: 0, freeform_block_count: 0, fallback_count: 0 } } },
+    { pixel_diff_ratio: VISUAL_PIXEL_DIFF_THRESHOLD + 0.034 }
+  );
+
+  assert.equal(gate.agentSucceeded, false);
+  assert.equal(gate.metrics.success_rate, 0);
+  assert.equal(gate.metrics.agent_error_rate, 1);
+  assert.equal(gate.visualPixelDiffRatio, 0.084);
+  assert.deepEqual(gate.visualPixelDiffFailureDetails, ['visual pixel diff: 0.084 (threshold: 0.050)']);
+});
+
+test('visual pixel diff ratio accepts values at the threshold', () => {
+  const gate = agentSuccessGate(
+    { success: true, error: null, timedOut: false },
+    { mismatch_count: 0 },
+    { report: { quality: { core_html_block_count: 0, freeform_block_count: 0, fallback_count: 0 } } },
+    { pixel_diff_ratio: VISUAL_PIXEL_DIFF_THRESHOLD }
+  );
+
+  assert.equal(gate.agentSucceeded, true);
+  assert.deepEqual(gate.visualPixelDiffFailureDetails, []);
 });
 
 test('semantic target metrics sum artifact target details for top-level output', () => {
