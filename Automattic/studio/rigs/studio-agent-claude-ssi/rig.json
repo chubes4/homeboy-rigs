@@ -1,12 +1,15 @@
 {
-  "id": "studio-agent-pi",
-  "description": "Studio agent runtime candidate: Automattic/studio PR #3246 / pi-agent-core unified runtime. Compared against studio-agent-sdk via Homeboy bench.",
+  "id": "studio-agent-claude-ssi",
+  "description": "Studio Claude Sonnet 4.6 on the active Static Site Importer draft branch. Pairs with studio-agent-gpt55-ssi so the same SSI substrate can be compared across models.",
   "components": {
     "studio": {
-      "path": "~/Developer/studio@pi-runtime-candidate",
-      "branch": "pi-runtime-candidate",
+      "path": "~/Developer/studio@bfb-mu-plugin-agent-output",
+      "branch": "bfb-mu-plugin-agent-output-draft",
       "extensions": {
-        "nodejs": {}
+        "nodejs": {
+          "studio_bench_variant": "claude-sonnet-4-6-ssi",
+          "studio_agent_model": "claude-sonnet-4-6"
+        }
       }
     }
   },
