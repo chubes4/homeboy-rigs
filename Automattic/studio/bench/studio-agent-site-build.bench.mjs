@@ -2113,10 +2113,99 @@ function freeformDiagnostics(documents) {
   return { count, results };
 }
 
+function splitSelectorList(selector) {
+  const selectors = [];
+  let current = '';
+  let depth = 0;
+  let quote = '';
+
+  for (const char of String(selector || '')) {
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === '(' || char === '[') {
+      depth += 1;
+      current += char;
+      continue;
+    }
+    if (char === ')' || char === ']') {
+      depth = Math.max(0, depth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === ',' && depth === 0) {
+      const value = current.trim();
+      if (value) {
+        selectors.push(value);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  const value = current.trim();
+  if (value) {
+    selectors.push(value);
+  }
+
+  return selectors;
+}
+
+function selectorCoverageTokens(selector) {
+  const tokens = new Set();
+  for (const match of String(selector || '').matchAll(/\.(-?[_a-zA-Z]+[_a-zA-Z0-9-]*)/g)) {
+    const name = match[1];
+    if (!/^(?:editor-styles-wrapper|block-editor|wp-admin|is-root-container)$/.test(name)) {
+      tokens.add(`.${name}`);
+    }
+  }
+  for (const match of String(selector || '').matchAll(/\[\s*([^\]\s~|^$*=]+)/g)) {
+    tokens.add(`[${match[1].toLowerCase()}]`);
+  }
+  return tokens;
+}
+
+function editorOverrideCoversHiddenSelector(hiddenSelector, overrideSelector) {
+  const hiddenTokens = selectorCoverageTokens(hiddenSelector);
+  if (hiddenTokens.size === 0) {
+    return false;
+  }
+
+  const overrideTokens = selectorCoverageTokens(overrideSelector);
+  if (overrideTokens.size === 0) {
+    return false;
+  }
+
+  for (const token of overrideTokens) {
+    if (!hiddenTokens.has(token)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function hiddenEditorContentDiagnostics(cssFiles) {
   const hiddenRules = [];
   const editorOverrideRules = [];
+  const hiddenSelectors = [];
+  const editorOverrideSelectors = [];
   const revealSelectorPattern = /(?:^|[\s.#:[>,])(?:js[-_])?(?:reveal|revealed|aos|fade[-_]in|animate[-_]on[-_]scroll|scroll[-_]reveal)\b|\[data[-_](?:reveal|aos|animate)/i;
+  const hiddenSelectorPattern = /(?:^|[\s.#:[>,])hidden\b/i;
   const hiddenDeclarationPattern = /(?:opacity\s*:\s*0(?:\.0+)?\b|visibility\s*:\s*hidden\b|display\s*:\s*none\b)/i;
   const visibleDeclarationPattern = /(?:opacity\s*:\s*1(?:\.0+)?\b|visibility\s*:\s*visible\b|display\s*:\s*(?:block|grid|flex|contents)\b)/i;
   const editorSelectorPattern = /(?:editor-styles-wrapper|block-editor|wp-admin|is-root-container)/i;
@@ -2126,7 +2215,10 @@ export function hiddenEditorContentDiagnostics(cssFiles) {
     for (const match of content.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       const selector = match[1].trim().replace(/\s+/g, ' ');
       const declarations = match[2].trim().replace(/\s+/g, ' ');
-      if (!revealSelectorPattern.test(selector)) {
+      const isRevealSelector = revealSelectorPattern.test(selector);
+      const isBroadEditorHiddenOverride =
+        editorSelectorPattern.test(selector) && hiddenSelectorPattern.test(selector) && visibleDeclarationPattern.test(declarations);
+      if (!isRevealSelector && !isBroadEditorHiddenOverride) {
         continue;
       }
 
@@ -2136,21 +2228,41 @@ export function hiddenEditorContentDiagnostics(cssFiles) {
         declarations: declarations.slice(0, 300),
       };
 
-      if (hiddenDeclarationPattern.test(declarations)) {
+      const selectorList = splitSelectorList(selector);
+
+      if (isRevealSelector && hiddenDeclarationPattern.test(declarations)) {
         hiddenRules.push(rule);
+        for (const selectorItem of selectorList) {
+          if (revealSelectorPattern.test(selectorItem)) {
+            hiddenSelectors.push({ ...rule, selector: selectorItem });
+          }
+        }
       }
       if (editorSelectorPattern.test(selector) && visibleDeclarationPattern.test(declarations)) {
         editorOverrideRules.push(rule);
+        for (const selectorItem of selectorList) {
+          if (editorSelectorPattern.test(selectorItem)) {
+            editorOverrideSelectors.push({ ...rule, selector: selectorItem });
+          }
+        }
       }
     }
   }
 
+  const missingEditorOverrideSelectors = hiddenSelectors.filter(
+    (hiddenRule) =>
+      !editorOverrideSelectors.some((editorRule) =>
+        editorOverrideCoversHiddenSelector(hiddenRule.selector, editorRule.selector)
+      )
+  );
+
   return {
     hidden_rule_count: hiddenRules.length,
     editor_override_rule_count: editorOverrideRules.length,
-    missing_editor_override_count: Math.max(0, hiddenRules.length - editorOverrideRules.length),
+    missing_editor_override_count: missingEditorOverrideSelectors.length,
     hidden_rules: hiddenRules.slice(0, 25),
     editor_override_rules: editorOverrideRules.slice(0, 25),
+    missing_editor_override_rules: missingEditorOverrideSelectors.slice(0, 25),
   };
 }
 
