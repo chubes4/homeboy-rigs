@@ -2597,6 +2597,422 @@ async function collectDesignFingerprint(sitePath) {
   };
 }
 
+const DESIGN_NOVELTY_DEFAULT_THRESHOLD = 0.7;
+const DESIGN_NOVELTY_DEFAULT_MAX_PRIORS = 20;
+const DESIGN_NOVELTY_TOP_MATCHES = 5;
+const DESIGN_NOVELTY_RECIPE_FLAGS = [
+  'design_uses_dark_base',
+  'design_uses_purple_lime',
+  'design_uses_cards_grid',
+  'design_uses_bento_grid',
+  'design_uses_glow_overlay',
+  'design_uses_marquee',
+  'design_uses_terminal_window',
+  'design_uses_inter',
+  'design_uses_syne',
+  'design_uses_space_grotesk',
+  'design_hero_grid_background_present',
+];
+
+function jaccard(setA, setB) {
+  if (!(setA instanceof Set) || !(setB instanceof Set)) {
+    return 0;
+  }
+  if (setA.size === 0 && setB.size === 0) {
+    return 0;
+  }
+  let intersection = 0;
+  for (const value of setA) {
+    if (setB.has(value)) {
+      intersection += 1;
+    }
+  }
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function tokenizeRepetitionSignature(signature) {
+  if (typeof signature !== 'string' || signature.length === 0) {
+    return new Set();
+  }
+  return new Set(
+    signature
+      .split('|')
+      .map((token) => token.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function fingerprintRecipeFlags(metrics) {
+  const flags = new Set();
+  if (!metrics || typeof metrics !== 'object') {
+    return flags;
+  }
+  for (const flag of DESIGN_NOVELTY_RECIPE_FLAGS) {
+    if (Number(metrics[flag]) === 1) {
+      flags.add(flag);
+    }
+  }
+  return flags;
+}
+
+function fingerprintMotifSet(fingerprint) {
+  return new Set(
+    Array.isArray(fingerprint?.motifs)
+      ? fingerprint.motifs.map((motif) => String(motif).toLowerCase())
+      : []
+  );
+}
+
+function fingerprintPaletteSet(fingerprint) {
+  return new Set(
+    Array.isArray(fingerprint?.palette_labels)
+      ? fingerprint.palette_labels.map((label) => String(label).toLowerCase())
+      : []
+  );
+}
+
+function priorRecipeFlags(prior) {
+  if (prior?.metrics && typeof prior.metrics === 'object') {
+    return fingerprintRecipeFlags(prior.metrics);
+  }
+  // Backfill from raw fingerprint when prior artifacts predate the metrics block.
+  const flags = new Set();
+  const fingerprint = prior?.designFingerprint || {};
+  const motifs = fingerprintMotifSet(fingerprint);
+  const palette = fingerprintPaletteSet(fingerprint);
+  const patterns = fingerprint?.patterns || {};
+  if (palette.has('dark_base') || fingerprint?.dark_theme) {
+    flags.add('design_uses_dark_base');
+  }
+  if (palette.has('purple_lime')) {
+    flags.add('design_uses_purple_lime');
+  }
+  if (motifs.has('cards_grid')) {
+    flags.add('design_uses_cards_grid');
+  }
+  if (motifs.has('bento_grid')) {
+    flags.add('design_uses_bento_grid');
+  }
+  if (motifs.has('glow_overlay')) {
+    flags.add('design_uses_glow_overlay');
+  }
+  if (motifs.has('marquee')) {
+    flags.add('design_uses_marquee');
+  }
+  if (motifs.has('terminal_window')) {
+    flags.add('design_uses_terminal_window');
+  }
+  const fonts = (fingerprint?.font_families || []).map((font) => String(font).toLowerCase());
+  if (fonts.includes('inter')) {
+    flags.add('design_uses_inter');
+  }
+  if (fonts.includes('syne')) {
+    flags.add('design_uses_syne');
+  }
+  if (fonts.includes('space grotesk')) {
+    flags.add('design_uses_space_grotesk');
+  }
+  if (patterns.hero_grid_background_present) {
+    flags.add('design_hero_grid_background_present');
+  }
+  return flags;
+}
+
+export function scoreDesignFingerprintAgainstPrior({
+  currentSignatureTokens,
+  currentMotifs,
+  currentPalette,
+  currentRecipeFlags,
+  currentTypePairing,
+  prior,
+}) {
+  const priorFingerprint = prior?.designFingerprint || {};
+  const priorPatterns = priorFingerprint?.patterns || {};
+  const priorTokens = tokenizeRepetitionSignature(priorPatterns.repetition_signature);
+  const priorMotifs = fingerprintMotifSet(priorFingerprint);
+  const priorPalette = fingerprintPaletteSet(priorFingerprint);
+  const priorFlags = priorRecipeFlags(prior);
+  const priorTypePairing = String(priorPatterns.type_pairing_signature || '').toLowerCase();
+
+  const tokenScore = jaccard(currentSignatureTokens, priorTokens);
+  const motifScore = jaccard(currentMotifs, priorMotifs);
+  const paletteScore = jaccard(currentPalette, priorPalette);
+  const recipeScore = jaccard(currentRecipeFlags, priorFlags);
+  const typeMatch =
+    currentTypePairing && priorTypePairing && currentTypePairing === priorTypePairing ? 1 : 0;
+
+  // Weighted combination — repetition tokens dominate, recipe flags reinforce,
+  // motif/palette/type pairing add nuance. Stays bounded in [0, 1].
+  const score =
+    tokenScore * 0.45 +
+    recipeScore * 0.2 +
+    motifScore * 0.15 +
+    paletteScore * 0.1 +
+    typeMatch * 0.1;
+
+  const sharedTokens = [...currentSignatureTokens].filter((token) => priorTokens.has(token)).sort();
+  const sharedMotifs = [...currentMotifs].filter((motif) => priorMotifs.has(motif)).sort();
+  const sharedPalette = [...currentPalette].filter((label) => priorPalette.has(label)).sort();
+  const sharedFlags = [...currentRecipeFlags].filter((flag) => priorFlags.has(flag)).sort();
+
+  return {
+    score,
+    component_scores: {
+      repetition_tokens: tokenScore,
+      recipe_flags: recipeScore,
+      motifs: motifScore,
+      palette_labels: paletteScore,
+      type_pairing: typeMatch,
+    },
+    shared: {
+      repetition_tokens: sharedTokens,
+      recipe_flags: sharedFlags,
+      motifs: sharedMotifs,
+      palette_labels: sharedPalette,
+      type_pairing_signature: typeMatch ? currentTypePairing : '',
+    },
+  };
+}
+
+export function summarizeDesignNoveltyAgainstPriors({
+  currentFingerprint,
+  currentMetrics,
+  priors = [],
+  threshold = DESIGN_NOVELTY_DEFAULT_THRESHOLD,
+  topMatches = DESIGN_NOVELTY_TOP_MATCHES,
+} = {}) {
+  const currentPatterns = currentFingerprint?.patterns || {};
+  const currentSignatureTokens = tokenizeRepetitionSignature(currentPatterns.repetition_signature);
+  const currentMotifs = fingerprintMotifSet(currentFingerprint);
+  const currentPalette = fingerprintPaletteSet(currentFingerprint);
+  const currentRecipeFlags = fingerprintRecipeFlags(currentMetrics);
+  const currentTypePairing = String(currentPatterns.type_pairing_signature || '').toLowerCase();
+
+  const empty = {
+    metrics: {
+      design_repetition_prior_run_count: 0,
+      design_repetition_match_count: 0,
+      design_repetition_max_score: 0,
+      design_repetition_mean_score: 0,
+      design_repetition_signal: 0,
+      design_repetition_recurring_motif_count: 0,
+      design_repetition_recurring_palette_count: 0,
+      design_repetition_recurring_recipe_flag_count: 0,
+      design_repetition_recurring_token_count: 0,
+      design_repetition_threshold: threshold,
+    },
+    diagnostics: {
+      threshold,
+      prompt_variant: '',
+      current: {
+        repetition_signature: currentPatterns.repetition_signature || '',
+        type_pairing_signature: currentPatterns.type_pairing_signature || '',
+        motifs: [...currentMotifs].sort(),
+        palette_labels: [...currentPalette].sort(),
+        recipe_flags: [...currentRecipeFlags].sort(),
+        repetition_tokens: [...currentSignatureTokens].sort(),
+      },
+      prior_run_count: 0,
+      matches: [],
+      top_matches: [],
+      recurring: {
+        repetition_tokens: [],
+        motifs: [],
+        palette_labels: [],
+        recipe_flags: [],
+      },
+    },
+  };
+
+  if (!Array.isArray(priors) || priors.length === 0) {
+    return empty;
+  }
+
+  const matches = [];
+  let scoreSum = 0;
+  let maxScore = 0;
+  // Recurrence counts: how many priors share each value with the current run.
+  const tokenRecurrence = new Map();
+  const motifRecurrence = new Map();
+  const paletteRecurrence = new Map();
+  const flagRecurrence = new Map();
+
+  for (const prior of priors) {
+    const detail = scoreDesignFingerprintAgainstPrior({
+      currentSignatureTokens,
+      currentMotifs,
+      currentPalette,
+      currentRecipeFlags,
+      currentTypePairing,
+      prior,
+    });
+
+    scoreSum += detail.score;
+    if (detail.score > maxScore) {
+      maxScore = detail.score;
+    }
+
+    for (const token of detail.shared.repetition_tokens) {
+      tokenRecurrence.set(token, (tokenRecurrence.get(token) || 0) + 1);
+    }
+    for (const motif of detail.shared.motifs) {
+      motifRecurrence.set(motif, (motifRecurrence.get(motif) || 0) + 1);
+    }
+    for (const label of detail.shared.palette_labels) {
+      paletteRecurrence.set(label, (paletteRecurrence.get(label) || 0) + 1);
+    }
+    for (const flag of detail.shared.recipe_flags) {
+      flagRecurrence.set(flag, (flagRecurrence.get(flag) || 0) + 1);
+    }
+
+    matches.push({
+      artifact: prior.artifact || '',
+      site_url: prior.siteUrl || '',
+      mtime_ms: Number(prior.mtimeMs || 0),
+      prompt_variant: prior.prompt_variant || '',
+      score: detail.score,
+      component_scores: detail.component_scores,
+      shared: detail.shared,
+      prior_repetition_signature:
+        prior.designFingerprint?.patterns?.repetition_signature || '',
+      prior_type_pairing_signature:
+        prior.designFingerprint?.patterns?.type_pairing_signature || '',
+    });
+  }
+
+  matches.sort((a, b) => b.score - a.score || b.mtime_ms - a.mtime_ms);
+  const matchCount = matches.filter((entry) => entry.score >= threshold).length;
+  const recurringTokens = [...tokenRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+  const recurringMotifs = [...motifRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+  const recurringPalette = [...paletteRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+  const recurringFlags = [...flagRecurrence.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, prior_count: count }));
+
+  return {
+    metrics: {
+      design_repetition_prior_run_count: priors.length,
+      design_repetition_match_count: matchCount,
+      design_repetition_max_score: Number(maxScore.toFixed(4)),
+      design_repetition_mean_score: Number((scoreSum / priors.length).toFixed(4)),
+      design_repetition_signal: maxScore >= threshold ? 1 : 0,
+      design_repetition_recurring_motif_count: recurringMotifs.length,
+      design_repetition_recurring_palette_count: recurringPalette.length,
+      design_repetition_recurring_recipe_flag_count: recurringFlags.length,
+      design_repetition_recurring_token_count: recurringTokens.length,
+      design_repetition_threshold: threshold,
+    },
+    diagnostics: {
+      threshold,
+      prompt_variant: priors[0]?.prompt_variant || '',
+      current: {
+        repetition_signature: currentPatterns.repetition_signature || '',
+        type_pairing_signature: currentPatterns.type_pairing_signature || '',
+        motifs: [...currentMotifs].sort(),
+        palette_labels: [...currentPalette].sort(),
+        recipe_flags: [...currentRecipeFlags].sort(),
+        repetition_tokens: [...currentSignatureTokens].sort(),
+      },
+      prior_run_count: priors.length,
+      matches,
+      top_matches: matches.slice(0, Math.max(1, topMatches)),
+      recurring: {
+        repetition_tokens: recurringTokens,
+        motifs: recurringMotifs,
+        palette_labels: recurringPalette,
+        recipe_flags: recurringFlags,
+      },
+    },
+  };
+}
+
+export async function loadDesignNoveltyPriors({
+  artifactDir,
+  currentArtifactPath,
+  promptVariant,
+  maxPriors = DESIGN_NOVELTY_DEFAULT_MAX_PRIORS,
+} = {}) {
+  if (!artifactDir || !promptVariant) {
+    return [];
+  }
+  let entries;
+  try {
+    entries = await readdir(artifactDir);
+  } catch {
+    return [];
+  }
+  const candidates = [];
+  for (const entry of entries) {
+    if (!entry.startsWith('result-') || !entry.endsWith('.json')) {
+      continue;
+    }
+    const fullPath = path.join(artifactDir, entry);
+    if (currentArtifactPath && fullPath === currentArtifactPath) {
+      continue;
+    }
+    let stats;
+    try {
+      stats = await stat(fullPath);
+    } catch {
+      continue;
+    }
+    if (!stats.isFile()) {
+      continue;
+    }
+    candidates.push({ path: fullPath, mtimeMs: stats.mtimeMs });
+  }
+  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+  const priors = [];
+  // Walk newest-first; take up to maxPriors that match the prompt variant.
+  // We bound by *scanned* count too, so a backlog of unrelated variants can
+  // never balloon I/O on a one-off run.
+  const scanCap = Math.max(maxPriors * 4, 40);
+  for (const candidate of candidates) {
+    if (priors.length >= maxPriors) {
+      break;
+    }
+    if (priors.length === 0 && candidates.indexOf(candidate) >= scanCap) {
+      break;
+    }
+    let raw;
+    try {
+      raw = await readFile(candidate.path, 'utf8');
+    } catch {
+      continue;
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (parsed?.prompt_variant !== promptVariant) {
+      continue;
+    }
+    priors.push({
+      artifact: candidate.path,
+      mtimeMs: candidate.mtimeMs,
+      prompt_variant: parsed.prompt_variant || '',
+      siteUrl: parsed.siteUrl || '',
+      designFingerprint: parsed.designFingerprint || null,
+      metrics: parsed.metrics || null,
+    });
+  }
+  return priors;
+}
+
 function designFingerprintMetrics(fingerprint) {
   const motifs = new Set(fingerprint?.motifs || []);
   const paletteLabels = new Set(fingerprint?.palette_labels || []);
@@ -2933,6 +3349,36 @@ function optionalArtifactPath(name, value) {
   return typeof value === 'string' && value.length > 0 ? { [name]: value } : {};
 }
 
+function clampNoveltyThreshold(raw) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    return DESIGN_NOVELTY_DEFAULT_THRESHOLD;
+  }
+  if (value <= 0) {
+    return 0;
+  }
+  if (value >= 1) {
+    return 1;
+  }
+  return value;
+}
+
+function clampNoveltyMaxPriors(raw) {
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value <= 0) {
+    return DESIGN_NOVELTY_DEFAULT_MAX_PRIORS;
+  }
+  return Math.min(value, 200);
+}
+
+function parseBooleanSetting(raw) {
+  if (typeof raw !== 'string') {
+    return false;
+  }
+  const value = raw.trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes' || value === 'on';
+}
+
 export default async function studioAgentSiteBuildBench() {
   const runtime = resolveBenchRuntime();
   const currentVariant = variant();
@@ -3037,6 +3483,43 @@ export default async function studioAgentSiteBuildBench() {
   const toolBreakdown = toolMetrics(result);
   const agentSucceeded = result.success === true && !result.error;
 
+  const designNoveltyThreshold = clampNoveltyThreshold(setting('studio_site_build_design_novelty_threshold'));
+  const designNoveltyMaxPriors = clampNoveltyMaxPriors(setting('studio_site_build_design_novelty_max_priors'));
+  const designNoveltyGateEnabled = parseBooleanSetting(setting('studio_site_build_design_novelty_gate'));
+  const designNoveltyPriors = await loadDesignNoveltyPriors({
+    artifactDir,
+    currentArtifactPath: artifactFile,
+    promptVariant: selectedPromptVariant,
+    maxPriors: designNoveltyMaxPriors,
+  });
+  const designNovelty = summarizeDesignNoveltyAgainstPriors({
+    currentFingerprint: designFingerprint,
+    currentMetrics: designMetrics,
+    priors: designNoveltyPriors,
+    threshold: designNoveltyThreshold,
+  });
+  let designNoveltyArtifactPath = '';
+  if (designNoveltyPriors.length > 0) {
+    designNoveltyArtifactPath = path.join(artifactDir, `design-novelty-${runId}.json`);
+    try {
+      await writeFile(
+        designNoveltyArtifactPath,
+        JSON.stringify(
+          {
+            run_id: runId,
+            prompt_variant: selectedPromptVariant,
+            current_artifact: artifactFile,
+            ...designNovelty.diagnostics,
+          },
+          null,
+          2
+        )
+      );
+    } catch {
+      designNoveltyArtifactPath = '';
+    }
+  }
+
   return {
     metrics: {
       success_rate: agentSucceeded ? 1 : 0,
@@ -3135,6 +3618,10 @@ export default async function studioAgentSiteBuildBench() {
       target_core_html_without_bfb_fallback: Number(quality.target_core_html_without_bfb_fallback || 0),
       serialized_block_comments: Number(quality.serialized_block_comments || 0),
       bfb_fallback_count: Number(quality.bfb_fallback_count || 0),
+      ...designNovelty.metrics,
+      design_novelty_gate_enabled: designNoveltyGateEnabled ? 1 : 0,
+      design_novelty_gate_failed:
+        designNoveltyGateEnabled && designNovelty.metrics.design_repetition_signal === 1 ? 1 : 0,
     },
     artifacts: {
       raw_result: artifactFile,
@@ -3146,6 +3633,7 @@ export default async function studioAgentSiteBuildBench() {
       ...optionalArtifactPath('semantic_fidelity', semanticComparison.artifact),
       ...optionalArtifactPath('semantic_comparison_dir', semanticComparison.artifact_dir),
       ...optionalArtifactPath('generated_theme_ux_gates', generatedThemeUxGates.artifact),
+      ...optionalArtifactPath('design_novelty', designNoveltyArtifactPath),
     },
     metadata: {
       benchmark_variant: currentVariant,
@@ -3159,6 +3647,7 @@ export default async function studioAgentSiteBuildBench() {
       design_type_pairing_signature: designFingerprint.patterns?.type_pairing_signature || '',
       design_repetition_signature: designFingerprint.patterns?.repetition_signature || '',
       design: designFingerprint,
+      design_novelty: designNovelty.diagnostics,
       ...systemPrompt,
     },
   };
