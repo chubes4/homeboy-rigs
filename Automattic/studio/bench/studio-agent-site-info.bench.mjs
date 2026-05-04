@@ -60,13 +60,15 @@ function metric(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+const SITE_INFO_TIMEOUT_MS = 60000;
+
 export default async function studioAgentSiteInfoBench() {
   const siteName = process.env.STUDIO_SITE_INFO_BENCH_SITE || 'intelligence-chubes4';
   const prompt = `Use only the Studio site_info tool for the site named ${siteName}, then answer with its running status in one sentence. Do not use any other tools.`;
   const started = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
     maxTurns: 5,
-    timeoutMs: 60000,
+    timeoutMs: SITE_INFO_TIMEOUT_MS,
   });
   const elapsedMs = Date.now() - started;
 
@@ -76,8 +78,12 @@ export default async function studioAgentSiteInfoBench() {
   await writeFile(artifactFile, JSON.stringify({ prompt, exitCode, stderr, resultFile, result }, null, 2));
 
   if (result.success !== true) {
-    const detail = typeof result.error === 'string' ? result.error : `exit=${exitCode}`;
-    throw new Error(`Studio eval failed: ${detail}; raw_result=${artifactFile}`);
+    const reason = result.timedOut === true
+      ? `timed out after ${SITE_INFO_TIMEOUT_MS}ms (eval-runner reported timedOut)`
+      : typeof result.error === 'string'
+        ? `exception: ${result.error}`
+        : `exit=${exitCode}`;
+    throw new Error(`Studio eval failed: ${reason}; raw_result=${artifactFile}`);
   }
 
   const phaseTimings = result.phaseTimingsMs && typeof result.phaseTimingsMs === 'object' ? result.phaseTimingsMs : {};

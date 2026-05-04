@@ -60,12 +60,14 @@ function runEval(prompt, vars) {
   });
 }
 
+const RUNTIME_TIMEOUT_MS = 60000;
+
 export default async function studioAgentRuntimeBench() {
   const prompt = 'In one short sentence, tell me who you are. Do not call any tools.';
   const started = Date.now();
   const { result, resultFile, exitCode, stderr } = await runEval(prompt, {
     maxTurns: 12,
-    timeoutMs: 60000,
+    timeoutMs: RUNTIME_TIMEOUT_MS,
     askUserPolicy: 'allow_all',
   });
   const elapsedMs = Date.now() - started;
@@ -79,8 +81,12 @@ export default async function studioAgentRuntimeBench() {
   );
 
   if (result.success !== true) {
-    const detail = typeof result.error === 'string' ? result.error : `exit=${exitCode}`;
-    throw new Error(`Studio eval failed: ${detail}; raw_result=${artifactFile}`);
+    const reason = result.timedOut === true
+      ? `timed out after ${RUNTIME_TIMEOUT_MS}ms (eval-runner reported timedOut)`
+      : typeof result.error === 'string'
+        ? `exception: ${result.error}`
+        : `exit=${exitCode}`;
+    throw new Error(`Studio eval failed: ${reason}; raw_result=${artifactFile}`);
   }
 
   const toolCalls = Array.isArray(result.toolCalls) ? result.toolCalls : [];
