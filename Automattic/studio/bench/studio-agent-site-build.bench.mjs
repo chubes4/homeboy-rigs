@@ -30,6 +30,7 @@ const PROMPT_VARIANTS = [
   'saas',
   'realistic-small-business',
   'studio-code',
+  'switchback-woocommerce-extra-hard',
   'wordpress-is-dead',
 ];
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
