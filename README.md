@@ -80,7 +80,7 @@ Canonical Studio create-site trace spans, pending Homeboy's trace span summary s
 | `state_to_ui` | `probe.site_details_running_true` | `ui.site.running_visible` |
 | `submit_to_running` | `ui.create_site.submit_clicked` | `ui.site.running_visible` |
 
-`rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-sdk` as its default benchmark baseline for trunk-vs-BFB agent site-build comparisons.
+`rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-claude-trunk` as its default benchmark baseline for trunk-vs-BFB agent site-build comparisons.
 
 ```bash
 homeboy rig up studio-bfb
@@ -104,24 +104,6 @@ wait
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 
 Mixed-source prompt variants such as `astro-docs-content-collection`, `markdown-blog-launch-site`, and `static-content-library` intentionally depend on Static Site Importer support for importing a source tree with `index.html`, `styles.css`, and plain `.md`/`.markdown` content files. They should be used against SSI branches that implement that mixed HTML shell plus Markdown content path; the prompts explicitly exclude MDX and do not require Studio changes.
-
-### Studio Bench Harness Cleanup
-
-Keep the Studio bench harness layered so each repo owns the smallest stable surface it can support:
-
-- `homeboy-rigs` owns Studio-specific workloads, prompts, and experimental harness wiring while APIs are still moving.
-- `homeboy-extensions/nodejs` is the future home for generic Node and browser benchmark utilities once those helpers are reusable outside Studio.
-- `homeboy-extensions/wordpress` is the future home for generic WordPress and block quality probes once their contracts are stable.
-- `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
-
-Cleanup should move in small waves:
-
-1. Build a shared local Studio bench helper foundation for repeated filesystem, artifact, CLI, and appdata setup.
-2. Refactor small workloads onto that foundation without changing benchmark semantics.
-3. Replace hardcoded prompt wiring with a dynamic prompt catalog.
-4. Extract site-build helpers after repeated setup and probe shapes are clear.
-5. Make benchmark files thin orchestrators that compose stable helpers and report metrics.
-6. Promote helpers into `homeboy-extensions/*` only after the local APIs settle and at least one non-Studio consumer shape is obvious.
 
 ### Cross-run design repetition
 
@@ -157,7 +139,7 @@ The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`
 
 `bench/studio-ssi-woo-fixture-validation.bench.mjs` carries a disabled fixture scaffold for Static Site Importer WooCommerce primitives. It records the static store fixture and `products.json` manifest, then reports a skip until SSI implements manifest validation, product seeding, and product context forwarding. Enable it with `HOMEBOY_ENABLE_SSI_WOO_FIXTURE=1` only against an SSI branch that exposes those primitives; the rig must not seed WooCommerce products itself.
 
-`rigs/studio-agent-sdk/rig.json` and `rigs/studio-agent-pi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
+`rigs/studio-agent-claude-trunk/rig.json` and `rigs/studio-agent-gpt55-ssi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
 
 `stacks/studio-combined.json` rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.
 
