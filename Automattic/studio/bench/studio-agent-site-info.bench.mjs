@@ -1,64 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-
-const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
-const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
-const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
-
-if (!STUDIO_PATH) {
-  throw new Error('HOMEBOY_COMPONENT_PATH is required');
-}
-
-function runEval(prompt, vars) {
-  const evalRunner = path.join(STUDIO_PATH, 'apps/cli/dist/cli/eval-runner.mjs');
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [evalRunner, prompt, 'unused-provider-slot', JSON.stringify({ vars: { prompt, ...vars } })],
-      {
-        cwd: STUDIO_PATH,
-        env: { ...process.env, CLAUDECODE: '' },
-      }
-    );
-
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', async (code) => {
-      const marker = stdout
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find((line) => line.startsWith(RESULT_PREFIX));
-
-      if (!marker) {
-        reject(new Error(`eval runner did not emit result marker; exit=${code}; stderr=${stderr.slice(0, 1000)}`));
-        return;
-      }
-
-      try {
-        const resultFile = marker.slice(RESULT_PREFIX.length);
-        const result = JSON.parse(await readFile(resultFile, 'utf8'));
-        resolve({ result, resultFile, exitCode: code, stderr });
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
-}
-
-function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
-}
+import { SHARED_STATE, metric, runEval } from './lib/studio-bench.mjs';
 
 const SITE_INFO_TIMEOUT_MS = 60000;
 
