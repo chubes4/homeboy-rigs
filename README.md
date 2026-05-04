@@ -105,6 +105,24 @@ The site-build workload also emits generated-theme UX gates in `generated-theme-
 
 Mixed-source prompt variants such as `astro-docs-content-collection`, `markdown-blog-launch-site`, and `static-content-library` intentionally depend on Static Site Importer support for importing a source tree with `index.html`, `styles.css`, and plain `.md`/`.markdown` content files. They should be used against SSI branches that implement that mixed HTML shell plus Markdown content path; the prompts explicitly exclude MDX and do not require Studio changes.
 
+### Studio Bench Harness Cleanup
+
+Keep the Studio bench harness layered so each repo owns the smallest stable surface it can support:
+
+- `homeboy-rigs` owns Studio-specific workloads, prompts, and experimental harness wiring while APIs are still moving.
+- `homeboy-extensions/nodejs` is the future home for generic Node and browser benchmark utilities once those helpers are reusable outside Studio.
+- `homeboy-extensions/wordpress` is the future home for generic WordPress and block quality probes once their contracts are stable.
+- `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
+
+Cleanup should move in small waves:
+
+1. Build a shared local Studio bench helper foundation for repeated filesystem, artifact, CLI, and appdata setup.
+2. Refactor small workloads onto that foundation without changing benchmark semantics.
+3. Replace hardcoded prompt wiring with a dynamic prompt catalog.
+4. Extract site-build helpers after repeated setup and probe shapes are clear.
+5. Make benchmark files thin orchestrators that compose stable helpers and report metrics.
+6. Promote helpers into `homeboy-extensions/*` only after the local APIs settle and at least one non-Studio consumer shape is obvious.
+
 ### Cross-run design repetition
 
 Use Homeboy's persisted run store, not bench-side scanning, to detect when repeated `studio-agent-site-build` runs of the same `prompt_variant` are cooking the same visual recipe. Every bench run already records the design fingerprint (`design_repetition_signature`, motifs, palette labels, recipe flags, type pairing) under `results.scenarios[].metadata.*` and `results.scenarios[].metrics.*` in the run record, so `homeboy runs distribution` can aggregate them across runs by component, rig, and scenario.

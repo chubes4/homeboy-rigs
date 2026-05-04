@@ -24,6 +24,10 @@ const requireFromBench = createRequire(import.meta.url);
 const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
 const VISUAL_EDITOR_PIXEL_DIFF_THRESHOLD = 0.05;
+// Whole-page screenshots have minor browser/font antialiasing noise; 5% keeps
+// that noise green while failing visible regressions such as missing icons.
+export const VISUAL_PIXEL_DIFF_THRESHOLD = 0.05;
+const VISUAL_PIXELMATCH_THRESHOLD = 0.1;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 if (!STUDIO_PATH) {
@@ -1328,6 +1332,57 @@ async function captureVisualMismatchScreenshots(browser, result, mismatches, vis
   }
 }
 
+function loadPixelDiffDependencies() {
+  const playwrightCorePath = path.join(STUDIO_PATH, 'node_modules/playwright-core');
+  const pixelmatch = requireFromBench(path.join(playwrightCorePath, 'lib/third_party/pixelmatch'));
+  const { PNG } = requireFromBench(path.join(playwrightCorePath, 'lib/utilsBundle'));
+  return { pixelmatch, PNG };
+}
+
+function padPngToSize(image, width, height, PNG) {
+  if (image.width === width && image.height === height) {
+    return image;
+  }
+
+  const padded = new PNG({ width, height });
+  padded.data.fill(255);
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const sourceOffset = (y * image.width + x) * 4;
+      const targetOffset = (y * width + x) * 4;
+      image.data.copy(padded.data, targetOffset, sourceOffset, sourceOffset + 4);
+    }
+  }
+  return padded;
+}
+
+async function compareVisualScreenshots(sourcePath, frontendPath, diffPath) {
+  if (!sourcePath || !frontendPath) {
+    return { pixel_diff_ratio: 0, pixel_diff_pixel_count: 0, pixel_count: 0, diff_artifact: '' };
+  }
+
+  const { pixelmatch, PNG } = loadPixelDiffDependencies();
+  const source = PNG.sync.read(await readFile(sourcePath));
+  const frontend = PNG.sync.read(await readFile(frontendPath));
+  const width = Math.max(source.width, frontend.width);
+  const height = Math.max(source.height, frontend.height);
+  const sourcePixelCount = source.width * source.height;
+  const sourcePadded = padPngToSize(source, width, height, PNG);
+  const frontendPadded = padPngToSize(frontend, width, height, PNG);
+  const diff = new PNG({ width, height });
+  const pixelDiffCount = pixelmatch(sourcePadded.data, frontendPadded.data, diff.data, width, height, {
+    threshold: VISUAL_PIXELMATCH_THRESHOLD,
+  });
+
+  await writeFile(diffPath, PNG.sync.write(diff));
+  return {
+    pixel_diff_ratio: sourcePixelCount > 0 ? pixelDiffCount / sourcePixelCount : 0,
+    pixel_diff_pixel_count: pixelDiffCount,
+    pixel_count: sourcePixelCount,
+    diff_artifact: diffPath,
+  };
+}
+
 function buildVisualDiagnostics(results, artifactPath) {
   const targetSummaries = [];
   const allMismatches = [];
@@ -1509,6 +1564,8 @@ async function emptyVisualComparison(artifactDir, error = '') {
     nav_probe_parity_mismatch_count: 0,
     footer_probe_parity_mismatch_count: 0,
     hero_probe_parity_mismatch_count: 0,
+    pixel_diff_ratio: 0,
+    pixel_diff_pixel_count: 0,
     surfaces: ['source_static', 'wordpress_frontend', 'wordpress_editor'],
     editor_surface_ready: true,
     artifact_dir: visualDir,
@@ -1638,6 +1695,24 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
         result.surfaces.source_static?.probes || [],
         result.surfaces.wordpress_frontend?.probes || []
       );
+      const pixelDiffPath = path.join(visualDir, `${targetSlug}-pixel-diff.png`);
+      try {
+        result.pixel_diff = await compareVisualScreenshots(
+          result.surfaces.source_static?.screenshot || '',
+          result.surfaces.wordpress_frontend?.screenshot || '',
+          pixelDiffPath
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push(`pixel_diff: ${message}`);
+        result.pixel_diff = {
+          pixel_diff_ratio: 0,
+          pixel_diff_pixel_count: 0,
+          pixel_count: 0,
+          diff_artifact: '',
+          error: message,
+        };
+      }
       const { mismatches, optionalProbeAbsences } = visualSelectorComparisonDetails(result);
       result.diagnostics = {
         mismatch_count: mismatches.length,
@@ -1691,6 +1766,13 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
       summary.nav_probe_parity_mismatch_count += parity.simple_probe_mismatches?.nav || 0;
       summary.footer_probe_parity_mismatch_count += parity.simple_probe_mismatches?.footer || 0;
       summary.hero_probe_parity_mismatch_count += parity.simple_probe_mismatches?.hero || 0;
+      summary.pixel_diff_pixel_count += Number(result.pixel_diff?.pixel_diff_pixel_count || 0);
+      summary.pixel_count += Number(result.pixel_diff?.pixel_count || 0);
+      const pixelDiffRatio = Number(result.pixel_diff?.pixel_diff_ratio || 0);
+      if (pixelDiffRatio > summary.pixel_diff_ratio) {
+        summary.pixel_diff_ratio = pixelDiffRatio;
+        summary.pixel_diff_artifact = result.pixel_diff?.diff_artifact || '';
+      }
       return summary;
     },
     {
@@ -1709,6 +1791,10 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
       nav_probe_parity_mismatch_count: 0,
       footer_probe_parity_mismatch_count: 0,
       hero_probe_parity_mismatch_count: 0,
+      pixel_diff_ratio: 0,
+      pixel_diff_pixel_count: 0,
+      pixel_count: 0,
+      pixel_diff_artifact: '',
     }
   );
   const diagnosticsPath = path.join(visualDir, 'visual-comparison-mismatches.json');
@@ -3549,7 +3635,9 @@ export function visualEditorParityMetrics(visualComparison) {
     visualEditorVsSourcePixelDiffRatio: visualRatio(visualComparison?.visual_editor_vs_source_pixel_diff_ratio),
     visualEditorVsFrontendPixelDiffRatio: visualRatio(visualComparison?.visual_editor_vs_frontend_pixel_diff_ratio),
     visualSourceVsFrontendPixelDiffRatio: visualRatio(
-      visualComparison?.visual_pixel_diff_ratio ?? visualComparison?.visual_source_vs_frontend_pixel_diff_ratio_diagnostic
+      visualComparison?.visual_pixel_diff_ratio ??
+        visualComparison?.pixel_diff_ratio ??
+        visualComparison?.visual_source_vs_frontend_pixel_diff_ratio_diagnostic
     ),
     visualEditorParityErrorCount: metric(visualComparison?.visual_editor_parity_error_count),
   };
@@ -3598,10 +3686,22 @@ export function visualEditorParityFailureDetails(visualEditorParity) {
   ];
 }
 
+export function visualPixelDiffFailureDetails(visualComparison) {
+  const visualPixelDiffRatio = metric(visualComparison?.pixel_diff_ratio);
+  if (visualPixelDiffRatio <= VISUAL_PIXEL_DIFF_THRESHOLD) {
+    return [];
+  }
+
+  return [
+    `visual pixel diff: ${visualPixelDiffRatio.toFixed(3)} (threshold: ${VISUAL_PIXEL_DIFF_THRESHOLD.toFixed(3)})`,
+  ];
+}
+
 export function agentSuccessGate(result, semanticComparison, importReport, visualComparison) {
   const semanticMismatchCount = metric(semanticComparison?.mismatch_count);
   const importerBlockQuality = importerBlockQualityMetrics(importReport);
   const visualEditorParity = visualEditorParityMetrics(visualComparison);
+  const visualPixelDiffRatio = metric(visualComparison?.pixel_diff_ratio);
   const agentTimedOut = result?.timedOut === true;
   const agentSucceeded =
     result?.success === true &&
@@ -3613,7 +3713,8 @@ export function agentSuccessGate(result, semanticComparison, importReport, visua
     importerBlockQuality.importerFallbackCount === 0 &&
     visualEditorParity.visualEditorParityErrorCount === 0 &&
     visualEditorParity.visualEditorVsSourcePixelDiffRatio <= VISUAL_EDITOR_PIXEL_DIFF_THRESHOLD &&
-    visualEditorParity.visualEditorVsFrontendPixelDiffRatio <= VISUAL_EDITOR_PIXEL_DIFF_THRESHOLD;
+    visualEditorParity.visualEditorVsFrontendPixelDiffRatio <= VISUAL_EDITOR_PIXEL_DIFF_THRESHOLD &&
+    visualPixelDiffRatio <= VISUAL_PIXEL_DIFF_THRESHOLD;
 
   return {
     agentSucceeded,
@@ -3623,6 +3724,8 @@ export function agentSuccessGate(result, semanticComparison, importReport, visua
     importerBlockQualityFailureDetails: importerBlockQualityFailureDetails(importerBlockQuality),
     visualEditorParity,
     visualEditorFailureDetails: visualEditorParityFailureDetails(visualEditorParity),
+    visualPixelDiffRatio,
+    visualPixelDiffFailureDetails: visualPixelDiffFailureDetails(visualComparison),
     metrics: {
       success_rate: agentSucceeded ? 1 : 0,
       agent_error_rate: agentSucceeded ? 0 : 1,
@@ -3689,6 +3792,7 @@ export default async function studioAgentSiteBuildBench() {
     ...gate.semanticFailureDetails,
     ...gate.importerBlockQualityFailureDetails,
     ...gate.visualEditorFailureDetails,
+    ...gate.visualPixelDiffFailureDetails,
   ];
   const { importerCoreHtmlBlockCount, importerFreeformBlockCount, importerFallbackCount } = gate.importerBlockQuality;
 
@@ -3825,6 +3929,8 @@ export default async function studioAgentSiteBuildBench() {
       visual_nav_probe_parity_mismatch_count: Number(visualComparison.nav_probe_parity_mismatch_count || 0),
       visual_footer_probe_parity_mismatch_count: Number(visualComparison.footer_probe_parity_mismatch_count || 0),
       visual_hero_probe_parity_mismatch_count: Number(visualComparison.hero_probe_parity_mismatch_count || 0),
+      visual_pixel_diff_ratio: gate.visualPixelDiffRatio,
+      visual_pixel_diff_pixel_count: Number(visualComparison.pixel_diff_pixel_count || 0),
       semantic_comparison_target_count: Number(semanticComparison.target_count || 0),
       semantic_comparison_checked_target_count: Number(semanticComparison.checked_target_count || 0),
       semantic_comparison_error_count: Number(semanticComparison.error_count || 0),
@@ -3870,6 +3976,7 @@ export default async function studioAgentSiteBuildBench() {
       admin_auto_login_url: status.autoLoginUrl,
       ...optionalArtifactPath('visual_comparison_dir', visualComparison.artifact_dir),
       ...optionalArtifactPath('visual_comparison_mismatches', visualComparison.diagnostics_artifact),
+      ...optionalArtifactPath('visual_pixel_diff', visualComparison.pixel_diff_artifact),
       ...optionalArtifactPath('semantic_fidelity', semanticComparison.artifact),
       ...optionalArtifactPath('semantic_comparison_dir', semanticComparison.artifact_dir),
       ...optionalArtifactPath('generated_theme_ux_gates', generatedThemeUxGates.artifact),
