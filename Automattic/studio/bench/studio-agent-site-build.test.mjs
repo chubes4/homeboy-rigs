@@ -1,18 +1,68 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 
 const {
   agentSuccessGate,
+  availablePromptVariants,
   hiddenEditorContentDiagnostics,
   importerBlockQualityFailureDetails,
   importerBlockQualityMetrics,
+  promptVariantCatalog,
   semanticTargetMetric,
+  siteBuildPrompt,
   structuralSelectorDriftDiagnostics,
+  validatePromptVariantCatalog,
   visualEditorParityFailureDetails,
   visualEditorParityMetrics,
 } = await import('./studio-agent-site-build.bench.mjs');
+
+test('site-build prompt variants are discovered from prompt files', async () => {
+  const variants = await availablePromptVariants();
+
+  assert.ok(variants.includes('restaurant'));
+  assert.ok(variants.includes('studio-code'));
+  assert.ok(variants.includes('static-content-library'));
+  assert.deepEqual(await validatePromptVariantCatalog(), variants);
+});
+
+test('site-build prompt catalog derives variant IDs from markdown basenames', () => {
+  assert.deepEqual(promptVariantCatalog(['plain-site/restaurant.md', 'static-markdown/static-content-library.md']), {
+    restaurant: 'plain-site/restaurant.md',
+    'static-content-library': 'static-markdown/static-content-library.md',
+  });
+});
+
+test('site-build prompt catalog fails clearly for duplicate basename-derived IDs', () => {
+  assert.throws(
+    () => promptVariantCatalog(['plain-site/restaurant.md', 'store/restaurant.md']),
+    /duplicate basename-derived variant IDs.*restaurant.*plain-site\/restaurant\.md.*store\/restaurant\.md/
+  );
+});
+
+test('site-build prompt file override bypasses discovered variants', async () => {
+  const previousSettings = process.env.HOMEBOY_SETTINGS_JSON;
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'studio-site-build-prompt-'));
+  const promptFile = path.join(tempDir, 'custom.md');
+
+  try {
+    await writeFile(promptFile, 'Build {{sitePath}} from ${sitePath}\n');
+    process.env.HOMEBOY_SETTINGS_JSON = JSON.stringify({ studio_site_build_prompt_file: promptFile });
+
+    assert.equal(await siteBuildPrompt('/tmp/example-site'), 'Build /tmp/example-site from /tmp/example-site');
+  } finally {
+    if (previousSettings === undefined) {
+      delete process.env.HOMEBOY_SETTINGS_JSON;
+    } else {
+      process.env.HOMEBOY_SETTINGS_JSON = previousSettings;
+    }
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test('semantic-fidelity mismatches hard-fail the agent success gate', () => {
   const gate = agentSuccessGate(
