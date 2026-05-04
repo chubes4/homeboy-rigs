@@ -101,6 +101,8 @@ homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1
 wait
 ```
 
+The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
+
 The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`. It creates a fresh Studio site per run, inserts one raw HTML page, and reports phase timings plus stored-block quality metrics (`core_html_blocks`, `bfb_fallback_count`, `serialized_block_comments`, etc.) scoped to that inserted page.
 
 `bench/studio-ssi-woo-fixture-validation.bench.mjs` carries a disabled fixture scaffold for Static Site Importer WooCommerce primitives. It records the static store fixture and `products.json` manifest, then reports a skip until SSI implements manifest validation, product seeding, and product context forwarding. Enable it with `HOMEBOY_ENABLE_SSI_WOO_FIXTURE=1` only against an SSI branch that exposes those primitives; the rig must not seed WooCommerce products itself.
