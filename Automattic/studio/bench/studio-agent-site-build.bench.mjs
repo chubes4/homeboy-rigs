@@ -18,33 +18,33 @@ const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
 const BENCH_NAMESPACE_SETTING = 'studio_bench_namespace';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
-const PROMPT_VARIANTS = [
-  'artist-music',
-  'astro-docs-content-collection',
-  'course-education',
-  'data-machine',
-  'documentation-knowledge-base',
-  'editorial-magazine',
-  'event-conference',
-  'homeboy',
-  'intelligence',
-  'local-service-business',
-  'markdown-blog-launch-site',
-  'membership-community',
-  'nonprofit',
-  'nonprofit-campaign',
-  'portfolio',
-  'product-catalog',
-  'radical-speed-month',
-  'restaurant',
-  'saas',
-  'realistic-small-business',
-  'static-content-library',
-  'studio-code',
-  'switchback-woocommerce-extra-hard',
-  'wp-coding-agents',
-  'wordpress-is-dead',
-];
+const PROMPT_VARIANTS = {
+  'artist-music': 'plain-site/artist-music.md',
+  'course-education': 'plain-site/course-education.md',
+  'data-machine': 'plain-site/data-machine.md',
+  'documentation-knowledge-base': 'plain-site/documentation-knowledge-base.md',
+  'editorial-magazine': 'plain-site/editorial-magazine.md',
+  'event-conference': 'plain-site/event-conference.md',
+  homeboy: 'plain-site/homeboy.md',
+  intelligence: 'plain-site/intelligence.md',
+  'local-service-business': 'plain-site/local-service-business.md',
+  'membership-community': 'plain-site/membership-community.md',
+  nonprofit: 'plain-site/nonprofit.md',
+  'nonprofit-campaign': 'plain-site/nonprofit-campaign.md',
+  portfolio: 'plain-site/portfolio.md',
+  'radical-speed-month': 'plain-site/radical-speed-month.md',
+  restaurant: 'plain-site/restaurant.md',
+  saas: 'plain-site/saas.md',
+  'realistic-small-business': 'plain-site/realistic-small-business.md',
+  'studio-code': 'plain-site/studio-code.md',
+  'wp-coding-agents': 'plain-site/wp-coding-agents.md',
+  'wordpress-is-dead': 'plain-site/wordpress-is-dead.md',
+  'product-catalog': 'store/product-catalog.md',
+  'switchback-woocommerce-extra-hard': 'store/switchback-woocommerce-extra-hard.md',
+  'astro-docs-content-collection': 'static-markdown/astro-docs-content-collection.md',
+  'markdown-blog-launch-site': 'static-markdown/markdown-blog-launch-site.md',
+  'static-content-library': 'static-markdown/static-content-library.md',
+};
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
 const requireFromBench = createRequire(import.meta.url);
 const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
@@ -297,20 +297,19 @@ function promptVariant() {
 
 export async function availablePromptVariants() {
   await validatePromptVariantCatalog();
-  return [...PROMPT_VARIANTS];
+  return Object.keys(PROMPT_VARIANTS);
 }
 
 export async function validatePromptVariantCatalog() {
   const promptsDir = new URL('./prompts/site-build/', import.meta.url);
-  const entries = await readdir(promptsDir, { withFileTypes: true });
-  const files = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
-    .map((entry) => entry.name.replace(/\.md$/, ''))
-    .sort();
-
-  const registered = [...PROMPT_VARIANTS].sort();
-  const missingFiles = registered.filter((variantName) => !files.includes(variantName));
-  const unregisteredFiles = files.filter((variantName) => !registered.includes(variantName));
+  const files = await promptFiles(promptsDir);
+  const registeredEntries = Object.entries(PROMPT_VARIANTS);
+  const registered = registeredEntries.map(([variantName]) => variantName).sort();
+  const registeredFiles = registeredEntries.map(([, relativePath]) => relativePath).sort();
+  const missingFiles = registeredEntries
+    .filter(([, relativePath]) => !files.includes(relativePath))
+    .map(([variantName, relativePath]) => `${variantName} (${relativePath})`);
+  const unregisteredFiles = files.filter((relativePath) => !registeredFiles.includes(relativePath));
 
   if (missingFiles.length || unregisteredFiles.length) {
     throw new Error(
@@ -323,6 +322,22 @@ export async function validatePromptVariantCatalog() {
   return registered;
 }
 
+async function promptFiles(directoryUrl, prefix = '') {
+  const entries = await readdir(directoryUrl, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      files.push(...(await promptFiles(new URL(`${entry.name}/`, directoryUrl), relativePath)));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(relativePath);
+    }
+  }
+
+  return files.sort();
+}
+
 async function promptTemplatePath() {
   const explicitPromptFile = expandHome(setting(PROMPT_FILE_SETTING) || '');
   if (explicitPromptFile) {
@@ -333,12 +348,13 @@ async function promptTemplatePath() {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(variantName)) {
     throw new Error(`Invalid ${PROMPT_VARIANT_SETTING}: ${variantName}`);
   }
-  if (!PROMPT_VARIANTS.includes(variantName)) {
+  const relativePromptPath = PROMPT_VARIANTS[variantName];
+  if (!relativePromptPath) {
     const variants = await availablePromptVariants();
     throw new Error(`Unknown ${PROMPT_VARIANT_SETTING}: ${variantName}. Available variants: ${variants.join(', ')}.`);
   }
 
-  return new URL(`./prompts/site-build/${variantName}.md`, import.meta.url);
+  return new URL(`./prompts/site-build/${relativePromptPath}`, import.meta.url);
 }
 
 export async function siteBuildPrompt(sitePath) {
