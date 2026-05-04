@@ -80,7 +80,7 @@ Canonical Studio create-site trace spans, pending Homeboy's trace span summary s
 | `state_to_ui` | `probe.site_details_running_true` | `ui.site.running_visible` |
 | `submit_to_running` | `ui.create_site.submit_clicked` | `ui.site.running_visible` |
 
-`rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-sdk` as its default benchmark baseline for trunk-vs-BFB agent site-build comparisons.
+`rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-claude-ssi` as its default benchmark baseline for same-substrate agent site-build comparisons.
 
 ```bash
 homeboy rig up studio-bfb
@@ -157,7 +157,7 @@ The deterministic write-path workload is `bench/studio-bfb-write-path.bench.mjs`
 
 `bench/studio-ssi-woo-fixture-validation.bench.mjs` carries a disabled fixture scaffold for Static Site Importer WooCommerce primitives. It records the static store fixture and `products.json` manifest, then reports a skip until SSI implements manifest validation, product seeding, and product context forwarding. Enable it with `HOMEBOY_ENABLE_SSI_WOO_FIXTURE=1` only against an SSI branch that exposes those primitives; the rig must not seed WooCommerce products itself.
 
-`rigs/studio-agent-sdk/rig.json` and `rigs/studio-agent-pi/rig.json` are paired bench rigs for Studio agent-runtime A/B checks. They share `bench/studio-agent-runtime.bench.mjs`.
+`rigs/studio-agent-claude-ssi/rig.json` and `rigs/studio-agent-gpt55-ssi/rig.json` are paired bench rigs for Studio agent-runtime and SSI site-build A/B checks across models. `rigs/studio-agent-claude-trunk/rig.json` remains available for trunk-vs-SSI comparisons. They share `bench/studio-agent-runtime.bench.mjs`.
 
 `stacks/studio-combined.json` rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.
 

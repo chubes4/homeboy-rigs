@@ -7,7 +7,7 @@ import zlib from 'node:zlib';
 import { STUDIO_PATH } from './studio-bench.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
-const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
+export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
 const VISUAL_PIXELMATCH_THRESHOLD = 0.1;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

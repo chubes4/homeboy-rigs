@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { artifactDir as studioArtifactDir, expandHome, runCli, setting, variant } from './lib/studio-bench.mjs';
+import { probePageQuality } from './lib/wordpress-quality.mjs';
 
 const RAW_HTML = `
 <main class="salt-star-page">
@@ -28,53 +29,6 @@ const RAW_HTML = `
   </section>
 </main>
 `;
-
-function qualityProbeCode(pageId) {
-  const encodedPageId = Buffer.from(String(pageId)).toString('base64');
-
-  return String.raw`
-function bench_count_blocks( $blocks, &$counts ) {
-    foreach ( $blocks as $block ) {
-        $name = isset( $block['blockName'] ) ? (string) $block['blockName'] : '';
-        if ( '' !== $name ) {
-            $counts['total_blocks']++;
-            if ( 'core/html' === $name ) {
-                $counts['core_html_blocks']++;
-            }
-        }
-        if ( ! empty( $block['innerBlocks'] ) ) {
-            bench_count_blocks( $block['innerBlocks'], $counts );
-        }
-    }
-}
-
-$page_id = absint( base64_decode( '${encodedPageId}' ) );
-$post = get_post( $page_id );
-if ( ! $post ) {
-    fwrite( STDERR, 'Inserted page not found: ' . $page_id );
-    exit( 1 );
-}
-
-$content = (string) $post->post_content;
-$counts = array(
-    'posts_seen' => '' === trim( $content ) ? 0 : 1,
-    'posts_with_blocks' => false !== strpos( $content, '<!-- wp:' ) ? 1 : 0,
-    'total_blocks' => 0,
-    'core_html_blocks' => 0,
-    'serialized_block_comments' => substr_count( $content, '<!-- wp:' ),
-    'bfb_fallback_count' => (int) get_option( 'studio_bfb_unsupported_fallback_count', 0 ),
-    'stored_content_hash' => hash( 'sha256', $content ),
-    'stored_content_bytes' => strlen( $content ),
-    'stored_content_preview' => substr( $content, 0, 2000 ),
-);
-
-if ( '' !== trim( $content ) ) {
-    bench_count_blocks( parse_blocks( $content ), $counts );
-}
-
-echo wp_json_encode( $counts, JSON_PRETTY_PRINT ) . PHP_EOL;
-`;
-}
 
 function cliEnv(extra = {}) {
   const bfbPath = expandHome(
@@ -134,15 +88,6 @@ async function writeRawHtmlPage(sitePath) {
   return JSON.parse(stdout.slice(jsonStart));
 }
 
-async function probeQuality(sitePath, pageId) {
-  const { stdout } = await runStudioCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', qualityProbeCode(pageId)]);
-  const jsonStart = stdout.indexOf('{');
-  if (jsonStart === -1) {
-    throw new Error(`quality probe did not emit JSON: ${stdout.slice(0, 1000)}`);
-  }
-  return JSON.parse(stdout.slice(jsonStart));
-}
-
 export default async function studioBfbWritePathBench() {
   const currentVariant = variant();
   const runId = `${currentVariant}-write-path-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -161,7 +106,7 @@ export default async function studioBfbWritePathBench() {
   const writeElapsedMs = Date.now() - writeStarted;
 
   const qualityProbeStarted = Date.now();
-  const quality = await probeQuality(sitePath, writeResult.page_id);
+  const quality = await probePageQuality(sitePath, writeResult.page_id, { runCli: runStudioCli });
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const totalElapsedMs = Date.now() - started;
 
