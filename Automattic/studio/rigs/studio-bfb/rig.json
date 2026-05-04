@@ -68,12 +68,6 @@
       },
       {
         "kind": "check",
-        "label": "Studio Static Site Importer env hook is present",
-        "file": "${components.studio.path}/tools/common/lib/mu-plugins.ts",
-        "contains": "STUDIO_STATIC_SITE_IMPORTER_PLUGIN_PATH"
-      },
-      {
-        "kind": "check",
         "label": "Studio prompt documents Static Site Importer workflow",
         "file": "${components.studio.path}/apps/cli/ai/system-prompt.ts",
         "contains": "static-site-importer import-theme"

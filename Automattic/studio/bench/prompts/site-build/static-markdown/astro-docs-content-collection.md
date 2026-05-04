@@ -1,6 +1,6 @@
 Build an importable mixed-source documentation site for SignalForge, a developer tool that monitors API reliability for small platform teams.
 
-This benchmark is specifically for the Static Site Importer mixed-source capability. Create a source tree that the importer can consume directly, with an HTML shell for shared chrome and plain Markdown content files for individual pages. Do not build an Astro project, do not generate MDX, and do not collapse the content into one generated HTML file.
+This benchmark is specifically for the Static Site Importer mixed-source capability. Create a source tree that the importer can consume directly, with an HTML shell for shared chrome and plain Markdown content files for individual pages.
 
 Required source shape:
 

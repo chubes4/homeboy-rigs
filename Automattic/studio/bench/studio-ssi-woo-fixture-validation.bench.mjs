@@ -1,12 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const CURRENT_FILE = fileURLToPath(import.meta.url);
-const BENCH_DIR = path.dirname(CURRENT_FILE);
-const FIXTURE_DIR = path.join(BENCH_DIR, 'fixtures', 'ssi-woo-store');
-const PRODUCTS_FILE = path.join(FIXTURE_DIR, 'products.json');
 const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
 const ENABLED = process.env.HOMEBOY_ENABLE_SSI_WOO_FIXTURE === '1';
 
@@ -37,17 +32,29 @@ function expandHome(value) {
 }
 
 async function fixtureSummary() {
-  const manifest = JSON.parse(await readFile(PRODUCTS_FILE, 'utf8'));
+  const fixtureDir = fixturePath();
+  const productsFile = path.join(fixtureDir, 'products.json');
+  const manifest = JSON.parse(await readFile(productsFile, 'utf8'));
   const products = Array.isArray(manifest.products) ? manifest.products : [];
   return {
-    fixture_dir: FIXTURE_DIR,
-    products_file: PRODUCTS_FILE,
+    fixture_dir: fixtureDir,
+    products_file: productsFile,
     product_count: products.length,
     product_handles: products.map((product) => product.handle).filter(Boolean),
     product_categories: [...new Set(products.flatMap((product) => product.categories || []))],
     prices: products.map((product) => ({ handle: product.handle, price: product.price })),
     images: products.map((product) => ({ handle: product.handle, images: product.images || [] })),
   };
+}
+
+function staticSiteImporterPath() {
+  return expandHome(
+    process.env.HOMEBOY_SSI_PATH || setting('studio_static_site_importer_plugin_path') || '~/Developer/static-site-importer'
+  );
+}
+
+function fixturePath() {
+  return path.join(staticSiteImporterPath(), 'tests', 'fixtures', 'ssi-woo-store');
 }
 
 async function writeArtifact(payload) {
@@ -94,17 +101,13 @@ export default async function studioSsiWooFixtureValidationBench() {
       },
       artifacts: {
         raw_result: artifactFile,
-        fixture_dir: FIXTURE_DIR,
-        products_json: PRODUCTS_FILE,
+        fixture_dir: summary.fixture_dir,
+        products_json: summary.products_file,
       },
     };
   }
 
-  const staticSiteImporterPath = expandHome(
-    process.env.HOMEBOY_SSI_PATH || setting('studio_static_site_importer_plugin_path') || '~/Developer/static-site-importer'
-  );
-
-  await assertStaticSiteImporterHasWooPrimitives(staticSiteImporterPath);
+  await assertStaticSiteImporterHasWooPrimitives(staticSiteImporterPath());
 
   throw new Error(
     'HOMEBOY_ENABLE_SSI_WOO_FIXTURE=1 requested, but the executable validation path is intentionally blocked until SSI defines the manifest CLI contract. Do not seed WooCommerce products in this rig.'

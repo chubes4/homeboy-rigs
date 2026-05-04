@@ -1,6 +1,6 @@
 Build an importable mixed-source launch site for Northstar Pantry, a new subscription meal-planning service for busy families.
 
-This prompt is intended to validate Static Site Importer support for a handoff where the marketing shell is HTML/CSS and the article content is Markdown. Produce a source tree for import, not a built framework bundle. Do not use MDX or any `.mdx` files.
+This prompt is intended to validate Static Site Importer support for a handoff where the marketing shell is HTML/CSS and the article content is Markdown. Produce a source tree for import with plain Markdown article files.
 
 Required source shape:
 

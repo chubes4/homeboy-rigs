@@ -1,6 +1,6 @@
 Build an importable mixed-source resource library for Civic Signal, a nonprofit publishing toolkits for neighborhood organizers.
 
-This benchmark should depend on Static Site Importer mixed-source support: one HTML shell plus multiple plain Markdown resources. Generate a source tree that can be imported as-is. Do not use MDX, front-end framework build output, or a single flattened HTML export.
+This benchmark should depend on Static Site Importer mixed-source support: one HTML shell plus multiple plain Markdown resources. Generate a source tree that can be imported as-is.
 
 Required source shape:
 
