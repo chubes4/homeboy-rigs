@@ -3131,15 +3131,47 @@ export function semanticMismatchFailureDetails(semanticComparison) {
   });
 }
 
-export function agentSuccessGate(result, semanticComparison) {
+export function importerBlockQualityMetrics(importReport) {
+  const quality = importReport?.report?.quality || {};
+
+  return {
+    importerCoreHtmlBlockCount: metric(quality.core_html_block_count),
+    importerFreeformBlockCount: metric(quality.freeform_block_count),
+    importerFallbackCount: metric(quality.fallback_count),
+  };
+}
+
+export function importerBlockQualityFailureDetails(importerBlockQuality) {
+  const { importerCoreHtmlBlockCount, importerFreeformBlockCount, importerFallbackCount } = importerBlockQuality;
+
+  if (importerCoreHtmlBlockCount === 0 && importerFreeformBlockCount === 0 && importerFallbackCount === 0) {
+    return [];
+  }
+
+  return [
+    `importer block quality: core/html=${importerCoreHtmlBlockCount}, freeform=${importerFreeformBlockCount}, fallback=${importerFallbackCount}`,
+  ];
+}
+
+export function agentSuccessGate(result, semanticComparison, importReport) {
   const semanticMismatchCount = metric(semanticComparison?.mismatch_count);
+  const importerBlockQuality = importerBlockQualityMetrics(importReport);
   const agentTimedOut = result?.timedOut === true;
-  const agentSucceeded = result?.success === true && !result?.error && !agentTimedOut && semanticMismatchCount === 0;
+  const agentSucceeded =
+    result?.success === true &&
+    !result?.error &&
+    !agentTimedOut &&
+    semanticMismatchCount === 0 &&
+    importerBlockQuality.importerCoreHtmlBlockCount === 0 &&
+    importerBlockQuality.importerFreeformBlockCount === 0 &&
+    importerBlockQuality.importerFallbackCount === 0;
 
   return {
     agentSucceeded,
     semanticMismatchCount,
     semanticFailureDetails: semanticMismatchCount > 0 ? semanticMismatchFailureDetails(semanticComparison) : [],
+    importerBlockQuality,
+    importerBlockQualityFailureDetails: importerBlockQualityFailureDetails(importerBlockQuality),
     metrics: {
       success_rate: agentSucceeded ? 1 : 0,
       agent_error_rate: agentSucceeded ? 0 : 1,
@@ -3199,10 +3231,11 @@ export default async function studioAgentSiteBuildBench() {
   const nativeBlockQuality = nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
   const designFingerprint = await collectDesignFingerprint(sitePath);
   const designMetrics = designFingerprintMetrics(designFingerprint);
-  const gate = agentSuccessGate(result, semanticComparison);
+  const gate = agentSuccessGate(result, semanticComparison, importReport);
   const semanticMismatchCount = gate.semanticMismatchCount;
   const semanticOptionalSelectorAbsentCount = semanticTargetMetric(semanticComparison, 'optional_selector_absent_count');
-  const semanticFailureDetails = gate.semanticFailureDetails;
+  const failureDetails = [...gate.semanticFailureDetails, ...gate.importerBlockQualityFailureDetails];
+  const { importerCoreHtmlBlockCount, importerFreeformBlockCount, importerFallbackCount } = gate.importerBlockQuality;
 
   const artifactFile = path.join(artifactDir, `result-${runId}.json`);
   await writeFile(
@@ -3314,8 +3347,9 @@ export default async function studioAgentSiteBuildBench() {
       editor_validation_invalid_blocks: Number(editorValidation.invalid_blocks || 0),
       editor_validation_error_count: editorValidation.error ? 1 : 0,
       importer_report_error_count: importReport.error ? 1 : 0,
-      importer_fallback_count: Number(importReport.report?.quality?.fallback_count || 0),
-      importer_core_html_block_count: Number(importReport.report?.quality?.core_html_block_count || 0),
+      importer_fallback_count: importerFallbackCount,
+      importer_core_html_block_count: importerCoreHtmlBlockCount,
+      importer_freeform_block_count: importerFreeformBlockCount,
       importer_invalid_block_count: Number(importReport.report?.quality?.invalid_block_count || 0),
       importer_invalid_block_document_count: Number(importReport.report?.quality?.invalid_block_document_count || 0),
       importer_generated_block_document_count: Number(importReport.report?.generated_theme?.block_documents?.length || 0),
@@ -3382,7 +3416,7 @@ export default async function studioAgentSiteBuildBench() {
       ...optionalArtifactPath('semantic_comparison_dir', semanticComparison.artifact_dir),
       ...optionalArtifactPath('generated_theme_ux_gates', generatedThemeUxGates.artifact),
     },
-    errors: semanticFailureDetails,
+    errors: failureDetails,
     metadata: {
       benchmark_variant: currentVariant,
       bench_namespace: runtime.namespaceSlug,
