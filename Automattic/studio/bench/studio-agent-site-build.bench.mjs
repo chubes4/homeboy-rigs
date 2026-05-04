@@ -3036,12 +3036,23 @@ export default async function studioAgentSiteBuildBench() {
   const turnDurations = Array.isArray(result.turnDurationsMs) ? result.turnDurationsMs : [];
   const phaseTimings = result.phaseTimingsMs && typeof result.phaseTimingsMs === 'object' ? result.phaseTimingsMs : {};
   const toolBreakdown = toolMetrics(result);
-  const agentSucceeded = result.success === true && !result.error;
+  // result.error and result.timedOut land in the eval-runner JSON via
+  // Automattic/studio#3330. Both are nullish on Studio versions older than
+  // that PR, which collapses the AND to result.success === true (the same
+  // gate the bench had before). On versions with #3330, the bench correctly
+  // distinguishes successful runs from runs that finished with a runner-side
+  // exception, and from runs that timed out. timed_out is surfaced as its
+  // own metric so timeout regressions are visible separately from agent
+  // failures.
+  const agentTimedOut = result.timedOut === true;
+  const agentSucceeded = result.success === true && !result.error && !agentTimedOut;
 
   return {
     metrics: {
       success_rate: agentSucceeded ? 1 : 0,
       agent_error_rate: agentSucceeded ? 0 : 1,
+      timed_out: agentTimedOut ? 1 : 0,
+      agent_runner_error: typeof result.error === 'string' ? 1 : 0,
       elapsed_ms: totalElapsedMs,
       site_create_ms: siteCreateMs,
       agent_elapsed_ms: agentElapsedMs,
