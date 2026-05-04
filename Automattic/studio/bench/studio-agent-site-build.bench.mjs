@@ -20,6 +20,7 @@ const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
 const PROMPT_VARIANTS = [
   'artist-music',
+  'astro-docs-content-collection',
   'course-education',
   'data-machine',
   'documentation-knowledge-base',
@@ -28,6 +29,7 @@ const PROMPT_VARIANTS = [
   'homeboy',
   'intelligence',
   'local-service-business',
+  'markdown-blog-launch-site',
   'membership-community',
   'nonprofit',
   'nonprofit-campaign',
@@ -37,6 +39,7 @@ const PROMPT_VARIANTS = [
   'restaurant',
   'saas',
   'realistic-small-business',
+  'static-content-library',
   'studio-code',
   'switchback-woocommerce-extra-hard',
   'wp-coding-agents',
