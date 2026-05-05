@@ -12,6 +12,7 @@ const {
   hiddenEditorContentDiagnostics,
   importerBlockQualityFailureDetails,
   importerBlockQualityMetrics,
+  importerTimingMetrics,
   promptVariantCatalog,
   semanticTargetMetric,
   siteBuildPrompt,
@@ -147,6 +148,44 @@ test('importer block-quality metrics use zero as the clean threshold', () => {
     agentSuccessGate({ success: true, error: null, timedOut: false }, { mismatch_count: 0 }, importReport).agentSucceeded,
     true
   );
+});
+
+test('importer timing metrics flatten SSI report performance fields', () => {
+  const importReport = {
+    report: {
+      performance: {
+        total_ms: 1234.5,
+        timings: {
+          convert_page_artifacts_ms: 900,
+          quality_and_fidelity_analysis_ms: 40,
+        },
+      },
+      conversion_fragments: {
+        main: {
+          html_bytes: 524288,
+          block_bytes: 120000,
+          fallback_count: 0,
+          content_loss_count: 1,
+          timings: {
+            bfb_convert_ms: 800,
+            finish_fragment_report_ms: 12,
+          },
+        },
+      },
+    },
+  };
+
+  assert.deepEqual(importerTimingMetrics(importReport), {
+    importer_performance_total_ms: 1234.5,
+    importer_phase_convert_page_artifacts_ms: 900,
+    importer_phase_quality_and_fidelity_analysis_ms: 40,
+    importer_fragment_main_html_bytes: 524288,
+    importer_fragment_main_block_bytes: 120000,
+    importer_fragment_main_fallback_count: 0,
+    importer_fragment_main_content_loss_count: 1,
+    importer_fragment_main_bfb_convert_ms: 800,
+    importer_fragment_main_finish_fragment_report_ms: 12,
+  });
 });
 
 test('editor visual parity metrics hard-fail the agent success gate', () => {
