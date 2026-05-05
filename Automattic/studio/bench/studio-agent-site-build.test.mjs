@@ -14,6 +14,7 @@ const {
   importerBlockQualityMetrics,
   importerTimingMetrics,
   promptVariantCatalog,
+  resolveBenchRuntime,
   semanticTargetMetric,
   siteBuildPrompt,
   structuralSelectorDriftDiagnostics,
@@ -22,6 +23,30 @@ const {
   visualEditorParityFailureDetails,
   visualEditorParityMetrics,
 } = await import('./studio-agent-site-build.bench.mjs');
+
+function withEnv(values, callback) {
+  const previous = {};
+  for (const key of Object.keys(values)) {
+    previous[key] = process.env[key];
+    if (values[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = values[key];
+    }
+  }
+
+  try {
+    return callback();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
 
 test('site-build prompt variants are discovered from prompt files', async () => {
   const variants = await availablePromptVariants();
@@ -64,6 +89,62 @@ test('site-build prompt file override bypasses discovered variants', async () =>
     }
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test('bench runtime falls back to shared-state artifacts without Homeboy invocation env', () => {
+  withEnv(
+    {
+      HOMEBOY_INVOCATION_ID: undefined,
+      HOMEBOY_INVOCATION_STATE_DIR: undefined,
+      HOMEBOY_INVOCATION_ARTIFACT_DIR: undefined,
+      HOMEBOY_INVOCATION_TMP_DIR: undefined,
+      HOMEBOY_INVOCATION_PORT_BASE: undefined,
+      HOMEBOY_INVOCATION_PORT_MAX: undefined,
+    },
+    () => {
+      const runtime = resolveBenchRuntime('/tmp/shared-state');
+
+      assert.equal(runtime.invocationId, '');
+      assert.equal(runtime.artifactDir, '/tmp/shared-state/studio-agent-site-build-artifacts');
+      assert.equal(runtime.siteRoot, '/tmp/shared-state/studio-agent-site-build-artifacts/sites');
+      assert.deepEqual(runtime.env, {});
+      assert.equal(runtime.portBase, null);
+      assert.equal(runtime.portMax, null);
+    }
+  );
+});
+
+test('bench runtime consumes Homeboy invocation env for isolated paths and ports', () => {
+  withEnv(
+    {
+      HOMEBOY_INVOCATION_ID: 'inv-test',
+      HOMEBOY_INVOCATION_STATE_DIR: '/tmp/inv/state',
+      HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv/artifacts',
+      HOMEBOY_INVOCATION_TMP_DIR: '/tmp/inv/tmp',
+      HOMEBOY_INVOCATION_PORT_BASE: '20000',
+      HOMEBOY_INVOCATION_PORT_MAX: '20009',
+    },
+    () => {
+      const runtime = resolveBenchRuntime('/tmp/shared-state');
+
+      assert.equal(runtime.invocationId, 'inv-test');
+      assert.equal(runtime.artifactDir, '/tmp/inv/artifacts');
+      assert.equal(runtime.siteRoot, '/tmp/inv/state/studio-agent-site-build/sites');
+      assert.equal(runtime.cliConfigDir, '/tmp/inv/state/studio-agent-site-build/cli-config');
+      assert.equal(runtime.appDataDir, '/tmp/inv/state/studio-agent-site-build/appdata');
+      assert.equal(runtime.processManagerHome, '/tmp/inv/state/studio-agent-site-build/daemon');
+      assert.equal(runtime.tmpDir, '/tmp/inv/tmp');
+      assert.equal(runtime.portBase, 20000);
+      assert.equal(runtime.portMax, 20009);
+      assert.deepEqual(runtime.env, {
+        E2E: '1',
+        E2E_CLI_CONFIG_PATH: '/tmp/inv/state/studio-agent-site-build/cli-config',
+        E2E_APP_DATA_PATH: '/tmp/inv/state/studio-agent-site-build/appdata',
+        STUDIO_PROCESS_MANAGER_HOME: '/tmp/inv/state/studio-agent-site-build/daemon',
+        TMPDIR: '/tmp/inv/tmp',
+      });
+    }
+  );
 });
 
 test('semantic-fidelity mismatches hard-fail the agent success gate', () => {
