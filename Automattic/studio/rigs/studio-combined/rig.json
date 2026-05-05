@@ -1,6 +1,6 @@
 {
-  "id": "studio",
-  "description": "Studio + Playground combined-fixes dev environment. The 'use the dev copy' setup: forks rebased onto trunk + open PRs cherry-picked + Docker-compiled PHP-WASM glue + tarball server + Studio CLI rewired to the local tarballs. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev. Run `homeboy rig check studio` to preflight, `homeboy rig up studio` to recover when broken.",
+  "id": "studio-combined",
+  "description": "Studio + Playground combined-fixes dev environment. The 'use the dev copy' setup: forks rebased onto trunk + open PRs cherry-picked + Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to the local tarballs. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev. Run `homeboy rig check studio-combined` to preflight, `homeboy rig up studio-combined` to recover when broken.",
 
   "components": {
     "studio": {

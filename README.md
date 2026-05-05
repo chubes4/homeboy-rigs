@@ -16,7 +16,7 @@ A **rig** is a declarative spec for a reproducible local dev environment: compon
 Examples:
 
 ```text
-Automattic/studio/rigs/studio/rig.json
+Automattic/studio/rigs/studio-combined/rig.json
 Automattic/studio/stacks/studio-combined.json
 Automattic/studio/bench/studio-agent-runtime.bench.mjs
 WordPress/wordpress-playground/stacks/playground-combined.json
@@ -42,18 +42,18 @@ cp WordPress/wordpress-playground/stacks/*.json ~/.config/homeboy/stacks/
 
 ## Automattic/studio
 
-`rigs/studio/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
+`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
 
 ```bash
-homeboy rig check studio
-homeboy rig up studio
-homeboy rig down studio
+homeboy rig check studio-combined
+homeboy rig up studio-combined
+homeboy rig down studio-combined
 ```
 
-`rigs/studio/rig.json` also declares the `studio-site-create` bench workload for timing fresh Studio site provisioning through the combined-fixes dev copy.
+`rigs/studio-combined/rig.json` also declares the `studio-site-create` bench workload for timing fresh Studio site provisioning through the combined-fixes dev copy.
 
 ```bash
-homeboy bench --rig studio --scenario studio-site-create --iterations 1 --shared-state /tmp/studio-site-create-bench
+homeboy bench --rig studio-combined --scenario studio-site-create --iterations 1 --shared-state /tmp/studio-site-create-bench
 ```
 
 The workload creates one `--no-start` site and one normally-started site per iteration, then reports create, started-site status, stop, and total timings. Artifacts are written below the shared-state directory for inspection.
@@ -61,8 +61,8 @@ The workload creates one `--no-start` site and one normally-started site per ite
 The Studio trace workload exercises the packaged app at `apps/studio/out` and records create-site readiness boundaries across the desktop shell, CLI log output, `cli.json`, HTTP readiness, `getSiteDetails()`, and the visible running-state UI.
 
 ```bash
-homeboy trace --rig studio studio list
-homeboy trace --rig studio studio studio-app-create-site --output /tmp/studio-app-create-site-trace.json
+homeboy trace --rig studio-combined studio list
+homeboy trace --rig studio-combined studio studio-app-create-site --output /tmp/studio-app-create-site-trace.json
 ```
 
 Canonical Studio create-site trace spans, pending Homeboy's trace span summary support:
@@ -80,11 +80,11 @@ Canonical Studio create-site trace spans, pending Homeboy's trace span summary s
 | `state_to_ui` | `probe.site_details_running_true` | `ui.site.running_visible` |
 | `submit_to_running` | `ui.create_site.submit_clicked` | `ui.site.running_visible` |
 
-`rigs/studio-bfb/rig.json` is the local Studio/BFB mu-plugin playground rig. It verifies raw HTML writes store native blocks through the BFB substrate and declares `studio-agent-claude-ssi` as its default benchmark baseline for same-substrate agent site-build comparisons.
+The Studio agent site-build rigs are model/substrate-specific. Use `studio-agent-claude-ssi` or `studio-agent-gpt55-ssi` for current Static Site Importer site-build runs, and `studio-agent-claude-trunk` as the trunk reference.
 
 ```bash
-homeboy rig up studio-bfb
-homeboy bench --rig studio-bfb --iterations 1 --shared-state /tmp/studio-bfb-bench
+homeboy rig up studio-agent-claude-ssi
+homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench
 ```
 
 The site-build workload accepts a runtime namespace for parallel prompt-variant runs. The prompt variant still controls benchmark semantics; `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
@@ -92,11 +92,11 @@ The site-build workload accepts a runtime namespace for parallel prompt-variant 
 ```bash
 HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=restaurant \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
-homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-bfb-bench &
+homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
 HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=saas \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
-homeboy bench --rig studio-bfb --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-bfb-bench &
+homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
 wait
 ```
@@ -130,14 +130,14 @@ Use Homeboy's persisted run store, not bench-side scanning, to detect when repea
 ```bash
 # Most-repeated repetition signatures across recent site-build runs.
 homeboy runs distribution \
-  --kind bench --component studio --rig studio-bfb \
+  --kind bench --component studio --rig studio-agent-claude-ssi \
   --scenario studio-agent-site-build \
   --field results.scenarios.metadata.design_repetition_signature \
   --limit 30
 
 # Recurring motifs and palette labels (array fields are flattened automatically).
 homeboy runs distribution \
-  --kind bench --component studio --rig studio-bfb \
+  --kind bench --component studio --rig studio-agent-claude-ssi \
   --scenario studio-agent-site-build \
   --field results.scenarios.metadata.design.motifs \
   --field results.scenarios.metadata.design.palette_labels \
@@ -145,7 +145,7 @@ homeboy runs distribution \
 
 # Type-pairing concentration across runs.
 homeboy runs distribution \
-  --kind bench --component studio --rig studio-bfb \
+  --kind bench --component studio --rig studio-agent-claude-ssi \
   --scenario studio-agent-site-build \
   --field results.scenarios.metadata.design_type_pairing_signature \
   --limit 30
