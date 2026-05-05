@@ -355,13 +355,14 @@ async function siteStatus(sitePath) {
   return studioSiteStatusJson(sitePath, { env: cliEnv() });
 }
 
-async function restoreMissingSourceStaticFiles(importReport, sitePath, result) {
+export async function restoreMissingSourceStaticFiles(importReport, sitePath, result) {
   const writes = new Map();
   for (const call of Array.isArray(result?.toolCalls) ? result.toolCalls : []) {
-    if (call?.name !== 'Write' || typeof call?.input?.file_path !== 'string' || typeof call?.input?.content !== 'string') {
+    const filePath = call?.input?.file_path || call?.input?.path || '';
+    if (call?.name !== 'Write' || typeof filePath !== 'string' || typeof call?.input?.content !== 'string') {
       continue;
     }
-    writes.set(path.resolve(call.input.file_path), call.input.content);
+    writes.set(path.resolve(filePath), call.input.content);
   }
 
   if (!writes.size) {

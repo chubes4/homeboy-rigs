@@ -68,7 +68,7 @@ export async function collectLatestGeneratedTheme(sitePath) {
   }
 
   generatedThemes.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  return generatedThemes[0] || { themeRoot: '', themeSlug: '', reportPath, error: 'No Static Site Importer report found.' };
+  return generatedThemes[0] || { themeRoot: '', themeSlug: '', reportPath: '', error: 'No Static Site Importer report found.' };
 }
 
 async function readIfExists(file) {

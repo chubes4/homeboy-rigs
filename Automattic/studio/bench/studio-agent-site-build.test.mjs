@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -15,6 +15,7 @@ const {
   importerTimingMetrics,
   promptVariantCatalog,
   resolveBenchRuntime,
+  restoreMissingSourceStaticFiles,
   semanticTargetMetric,
   siteBuildPrompt,
   structuralSelectorDriftDiagnostics,
@@ -23,6 +24,8 @@ const {
   visualEditorParityFailureDetails,
   visualEditorParityMetrics,
 } = await import('./studio-agent-site-build.bench.mjs');
+
+const { collectLatestGeneratedTheme } = await import('./lib/design-gates.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -145,6 +148,68 @@ test('bench runtime consumes Homeboy invocation env for isolated paths and ports
       });
     }
   );
+});
+
+test('bench restores missing SSI source files from Studio Write tool path input', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'studio-source-restore-'));
+  const sitePath = path.join(tempDir, 'site');
+  const sourcePath = path.join(sitePath, 'tmp/static-site/index.html');
+  const content = '<!doctype html><html><body><main>Source evidence</main></body></html>';
+
+  try {
+    await restoreMissingSourceStaticFiles(
+      {
+        reportPath: path.join(sitePath, 'wp-content/themes/demo/import-report.json'),
+        report: {
+          visual_fidelity: {
+            comparison_targets: [
+              {
+                source_file: '/wordpress/tmp/static-site/index.html',
+                comparison_hooks: {
+                  render_surfaces: {
+                    source_static: { url: '/wordpress/tmp/static-site/index.html' },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      },
+      sitePath,
+      {
+        toolCalls: [
+          {
+            name: 'Write',
+            input: {
+              path: sourcePath,
+              content,
+            },
+          },
+        ],
+      }
+    );
+
+    assert.equal(await readFile(sourcePath, 'utf8'), content);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('generated-theme discovery reports missing SSI import instead of throwing', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'studio-no-import-report-'));
+
+  try {
+    await mkdir(path.join(tempDir, 'wp-content/themes'), { recursive: true });
+
+    assert.deepEqual(await collectLatestGeneratedTheme(tempDir), {
+      themeRoot: '',
+      themeSlug: '',
+      reportPath: '',
+      error: 'No Static Site Importer report found.',
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('semantic-fidelity mismatches hard-fail the agent success gate', () => {
