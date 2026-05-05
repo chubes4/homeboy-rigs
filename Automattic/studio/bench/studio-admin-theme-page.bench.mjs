@@ -2,31 +2,34 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
-import { artifactDir as studioArtifactDir, metric, runCli, safeResult, variant } from './lib/studio-bench.mjs';
+import {
+  artifactDir as studioArtifactDir,
+  createStudioSite,
+  metric,
+  parseStudioSiteStatus,
+  safeResult,
+  stopStudioSite,
+  studioSiteStatus,
+  variant,
+} from './lib/studio-bench.mjs';
 
 async function createSite(sitePath) {
-  return runCli([
-    'site',
-    'create',
-    '--name',
-    `Studio Bench ${variant()} Theme Page ${process.pid}`,
-    '--path',
-    sitePath,
-    '--skip-browser',
-    '--skip-log-details',
-  ], { timeoutMs: 420000 });
+  return createStudioSite(sitePath, {
+    name: `Studio Bench ${variant()} Theme Page ${process.pid}`,
+    timeoutMs: 420000,
+  });
 }
 
 async function siteStatus(sitePath) {
-  return runCli(['site', 'status', '--path', sitePath, '--format', 'json'], { timeoutMs: 90000 });
+  return studioSiteStatus(sitePath, { timeoutMs: 90000 });
 }
 
 async function stopSite(sitePath) {
-  return runCli(['site', 'stop', '--path', sitePath], { allowFailure: true, timeoutMs: 90000 });
+  return stopStudioSite(sitePath, { timeoutMs: 90000 });
 }
 
 function parseStatus(stdout) {
-  const parsed = JSON.parse(stdout);
+  const parsed = parseStudioSiteStatus(stdout);
   if (!parsed.siteUrl || !parsed.autoLoginUrl) {
     throw new Error(`site status missing siteUrl/autoLoginUrl: ${stdout.slice(0, 1000)}`);
   }

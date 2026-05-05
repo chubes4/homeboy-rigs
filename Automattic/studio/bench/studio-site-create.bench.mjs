@@ -1,27 +1,30 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { artifactDir as studioArtifactDir, metric, redact, runCli, safeResult, variant } from './lib/studio-bench.mjs';
+import {
+  artifactDir as studioArtifactDir,
+  createStudioSite,
+  metric,
+  redact,
+  safeResult,
+  stopStudioSite,
+  studioSiteStatus,
+  variant,
+} from './lib/studio-bench.mjs';
 
 async function createSite(sitePath, start) {
-  return runCli([
-    'site',
-    'create',
-    '--name',
-    `Studio Bench ${variant()} Site Create ${process.pid}`,
-    '--path',
-    sitePath,
-    ...(start ? [] : ['--no-start']),
-    '--skip-browser',
-    '--skip-log-details',
-  ], { timeoutMs: start ? 420000 : 240000 });
+  return createStudioSite(sitePath, {
+    name: `Studio Bench ${variant()} Site Create ${process.pid}`,
+    start,
+    timeoutMs: start ? 420000 : 240000,
+  });
 }
 
 async function stopSite(sitePath) {
-  return runCli(['site', 'stop', '--path', sitePath], { allowFailure: true, timeoutMs: 90000 });
+  return stopStudioSite(sitePath, { timeoutMs: 90000 });
 }
 
 async function siteStatus(sitePath) {
-  return runCli(['site', 'status', '--path', sitePath, '--format', 'json'], { allowFailure: true, timeoutMs: 90000 });
+  return studioSiteStatus(sitePath, { allowFailure: true, timeoutMs: 90000 });
 }
 
 export default async function studioSiteCreateBench() {

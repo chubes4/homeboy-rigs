@@ -1,6 +1,16 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { artifactDir as studioArtifactDir, metric, redact, runCli, safeResult, variant } from './lib/studio-bench.mjs';
+import {
+  artifactDir as studioArtifactDir,
+  createStudioSite,
+  metric,
+  parseStudioSiteStatus,
+  redact,
+  safeResult,
+  stopStudioSite,
+  studioSiteStatus,
+  variant,
+} from './lib/studio-bench.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
 
@@ -11,32 +21,18 @@ if (!BROWSER_HELPER) {
 const { runBrowserBench } = await import(BROWSER_HELPER);
 
 async function createSite(sitePath) {
-  return runCli([
-    'site',
-    'create',
-    '--name',
-    `Studio Bench ${variant()} Add Themes Browser ${process.pid}`,
-    '--path',
-    sitePath,
-    '--skip-browser',
-    '--skip-log-details',
-  ], { timeoutMs: 420000 });
+  return createStudioSite(sitePath, {
+    name: `Studio Bench ${variant()} Add Themes Browser ${process.pid}`,
+    timeoutMs: 420000,
+  });
 }
 
 async function siteStatus(sitePath) {
-  return runCli(['site', 'status', '--path', sitePath, '--format', 'json'], { timeoutMs: 90000 });
+  return studioSiteStatus(sitePath, { timeoutMs: 90000 });
 }
 
 async function stopSite(sitePath) {
-  return runCli(['site', 'stop', '--path', sitePath], { allowFailure: true, timeoutMs: 90000 });
-}
-
-function parseStatus(stdout) {
-  const parsed = JSON.parse(stdout);
-  if (!parsed.siteUrl || !parsed.autoLoginUrl) {
-    throw new Error(`site status missing siteUrl/autoLoginUrl: ${redact(stdout).slice(0, 1000)}`);
-  }
-  return parsed;
+  return stopStudioSite(sitePath, { timeoutMs: 90000 });
 }
 
 function siteAdminUrl(siteUrl, relativePath) {
@@ -79,7 +75,10 @@ export default async function studioAdminThemePageBrowserBench() {
   try {
     create = await createSite(sitePath);
     statusResult = await siteStatus(sitePath);
-    status = parseStatus(statusResult.stdout);
+    status = parseStudioSiteStatus(statusResult.stdout);
+    if (!status.siteUrl || !status.autoLoginUrl) {
+      throw new Error(`site status missing siteUrl/autoLoginUrl: ${redact(statusResult.stdout).slice(0, 1000)}`);
+    }
 
     browserResult = await runBrowserBench({
       id: 'studio-admin-theme-page-browser',
