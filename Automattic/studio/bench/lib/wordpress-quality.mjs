@@ -243,6 +243,49 @@ export async function collectLatestImportReport(sitePath) {
   }
 }
 
+function numericMetric(value) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function metricKeyPart(value) {
+  return String(value || '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+}
+
+export function importerTimingMetrics(importReport) {
+  const report = importReport?.report || {};
+  const performance = report.performance || {};
+  const timings = performance.timings && typeof performance.timings === 'object' ? performance.timings : {};
+  const fragments = report.conversion_fragments && typeof report.conversion_fragments === 'object'
+    ? report.conversion_fragments
+    : {};
+  const metrics = {
+    importer_performance_total_ms: numericMetric(performance.total_ms),
+  };
+
+  for (const [key, value] of Object.entries(timings)) {
+    metrics[`importer_phase_${metricKeyPart(key)}`] = numericMetric(value);
+  }
+
+  for (const [source, fragment] of Object.entries(fragments)) {
+    const sourceKey = metricKeyPart(source || 'fragment');
+    const fragmentTimings = fragment?.timings && typeof fragment.timings === 'object' ? fragment.timings : {};
+    metrics[`importer_fragment_${sourceKey}_html_bytes`] = numericMetric(fragment?.html_bytes);
+    metrics[`importer_fragment_${sourceKey}_block_bytes`] = numericMetric(fragment?.block_bytes);
+    metrics[`importer_fragment_${sourceKey}_fallback_count`] = numericMetric(fragment?.fallback_count);
+    metrics[`importer_fragment_${sourceKey}_content_loss_count`] = numericMetric(fragment?.content_loss_count);
+
+    for (const [key, value] of Object.entries(fragmentTimings)) {
+      metrics[`importer_fragment_${sourceKey}_${metricKeyPart(key)}`] = numericMetric(value);
+    }
+  }
+
+  return metrics;
+}
+
 async function readIfExists(file) {
   try {
     return await readFile(file, 'utf8');

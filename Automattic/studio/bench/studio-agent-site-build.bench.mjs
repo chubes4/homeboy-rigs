@@ -11,6 +11,7 @@ import {
   collectGeneratedThemeUxGates,
   collectLatestImportReport,
   collectThemeBlockDocuments,
+  importerTimingMetrics,
   nativeBlockQualityMetrics,
   probeQuality,
 } from './lib/wordpress-quality.mjs';
@@ -19,6 +20,7 @@ import { collectDesignFingerprint } from './lib/design-gates.mjs';
 
 export {
   agentAuthoredBlockMetrics,
+  importerTimingMetrics,
   nativeBlockQualityMetrics,
 } from './lib/wordpress-quality.mjs';
 
@@ -1008,6 +1010,7 @@ export default async function studioAgentSiteBuildBench() {
   const status = await siteStatus(sitePath);
   assertNamespacedPort(status, runtime);
   const importReport = await collectLatestImportReport(sitePath);
+  const importerTimings = importerTimingMetrics(importReport);
   await mkdir(artifactDir, { recursive: true });
   await restoreMissingSourceStaticFiles(importReport, sitePath, result);
   const visualComparisonStarted = Date.now();
@@ -1156,6 +1159,7 @@ export default async function studioAgentSiteBuildBench() {
       importer_invalid_block_count: Number(importReport.report?.quality?.invalid_block_count || 0),
       importer_invalid_block_document_count: Number(importReport.report?.quality?.invalid_block_document_count || 0),
       importer_generated_block_document_count: Number(importReport.report?.generated_theme?.block_documents?.length || 0),
+      ...importerTimings,
       system_prompt_size_bytes: systemPrompt.system_prompt_size_bytes,
       visual_comparison_target_count: Number(visualComparison.target_count || 0),
       visual_comparison_checked_target_count: Number(visualComparison.checked_target_count || 0),
