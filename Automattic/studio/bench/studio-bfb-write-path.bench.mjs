@@ -1,6 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { artifactDir as studioArtifactDir, expandHome, runCli, setting, variant } from './lib/studio-bench.mjs';
+import {
+  artifactDir as studioArtifactDir,
+  createStudioSite,
+  expandHome,
+  runCli,
+  setting,
+  stopStudioSite,
+  variant,
+} from './lib/studio-bench.mjs';
 import { probePageQuality } from './lib/wordpress-quality.mjs';
 
 const RAW_HTML = `
@@ -45,20 +53,14 @@ async function runStudioCli(args, options = {}) {
 }
 
 async function createFreshSite(sitePath) {
-  await runStudioCli([
-    'site',
-    'create',
-    '--name',
-    `Studio Bench ${variant()} Write Path ${process.pid}`,
-    '--path',
-    sitePath,
-    '--skip-browser',
-    '--skip-log-details',
-  ]);
+  await createStudioSite(sitePath, {
+    name: `Studio Bench ${variant()} Write Path ${process.pid}`,
+    env: cliEnv(),
+  });
 }
 
 async function stopSite(sitePath) {
-  await runStudioCli(['site', 'stop', '--path', sitePath], { allowFailure: true });
+  await stopStudioSite(sitePath, { env: cliEnv() });
 }
 
 async function writeRawHtmlPage(sitePath) {

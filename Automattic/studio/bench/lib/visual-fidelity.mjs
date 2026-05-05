@@ -1,93 +1,16 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 import zlib from 'node:zlib';
 
 import { STUDIO_PATH } from './studio-bench.mjs';
+import { asArray, comparisonTargets, safeSlug, stringArray, surfaceUrl } from './fidelity-targets.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
 export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
 const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
 const VISUAL_PIXELMATCH_THRESHOLD = 0.1;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function stringArray(value) {
-  return asArray(value).filter((item) => typeof item === 'string' && item.trim() !== '');
-}
-
-function safeSlug(value, fallback) {
-  const slug = String(value || fallback || 'target')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return slug || 'target';
-}
-
-function comparisonTargets(importReport) {
-  return asArray(importReport?.report?.visual_fidelity?.comparison_targets).filter(
-    (target) => target && typeof target === 'object'
-  );
-}
-
-function resolveSourceStaticFile(sourceFile, reportPath, sitePath) {
-  if (!sourceFile) {
-    return '';
-  }
-
-  if (path.isAbsolute(sourceFile)) {
-    const wordpressRoot = '/wordpress';
-    if (sitePath && (sourceFile === wordpressRoot || sourceFile.startsWith(`${wordpressRoot}/`))) {
-      return path.join(sitePath, sourceFile.slice(wordpressRoot.length));
-    }
-
-    return sourceFile;
-  }
-
-  return path.resolve(path.dirname(reportPath), sourceFile);
-}
-
-function surfaceUrl(target, surface, reportPath, sitePath) {
-  const surfaces = target?.comparison_hooks?.render_surfaces || {};
-  const configured = surfaces[surface]?.url || '';
-  if (surface === 'source_static') {
-    const sourceFile = configured || target?.source_file || '';
-    if (!sourceFile) {
-      return '';
-    }
-    const absoluteSource = resolveSourceStaticFile(sourceFile, reportPath, sitePath);
-    return pathToFileURL(absoluteSource).toString();
-  }
-
-  if (surface === 'wordpress_frontend') {
-    return configured || target?.wordpress_url || '';
-  }
-
-  if (surface === 'wordpress_editor') {
-    if (configured) {
-      return configured;
-    }
-
-    const postId = Number(target?.wordpress_page_id || target?.home_page_id || target?.front_page_id || 0);
-    const frontendUrl = surfaceUrl(target, 'wordpress_frontend', reportPath, sitePath);
-    if (!postId || !frontendUrl) {
-      return '';
-    }
-
-    const url = new URL(frontendUrl);
-    url.pathname = '/studio-auto-login';
-    url.search = '';
-    url.searchParams.set('redirect_to', `/wp-admin/post.php?post=${postId}&action=edit`);
-    return url.toString();
-  }
-
-  return configured;
-}
 
 function visualProbeGroups(target) {
   const hooks = target?.comparison_hooks || {};

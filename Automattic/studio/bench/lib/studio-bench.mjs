@@ -131,6 +131,45 @@ export async function runCli(args, options = {}) {
   return run([cliPath, ...args], options);
 }
 
+export async function createStudioSite(sitePath, options = {}) {
+  const name = options.name || `Studio Bench ${variant()} ${options.nameSuffix || 'Site'} ${process.pid}`;
+  return runCli(
+    [
+      'site',
+      'create',
+      '--name',
+      name,
+      '--path',
+      sitePath,
+      ...(options.start === false ? ['--no-start'] : []),
+      '--skip-browser',
+      '--skip-log-details',
+    ],
+    options
+  );
+}
+
+export async function stopStudioSite(sitePath, options = {}) {
+  return runCli(['site', 'stop', '--path', sitePath], { allowFailure: true, ...options });
+}
+
+export async function studioSiteStatus(sitePath, options = {}) {
+  return runCli(['site', 'status', '--path', sitePath, '--format', 'json'], options);
+}
+
+export function parseStudioSiteStatus(stdout) {
+  const jsonStart = String(stdout || '').indexOf('{');
+  if (jsonStart === -1) {
+    throw new Error(`site status did not emit JSON: ${redact(stdout).slice(0, 1000)}`);
+  }
+  return JSON.parse(String(stdout).slice(jsonStart));
+}
+
+export async function studioSiteStatusJson(sitePath, options = {}) {
+  const { stdout } = await studioSiteStatus(sitePath, options);
+  return parseStudioSiteStatus(stdout);
+}
+
 export async function runEval(prompt, vars, options = {}) {
   const evalRunner = path.join(STUDIO_PATH, 'apps/cli/dist/cli/eval-runner.mjs');
   const { code, stdout, stderr } = await run(

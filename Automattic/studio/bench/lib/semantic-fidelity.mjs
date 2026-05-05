@@ -1,80 +1,16 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+
+import { safeSlug, semanticComparisonTargets, stringArray, surfaceUrl } from './fidelity-targets.mjs';
 
 const requireFromSemanticFidelity = createRequire(import.meta.url);
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function stringArray(value) {
-  return asArray(value).filter((item) => typeof item === 'string' && item.trim() !== '');
-}
-
-function safeSlug(value, fallback) {
-  const slug = String(value || fallback || 'target')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return slug || 'target';
-}
 
 function metric(value) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
 }
 
-function comparisonTargets(importReport) {
-  return asArray(importReport?.report?.visual_fidelity?.comparison_targets).filter(
-    (target) => target && typeof target === 'object'
-  );
-}
-
-function semanticComparisonTargets(importReport) {
-  const semanticTargets = asArray(importReport?.report?.semantic_fidelity?.comparison_targets).filter(
-    (target) => target && typeof target === 'object'
-  );
-  return semanticTargets.length ? semanticTargets : comparisonTargets(importReport);
-}
-
-export function resolveSourceStaticFile(sourceFile, reportPath, sitePath) {
-  if (!sourceFile) {
-    return '';
-  }
-
-  if (path.isAbsolute(sourceFile)) {
-    const wordpressRoot = '/wordpress';
-    if (sitePath && (sourceFile === wordpressRoot || sourceFile.startsWith(`${wordpressRoot}/`))) {
-      return path.join(sitePath, sourceFile.slice(wordpressRoot.length));
-    }
-
-    return sourceFile;
-  }
-
-  return path.resolve(path.dirname(reportPath), sourceFile);
-}
-
-function surfaceUrl(target, surface, reportPath, sitePath) {
-  const surfaces = target?.comparison_hooks?.render_surfaces || {};
-  const configured = surfaces[surface]?.url || '';
-  if (surface === 'source_static') {
-    const sourceFile = configured || target?.source_file || '';
-    if (!sourceFile) {
-      return '';
-    }
-    const absoluteSource = resolveSourceStaticFile(sourceFile, reportPath, sitePath);
-    return pathToFileURL(absoluteSource).toString();
-  }
-
-  if (surface === 'wordpress_frontend') {
-    return configured || target?.wordpress_url || '';
-  }
-
-  return configured;
-}
 
 async function loadSemanticSurface(page, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });

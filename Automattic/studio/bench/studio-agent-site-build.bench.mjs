@@ -1,10 +1,7 @@
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 
 import {
   agentAuthoredBlockMetrics,
@@ -41,6 +38,21 @@ import {
 } from './lib/semantic-fidelity.mjs';
 export { semanticMismatchFailureDetails, semanticTargetMetric } from './lib/semantic-fidelity.mjs';
 
+import { comparisonTargets, resolveSourceStaticFile, safeSlug } from './lib/fidelity-targets.mjs';
+export { resolveSourceStaticFile } from './lib/fidelity-targets.mjs';
+
+import {
+  SHARED_STATE,
+  STUDIO_PATH,
+  createStudioSite,
+  expandHome,
+  runCli as sharedRunCli,
+  runEval as sharedRunEval,
+  setting,
+  studioSiteStatusJson,
+  variant,
+} from './lib/studio-bench.mjs';
+
 import {
   agentSuccessGate,
   importerBlockQualityMetrics,
@@ -61,9 +73,6 @@ export {
   visualPixelDiffFailureDetails,
 } from './lib/site-build-gates.mjs';
 
-const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
-const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
-const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
 const DEFAULT_STUDIO_PORT = 8881;
 const NAMESPACE_PORT_RANGE_SIZE = 10;
 const NAMESPACE_PORT_RANGE_START = 8900;
@@ -76,26 +85,6 @@ const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const PROMPT_CATEGORY = 'site-build';
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
 const requireFromBench = createRequire(import.meta.url);
-if (!STUDIO_PATH) {
-  throw new Error('HOMEBOY_COMPONENT_PATH is required');
-}
-
-function expandHome(value) {
-  if (!value) {
-    return value;
-  }
-  if (value === '~') {
-    return os.homedir();
-  }
-  if (value.startsWith('~/')) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
-}
-
-function variant() {
-  return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
-}
 
 function benchmarkNamespace() {
   return (
@@ -164,19 +153,6 @@ export function resolveBenchRuntime(namespace = benchmarkNamespace(), sharedStat
       TMPDIR: tmpDir,
     },
   };
-}
-
-function setting(key) {
-  try {
-    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
-    if (settings && typeof settings[key] === 'string') {
-      return settings[key];
-    }
-  } catch {
-    // Ignore malformed settings and fall back to direct env/debug defaults.
-  }
-
-  return process.env[`HOMEBOY_SETTINGS_${key.toUpperCase()}`] || '';
 }
 
 function cliEnv(extra = {}) {
@@ -269,56 +245,12 @@ function assertNamespacedPort(status, runtime) {
   }
 }
 
-function run(args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, {
-      cwd: options.cwd || STUDIO_PATH,
-      env: cliEnv(options.env),
-    });
-
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code !== 0 && options.allowFailure !== true) {
-        reject(new Error(`${args.join(' ')} exited ${code}; stderr=${stderr.slice(0, 1500)}`));
-        return;
-      }
-      resolve({ code, stdout, stderr });
-    });
-  });
-}
-
 async function runCli(args, options = {}) {
-  const cliPath = path.join(STUDIO_PATH, 'apps/cli/dist/cli/main.mjs');
-  return run([cliPath, ...args], options);
+  return sharedRunCli(args, { ...options, env: cliEnv(options.env) });
 }
 
 async function runEval(prompt, vars) {
-  const evalRunner = path.join(STUDIO_PATH, 'apps/cli/dist/cli/eval-runner.mjs');
-  const { code, stdout, stderr } = await run(
-    [evalRunner, prompt, 'unused-provider-slot', JSON.stringify({ vars: { prompt, ...vars } })],
-    { allowFailure: true }
-  );
-
-  const marker = stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.startsWith(RESULT_PREFIX));
-
-  if (!marker) {
-    throw new Error(`eval runner did not emit result marker; exit=${code}; stderr=${stderr.slice(0, 1500)}`);
-  }
-
-  const resultFile = marker.slice(RESULT_PREFIX.length);
-  const result = JSON.parse(await readFile(resultFile, 'utf8'));
-  return { result, resultFile, exitCode: code, stderr };
+  return sharedRunEval(prompt, vars, { env: cliEnv() });
 }
 
 function promptVariant() {
@@ -451,103 +383,11 @@ export async function systemPromptFingerprint() {
 }
 
 async function createFreshSite(sitePath) {
-  await runCli([
-    'site',
-    'create',
-    '--name',
-    `Studio Bench ${variant()} ${process.pid}`,
-    '--path',
-    sitePath,
-    '--skip-browser',
-    '--skip-log-details',
-  ]);
+  await createStudioSite(sitePath, { name: `Studio Bench ${variant()} ${process.pid}`, env: cliEnv() });
 }
 
 async function siteStatus(sitePath) {
-  const { stdout } = await runCli(['site', 'status', '--path', sitePath, '--format', 'json']);
-  const jsonStart = stdout.indexOf('{');
-  if (jsonStart === -1) {
-    throw new Error(`site status did not emit JSON: ${stdout.slice(0, 1000)}`);
-  }
-  return JSON.parse(stdout.slice(jsonStart));
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function stringArray(value) {
-  return asArray(value).filter((item) => typeof item === 'string' && item.trim() !== '');
-}
-
-function safeSlug(value, fallback) {
-  const slug = String(value || fallback || 'target')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  return slug || 'target';
-}
-
-function comparisonTargets(importReport) {
-  return asArray(importReport?.report?.visual_fidelity?.comparison_targets).filter(
-    (target) => target && typeof target === 'object'
-  );
-}
-
-
-export function resolveSourceStaticFile(sourceFile, reportPath, sitePath) {
-  if (!sourceFile) {
-    return '';
-  }
-
-  if (path.isAbsolute(sourceFile)) {
-    const wordpressRoot = '/wordpress';
-    if (sitePath && (sourceFile === wordpressRoot || sourceFile.startsWith(`${wordpressRoot}/`))) {
-      return path.join(sitePath, sourceFile.slice(wordpressRoot.length));
-    }
-
-    return sourceFile;
-  }
-
-  return path.resolve(path.dirname(reportPath), sourceFile);
-}
-
-function surfaceUrl(target, surface, reportPath, sitePath) {
-  const surfaces = target?.comparison_hooks?.render_surfaces || {};
-  const configured = surfaces[surface]?.url || '';
-  if (surface === 'source_static') {
-    const sourceFile = configured || target?.source_file || '';
-    if (!sourceFile) {
-      return '';
-    }
-    const absoluteSource = resolveSourceStaticFile(sourceFile, reportPath, sitePath);
-    return pathToFileURL(absoluteSource).toString();
-  }
-
-  if (surface === 'wordpress_frontend') {
-    return configured || target?.wordpress_url || '';
-  }
-
-  if (surface === 'wordpress_editor') {
-    if (configured) {
-      return configured;
-    }
-
-    const postId = Number(target?.wordpress_page_id || target?.home_page_id || target?.front_page_id || 0);
-    const frontendUrl = surfaceUrl(target, 'wordpress_frontend', reportPath, sitePath);
-    if (!postId || !frontendUrl) {
-      return '';
-    }
-
-    const url = new URL(frontendUrl);
-    url.pathname = '/studio-auto-login';
-    url.search = '';
-    url.searchParams.set('redirect_to', `/wp-admin/post.php?post=${postId}&action=edit`);
-    return url.toString();
-  }
-
-  return configured;
+  return studioSiteStatusJson(sitePath, { env: cliEnv() });
 }
 
 async function restoreMissingSourceStaticFiles(importReport, sitePath, result) {
