@@ -14,6 +14,11 @@ const {
   requestProfilerPath,
   timingCorrelatorPath,
 } = await import('./lib/site-editor-timing-deltas.mjs');
+const {
+  instrumentIndexPhp,
+  instrumentWpSettingsPhp,
+  summarizeWordPressBootstrapTimeline,
+} = await import('./lib/wordpress-bootstrap-timeline.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -292,4 +297,57 @@ test('buildTimingDeltaSummary forwards unmatched buckets into preview slices', (
   assert.equal(summary.unmatched_browser_preview[0].url, '/missing-from-wp');
   assert.equal(summary.unmatched_wordpress_preview[0].uri, '/wp-cron.php');
   assert.equal(summary.unmatched_wordpress_preview[0].request_id, 'wp-only');
+});
+
+// --- WordPress bootstrap timeline -----------------------------------------
+
+test('instrumentIndexPhp adds entry and shutdown timeline hooks once', () => {
+  const source = "<?php\ndefine( 'WP_USE_THEMES', true );\nrequire __DIR__ . '/wp-blog-header.php';\n";
+  const instrumented = instrumentIndexPhp(source);
+  assert.match(instrumented, /HOMEBOY_BOOTSTRAP_TIMELINE/);
+  assert.match(instrumented, /entry\.start/);
+  assert.match(instrumented, /entry\.shutdown/);
+  assert.equal(instrumentIndexPhp(instrumented), instrumented);
+});
+
+test('instrumentWpSettingsPhp adds early WordPress bootstrap marks once', () => {
+  const source = `<?php
+define( 'WPINC', 'wp-includes' );
+require_wp_db();
+wp_start_object_cache();
+require ABSPATH . WPINC . '/default-filters.php';
+register_shutdown_function( 'shutdown_action_hook' );
+require_once ABSPATH . WPINC . '/class-wp-locale-switcher.php';
+wp_not_installed();
+// Load most of WordPress.
+require ABSPATH . WPINC . '/post.php';
+require ABSPATH . WPINC . '/rest-api.php';
+require ABSPATH . WPINC . '/rest-api/endpoints/class-wp-rest-navigation-fallback-controller.php';
+require ABSPATH . WPINC . '/blocks/index.php';
+require ABSPATH . WPINC . '/speculative-loading.php';
+wp_plugin_directory_constants();
+unset( $mu_plugin, $_wp_plugin_file );
+do_action( 'muplugins_loaded' );
+`;
+  const instrumented = instrumentWpSettingsPhp(source);
+  assert.match(instrumented, /wp-settings\.start/);
+  assert.match(instrumented, /wp-settings\.after_require_wp_db/);
+  assert.match(instrumented, /wp-settings\.before_load_most/);
+  assert.match(instrumented, /wp-settings\.after_blocks_index/);
+  assert.match(instrumented, /wp-settings\.after_muplugins_loaded/);
+  assert.equal(instrumentWpSettingsPhp(instrumented), instrumented);
+});
+
+test('summarizeWordPressBootstrapTimeline groups requests and reports per-event deltas', () => {
+  const summary = summarizeWordPressBootstrapTimeline([
+    { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.start', t_ms: 0 },
+    { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.shutdown', t_ms: 20 },
+    { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.start', t_ms: 0 },
+    { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'wp-settings.start', t_ms: 2 },
+    { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.shutdown', t_ms: 75 },
+  ]);
+  assert.equal(summary.length, 2);
+  assert.equal(summary[0].uri, '/wp-json/slow');
+  assert.equal(summary[0].duration_ms, 75);
+  assert.equal(summary[0].events[2].delta_from_previous_ms, 73);
 });
