@@ -19,6 +19,10 @@ const {
   instrumentWpSettingsPhp,
   summarizeWordPressBootstrapTimeline,
 } = await import('./lib/wordpress-bootstrap-timeline.mjs');
+const {
+  buildSiteEditorPreloadComparison,
+  installSiteEditorPreloadCandidateSource,
+} = await import('./lib/site-editor-preload-harness.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -350,4 +354,59 @@ test('summarizeWordPressBootstrapTimeline groups requests and reports per-event 
   assert.equal(summary[0].uri, '/wp-json/slow');
   assert.equal(summary[0].duration_ms, 75);
   assert.equal(summary[0].events[2].delta_from_previous_ms, 73);
+});
+
+// --- Site Editor preload comparison ---------------------------------------
+
+test('installSiteEditorPreloadCandidateSource injects dynamic preload paths once', () => {
+  const source = `<?php
+$preload_paths = array();
+block_editor_rest_api_preload( $preload_paths, $block_editor_context );
+`;
+  const patched = installSiteEditorPreloadCandidateSource(source);
+  assert.match(patched, /HOMEBOY_SITE_EDITOR_PRELOAD_CANDIDATE/);
+  assert.match(patched, /get_block_templates\( array\(\), 'wp_template_part' \)/);
+  assert.match(patched, /rest_get_route_for_post_type_items\( 'post' \)/);
+  assert.match(patched, /'per_page'\s+=> \$homeboy_per_page/);
+  assert.match(patched, /\/wp\/v2\/taxonomies\?context=view/);
+  assert.equal(installSiteEditorPreloadCandidateSource(patched), patched);
+});
+
+test('installSiteEditorPreloadCandidateSource fails when preload call is missing', () => {
+  assert.throws(
+    () => installSiteEditorPreloadCandidateSource('<?php $preload_paths = array();'),
+    /preload call not found/
+  );
+});
+
+test('buildSiteEditorPreloadComparison summarizes the bot-path delta', () => {
+  const comparison = buildSiteEditorPreloadComparison({
+    baseline: {
+      warmup: { duration_ms: 1600 },
+      measure: {
+        duration_ms: 1450,
+        status: 200,
+        resourceTimings: [
+          { url: '/wp-json/wp/v2/template-parts/theme//header', duration_ms: 480, ttfb_ms: 475 },
+          { url: '/wp-json/wp/v2/posts?per_page=3', duration_ms: 440, ttfb_ms: 438 },
+        ],
+      },
+    },
+    candidate: {
+      warmup: { duration_ms: 1550 },
+      measure: {
+        duration_ms: 950,
+        status: 200,
+        resourceTimings: [],
+      },
+    },
+  });
+
+  assert.equal(comparison.baseline_measure_ms, 1450);
+  assert.equal(comparison.candidate_measure_ms, 950);
+  assert.equal(comparison.delta_ms, -500);
+  assert.equal(comparison.delta_pct, -34.5);
+  assert.equal(comparison.baseline_measure_resource_count, 2);
+  assert.equal(comparison.candidate_measure_resource_count, 0);
+  assert.equal(comparison.baseline_slowest_measure_resources[0].duration_ms, 480);
 });
