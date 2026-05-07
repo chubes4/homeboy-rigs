@@ -57,7 +57,8 @@
       "${package.root}/bench/studio-admin-theme-page.bench.mjs",
       "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs",
       "${package.root}/bench/studio-dashboard-browser.bench.mjs",
-      "${package.root}/bench/studio-site-editor-browser.bench.mjs"
+      "${package.root}/bench/studio-site-editor-browser.bench.mjs",
+      "${package.root}/bench/studio-site-editor-diagnostics.bench.mjs"
     ]
   },
 
