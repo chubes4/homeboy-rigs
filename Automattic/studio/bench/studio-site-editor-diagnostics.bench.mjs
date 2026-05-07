@@ -4,17 +4,23 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
+  STUDIO_PATH,
   artifactDir as studioArtifactDir,
   createStudioSite,
   metric,
   parseStudioSiteStatus,
   redact,
   safeResult,
-  setting,
   stopStudioSite,
   studioSiteStatus,
   variant,
 } from './lib/studio-bench.mjs';
+import {
+  buildTimingDeltaSummary,
+  flattenPhasedResourceTimings,
+  loadTimingCorrelator,
+  requestProfilerPath,
+} from './lib/site-editor-timing-deltas.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
 
@@ -24,12 +30,6 @@ if (!BROWSER_HELPER) {
 
 const { runBrowserBench } = await import(BROWSER_HELPER);
 const require = createRequire(import.meta.url);
-
-const DEFAULT_REQUEST_PROFILER_PATH = '/Users/chubes/Developer/homeboy-extensions/wordpress/lib/request-profiler.js';
-
-function requestProfilerPath() {
-  return setting('wordpress_request_profiler_path') || DEFAULT_REQUEST_PROFILER_PATH;
-}
 
 function loadRequestProfiler() {
   const profilerPath = requestProfilerPath();
@@ -222,6 +222,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
 
   const totalStarted = Date.now();
   const { profilerPath, profiler } = loadRequestProfiler();
+  const { path: correlatorPath, module: correlator } = loadTimingCorrelator({ profilerPath });
   let create;
   let statusResult;
   let stop;
@@ -312,6 +313,22 @@ export default async function studioSiteEditorDiagnosticsBench() {
 
     const totalElapsedMs = Date.now() - totalStarted;
     const measureResourceTimingSummary = summarizeResourceTimings(measureTimings.resourceTimings || []);
+
+    // Studio-specific browser-vs-WordPress timing delta summary. Consumes
+    // the generic homeboy-extensions correlator (PR #452) and tags each
+    // browser entry with the diagnostics phase that produced it so the
+    // resulting summary highlights where in the Site Editor flow the
+    // largest transport overhead lives.
+    const phasedBrowserTimings = flattenPhasedResourceTimings({
+      'warmup-site-editor': warmupTimings.resourceTimings || [],
+      'measure-site-editor': measureTimings.resourceTimings || [],
+    });
+    const timingDeltas = buildTimingDeltaSummary({
+      browserResourceTimings: phasedBrowserTimings,
+      wordpressRequests,
+      correlator,
+    });
+
     const artifactFile = path.join(artifactDir, `result-${runId}.json`);
     await writeFile(
       artifactFile,
@@ -320,6 +337,15 @@ export default async function studioSiteEditorDiagnosticsBench() {
           variant: currentVariant,
           profilerPath,
           profilerAvailable: Boolean(profiler),
+          correlatorPath,
+          correlatorAvailable: Boolean(correlator),
+          // Effective Studio checkout that produced this artifact. The bench
+          // run envelope itself now records the same path under
+          // rig_state.components.studio.path (Homeboy PR #2364), but we
+          // duplicate it here so the raw artifact is self-describing when
+          // it is read in isolation (drag-and-dropped into a viewer, copied
+          // out of `homeboy runs export`, etc.).
+          studioPath: STUDIO_PATH,
           sitePath,
           siteUrl: status.siteUrl,
           timings: {
@@ -344,6 +370,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
             measureSiteEditor: summarizeNetwork(network, 'measure-site-editor'),
           },
           wordpressRequests: summarizeWordPressRequests(wordpressRequests),
+          timingDeltas,
           commands: {
             create: safeResult(create),
             status: safeResult(statusResult),
@@ -368,6 +395,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
     }
 
     const slowestResource = measureResourceTimingSummary[0] || {};
+    const overallDelta = timingDeltas?.overall || {};
+    const largestTransport = overallDelta.largest_transport_delta || {};
     return {
       metrics: {
         success_rate: 1,
@@ -384,6 +413,20 @@ export default async function studioSiteEditorDiagnosticsBench() {
         site_editor_warmup_ready_ms: metric(warmupTimings.site_editor_ready_ms),
         site_editor_slowest_resource_ms: metric(slowestResource.duration_ms),
         site_editor_slowest_resource_ttfb_ms: metric(slowestResource.ttfb_ms),
+        // Browser-vs-WordPress timing deltas. Transport delta = browser
+        // TTFB - WordPress app duration; it is the canonical signal for
+        // Playground request/bootstrap/transport overhead under Studio.
+        site_editor_correlator_available: metric(timingDeltas?.available ? 1 : 0),
+        site_editor_correlated_request_count: metric(timingDeltas?.counts?.correlated),
+        site_editor_unmatched_browser_count: metric(timingDeltas?.counts?.unmatched_browser),
+        site_editor_unmatched_wordpress_count: metric(timingDeltas?.counts?.unmatched_wordpress),
+        site_editor_max_transport_delta_ms: metric(overallDelta.max_transport_delta_ms),
+        site_editor_avg_transport_delta_ms: metric(overallDelta.avg_transport_delta_ms),
+        site_editor_max_total_delta_ms: metric(overallDelta.max_total_delta_ms),
+        site_editor_avg_total_delta_ms: metric(overallDelta.avg_total_delta_ms),
+        site_editor_largest_delta_browser_ttfb_ms: metric(largestTransport.browser_ttfb_ms),
+        site_editor_largest_delta_browser_duration_ms: metric(largestTransport.browser_duration_ms),
+        site_editor_largest_delta_wordpress_duration_ms: metric(largestTransport.wordpress_duration_ms),
         total_elapsed_ms: totalElapsedMs,
         ...browserResult.metrics,
       },
