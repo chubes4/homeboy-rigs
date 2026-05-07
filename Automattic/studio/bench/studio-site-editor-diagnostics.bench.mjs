@@ -21,6 +21,12 @@ import {
   loadTimingCorrelator,
   requestProfilerPath,
 } from './lib/site-editor-timing-deltas.mjs';
+import {
+  collectWordPressBootstrapTimeline,
+  installWordPressBootstrapTimeline,
+  summarizeWordPressBootstrapTimeline,
+  uninstallWordPressBootstrapTimeline,
+} from './lib/wordpress-bootstrap-timeline.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
 
@@ -232,6 +238,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
   let measureTimings = {};
   let loginFormSeen = 0;
   let wordpressRequests = [];
+  let wordpressBootstrapTimeline = [];
+  let bootstrapTimelineArtifactPath = '';
   const network = [];
   const startedRequests = new Map();
   let phase = 'setup';
@@ -244,6 +252,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
       throw new Error(`site status missing siteUrl/autoLoginUrl: ${redact(statusResult.stdout).slice(0, 1000)}`);
     }
 
+    const bootstrapTimeline = await installWordPressBootstrapTimeline(sitePath, { clearArtifact: true });
+    bootstrapTimelineArtifactPath = bootstrapTimeline.artifactPath;
     profiler?.installWordPressRequestProfiler?.(sitePath);
 
     browserResult = await runBrowserBench({
@@ -309,6 +319,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
     await sanitizeNetworkArtifact(browserResult.artifacts?.network);
     wordpressRequests = profiler?.collectWordPressRequestProfiles?.(sitePath) || [];
     profiler?.uninstallWordPressRequestProfiler?.(sitePath);
+    wordpressBootstrapTimeline = await collectWordPressBootstrapTimeline(sitePath);
+    await uninstallWordPressBootstrapTimeline(sitePath);
     stop = await stopSite(sitePath);
 
     const totalElapsedMs = Date.now() - totalStarted;
@@ -339,6 +351,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
           profilerAvailable: Boolean(profiler),
           correlatorPath,
           correlatorAvailable: Boolean(correlator),
+          bootstrapTimelineArtifactPath,
           // Effective Studio checkout that produced this artifact. The bench
           // run envelope itself now records the same path under
           // rig_state.components.studio.path (Homeboy PR #2364), but we
@@ -370,6 +383,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
             measureSiteEditor: summarizeNetwork(network, 'measure-site-editor'),
           },
           wordpressRequests: summarizeWordPressRequests(wordpressRequests),
+          wordpressBootstrapTimeline: summarizeWordPressBootstrapTimeline(wordpressBootstrapTimeline),
           timingDeltas,
           commands: {
             create: safeResult(create),
@@ -395,6 +409,12 @@ export default async function studioSiteEditorDiagnosticsBench() {
     }
 
     const slowestResource = measureResourceTimingSummary[0] || {};
+    const bootstrapTimelineSummary = summarizeWordPressBootstrapTimeline(wordpressBootstrapTimeline);
+    const slowestBootstrapRequest = bootstrapTimelineSummary[0] || {};
+    const slowestBootstrapEvents = slowestBootstrapRequest.events || [];
+    const slowestBootstrapSlice = slowestBootstrapEvents
+      .slice()
+      .sort((a, b) => (b.delta_from_previous_ms || 0) - (a.delta_from_previous_ms || 0))[0] || {};
     const overallDelta = timingDeltas?.overall || {};
     const largestTransport = overallDelta.largest_transport_delta || {};
     return {
@@ -427,12 +447,16 @@ export default async function studioSiteEditorDiagnosticsBench() {
         site_editor_largest_delta_browser_ttfb_ms: metric(largestTransport.browser_ttfb_ms),
         site_editor_largest_delta_browser_duration_ms: metric(largestTransport.browser_duration_ms),
         site_editor_largest_delta_wordpress_duration_ms: metric(largestTransport.wordpress_duration_ms),
+        site_editor_bootstrap_timeline_request_count: metric(bootstrapTimelineSummary.length),
+        site_editor_slowest_bootstrap_request_ms: metric(slowestBootstrapRequest.duration_ms),
+        site_editor_slowest_bootstrap_slice_ms: metric(slowestBootstrapSlice.delta_from_previous_ms),
         total_elapsed_ms: totalElapsedMs,
         ...browserResult.metrics,
       },
       artifacts: {
         raw_result: artifactFile,
         site_path: sitePath,
+        bootstrap_timeline: bootstrapTimelineArtifactPath,
         ...browserResult.artifacts,
       },
     };
@@ -440,6 +464,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
     if (profiler) {
       profiler.uninstallWordPressRequestProfiler?.(sitePath);
     }
+    await uninstallWordPressBootstrapTimeline(sitePath);
     if (!stop) {
       stop = await stopSite(sitePath);
     }
