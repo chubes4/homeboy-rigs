@@ -22,7 +22,7 @@ const { runBrowserBench } = await import(BROWSER_HELPER);
 
 async function createSite(sitePath) {
   return createStudioSite(sitePath, {
-    name: `Studio Bench ${variant()} Add Themes Browser ${process.pid}`,
+    name: `Studio Bench ${variant()} Dashboard Browser ${process.pid}`,
     timeoutMs: 420000,
   });
 }
@@ -33,12 +33,6 @@ async function siteStatus(sitePath) {
 
 async function stopSite(sitePath) {
   return stopStudioSite(sitePath, { timeoutMs: 90000 });
-}
-
-function autoLoginUrl(siteUrl, relativePath) {
-  const url = new URL('/studio-auto-login', siteUrl);
-  url.searchParams.set('redirect_to', new URL(relativePath, siteUrl).pathname);
-  return url.toString();
 }
 
 async function sanitizeNetworkArtifact(artifact) {
@@ -56,10 +50,10 @@ async function firstContentfulPaint(page) {
   });
 }
 
-export default async function studioAdminThemePageBrowserBench() {
+export default async function studioDashboardBrowserBench() {
   const currentVariant = variant();
-  const runId = `${currentVariant}-admin-theme-page-browser-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const artifactDir = path.join(studioArtifactDir('studio-admin-theme-page-browser-artifacts'), runId);
+  const runId = `${currentVariant}-dashboard-browser-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const artifactDir = path.join(studioArtifactDir('studio-dashboard-browser-artifacts'), runId);
   const sitePath = path.join(artifactDir, 'site');
   await mkdir(artifactDir, { recursive: true });
 
@@ -82,26 +76,23 @@ export default async function studioAdminThemePageBrowserBench() {
     }
 
     browserResult = await runBrowserBench({
-      id: 'studio-admin-theme-page-browser',
+      id: 'studio-dashboard-browser',
       artifactsDir: artifactDir,
       trace: true,
       screenshot: true,
       action: async ({ page, mark }) => {
-        const response = await page.goto(autoLoginUrl(status.siteUrl, 'wp-admin/theme-install.php'), {
-          waitUntil: 'domcontentloaded',
-          timeout: 120000,
-        });
+        const response = await page.goto(status.autoLoginUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
         finalStatus = response ? response.status() : 0;
-        await mark('browser_theme_install_domcontentloaded');
+        await mark('dashboard_domcontentloaded');
 
         const loginForm = page.locator('#loginform');
         loginFormSeen = await loginForm.count();
 
-        await page.getByRole('heading', { name: /add themes/i }).waitFor({ timeout: 120000 });
-        await mark('add_themes_heading_visible');
+        await page.getByRole('heading', { name: /^dashboard$/i }).waitFor({ timeout: 120000 });
+        await mark('dashboard_heading_visible');
 
-        await page.locator('.theme-browser, .wp-filter, .theme-install-php').first().waitFor({ timeout: 120000 });
-        await mark('theme_browser_visible');
+        await page.locator('#dashboard-widgets, .index-php').first().waitFor({ timeout: 120000 });
+        await mark('dashboard_widgets_visible');
 
         firstContentfulPaintMs = await firstContentfulPaint(page);
       },
@@ -138,7 +129,7 @@ export default async function studioAdminThemePageBrowserBench() {
     );
 
     if (finalStatus < 200 || finalStatus >= 400) {
-      throw new Error(`Add Themes returned HTTP status ${finalStatus}; raw_result=${artifactFile}`);
+      throw new Error(`Dashboard returned HTTP status ${finalStatus}; raw_result=${artifactFile}`);
     }
     if (loginFormSeen > 0) {
       throw new Error(`Login form remained visible after auto-login; raw_result=${artifactFile}`);
@@ -154,7 +145,7 @@ export default async function studioAdminThemePageBrowserBench() {
         site_create_ms: metric(create.elapsedMs),
         site_status_ms: metric(statusResult.elapsedMs),
         browser_first_contentful_paint_ms: metric(firstContentfulPaintMs),
-        add_themes_status: metric(finalStatus),
+        dashboard_status: metric(finalStatus),
         login_form_seen: metric(loginFormSeen),
         total_elapsed_ms: totalElapsedMs,
         ...browserResult.metrics,

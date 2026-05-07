@@ -55,7 +55,9 @@
     "nodejs": [
       "${package.root}/bench/studio-site-create.bench.mjs",
       "${package.root}/bench/studio-admin-theme-page.bench.mjs",
-      "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs"
+      "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs",
+      "${package.root}/bench/studio-dashboard-browser.bench.mjs",
+      "${package.root}/bench/studio-site-editor-browser.bench.mjs"
     ]
   },
 
@@ -449,7 +451,7 @@
       {
         "kind": "command",
         "label": "Stage compiled artifacts into dist",
-        "command": "for variant in jspi asyncify; do cp packages/php-wasm/node-builds/8-3/$variant/php_8_3.js dist/packages/php-wasm/node-builds/8-3/$variant/php_8_3.js && cp packages/php-wasm/node-builds/8-3/$variant/8_3_30/php_8_3.wasm dist/packages/php-wasm/node-builds/8-3/$variant/8_3_30/php_8_3.wasm; done",
+        "command": "for variant in jspi asyncify; do src_dir=packages/php-wasm/node-builds/8-3/$variant; dst_dir=dist/packages/php-wasm/node-builds/8-3/$variant; cp \"$src_dir/php_8_3.js\" \"$dst_dir/php_8_3.js\"; wasm_src=$(find \"$src_dir\" -path '*/php_8_3.wasm' -type f | head -1); wasm_rel=${wasm_src#$src_dir/}; mkdir -p \"$dst_dir/$(dirname \"$wasm_rel\")\"; cp \"$wasm_src\" \"$dst_dir/$wasm_rel\"; done",
         "cwd": "${components.wordpress-playground.path}"
       },
       {
