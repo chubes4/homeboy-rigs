@@ -165,6 +165,14 @@ WooCommerce site-generation benchmarks are tracked as future work until the Stud
 
 `stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs.
 
+`rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the local `~/Developer/wordpress-playground` checkout. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
+
+```bash
+homeboy rig install --all ./WordPress/wordpress-playground
+homeboy rig check playground-cli-diagnostics
+homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1 --shared-state /tmp/playground-cli-diagnostics
+```
+
 ## chubes4/isolated-block-editor
 
 `rigs/isolated-block-editor/rig.json` runs the checks used while shaving Isolated Block Editor toward modern Gutenberg APIs.

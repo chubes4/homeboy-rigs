@@ -1,0 +1,49 @@
+{
+  "id": "playground-cli-diagnostics",
+  "description": "WordPress Playground CLI diagnostic rig. Reproduces Blueprint runPHP fatal reporting through the local unbuilt CLI and captures evidence for upstream fixes.",
+  "components": {
+    "wordpress-playground": {
+      "path": "~/Developer/wordpress-playground",
+      "branch": "trunk",
+      "extensions": {
+        "nodejs": {}
+      }
+    }
+  },
+  "bench": {
+    "default_component": "wordpress-playground"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      "${package.root}/bench/playground-cli-runphp-errors.bench.mjs"
+    ]
+  },
+  "pipeline": {
+    "up": [
+      {
+        "kind": "command",
+        "label": "Install Playground dependencies",
+        "cwd": "${components.wordpress-playground.path}",
+        "command": "npm install"
+      }
+    ],
+    "check": [
+      {
+        "kind": "check",
+        "label": "Playground checkout exists",
+        "file": "${components.wordpress-playground.path}/packages/playground/cli/src/cli.ts"
+      },
+      {
+        "kind": "check",
+        "label": "Playground dependencies installed",
+        "file": "${components.wordpress-playground.path}/node_modules/nx/bin/nx.js"
+      },
+      {
+        "kind": "check",
+        "label": "Playground TypeScript module loader exists",
+        "file": "${components.wordpress-playground.path}/packages/meta/src/node-es-module-loader/register.mts"
+      }
+    ],
+    "down": []
+  }
+}
