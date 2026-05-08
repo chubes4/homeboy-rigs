@@ -9,6 +9,7 @@ import {
   createStudioSite,
   metric,
   parseStudioSiteStatus,
+  runCli,
   safeResult,
   stopStudioSite,
   studioSiteStatus,
@@ -228,12 +229,69 @@ async function runBotPath({ label, artifactDir, sitePath, status, profiler, cand
 
 async function createAndStatus(sitePath, name) {
   const create = await createStudioSite(sitePath, { name, timeoutMs: 420000 });
+  await configureSiteEditorScenario(sitePath);
   const statusResult = await studioSiteStatus(sitePath, { timeoutMs: 90000 });
   const status = parseStudioSiteStatus(statusResult.stdout);
   if (!status.siteUrl || !status.autoLoginUrl) {
     throw new Error('site status missing siteUrl/autoLoginUrl');
   }
   return { create, statusResult, status };
+}
+
+async function configureSiteEditorScenario(sitePath) {
+  const scenario = process.env.HOMEBOY_SITE_EDITOR_SCENARIO || 'default';
+  if (scenario !== 'static-home') {
+    if (scenario === 'front-no-query') {
+      await installFrontPageTemplate(sitePath, '<!-- wp:template-part {"slug":"header","theme":"twentytwentyfive"} /--><!-- wp:group {"tagName":"main","layout":{"type":"constrained"}} --><main class="wp-block-group"><!-- wp:paragraph --><p>Custom front page without posts.</p><!-- /wp:paragraph --></main><!-- /wp:group --><!-- wp:template-part {"slug":"footer","theme":"twentytwentyfive"} /-->');
+    }
+    if (scenario === 'front-query') {
+      await installFrontPageTemplate(sitePath, '<!-- wp:template-part {"slug":"header","theme":"twentytwentyfive"} /--><!-- wp:group {"tagName":"main","layout":{"type":"constrained"}} --><main class="wp-block-group"><!-- wp:query {"query":{"perPage":3,"pages":0,"offset":0,"postType":"post","order":"desc","orderBy":"date","author":"","search":"","exclude":[],"sticky":"","inherit":false}} --><div class="wp-block-query"><!-- wp:post-template --><!-- wp:post-title /--><!-- /wp:post-template --></div><!-- /wp:query --></main><!-- /wp:group --><!-- wp:template-part {"slug":"footer","theme":"twentytwentyfive"} /-->');
+    }
+    return;
+  }
+
+  const code = `
+$page_id = wp_insert_post(
+	array(
+		'post_title'   => 'About Me',
+		'post_name'    => 'about-me',
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+		'post_content' => '<!-- wp:paragraph --><p>Static homepage content.</p><!-- /wp:paragraph -->',
+	)
+);
+if ( is_wp_error( $page_id ) ) {
+	fwrite( STDERR, $page_id->get_error_message() );
+	exit( 1 );
+}
+update_option( 'show_on_front', 'page' );
+update_option( 'page_on_front', $page_id );
+echo wp_json_encode( array( 'page_id' => $page_id ) );
+`;
+
+  await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', code], { timeoutMs: 90000 });
+}
+
+async function installFrontPageTemplate(sitePath, content) {
+  const code = `
+$template_id = wp_insert_post(
+	array(
+		'post_title'   => 'Front Page',
+		'post_name'    => 'front-page',
+		'post_status'  => 'publish',
+		'post_type'    => 'wp_template',
+		'post_content' => ${JSON.stringify(content)},
+	)
+);
+if ( is_wp_error( $template_id ) ) {
+	fwrite( STDERR, $template_id->get_error_message() );
+	exit( 1 );
+}
+wp_set_post_terms( $template_id, get_stylesheet(), 'wp_theme' );
+echo wp_json_encode( array( 'template_id' => $template_id ) );
+`;
+
+  await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', code], { timeoutMs: 90000 });
 }
 
 export default async function studioSiteEditorPreloadComparisonBench() {
