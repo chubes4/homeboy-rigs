@@ -78,10 +78,7 @@ $homeboy_walk_blocks       = static function ( $homeboy_blocks ) use ( &$homeboy
 };
 
 if ( ! empty( $homeboy_templates ) && ! empty( $homeboy_templates[0]->content ) ) {
-	$homeboy_blocks = parse_blocks( $homeboy_templates[0]->content );
-	if ( function_exists( 'resolve_pattern_blocks' ) ) {
-		$homeboy_blocks = resolve_pattern_blocks( $homeboy_blocks );
-	}
+	$homeboy_blocks = resolve_pattern_blocks( parse_blocks( $homeboy_templates[0]->content ) );
 	$homeboy_walk_blocks( $homeboy_blocks );
 }
 
