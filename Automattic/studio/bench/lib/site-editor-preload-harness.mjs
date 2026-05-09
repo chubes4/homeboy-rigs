@@ -22,7 +22,7 @@ export function installSiteEditorPreloadCandidateSource(source) {
 		patch = `
 // ${PRELOAD_MARKER}: begin
 $homeboy_template_slugs = array();
-$homeboy_front_page     = null;
+$homeboy_front_page      = null;
 if ( ! empty( $block_editor_context->post ) && 'page' === $block_editor_context->post->post_type ) {
 	$homeboy_template_slugs[] = empty( $block_editor_context->post->post_name ) ? 'page' : 'page-' . $block_editor_context->post->post_name;
 	$homeboy_template_slugs[] = 'page';
