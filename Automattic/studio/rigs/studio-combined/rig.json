@@ -54,6 +54,7 @@
   "bench_workloads": {
     "nodejs": [
       "${package.root}/bench/studio-site-create.bench.mjs",
+      "${package.root}/bench/studio-cli-password-node.bench.mjs",
       "${package.root}/bench/studio-admin-theme-page.bench.mjs",
       "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs",
       "${package.root}/bench/studio-dashboard-browser.bench.mjs",

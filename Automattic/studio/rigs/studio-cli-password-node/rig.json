@@ -1,0 +1,44 @@
+{
+  "id": "studio-cli-password-node",
+  "description": "Focused Studio CLI site-create proof for Node-safe @automattic/generate-password package candidates. Pass --setting generate_password_package_dir=/path/to/wp-calypso/packages/generate-password to pack, install without saving, rebuild the Studio CLI, and run `studio site create --no-start` through Homeboy.",
+
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio",
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "settings": {
+            "studio_bench_variant": "cli-password-node"
+          }
+        }
+      }
+    }
+  },
+
+  "bench": {
+    "default_component": "studio"
+  },
+
+  "bench_workloads": {
+    "nodejs": [
+      "${package.root}/bench/studio-cli-password-node.bench.mjs"
+    ]
+  },
+
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio CLI source exists",
+        "file": "${components.studio.path}/apps/cli/package.json"
+      },
+      {
+        "kind": "check",
+        "label": "Studio common package depends on generate-password",
+        "file": "${components.studio.path}/tools/common/package.json",
+        "contains": "@automattic/generate-password"
+      }
+    ]
+  }
+}
