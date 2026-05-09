@@ -58,6 +58,13 @@ homeboy bench --rig studio-combined --scenario studio-site-create --iterations 1
 
 The workload creates one `--no-start` site and one normally-started site per iteration, then reports create, started-site status, stop, and total timings. Artifacts are written below the shared-state directory for inspection.
 
+`studio-db-dropin-startup` isolates Studio's SQLite `db.php` drop-in behavior. It creates a stock stopped site, creates a second stopped site whose valid SQLite `db.php` is changed into a custom drop-in, starts both, and reports whether the custom drop-in survived plus the custom-vs-stock startup delta.
+
+```bash
+homeboy bench --rig studio-combined --scenario studio-db-dropin-startup --iterations 1 --shared-state /tmp/studio-db-dropin-bench
+homeboy bench --rig studio-combined --scenario studio-db-dropin-startup --iterations 1 --shared-state /tmp/studio-db-dropin-bench-reverse --setting studio_db_dropin_start_order=custom-first
+```
+
 The Studio trace workload exercises the packaged app at `apps/studio/out` and records create-site readiness boundaries across the desktop shell, CLI log output, `cli.json`, HTTP readiness, `getSiteDetails()`, and the visible running-state UI.
 
 ```bash
