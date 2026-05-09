@@ -153,6 +153,13 @@ export async function stopStudioSite(sitePath, options = {}) {
   return runCli(['site', 'stop', '--path', sitePath], { allowFailure: true, ...options });
 }
 
+export async function startStudioSite(sitePath, options = {}) {
+  return runCli(
+    ['site', 'start', '--path', sitePath, '--skip-browser', '--skip-log-details'],
+    options
+  );
+}
+
 export async function studioSiteStatus(sitePath, options = {}) {
   return runCli(['site', 'status', '--path', sitePath, '--format', 'json'], options);
 }
