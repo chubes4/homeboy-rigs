@@ -243,6 +243,12 @@ export default async function studioSiteEditorDiagnosticsBench() {
       wordpressRequests,
       correlator,
     });
+    const pageDiagnosis = pageProfiler?.diagnoseWordPressPageProfile
+      ? pageProfiler.diagnoseWordPressPageProfile(measureProfile, {
+          browserMetrics: browserResult.metrics,
+          networkRequests: network,
+        })
+      : measureProfile.diagnosis;
 
     const artifactFile = path.join(artifactDir, `result-${runId}.json`);
     await writeFile(
@@ -284,6 +290,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
           },
           wordpressRequests: summarizeWordPressRequests(wordpressRequests),
           wordpressBootstrapTimeline: summarizeWordPressBootstrapTimeline(wordpressBootstrapTimeline),
+          pageDiagnosis,
           timingDeltas,
           commands: {
             create: safeResult(create),
@@ -317,6 +324,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
       .sort((a, b) => (b.delta_from_previous_ms || 0) - (a.delta_from_previous_ms || 0))[0] || {};
     const overallDelta = timingDeltas?.overall || {};
     const largestTransport = overallDelta.largest_transport_delta || {};
+    const diagnosisSummary = pageDiagnosis?.summary || {};
     return {
       metrics: {
         success_rate: 1,
@@ -331,6 +339,11 @@ export default async function studioSiteEditorDiagnosticsBench() {
         wordpress_page_rest_resource_count: metric(measureProfile.resources?.restCount),
         wordpress_page_slowest_resource_ms: metric(slowestResource.durationMs),
         wordpress_page_slowest_resource_ttfb_ms: metric(slowestResource.ttfbMs),
+        wordpress_page_network_idle_after_ready_ms: metric(diagnosisSummary.networkIdleAfterReadyMs),
+        wordpress_page_late_request_count: metric(diagnosisSummary.lateRequestCount),
+        wordpress_page_rest_after_ready_count: metric(diagnosisSummary.restAfterReadyCount),
+        wordpress_page_failed_request_count: metric(diagnosisSummary.failedRequestCount),
+        wordpress_page_diagnosis_finding_count: metric(pageDiagnosis?.findings?.length),
         site_editor_status: metric(measureProfile.status),
         site_editor_ready_ms: metric(measureProfile.readyMs),
         site_editor_warmup_ready_ms: metric(warmupProfile.readyMs),
