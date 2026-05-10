@@ -1,5 +1,3 @@
-import { createRequire } from 'node:module';
-import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -19,7 +17,6 @@ import {
   buildTimingDeltaSummary,
   flattenPhasedResourceTimings,
   loadTimingCorrelator,
-  requestProfilerPath,
 } from './lib/site-editor-timing-deltas.mjs';
 import {
   collectWordPressBootstrapTimeline,
@@ -27,6 +24,12 @@ import {
   summarizeWordPressBootstrapTimeline,
   uninstallWordPressBootstrapTimeline,
 } from './lib/wordpress-bootstrap-timeline.mjs';
+import {
+  loadWordPressPageProfiler,
+  loadWordPressRequestProfiler,
+  profileSiteEditorReady,
+  summarizeProfileResourceTimings,
+} from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
 
@@ -35,15 +38,6 @@ if (!BROWSER_HELPER) {
 }
 
 const { runBrowserBench } = await import(BROWSER_HELPER);
-const require = createRequire(import.meta.url);
-
-function loadRequestProfiler() {
-  const profilerPath = requestProfilerPath();
-  if (!profilerPath || !existsSync(profilerPath)) {
-    return { profilerPath, profiler: null };
-  }
-  return { profilerPath, profiler: require(profilerPath) };
-}
 
 async function createSite(sitePath) {
   return createStudioSite(sitePath, {
@@ -82,27 +76,6 @@ async function sanitizeNetworkArtifact(artifact) {
   await writeFile(artifact.path, redact(raw));
 }
 
-function collectResourceTimings(page) {
-  return page.evaluate(() =>
-    performance
-      .getEntriesByType('resource')
-      .filter((entry) => entry.name.includes('/wp-json/') || entry.name.includes('/wp-admin/site-editor.php'))
-      .map((entry) => ({
-        name: entry.name,
-        initiatorType: entry.initiatorType,
-        startTime: entry.startTime,
-        duration: entry.duration,
-        fetchStart: entry.fetchStart,
-        requestStart: entry.requestStart,
-        responseStart: entry.responseStart,
-        responseEnd: entry.responseEnd,
-        transferSize: entry.transferSize,
-        encodedBodySize: entry.encodedBodySize,
-        decodedBodySize: entry.decodedBodySize,
-      }))
-  );
-}
-
 function summarizeNetwork(network, phase) {
   return network
     .filter((request) => request.phase === phase)
@@ -113,24 +86,6 @@ function summarizeNetwork(network, phase) {
       ...request,
       url: scrubUrl(request.url),
     }));
-}
-
-function summarizeResourceTimings(resourceTimings) {
-  return resourceTimings
-    .map((entry) => ({
-      url: scrubUrl(entry.name),
-      initiatorType: entry.initiatorType,
-      start_ms: entry.startTime,
-      duration_ms: entry.duration,
-      request_start_ms: entry.requestStart,
-      response_start_ms: entry.responseStart,
-      response_end_ms: entry.responseEnd,
-      ttfb_ms: entry.responseStart - entry.requestStart,
-      transfer_size: entry.transferSize,
-      encoded_body_size: entry.encodedBodySize,
-      decoded_body_size: entry.decodedBodySize,
-    }))
-    .sort((a, b) => b.duration_ms - a.duration_ms);
 }
 
 function summarizeWordPressRequests(entries) {
@@ -165,60 +120,6 @@ function summarizeWordPressRequests(entries) {
     .slice(0, 80);
 }
 
-async function waitForSiteEditorReady(page) {
-  const timings = {};
-  const marks = [];
-  const started = performance.now();
-  const elapsed = () => performance.now() - started;
-  const mark = (name) => marks.push({ name, t_ms: elapsed() });
-
-  const response = await page.goto(siteAdminUrl(page.__studioSiteUrl, 'site-editor.php'), {
-    waitUntil: 'commit',
-    timeout: 120000,
-  });
-  timings.commit_ms = elapsed();
-  timings.status = response ? response.status() : 0;
-  mark('commit');
-
-  await page.waitForSelector('iframe[name="editor-canvas"]', {
-    state: 'visible',
-    timeout: 120000,
-  });
-  timings.editor_canvas_iframe_visible_ms = elapsed();
-  mark('iframe-visible');
-
-  const frame = page.frame({ name: 'editor-canvas' });
-  if (!frame) {
-    throw new Error('Site Editor canvas frame not found');
-  }
-
-  await frame.waitForLoadState('domcontentloaded', { timeout: 120000 });
-  timings.editor_canvas_domcontentloaded_ms = elapsed();
-  mark('iframe-domcontentloaded');
-
-  await frame.waitForSelector('[data-block]', { timeout: 60000 });
-  timings.first_data_block_ms = elapsed();
-  mark('first-data-block');
-
-  await frame.waitForFunction(
-    () => {
-      return (
-        document.querySelectorAll('[data-block]').length > 0 &&
-        !document.querySelector('.components-spinner') &&
-        !document.querySelector('.is-loading') &&
-        !document.querySelector('.wp-block-editor__loading')
-      );
-    },
-    { timeout: 60000 }
-  );
-  timings.site_editor_ready_ms = elapsed();
-  mark('ready');
-  timings.marks = marks;
-  timings.resourceTimings = await collectResourceTimings(page);
-
-  return timings;
-}
-
 export default async function studioSiteEditorDiagnosticsBench() {
   const currentVariant = variant();
   const runId = `${currentVariant}-site-editor-diagnostics-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -227,7 +128,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
   await mkdir(artifactDir, { recursive: true });
 
   const totalStarted = Date.now();
-  const { profilerPath, profiler } = loadRequestProfiler();
+  const { path: profilerPath, module: profiler } = loadWordPressRequestProfiler();
+  const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
   const { path: correlatorPath, module: correlator } = loadTimingCorrelator({ profilerPath });
   let create;
   let statusResult;
@@ -301,7 +203,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         loginFormSeen = await page.locator('#loginform').count();
 
         phase = 'warmup-site-editor';
-        warmupTimings = await waitForSiteEditorReady(page);
+        warmupTimings = await profileSiteEditorReady({ page, siteUrl: status.siteUrl, pageProfiler, mark });
         await mark('warmup_site_editor_ready');
 
         phase = 'dashboard-between-runs';
@@ -310,7 +212,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         await mark('browser_admin_networkidle_between_runs');
 
         phase = 'measure-site-editor';
-        measureTimings = await waitForSiteEditorReady(page);
+        measureTimings = await profileSiteEditorReady({ page, siteUrl: status.siteUrl, pageProfiler, mark });
         await mark('measure_site_editor_ready');
         phase = 'done';
       },
@@ -324,7 +226,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
     stop = await stopSite(sitePath);
 
     const totalElapsedMs = Date.now() - totalStarted;
-    const measureResourceTimingSummary = summarizeResourceTimings(measureTimings.resourceTimings || []);
+    const measureResourceTimingSummary = summarizeProfileResourceTimings(measureTimings.resourceTimings || []);
 
     // Studio-specific browser-vs-WordPress timing delta summary. Consumes
     // the generic homeboy-extensions correlator (PR #452) and tags each
@@ -349,6 +251,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
           variant: currentVariant,
           profilerPath,
           profilerAvailable: Boolean(profiler),
+          pageProfilerPath,
+          pageProfilerAvailable: Boolean(pageProfiler),
           correlatorPath,
           correlatorAvailable: Boolean(correlator),
           bootstrapTimelineArtifactPath,
@@ -369,7 +273,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
           siteEditorTimings: {
             warmup: {
               ...warmupTimings,
-              resourceTimings: summarizeResourceTimings(warmupTimings.resourceTimings || []),
+              resourceTimings: summarizeProfileResourceTimings(warmupTimings.resourceTimings || []),
             },
             measure: {
               ...measureTimings,

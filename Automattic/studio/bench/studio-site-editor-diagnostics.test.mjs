@@ -23,6 +23,12 @@ const {
   buildSiteEditorPreloadComparison,
   installSiteEditorPreloadCandidateSource,
 } = await import('./lib/site-editor-preload-harness.mjs');
+const {
+  legacyResourceTimings,
+  pageProfilerPath,
+  profileSiteEditorReady,
+  summarizeProfileResourceTimings,
+} = await import('./lib/wordpress-page-profiler.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -82,6 +88,14 @@ test('requestProfilerPath honors the wordpress_request_profiler_path setting', (
     () => {
       assert.equal(requestProfilerPath(), '/another/profiler.js');
     }
+  );
+});
+
+test('pageProfilerPath sits next to the request profiler by default', () => {
+  const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
+  assert.equal(
+    pageProfilerPath({ profilerPath }),
+    '/tmp/he/wordpress/lib/page-profiler.js'
   );
 });
 
@@ -301,6 +315,78 @@ test('buildTimingDeltaSummary forwards unmatched buckets into preview slices', (
   assert.equal(summary.unmatched_browser_preview[0].url, '/missing-from-wp');
   assert.equal(summary.unmatched_wordpress_preview[0].uri, '/wp-cron.php');
   assert.equal(summary.unmatched_wordpress_preview[0].request_id, 'wp-only');
+});
+
+// --- WordPress page profiler adapter ---------------------------------------
+
+test('legacyResourceTimings adapts page-profiler resource summaries for timing correlation', () => {
+  const timings = legacyResourceTimings({
+    resources: {
+      resources: [
+        {
+          url: '/wp-json/wp/v2/posts',
+          kind: 'rest',
+          initiatorType: 'fetch',
+          startMs: 12,
+          durationMs: 90,
+          ttfbMs: 80,
+          transferSize: 120,
+          encodedBodySize: 100,
+          decodedBodySize: 200,
+        },
+      ],
+    },
+  });
+
+  assert.equal(timings.length, 1);
+  assert.equal(timings[0].name, '/wp-json/wp/v2/posts');
+  assert.equal(timings[0].durationMs, 90);
+  assert.equal(timings[0].ttfbMs, 80);
+});
+
+test('summarizeProfileResourceTimings preserves the existing artifact shape', () => {
+  const summary = summarizeProfileResourceTimings([
+    { url: '/slow', kind: 'rest', startMs: 1, durationMs: 120, ttfbMs: 100, transferSize: 9 },
+    { url: '/fast', kind: 'admin', startMs: 2, durationMs: 20, ttfbMs: 10, transferSize: 4 },
+  ]);
+
+  assert.deepEqual(summary.map((row) => row.url), ['/slow', '/fast']);
+  assert.equal(summary[0].duration_ms, 120);
+  assert.equal(summary[0].ttfb_ms, 100);
+  assert.equal(summary[0].transfer_size, 9);
+});
+
+test('profileSiteEditorReady delegates page readiness to the Homeboy Extensions page profiler', async () => {
+  const calls = [];
+  const pageProfiler = {
+    async profileWordPressPage(input) {
+      calls.push(input);
+      return {
+        status: 200,
+        readyMs: 345,
+        resources: {
+          resources: [
+            { url: '/wp-json/wp/v2/types', kind: 'rest', startMs: 3, durationMs: 44, ttfbMs: 40 },
+          ],
+        },
+      };
+    },
+  };
+
+  const result = await profileSiteEditorReady({
+    page: { id: 'fake-page' },
+    siteUrl: 'http://example.test',
+    pageProfiler,
+    wordpressProfilerRows: [{ request_id: 'r1' }],
+    mark: () => {},
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].baseUrl, 'http://example.test');
+  assert.equal(calls[0].spec.path, '/wp-admin/site-editor.php');
+  assert.equal(result.status, 200);
+  assert.equal(result.site_editor_ready_ms, 345);
+  assert.equal(result.resourceTimings[0].url, '/wp-json/wp/v2/types');
 });
 
 // --- WordPress bootstrap timeline -----------------------------------------
