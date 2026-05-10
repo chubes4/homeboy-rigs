@@ -25,7 +25,8 @@ const {
 } = await import('./lib/site-editor-preload-harness.mjs');
 const {
   pageProfilerPath,
-  profileSiteEditorPage,
+  profileWordPressPage,
+  wordpressPageProfilerSpec,
 } = await import('./lib/wordpress-page-profiler.mjs');
 
 function withEnv(values, callback) {
@@ -94,6 +95,64 @@ test('pageProfilerPath sits next to the request profiler by default', () => {
   assert.equal(
     pageProfilerPath({ profilerPath }),
     '/tmp/he/wordpress/lib/page-profiler.js'
+  );
+});
+
+test('wordpressPageProfilerSpec defaults to Site Editor', () => {
+  withEnv(
+    {
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_SPEC_JSON: undefined,
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_PATH: undefined,
+    },
+    () => {
+      const spec = wordpressPageProfilerSpec();
+      assert.equal(spec.id, 'site-editor');
+      assert.equal(spec.path, '/wp-admin/site-editor.php');
+    }
+  );
+});
+
+test('wordpressPageProfilerSpec builds a generic WordPress page spec from env', () => {
+  withEnv(
+    {
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_SPEC_JSON: undefined,
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_PATH: '/',
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_ID: 'front-page',
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_LABEL: 'Front page',
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_READY_SELECTOR: undefined,
+    },
+    () => {
+      const spec = wordpressPageProfilerSpec();
+      assert.equal(spec.id, 'front-page');
+      assert.equal(spec.label, 'Front page');
+      assert.equal(spec.path, '/');
+      assert.equal(spec.ready.state, 'domcontentloaded');
+      assert.deepEqual(spec.resources.includeResourceSubstrings, [
+        '/wp-json/',
+        '?rest_route=',
+        '/wp-admin/',
+        '/wp-content/',
+        '/wp-includes/',
+      ]);
+    }
+  );
+});
+
+test('wordpressPageProfilerSpec supports selector readiness and resource include overrides', () => {
+  withEnv(
+    {
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_SPEC_JSON: undefined,
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_PATH: '/wp-admin/themes.php',
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_ID: 'themes',
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_READY_SELECTOR: '.theme-browser',
+      HOMEBOY_WORDPRESS_PAGE_PROFILE_RESOURCE_INCLUDE: '/wp-json/,/custom-cache/',
+    },
+    () => {
+      const spec = wordpressPageProfilerSpec();
+      assert.equal(spec.path, '/wp-admin/themes.php');
+      assert.equal(spec.ready.selector, '.theme-browser');
+      assert.deepEqual(spec.resources.includeResourceSubstrings, ['/wp-json/', '/custom-cache/']);
+    }
   );
 });
 
@@ -317,7 +376,7 @@ test('buildTimingDeltaSummary forwards unmatched buckets into preview slices', (
 
 // --- WordPress page profiler adapter ---------------------------------------
 
-test('profileSiteEditorPage delegates page readiness to the Homeboy Extensions page profiler', async () => {
+test('profileWordPressPage delegates page readiness to the Homeboy Extensions page profiler', async () => {
   const calls = [];
   const profile = {
     status: 200,
@@ -335,17 +394,18 @@ test('profileSiteEditorPage delegates page readiness to the Homeboy Extensions p
     },
   };
 
-  const result = await profileSiteEditorPage({
+  const result = await profileWordPressPage({
     page: { id: 'fake-page' },
     siteUrl: 'http://example.test',
     pageProfiler,
+    pageSpec: { id: 'themes', path: '/wp-admin/themes.php', ready: '#wpbody-content' },
     wordpressProfilerRows: [{ request_id: 'r1' }],
     mark: () => {},
   });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].baseUrl, 'http://example.test');
-  assert.equal(calls[0].spec.path, '/wp-admin/site-editor.php');
+  assert.equal(calls[0].spec.path, '/wp-admin/themes.php');
   assert.equal(result, profile);
 });
 

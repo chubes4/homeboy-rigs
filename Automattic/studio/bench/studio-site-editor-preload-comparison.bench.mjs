@@ -29,9 +29,10 @@ import {
   uninstallWordPressBootstrapTimeline,
 } from './lib/wordpress-bootstrap-timeline.mjs';
 import {
+  SITE_EDITOR_PAGE_SPEC,
   loadWordPressPageProfiler,
   loadWordPressRequestProfiler,
-  profileSiteEditorPage,
+  profileWordPressPage,
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
@@ -75,7 +76,13 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       await page.waitForLoadState('networkidle', { timeout: 120000 });
       await mark(`${label}_auto_login_networkidle`);
 
-      warmup = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
+      warmup = await profileWordPressPage({
+        page,
+        siteUrl: status.siteUrl,
+        pageProfiler,
+        pageSpec: SITE_EDITOR_PAGE_SPEC,
+        mark,
+      });
       await mark(`${label}_warmup_site_editor_ready`);
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -83,7 +90,13 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       await page.waitForLoadState('networkidle', { timeout: 120000 });
       await mark(`${label}_admin_networkidle_between_runs`);
 
-      measure = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
+      measure = await profileWordPressPage({
+        page,
+        siteUrl: status.siteUrl,
+        pageProfiler,
+        pageSpec: SITE_EDITOR_PAGE_SPEC,
+        mark,
+      });
       await mark(`${label}_measure_site_editor_ready`);
     },
   });

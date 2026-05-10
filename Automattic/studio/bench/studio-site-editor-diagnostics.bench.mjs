@@ -27,7 +27,8 @@ import {
 import {
   loadWordPressPageProfiler,
   loadWordPressRequestProfiler,
-  profileSiteEditorPage,
+  profileWordPressPage,
+  wordpressPageProfilerSpec,
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
@@ -121,8 +122,9 @@ function summarizeWordPressRequests(entries) {
 
 export default async function studioSiteEditorDiagnosticsBench() {
   const currentVariant = variant();
-  const runId = `${currentVariant}-site-editor-diagnostics-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const artifactDir = path.join(studioArtifactDir('studio-site-editor-diagnostics-artifacts'), runId);
+  const pageSpec = wordpressPageProfilerSpec();
+  const runId = `${currentVariant}-${pageSpec.id}-diagnostics-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const artifactDir = path.join(studioArtifactDir('studio-wordpress-page-diagnostics-artifacts'), runId);
   const sitePath = path.join(artifactDir, 'site');
   await mkdir(artifactDir, { recursive: true });
 
@@ -135,8 +137,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
   let stop;
   let status;
   let browserResult;
-  let warmupTimings = {};
-  let measureTimings = {};
+  let warmupProfile = {};
+  let measureProfile = {};
   let loginFormSeen = 0;
   let wordpressRequests = [];
   let wordpressBootstrapTimeline = [];
@@ -158,7 +160,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
     profiler?.installWordPressRequestProfiler?.(sitePath);
 
     browserResult = await runBrowserBench({
-      id: 'studio-site-editor-diagnostics',
+      id: `studio-wordpress-page-diagnostics-${pageSpec.id}`,
       artifactsDir: artifactDir,
       trace: true,
       screenshot: true,
@@ -201,18 +203,18 @@ export default async function studioSiteEditorDiagnosticsBench() {
 
         loginFormSeen = await page.locator('#loginform').count();
 
-        phase = 'warmup-site-editor';
-        warmupTimings = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
-        await mark('warmup_site_editor_ready');
+        phase = 'warmup-page';
+        warmupProfile = await profileWordPressPage({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
+        await mark('warmup_wordpress_page_ready');
 
         phase = 'dashboard-between-runs';
         await page.goto(siteAdminUrl(status.siteUrl), { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.waitForLoadState('networkidle', { timeout: 120000 });
         await mark('browser_admin_networkidle_between_runs');
 
-        phase = 'measure-site-editor';
-        measureTimings = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
-        await mark('measure_site_editor_ready');
+        phase = 'measure-page';
+        measureProfile = await profileWordPressPage({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
+        await mark('measure_wordpress_page_ready');
         phase = 'done';
       },
     });
@@ -225,7 +227,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
     stop = await stopSite(sitePath);
 
     const totalElapsedMs = Date.now() - totalStarted;
-    const measureResourceTimingSummary = measureTimings.resources?.slowest || [];
+    const measureResourceTimingSummary = measureProfile.resources?.slowest || [];
 
     // Studio-specific browser-vs-WordPress timing delta summary. Consumes
     // the generic homeboy-extensions correlator (PR #452) and tags each
@@ -233,8 +235,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
     // resulting summary highlights where in the Site Editor flow the
     // largest transport overhead lives.
     const phasedBrowserTimings = flattenPhasedResourceTimings({
-      'warmup-site-editor': warmupTimings.resources?.resources || [],
-      'measure-site-editor': measureTimings.resources?.resources || [],
+      'warmup-page': warmupProfile.resources?.resources || [],
+      'measure-page': measureProfile.resources?.resources || [],
     });
     const timingDeltas = buildTimingDeltaSummary({
       browserResourceTimings: phasedBrowserTimings,
@@ -248,6 +250,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
       JSON.stringify(
         {
           variant: currentVariant,
+          pageSpec,
           profilerPath,
           profilerAvailable: Boolean(profiler),
           pageProfilerPath,
@@ -269,15 +272,15 @@ export default async function studioSiteEditorDiagnosticsBench() {
             site_status_ms: statusResult.elapsedMs,
             total_elapsed_ms: totalElapsedMs,
           },
-          siteEditorTimings: {
-            warmup: warmupTimings,
-            measure: measureTimings,
+          pageProfiles: {
+            warmup: warmupProfile,
+            measure: measureProfile,
           },
           network: {
             login: summarizeNetwork(network, 'login'),
-            warmupSiteEditor: summarizeNetwork(network, 'warmup-site-editor'),
+            warmupPage: summarizeNetwork(network, 'warmup-page'),
             dashboardBetweenRuns: summarizeNetwork(network, 'dashboard-between-runs'),
-            measureSiteEditor: summarizeNetwork(network, 'measure-site-editor'),
+            measurePage: summarizeNetwork(network, 'measure-page'),
           },
           wordpressRequests: summarizeWordPressRequests(wordpressRequests),
           wordpressBootstrapTimeline: summarizeWordPressBootstrapTimeline(wordpressBootstrapTimeline),
@@ -295,8 +298,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
       )
     );
 
-    if (measureTimings.status < 200 || measureTimings.status >= 400) {
-      throw new Error(`Site Editor returned HTTP status ${measureTimings.status}; raw_result=${artifactFile}`);
+    if (measureProfile.status < 200 || measureProfile.status >= 400) {
+      throw new Error(`${pageSpec.label || pageSpec.id} returned HTTP status ${measureProfile.status}; raw_result=${artifactFile}`);
     }
     if (loginFormSeen > 0) {
       throw new Error(`Login form remained visible after auto-login; raw_result=${artifactFile}`);
@@ -321,11 +324,18 @@ export default async function studioSiteEditorDiagnosticsBench() {
         site_create_ms: metric(create.elapsedMs),
         site_status_ms: metric(statusResult.elapsedMs),
         login_form_seen: metric(loginFormSeen),
-        site_editor_status: metric(measureTimings.status),
-        site_editor_ready_ms: metric(measureTimings.readyMs),
-        site_editor_warmup_ready_ms: metric(warmupTimings.readyMs),
-        site_editor_resource_count: metric(measureTimings.resources?.count),
-        site_editor_rest_resource_count: metric(measureTimings.resources?.restCount),
+        wordpress_page_status: metric(measureProfile.status),
+        wordpress_page_ready_ms: metric(measureProfile.readyMs),
+        wordpress_page_warmup_ready_ms: metric(warmupProfile.readyMs),
+        wordpress_page_resource_count: metric(measureProfile.resources?.count),
+        wordpress_page_rest_resource_count: metric(measureProfile.resources?.restCount),
+        wordpress_page_slowest_resource_ms: metric(slowestResource.durationMs),
+        wordpress_page_slowest_resource_ttfb_ms: metric(slowestResource.ttfbMs),
+        site_editor_status: metric(measureProfile.status),
+        site_editor_ready_ms: metric(measureProfile.readyMs),
+        site_editor_warmup_ready_ms: metric(warmupProfile.readyMs),
+        site_editor_resource_count: metric(measureProfile.resources?.count),
+        site_editor_rest_resource_count: metric(measureProfile.resources?.restCount),
         site_editor_slowest_resource_ms: metric(slowestResource.durationMs),
         site_editor_slowest_resource_ttfb_ms: metric(slowestResource.ttfbMs),
         // Browser-vs-WordPress timing deltas. Transport delta = browser

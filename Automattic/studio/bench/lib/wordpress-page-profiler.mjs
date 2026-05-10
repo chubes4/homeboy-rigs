@@ -23,6 +23,40 @@ export const SITE_EDITOR_PAGE_SPEC = {
   timeout: 120000,
 };
 
+export function wordpressPageProfilerSpec() {
+  const rawSpec = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_SPEC_JSON;
+  if (rawSpec) {
+    return JSON.parse(rawSpec);
+  }
+
+  const pathValue = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PATH;
+  if (!pathValue) {
+    return SITE_EDITOR_PAGE_SPEC;
+  }
+
+  const id = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_ID ||
+    pathValue.replace(/^\/+/, '').replace(/[^A-Za-z0-9_.:-]+/g, '-').replace(/^-|-$/g, '') ||
+    'wordpress-page';
+  const selector = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_READY_SELECTOR;
+  const timeout = Number(process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_TIMEOUT || 120000);
+  const ready = selector
+    ? { selector, timeout }
+    : { state: process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_READY_STATE || 'domcontentloaded' };
+
+  return {
+    id,
+    label: process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_LABEL || id,
+    path: pathValue,
+    ready,
+    resources: {
+      includeResourceSubstrings: process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_RESOURCE_INCLUDE
+        ? process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_RESOURCE_INCLUDE.split(',').map((value) => value.trim()).filter(Boolean)
+        : ['/wp-json/', '?rest_route=', '/wp-admin/', '/wp-content/', '/wp-includes/'],
+    },
+    timeout,
+  };
+}
+
 export function pageProfilerPath(options = {}) {
   const explicit = options.override || process.env.HOMEBOY_WORDPRESS_PAGE_PROFILER_PATH;
   if (explicit) {
@@ -52,7 +86,7 @@ export function loadWordPressRequestProfiler(options = {}) {
   return { path: profilerPath, module: require(profilerPath) };
 }
 
-export async function profileSiteEditorPage({ page, siteUrl, pageProfiler, wordpressProfilerRows = [], mark }) {
+export async function profileWordPressPage({ page, siteUrl, pageProfiler, pageSpec, wordpressProfilerRows = [], mark }) {
   if (!pageProfiler?.profileWordPressPage) {
     throw new Error('Homeboy WordPress page profiler is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_PAGE_PROFILER_PATH.');
   }
@@ -60,7 +94,7 @@ export async function profileSiteEditorPage({ page, siteUrl, pageProfiler, wordp
   return pageProfiler.profileWordPressPage({
     page,
     baseUrl: siteUrl,
-    spec: SITE_EDITOR_PAGE_SPEC,
+    spec: pageSpec || wordpressPageProfilerSpec(),
     wordpressProfilerRows,
     mark,
   });
