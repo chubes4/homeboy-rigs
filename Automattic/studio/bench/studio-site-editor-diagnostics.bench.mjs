@@ -27,8 +27,7 @@ import {
 import {
   loadWordPressPageProfiler,
   loadWordPressRequestProfiler,
-  profileSiteEditorReady,
-  summarizeProfileResourceTimings,
+  profileSiteEditorPage,
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
@@ -203,7 +202,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         loginFormSeen = await page.locator('#loginform').count();
 
         phase = 'warmup-site-editor';
-        warmupTimings = await profileSiteEditorReady({ page, siteUrl: status.siteUrl, pageProfiler, mark });
+        warmupTimings = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
         await mark('warmup_site_editor_ready');
 
         phase = 'dashboard-between-runs';
@@ -212,7 +211,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         await mark('browser_admin_networkidle_between_runs');
 
         phase = 'measure-site-editor';
-        measureTimings = await profileSiteEditorReady({ page, siteUrl: status.siteUrl, pageProfiler, mark });
+        measureTimings = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
         await mark('measure_site_editor_ready');
         phase = 'done';
       },
@@ -226,7 +225,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
     stop = await stopSite(sitePath);
 
     const totalElapsedMs = Date.now() - totalStarted;
-    const measureResourceTimingSummary = summarizeProfileResourceTimings(measureTimings.resourceTimings || []);
+    const measureResourceTimingSummary = measureTimings.resources?.slowest || [];
 
     // Studio-specific browser-vs-WordPress timing delta summary. Consumes
     // the generic homeboy-extensions correlator (PR #452) and tags each
@@ -234,8 +233,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
     // resulting summary highlights where in the Site Editor flow the
     // largest transport overhead lives.
     const phasedBrowserTimings = flattenPhasedResourceTimings({
-      'warmup-site-editor': warmupTimings.resourceTimings || [],
-      'measure-site-editor': measureTimings.resourceTimings || [],
+      'warmup-site-editor': warmupTimings.resources?.resources || [],
+      'measure-site-editor': measureTimings.resources?.resources || [],
     });
     const timingDeltas = buildTimingDeltaSummary({
       browserResourceTimings: phasedBrowserTimings,
@@ -271,14 +270,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
             total_elapsed_ms: totalElapsedMs,
           },
           siteEditorTimings: {
-            warmup: {
-              ...warmupTimings,
-              resourceTimings: summarizeProfileResourceTimings(warmupTimings.resourceTimings || []),
-            },
-            measure: {
-              ...measureTimings,
-              resourceTimings: measureResourceTimingSummary,
-            },
+            warmup: warmupTimings,
+            measure: measureTimings,
           },
           network: {
             login: summarizeNetwork(network, 'login'),
@@ -329,14 +322,12 @@ export default async function studioSiteEditorDiagnosticsBench() {
         site_status_ms: metric(statusResult.elapsedMs),
         login_form_seen: metric(loginFormSeen),
         site_editor_status: metric(measureTimings.status),
-        site_editor_commit_ms: metric(measureTimings.commit_ms),
-        site_editor_iframe_visible_ms: metric(measureTimings.editor_canvas_iframe_visible_ms),
-        site_editor_iframe_domcontentloaded_ms: metric(measureTimings.editor_canvas_domcontentloaded_ms),
-        site_editor_first_data_block_ms: metric(measureTimings.first_data_block_ms),
-        site_editor_ready_ms: metric(measureTimings.site_editor_ready_ms),
-        site_editor_warmup_ready_ms: metric(warmupTimings.site_editor_ready_ms),
-        site_editor_slowest_resource_ms: metric(slowestResource.duration_ms),
-        site_editor_slowest_resource_ttfb_ms: metric(slowestResource.ttfb_ms),
+        site_editor_ready_ms: metric(measureTimings.readyMs),
+        site_editor_warmup_ready_ms: metric(warmupTimings.readyMs),
+        site_editor_resource_count: metric(measureTimings.resources?.count),
+        site_editor_rest_resource_count: metric(measureTimings.resources?.restCount),
+        site_editor_slowest_resource_ms: metric(slowestResource.durationMs),
+        site_editor_slowest_resource_ttfb_ms: metric(slowestResource.ttfbMs),
         // Browser-vs-WordPress timing deltas. Transport delta = browser
         // TTFB - WordPress app duration; it is the canonical signal for
         // Playground request/bootstrap/transport overhead under Studio.

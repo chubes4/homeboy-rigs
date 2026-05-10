@@ -24,10 +24,8 @@ const {
   installSiteEditorPreloadCandidateSource,
 } = await import('./lib/site-editor-preload-harness.mjs');
 const {
-  legacyResourceTimings,
   pageProfilerPath,
-  profileSiteEditorReady,
-  summarizeProfileResourceTimings,
+  profileSiteEditorPage,
 } = await import('./lib/wordpress-page-profiler.mjs');
 
 function withEnv(values, callback) {
@@ -319,61 +317,25 @@ test('buildTimingDeltaSummary forwards unmatched buckets into preview slices', (
 
 // --- WordPress page profiler adapter ---------------------------------------
 
-test('legacyResourceTimings adapts page-profiler resource summaries for timing correlation', () => {
-  const timings = legacyResourceTimings({
+test('profileSiteEditorPage delegates page readiness to the Homeboy Extensions page profiler', async () => {
+  const calls = [];
+  const profile = {
+    status: 200,
+    readyMs: 345,
     resources: {
       resources: [
-        {
-          url: '/wp-json/wp/v2/posts',
-          kind: 'rest',
-          initiatorType: 'fetch',
-          startMs: 12,
-          durationMs: 90,
-          ttfbMs: 80,
-          transferSize: 120,
-          encodedBodySize: 100,
-          decodedBodySize: 200,
-        },
+        { url: '/wp-json/wp/v2/types', kind: 'rest', startMs: 3, durationMs: 44, ttfbMs: 40 },
       ],
     },
-  });
-
-  assert.equal(timings.length, 1);
-  assert.equal(timings[0].name, '/wp-json/wp/v2/posts');
-  assert.equal(timings[0].durationMs, 90);
-  assert.equal(timings[0].ttfbMs, 80);
-});
-
-test('summarizeProfileResourceTimings preserves the existing artifact shape', () => {
-  const summary = summarizeProfileResourceTimings([
-    { url: '/slow', kind: 'rest', startMs: 1, durationMs: 120, ttfbMs: 100, transferSize: 9 },
-    { url: '/fast', kind: 'admin', startMs: 2, durationMs: 20, ttfbMs: 10, transferSize: 4 },
-  ]);
-
-  assert.deepEqual(summary.map((row) => row.url), ['/slow', '/fast']);
-  assert.equal(summary[0].duration_ms, 120);
-  assert.equal(summary[0].ttfb_ms, 100);
-  assert.equal(summary[0].transfer_size, 9);
-});
-
-test('profileSiteEditorReady delegates page readiness to the Homeboy Extensions page profiler', async () => {
-  const calls = [];
+  };
   const pageProfiler = {
     async profileWordPressPage(input) {
       calls.push(input);
-      return {
-        status: 200,
-        readyMs: 345,
-        resources: {
-          resources: [
-            { url: '/wp-json/wp/v2/types', kind: 'rest', startMs: 3, durationMs: 44, ttfbMs: 40 },
-          ],
-        },
-      };
+      return profile;
     },
   };
 
-  const result = await profileSiteEditorReady({
+  const result = await profileSiteEditorPage({
     page: { id: 'fake-page' },
     siteUrl: 'http://example.test',
     pageProfiler,
@@ -384,9 +346,7 @@ test('profileSiteEditorReady delegates page readiness to the Homeboy Extensions 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].baseUrl, 'http://example.test');
   assert.equal(calls[0].spec.path, '/wp-admin/site-editor.php');
-  assert.equal(result.status, 200);
-  assert.equal(result.site_editor_ready_ms, 345);
-  assert.equal(result.resourceTimings[0].url, '/wp-json/wp/v2/types');
+  assert.equal(result, profile);
 });
 
 // --- WordPress bootstrap timeline -----------------------------------------
@@ -468,22 +428,25 @@ test('installSiteEditorPreloadCandidateSource fails when preload call is missing
 test('buildSiteEditorPreloadComparison summarizes the bot-path delta', () => {
   const comparison = buildSiteEditorPreloadComparison({
     baseline: {
-      warmup: { duration_ms: 1600 },
+      warmup: { readyMs: 1600 },
       measure: {
-        duration_ms: 1450,
+        readyMs: 1450,
         status: 200,
-        resourceTimings: [
-          { url: '/wp-json/wp/v2/template-parts/theme//header', duration_ms: 480, ttfb_ms: 475 },
-          { url: '/wp-json/wp/v2/posts?per_page=3', duration_ms: 440, ttfb_ms: 438 },
-        ],
+        resources: {
+          count: 2,
+          slowest: [
+            { url: '/wp-json/wp/v2/template-parts/theme//header', durationMs: 480, ttfbMs: 475 },
+            { url: '/wp-json/wp/v2/posts?per_page=3', durationMs: 440, ttfbMs: 438 },
+          ],
+        },
       },
     },
     candidate: {
-      warmup: { duration_ms: 1550 },
+      warmup: { readyMs: 1550 },
       measure: {
-        duration_ms: 950,
+        readyMs: 950,
         status: 200,
-        resourceTimings: [],
+        resources: { count: 0, slowest: [] },
       },
     },
   });

@@ -23,10 +23,6 @@ export const SITE_EDITOR_PAGE_SPEC = {
   timeout: 120000,
 };
 
-function round(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : 0;
-}
-
 export function pageProfilerPath(options = {}) {
   const explicit = options.override || process.env.HOMEBOY_WORDPRESS_PAGE_PROFILER_PATH;
   if (explicit) {
@@ -56,60 +52,16 @@ export function loadWordPressRequestProfiler(options = {}) {
   return { path: profilerPath, module: require(profilerPath) };
 }
 
-export function legacyResourceTimings(profileResult) {
-  return (profileResult?.resources?.resources || [])
-    .map((resource) => ({
-      name: resource.url,
-      url: resource.url,
-      initiatorType: resource.initiatorType,
-      kind: resource.kind,
-      startMs: resource.startMs,
-      startTime: resource.startMs,
-      durationMs: resource.durationMs,
-      duration: resource.durationMs,
-      ttfbMs: resource.ttfbMs,
-      transferSize: resource.transferSize,
-      encodedBodySize: resource.encodedBodySize,
-      decodedBodySize: resource.decodedBodySize,
-    }))
-    .sort((a, b) => b.durationMs - a.durationMs);
-}
-
-export function summarizeProfileResourceTimings(entries) {
-  return (entries || [])
-    .map((entry) => ({
-      url: entry.url || entry.name,
-      kind: entry.kind,
-      initiatorType: entry.initiatorType,
-      start_ms: round(entry.startMs ?? entry.startTime),
-      duration_ms: round(entry.durationMs ?? entry.duration),
-      ttfb_ms: round(entry.ttfbMs ?? entry.ttfb_ms),
-      transfer_size: entry.transferSize || 0,
-      encoded_body_size: entry.encodedBodySize || 0,
-      decoded_body_size: entry.decodedBodySize || 0,
-    }))
-    .sort((a, b) => b.duration_ms - a.duration_ms);
-}
-
-export async function profileSiteEditorReady({ page, siteUrl, pageProfiler, wordpressProfilerRows = [], mark }) {
+export async function profileSiteEditorPage({ page, siteUrl, pageProfiler, wordpressProfilerRows = [], mark }) {
   if (!pageProfiler?.profileWordPressPage) {
     throw new Error('Homeboy WordPress page profiler is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_PAGE_PROFILER_PATH.');
   }
 
-  const profile = await pageProfiler.profileWordPressPage({
+  return pageProfiler.profileWordPressPage({
     page,
     baseUrl: siteUrl,
     spec: SITE_EDITOR_PAGE_SPEC,
     wordpressProfilerRows,
     mark,
   });
-
-  return {
-    status: profile.status,
-    site_editor_ready_ms: profile.readyMs,
-    duration_ms: profile.readyMs,
-    marks: [],
-    resourceTimings: legacyResourceTimings(profile),
-    pageProfile: profile,
-  };
 }

@@ -31,8 +31,7 @@ import {
 import {
   loadWordPressPageProfiler,
   loadWordPressRequestProfiler,
-  profileSiteEditorReady,
-  summarizeProfileResourceTimings,
+  profileSiteEditorPage,
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
@@ -76,7 +75,7 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       await page.waitForLoadState('networkidle', { timeout: 120000 });
       await mark(`${label}_auto_login_networkidle`);
 
-      warmup = await profileSiteEditorReady({ page, siteUrl: status.siteUrl, pageProfiler, mark });
+      warmup = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
       await mark(`${label}_warmup_site_editor_ready`);
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -84,7 +83,7 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       await page.waitForLoadState('networkidle', { timeout: 120000 });
       await mark(`${label}_admin_networkidle_between_runs`);
 
-      measure = await profileSiteEditorReady({ page, siteUrl: status.siteUrl, pageProfiler, mark });
+      measure = await profileSiteEditorPage({ page, siteUrl: status.siteUrl, pageProfiler, mark });
       await mark(`${label}_measure_site_editor_ready`);
     },
   });
@@ -94,8 +93,8 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
   const wordpressRequests = requestProfiler?.collectWordPressRequestProfiles?.(sitePath) || [];
   const bootstrapRows = await collectWordPressBootstrapTimeline(sitePath);
   const phasedBrowserTimings = flattenPhasedResourceTimings({
-    [`${label}-warmup-site-editor`]: warmup.resourceTimings || [],
-    [`${label}-measure-site-editor`]: measure.resourceTimings || [],
+    [`${label}-warmup-site-editor`]: warmup.resources?.resources || [],
+    [`${label}-measure-site-editor`]: measure.resources?.resources || [],
   });
   const { module: correlator } = loadTimingCorrelator({ profilerPath: requestProfilerPath() });
 
@@ -105,14 +104,8 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
   return {
     sitePath,
     siteUrl: status.siteUrl,
-    warmup: {
-      ...warmup,
-      resourceTimings: summarizeProfileResourceTimings(warmup.resourceTimings || []),
-    },
-    measure: {
-      ...measure,
-      resourceTimings: summarizeProfileResourceTimings(measure.resourceTimings || []),
-    },
+    warmup,
+    measure,
     timingDeltas: buildTimingDeltaSummary({
       browserResourceTimings: phasedBrowserTimings,
       wordpressRequests,

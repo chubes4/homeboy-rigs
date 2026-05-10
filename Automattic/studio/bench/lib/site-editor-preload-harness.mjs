@@ -169,14 +169,14 @@ function round(value) {
 function slowResourceFingerprint(resource) {
   return {
     url: resource.url,
-    duration_ms: round(resource.duration_ms),
-    ttfb_ms: round(resource.ttfb_ms),
+    duration_ms: round(resource.durationMs),
+    ttfb_ms: round(resource.ttfbMs),
   };
 }
 
 export function buildSiteEditorPreloadComparison({ baseline, candidate }) {
-  const baselineMeasure = baseline?.measure?.duration_ms || 0;
-  const candidateMeasure = candidate?.measure?.duration_ms || 0;
+  const baselineMeasure = baseline?.measure?.readyMs || 0;
+  const candidateMeasure = candidate?.measure?.readyMs || 0;
   const delta = candidateMeasure - baselineMeasure;
   const deltaPct = baselineMeasure > 0 ? (delta / baselineMeasure) * 100 : 0;
 
@@ -185,16 +185,12 @@ export function buildSiteEditorPreloadComparison({ baseline, candidate }) {
     candidate_measure_ms: round(candidateMeasure),
     delta_ms: round(delta),
     delta_pct: Math.round(deltaPct * 10) / 10,
-    baseline_warmup_ms: round(baseline?.warmup?.duration_ms),
-    candidate_warmup_ms: round(candidate?.warmup?.duration_ms),
-    baseline_measure_resource_count: baseline?.measure?.resourceTimings?.length || 0,
-    candidate_measure_resource_count: candidate?.measure?.resourceTimings?.length || 0,
-    baseline_slowest_measure_resources: (baseline?.measure?.resourceTimings || [])
-      .slice(0, 10)
-      .map(slowResourceFingerprint),
-    candidate_slowest_measure_resources: (candidate?.measure?.resourceTimings || [])
-      .slice(0, 10)
-      .map(slowResourceFingerprint),
+    baseline_warmup_ms: round(baseline?.warmup?.readyMs),
+    candidate_warmup_ms: round(candidate?.warmup?.readyMs),
+    baseline_measure_resource_count: baseline?.measure?.resources?.count || 0,
+    candidate_measure_resource_count: candidate?.measure?.resources?.count || 0,
+    baseline_slowest_measure_resources: (baseline?.measure?.resources?.slowest || []).map(slowResourceFingerprint),
+    candidate_slowest_measure_resources: (candidate?.measure?.resources?.slowest || []).map(slowResourceFingerprint),
     baseline_status: baseline?.measure?.status || 0,
     candidate_status: candidate?.measure?.status || 0,
   };
