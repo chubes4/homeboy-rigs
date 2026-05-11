@@ -66,6 +66,7 @@ homeboy bench --rig studio-combined --scenario studio-site-create --iterations 1
 homeboy bench --rig studio-combined --scenario studio-db-dropin-startup --iterations 1 --shared-state /tmp/studio-slow-path-bench
 
 # Browser-visible wp-admin paths.
+homeboy bench --rig studio-combined --scenario studio-page-timing-matrix --iterations 1 --shared-state /tmp/studio-slow-path-bench
 homeboy bench --rig studio-combined --scenario studio-dashboard-browser --iterations 1 --shared-state /tmp/studio-slow-path-bench
 homeboy bench --rig studio-combined --scenario studio-admin-theme-page-browser --iterations 1 --shared-state /tmp/studio-slow-path-bench
 
@@ -73,7 +74,17 @@ homeboy bench --rig studio-combined --scenario studio-admin-theme-page-browser -
 homeboy bench --rig studio-combined --scenario studio-site-editor-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
 ```
 
-Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use the browser scenarios next when the slow path reproduces after the site is running. Use `studio-site-editor-diagnostics` when the signal points at Site Editor, REST request waterfalls, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use the focused browser scenarios when a matrix page needs a dedicated trace, and use `studio-site-editor-diagnostics` when the signal points at Site Editor, REST request waterfalls, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+
+`studio-page-timing-matrix` visits a configurable path list and records per-page HTTP status, elapsed time, DOMContentLoaded, load, TTFB, first contentful paint, request counts, failed requests, slowest requests, login-form regressions, and timeout markers. By default it covers the front page, sample page, Dashboard, Plugins, Themes, Add Themes, Posts, Add New Post, and Site Editor. Override the paths with a comma-separated string or JSON array, or include `admin-menu` to crawl every wp-admin URL exposed in the current site's admin menu:
+
+```bash
+homeboy bench --rig studio-combined \
+  --scenario studio-page-timing-matrix \
+  --setting studio_page_timing_paths='/,/sample-page/,admin-menu' \
+  --iterations 1 \
+  --shared-state /tmp/studio-page-timing
+```
 
 The Studio trace workload exercises the packaged app at `apps/studio/out` and records create-site readiness boundaries across the desktop shell, CLI log output, `cli.json`, HTTP readiness, `getSiteDetails()`, and the visible running-state UI.
 
