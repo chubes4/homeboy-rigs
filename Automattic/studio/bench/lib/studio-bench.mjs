@@ -141,6 +141,8 @@ export async function createStudioSite(sitePath, options = {}) {
       name,
       '--path',
       sitePath,
+      ...(options.wp ? ['--wp', options.wp] : []),
+      ...(options.php ? ['--php', options.php] : []),
       ...(options.start === false ? ['--no-start'] : []),
       '--skip-browser',
       '--skip-log-details',
