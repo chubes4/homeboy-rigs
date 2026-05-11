@@ -50,13 +50,30 @@ homeboy rig up studio-combined
 homeboy rig down studio-combined
 ```
 
-`rigs/studio-combined/rig.json` also declares the `studio-site-create` bench workload for timing fresh Studio site provisioning through the combined-fixes dev copy.
+`rigs/studio-combined/rig.json` also declares Studio slow-path bench workloads for timing fresh provisioning, SQLite drop-in startup behavior, wp-admin page loads, and Site Editor readiness through the combined-fixes dev copy.
 
 ```bash
 homeboy bench --rig studio-combined --scenario studio-site-create --iterations 1 --shared-state /tmp/studio-site-create-bench
 ```
 
 The workload creates one `--no-start` site and one normally-started site per iteration, then reports create, started-site status, stop, and total timings. Artifacts are written below the shared-state directory for inspection.
+
+Use this focused matrix when investigating user reports that Studio feels slow, hangs during local site startup, or returns intermittent 502 responses:
+
+```bash
+# CLI-only provisioning and startup boundaries.
+homeboy bench --rig studio-combined --scenario studio-site-create --iterations 1 --shared-state /tmp/studio-slow-path-bench
+homeboy bench --rig studio-combined --scenario studio-db-dropin-startup --iterations 1 --shared-state /tmp/studio-slow-path-bench
+
+# Browser-visible wp-admin paths.
+homeboy bench --rig studio-combined --scenario studio-dashboard-browser --iterations 1 --shared-state /tmp/studio-slow-path-bench
+homeboy bench --rig studio-combined --scenario studio-admin-theme-page-browser --iterations 1 --shared-state /tmp/studio-slow-path-bench
+
+# Site Editor readiness and REST/bootstrap diagnostics.
+homeboy bench --rig studio-combined --scenario studio-site-editor-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
+```
+
+Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use the browser scenarios next when the slow path reproduces after the site is running. Use `studio-site-editor-diagnostics` when the signal points at Site Editor, REST request waterfalls, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
 
 The Studio trace workload exercises the packaged app at `apps/studio/out` and records create-site readiness boundaries across the desktop shell, CLI log output, `cli.json`, HTTP readiness, `getSiteDetails()`, and the visible running-state UI.
 
