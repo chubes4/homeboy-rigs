@@ -1,6 +1,7 @@
-import { mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { pathToFileURL } from 'node:url';
 import {
   STUDIO_PATH,
   artifactDir as studioArtifactDir,
@@ -113,7 +114,11 @@ async function installProfilePlugins(sitePath) {
     }
 
     await rm(linkPath, { recursive: true, force: true });
-    await symlink(plugin.path, linkPath, 'dir');
+    if (plugin.copy === true) {
+      await cp(plugin.path, linkPath, { recursive: true, force: true });
+    } else {
+      await symlink(plugin.path, linkPath, 'dir');
+    }
     installed.push({ ...plugin, slug, linkPath, backupPath, hadExistingPath });
   }
 
@@ -164,6 +169,14 @@ async function sanitizeNetworkArtifact(artifact) {
   }
   const raw = await readFile(artifact.path, 'utf8');
   await writeFile(artifact.path, redact(raw));
+}
+
+async function loadProfileExtensionModule() {
+  const modulePath = expandHome(process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE || '');
+  if (!modulePath) {
+    return null;
+  }
+  return import(pathToFileURL(modulePath).href);
 }
 
 function summarizeNetwork(network, phase) {
@@ -226,6 +239,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
   const { path: correlatorPath, module: correlator } = loadTimingCorrelator({ profilerPath });
   let create;
   let start;
+  let initialStatusResult;
   let statusResult;
   let stop;
   let status;
@@ -233,6 +247,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
   let warmupProfile = {};
   let measureProfile = {};
   let installedPlugins = [];
+  let profileExtension = null;
+  let setupProfile = null;
   let loginFormSeen = 0;
   let wordpressRequests = [];
   let wordpressBootstrapTimeline = [];
@@ -247,7 +263,22 @@ export default async function studioSiteEditorDiagnosticsBench() {
     } else {
       start = await startStudioSite(sitePath, { timeoutMs: 240000 });
     }
+    initialStatusResult = await siteStatus(sitePath);
     installedPlugins = await installProfilePlugins(sitePath);
+    profileExtension = await loadProfileExtensionModule();
+    if (profileExtension?.setupWordPressPageProfile) {
+      const startedSetup = Date.now();
+      setupProfile = await profileExtension.setupWordPressPageProfile({
+        sitePath,
+        artifactDir,
+        pageSpec,
+        runCli,
+      });
+      setupProfile = {
+        elapsedMs: Date.now() - startedSetup,
+        ...setupProfile,
+      };
+    }
     statusResult = await siteStatus(sitePath);
     status = parseStudioSiteStatus(statusResult.stdout);
     if (!status.siteUrl || !status.autoLoginUrl) {
@@ -302,8 +333,10 @@ export default async function studioSiteEditorDiagnosticsBench() {
 
         loginFormSeen = await page.locator('#loginform').count();
 
+        const runPageProfile = profileExtension?.profileWordPressPage || profileWordPressPage;
+
         phase = 'warmup-page';
-        warmupProfile = await profileWordPressPage({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
+        warmupProfile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
         await mark('warmup_wordpress_page_ready');
 
         phase = 'dashboard-between-runs';
@@ -312,7 +345,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         await mark('browser_admin_networkidle_between_runs');
 
         phase = 'measure-page';
-        measureProfile = await profileWordPressPage({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
+        measureProfile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
         await mark('measure_wordpress_page_ready');
         phase = 'done';
       },
@@ -375,8 +408,11 @@ export default async function studioSiteEditorDiagnosticsBench() {
           sitePath,
           siteUrl: status.siteUrl,
           installedPlugins,
+          setupProfile,
           timings: {
             site_create_ms: create?.elapsedMs || 0,
+            site_initial_status_ms: initialStatusResult.elapsedMs,
+            setup_profile_ms: setupProfile?.elapsedMs || 0,
             site_status_ms: statusResult.elapsedMs,
             total_elapsed_ms: totalElapsedMs,
           },
@@ -397,6 +433,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
           commands: {
             create: safeResult(create),
             start: safeResult(start),
+            initialStatus: safeResult(initialStatusResult),
             status: safeResult(statusResult),
             stop: safeResult(stop),
           },
@@ -433,6 +470,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
         success_rate: 1,
         elapsed_ms: totalElapsedMs,
         site_create_ms: metric(create?.elapsedMs),
+        site_initial_status_ms: metric(initialStatusResult.elapsedMs),
+        setup_profile_ms: metric(setupProfile?.elapsedMs),
         site_status_ms: metric(statusResult.elapsedMs),
         login_form_seen: metric(loginFormSeen),
         wordpress_page_status: metric(measureProfile.status),
@@ -471,6 +510,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         site_editor_bootstrap_timeline_request_count: metric(bootstrapTimelineSummary.length),
         site_editor_slowest_bootstrap_request_ms: metric(slowestBootstrapRequest.duration_ms),
         site_editor_slowest_bootstrap_slice_ms: metric(slowestBootstrapSlice.delta_from_previous_ms),
+        ...(measureProfile.metrics || {}),
         total_elapsed_ms: totalElapsedMs,
         ...browserResult.metrics,
       },
@@ -482,6 +522,9 @@ export default async function studioSiteEditorDiagnosticsBench() {
       },
     };
   } finally {
+    if (profileExtension?.cleanupWordPressPageProfile) {
+      await profileExtension.cleanupWordPressPageProfile({ sitePath, setupProfile });
+    }
     if (profiler) {
       profiler.uninstallWordPressRequestProfiler?.(sitePath);
     }
