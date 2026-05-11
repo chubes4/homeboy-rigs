@@ -117,10 +117,11 @@ async function installProfilePlugins(sitePath) {
   }
 
   const activate = installed.filter((plugin) => plugin.activate !== false);
-  if (activate.length > 0) {
+  const activateTimeoutMs = Number(process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_ACTIVATE_TIMEOUT_MS || 420000);
+  for (const plugin of activate) {
     await runCli(
-      ['wp', 'plugin', 'activate', ...activate.map((plugin) => plugin.plugin || plugin.slug)],
-      { cwd: sitePath, timeoutMs: 120000 }
+      ['wp', 'plugin', 'activate', plugin.plugin || plugin.slug],
+      { cwd: sitePath, timeoutMs: activateTimeoutMs }
     );
   }
 
