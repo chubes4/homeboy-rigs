@@ -34,6 +34,8 @@ const DEFAULT_PATHS = [
   '/wp-admin/site-editor.php',
 ];
 
+const NETWORK_IDLE_PROBE_TIMEOUT_MS = 1000;
+
 async function createSite(sitePath) {
   return createStudioSite(sitePath, {
     name: `Studio Bench ${variant()} Page Timing Matrix ${process.pid}`,
@@ -266,7 +268,7 @@ export default async function studioPageTimingMatrixBench() {
       artifactsDir: artifactDir,
       trace: true,
       screenshot: true,
-      networkIdleTimeoutMs: 30000,
+      waitForNetworkIdle: false,
       action: async ({ page, mark }) => {
         await page.goto(status.autoLoginUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
@@ -317,25 +319,46 @@ export default async function studioPageTimingMatrixBench() {
           let response;
           let loadTimedOut = false;
           let networkIdleTimedOut = false;
+          let networkIdleMs = 0;
           let readyError = '';
+          let loadMs = 0;
+          let readyMs = 0;
           try {
             response = await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
             await page.waitForLoadState('load', { timeout: 120000 }).catch(() => {
               loadTimedOut = true;
             });
+            loadMs = performance.now() - started;
             await waitForPathReady(page, pagePath).catch((error) => {
               readyError = error.message;
             });
-            await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {
-              networkIdleTimedOut = true;
-            });
+            readyMs = performance.now() - started;
+            await page.waitForLoadState('networkidle', { timeout: NETWORK_IDLE_PROBE_TIMEOUT_MS }).then(
+              () => {
+                networkIdleMs = performance.now() - started;
+              },
+              () => {
+                networkIdleTimedOut = true;
+              }
+            );
+            if (!networkIdleMs) {
+              networkIdleMs = performance.now() - started;
+            }
           } finally {
             page.off('request', onRequest);
             page.off('requestfinished', onFinished);
             page.off('requestfailed', onFailed);
+            if (!readyMs) {
+              readyMs = performance.now() - started;
+            }
+            if (!loadMs) {
+              loadMs = readyMs;
+            }
+            if (!networkIdleMs) {
+              networkIdleMs = readyMs;
+            }
           }
 
-          const elapsedMs = performance.now() - started;
           const timing = await navigationTimings(page).catch(() => ({}));
           const pageLoginFormSeen = await page.locator('#loginform').count().catch(() => 0);
           loginFormSeen += pageLoginFormSeen;
@@ -345,7 +368,11 @@ export default async function studioPageTimingMatrixBench() {
             requested_url: scrubUrl(targetUrl, status.siteUrl),
             final_url: page.url(),
             status: response?.status() || 0,
-            elapsed_ms: elapsedMs,
+            ready_ms: readyMs,
+            elapsed_ms: readyMs,
+            load_probe_ms: loadMs,
+            network_idle_probe_ms: networkIdleMs,
+            network_idle_probe_timeout_ms: NETWORK_IDLE_PROBE_TIMEOUT_MS,
             load_timed_out: loadTimedOut,
             network_idle_timed_out: networkIdleTimedOut,
             ready_error: readyError,
@@ -374,6 +401,9 @@ export default async function studioPageTimingMatrixBench() {
       slowestPageMs = Math.max(slowestPageMs, metric(page.elapsed_ms));
       metrics[`page_${label}_status`] = metric(page.status);
       metrics[`page_${label}_elapsed_ms`] = metric(page.elapsed_ms);
+      metrics[`page_${label}_ready_ms`] = metric(page.ready_ms);
+      metrics[`page_${label}_load_probe_ms`] = metric(page.load_probe_ms);
+      metrics[`page_${label}_network_idle_probe_ms`] = metric(page.network_idle_probe_ms);
       metrics[`page_${label}_domcontentloaded_ms`] = metric(page.timings?.domcontentloaded_ms);
       metrics[`page_${label}_load_ms`] = metric(page.timings?.load_ms);
       metrics[`page_${label}_ttfb_ms`] = metric(page.timings?.ttfb_ms);
