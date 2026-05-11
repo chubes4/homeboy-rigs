@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import {
   STUDIO_PATH,
   artifactDir as studioArtifactDir,
@@ -65,6 +66,14 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
 
   let warmup = {};
   let measure = {};
+  const network = [];
+  const requestStarts = new Map();
+  let phase = 'setup';
+  let phaseStartedAt = performance.now();
+  const setPhase = (nextPhase) => {
+    phase = nextPhase;
+    phaseStartedAt = performance.now();
+  };
   const browserResult = await runBrowserBench({
     id: `studio-site-editor-preload-${label}`,
     artifactsDir: path.join(artifactDir, label),
@@ -72,10 +81,42 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
     screenshot: true,
     action: async ({ page, mark }) => {
       page.__studioSiteUrl = status.siteUrl;
+      page.on('request', (request) => requestStarts.set(request, { started: performance.now(), phase, phaseStartedAt }));
+      page.on('requestfinished', async (request) => {
+        const response = await request.response().catch(() => null);
+        const started = requestStarts.get(request) || { started: performance.now(), phase: 'unknown', phaseStartedAt: performance.now() };
+        network.push({
+          phase: started.phase,
+          url: request.url(),
+          method: request.method(),
+          status: response?.status() ?? 0,
+          start_ms: started.started - started.phaseStartedAt,
+          end_ms: performance.now() - started.phaseStartedAt,
+          duration_ms: performance.now() - started.started,
+          resource_type: request.resourceType(),
+        });
+      });
+      page.on('requestfailed', (request) => {
+        const started = requestStarts.get(request) || { started: performance.now(), phase: 'unknown', phaseStartedAt: performance.now() };
+        network.push({
+          phase: started.phase,
+          url: request.url(),
+          method: request.method(),
+          failed: true,
+          failure: request.failure()?.errorText,
+          start_ms: started.started - started.phaseStartedAt,
+          end_ms: performance.now() - started.phaseStartedAt,
+          duration_ms: performance.now() - started.started,
+          resource_type: request.resourceType(),
+        });
+      });
+
+      setPhase('login');
       await page.goto(status.autoLoginUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
       await page.waitForLoadState('networkidle', { timeout: 120000 });
       await mark(`${label}_auto_login_networkidle`);
 
+      setPhase('warmup-site-editor');
       warmup = await profileWordPressPage({
         page,
         siteUrl: status.siteUrl,
@@ -85,11 +126,13 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       });
       await mark(`${label}_warmup_site_editor_ready`);
 
+      setPhase('admin-between-runs');
       await new Promise((resolve) => setTimeout(resolve, 2000));
       await page.goto(siteAdminUrl(status.siteUrl), { waitUntil: 'domcontentloaded', timeout: 120000 });
       await page.waitForLoadState('networkidle', { timeout: 120000 });
       await mark(`${label}_admin_networkidle_between_runs`);
 
+      setPhase('measure-site-editor');
       measure = await profileWordPressPage({
         page,
         siteUrl: status.siteUrl,
@@ -98,6 +141,7 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
         mark,
       });
       await mark(`${label}_measure_site_editor_ready`);
+      setPhase('done');
     },
   });
 
@@ -105,6 +149,20 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
 
   const wordpressRequests = requestProfiler?.collectWordPressRequestProfiles?.(sitePath) || [];
   const bootstrapRows = await collectWordPressBootstrapTimeline(sitePath);
+  if (pageProfiler?.summarizeWordPressRestWaterfall) {
+    warmup.restWaterfall = pageProfiler.summarizeWordPressRestWaterfall({
+      readyMs: warmup.readyMs,
+      apiFetchAttempts: warmup.restWaterfall?.apiFetchAttempts || [],
+      resourceTimings: [],
+      networkRequests: network.filter((request) => request.phase === 'warmup-site-editor'),
+    });
+    measure.restWaterfall = pageProfiler.summarizeWordPressRestWaterfall({
+      readyMs: measure.readyMs,
+      apiFetchAttempts: measure.restWaterfall?.apiFetchAttempts || [],
+      resourceTimings: [],
+      networkRequests: network.filter((request) => request.phase === 'measure-site-editor'),
+    });
+  }
   const phasedBrowserTimings = flattenPhasedResourceTimings({
     [`${label}-warmup-site-editor`]: warmup.resources?.resources || [],
     [`${label}-measure-site-editor`]: measure.resources?.resources || [],
@@ -125,6 +183,7 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       correlator,
     }),
     bootstrapTimeline: summarizeWordPressBootstrapTimeline(bootstrapRows, { limit: 80 }),
+    network,
     browserMetrics: browserResult.metrics,
     browserArtifacts: browserResult.artifacts,
   };
@@ -249,6 +308,12 @@ export default async function studioSiteEditorPreloadComparisonBench() {
     });
 
     const comparison = buildSiteEditorPreloadComparison({ baseline, candidate });
+    const restWaterfallComparison = pageProfiler?.compareWordPressRestWaterfalls
+      ? pageProfiler.compareWordPressRestWaterfalls({
+          baseline: baseline.measure?.restWaterfall,
+          candidate: candidate.measure?.restWaterfall,
+        })
+      : null;
     const totalElapsedMs = Date.now() - totalStarted;
     const artifactFile = path.join(artifactDir, `result-${runId}.json`);
     await writeFile(
@@ -269,6 +334,10 @@ export default async function studioSiteEditorPreloadComparisonBench() {
             total_elapsed_ms: totalElapsedMs,
           },
           comparison,
+          restWaterfallComparison,
+          restWaterfallReport: restWaterfallComparison && pageProfiler?.formatWordPressRestWaterfallMarkdownReport
+            ? pageProfiler.formatWordPressRestWaterfallMarkdownReport(restWaterfallComparison)
+            : '',
           baseline,
           candidate,
           commands: {
@@ -300,6 +369,11 @@ export default async function studioSiteEditorPreloadComparisonBench() {
         site_editor_preload_delta_pct: metric(comparison.delta_pct),
         baseline_measure_resource_count: metric(comparison.baseline_measure_resource_count),
         candidate_measure_resource_count: metric(comparison.candidate_measure_resource_count),
+        baseline_measure_rest_network_count: metric(restWaterfallComparison?.counts?.baselineNetwork),
+        candidate_measure_rest_network_count: metric(restWaterfallComparison?.counts?.candidateNetwork),
+        site_editor_preload_removed_rest_network_count: metric(restWaterfallComparison?.counts?.removedNetwork),
+        site_editor_preload_new_rest_network_count: metric(restWaterfallComparison?.counts?.newNetwork),
+        site_editor_preload_remaining_rest_opportunity_count: metric(restWaterfallComparison?.remainingNetworkOpportunities?.length),
         baseline_slowest_measure_resource_ms: metric(comparison.baseline_slowest_measure_resources[0]?.duration_ms),
         candidate_slowest_measure_resource_ms: metric(comparison.candidate_slowest_measure_resources[0]?.duration_ms),
         baseline_bootstrap_request_count: metric(baseline.bootstrapTimeline.length),
