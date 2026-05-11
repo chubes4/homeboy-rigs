@@ -11,6 +11,7 @@ import {
   redact,
   runCli,
   safeResult,
+  startStudioSite,
   stopStudioSite,
   studioSiteStatus,
   variant,
@@ -224,6 +225,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
   const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
   const { path: correlatorPath, module: correlator } = loadTimingCorrelator({ profilerPath });
   let create;
+  let start;
   let statusResult;
   let stop;
   let status;
@@ -242,6 +244,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
   try {
     if (createdSite) {
       create = await createSite(sitePath);
+    } else {
+      start = await startStudioSite(sitePath, { timeoutMs: 240000 });
     }
     installedPlugins = await installProfilePlugins(sitePath);
     statusResult = await siteStatus(sitePath);
@@ -319,7 +323,9 @@ export default async function studioSiteEditorDiagnosticsBench() {
     profiler?.uninstallWordPressRequestProfiler?.(sitePath);
     wordpressBootstrapTimeline = await collectWordPressBootstrapTimeline(sitePath);
     await uninstallWordPressBootstrapTimeline(sitePath);
-    stop = await stopSite(sitePath);
+    if (createdSite) {
+      stop = await stopSite(sitePath);
+    }
 
     const totalElapsedMs = Date.now() - totalStarted;
     const measureResourceTimingSummary = measureProfile.resources?.slowest || [];
@@ -390,6 +396,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
           timingDeltas,
           commands: {
             create: safeResult(create),
+            start: safeResult(start),
             status: safeResult(statusResult),
             stop: safeResult(stop),
           },
