@@ -246,6 +246,66 @@
             "file": "${components.studio.path}/apps/studio/out/Studio-darwin-arm64/Studio.app/Contents/Resources/cli/node_modules/@wp-playground/wordpress/index.js"
           }
         ]
+      },
+      {
+        "path": "${package.root}/bench/playground-web-startup.trace.mjs",
+        "check_groups": [],
+        "trace_default_phase_preset": "playground-web-startup",
+        "trace_phase_presets": {
+          "playground-web-startup": [
+            "start:scenario.start",
+            "dev_server_ready:dev_server.http.ready",
+            "baseline_start:measurement.baseline.start",
+            "baseline_goto:measurement.baseline.goto.commit",
+            "baseline_client:measurement.baseline.client.ready",
+            "baseline_iframe:measurement.baseline.wp_iframe.body_ready",
+            "baseline_options:measurement.baseline.wordpress.options.ready",
+            "baseline_ready:measurement.baseline.ready",
+            "seeded_start:measurement.seeded.start",
+            "seeded_goto:measurement.seeded.goto.commit",
+            "seeded_client:measurement.seeded.client.ready",
+            "seeded_iframe:measurement.seeded.wp_iframe.body_ready",
+            "seeded_options:measurement.seeded.wordpress.options.ready",
+            "seeded_ready:measurement.seeded.ready",
+            "ready:scenario.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.baseline_start_to_baseline_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "playground_web_usable",
+            "category": "playground_web_startup"
+          },
+          "phase.seeded_start_to_seeded_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "playground_web_usable",
+            "category": "playground_web_startup"
+          },
+          "phase.baseline_client_to_baseline_iframe": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "wordpress_iframe_ready",
+            "category": "wordpress_boot"
+          },
+          "phase.seeded_client_to_seeded_iframe": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "wordpress_iframe_ready",
+            "category": "wordpress_boot"
+          }
+        },
+        "trace_guardrails": [
+          {
+            "label": "Playground Web trace checkout exists",
+            "file": "/Users/chubes/Developer/wordpress-playground@investigate-preinstalled-sqlite-template/package.json"
+          }
+        ]
       }
     ]
   },
