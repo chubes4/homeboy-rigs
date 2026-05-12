@@ -1,6 +1,5 @@
 import { cp, mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 
 import {
@@ -19,14 +18,11 @@ import {
   variant,
 } from './lib/studio-bench.mjs';
 import {
-  buildWordPressAdminScaleSweepSummary,
   loadWordPressAdminScaleSweepManifest,
-  summarizeWordPressAdminScaleSweepPage,
 } from './lib/wordpress-admin-scale-sweep.mjs';
 import {
   loadWordPressPageProfiler,
   loadWordPressRequestProfiler,
-  profileWordPressPage,
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
@@ -152,21 +148,62 @@ async function loadProfileExtensionModule() {
   return import(pathToFileURL(modulePath).href);
 }
 
-function scrubUrl(url, siteUrl) {
-  try {
-    const parsed = new URL(url);
-    const base = new URL(siteUrl);
-    if (parsed.origin === base.origin) {
-      return `${parsed.pathname}${parsed.search}`;
-    }
-  } catch {
-    // Fall through to normal redaction.
-  }
-  return redact(url);
+function manifestHasInteractions(manifest) {
+  return (manifest.pages || []).some((page) => Array.isArray(page.interactions) && page.interactions.length > 0);
 }
 
-function scrubNetworkRequests(requests, siteUrl) {
-  return requests.map((request) => ({ ...request, url: scrubUrl(request.url, siteUrl) }));
+function assertInteractionSupport({ manifest, pageProfiler, profileExtension }) {
+  if (!manifestHasInteractions(manifest)) {
+    return;
+  }
+  if (pageProfiler?.runBrowserActions || profileExtension?.runBrowserActions || profileExtension?.profileWordPressAdminScaleSweepPages) {
+    return;
+  }
+  throw new Error('WordPress admin scale sweep manifest includes interactions, but the installed Homeboy WordPress page profiler does not expose runBrowserActions(). Update homeboy-extensions.');
+}
+
+function assertAdminSweepSummarySupport({ pageProfiler, profileExtension }) {
+  const profiler = profileExtension || pageProfiler;
+  if (
+    profiler?.summarizeWordPressAdminPageProfile &&
+    profiler?.buildWordPressAdminPageSweepSummary &&
+    profiler?.formatWordPressAdminPageSweepMarkdownReport
+  ) {
+    return;
+  }
+  throw new Error('WordPress admin scale sweep requires admin page summary helpers. Update homeboy-extensions to include summarizeWordPressAdminPageProfile().');
+}
+
+function pageMetricId(pageSpec, pageSummary) {
+  return pageSpec?.metricId || String(pageSummary.id || 'page')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'page';
+}
+
+function adaptAdminPageSummary({ pageSpec, pageSummary, profile, artifacts }) {
+  return {
+    ...pageSummary,
+    metric_id: pageMetricId(pageSpec, pageSummary),
+    status: metric(pageSummary.status),
+    ready_ms: metric(pageSummary.readyMs),
+    resource_count: metric(pageSummary.resourceCount),
+    rest_count: metric(pageSummary.restCount),
+    rest_bytes: metric(pageSummary.restBytes),
+    failed_request_count: metric(pageSummary.failedRequestCount),
+    failure_count: metric(pageSummary.failureCount),
+    slowest_resource_ms: metric(pageSummary.slowestResources?.[0]?.durationMs),
+    slowest_resources: pageSummary.slowestResources || [],
+    slowest_requests: pageSummary.slowestRestRows || [],
+    failures: [
+      ...(pageSummary.failedRestRows || []).map((row) => ({ type: 'rest', url: row.url, status: row.status || 0, error: row.error || '' })),
+      ...(pageSummary.findings || []).map((finding) => ({ type: 'budget', code: finding.code, error: finding.message })),
+    ],
+    interaction: profile?.interactions || null,
+    artifacts: artifacts || {},
+    rawProfile: profile,
+    profileSummary: pageSummary,
+  };
 }
 
 async function sanitizeNetworkArtifact(artifact) {
@@ -175,53 +212,6 @@ async function sanitizeNetworkArtifact(artifact) {
   }
   const raw = await readFile(artifact.path, 'utf8');
   await writeFile(artifact.path, redact(raw));
-}
-
-async function runOptionalInteractions({ profileExtension, pageProfiler, page, pageSpec, siteUrl, mark, profile }) {
-  if (profile?.interactions !== undefined) {
-    return profile.interactions;
-  }
-  if (!pageSpec.interactions.length) {
-    return null;
-  }
-
-  if (profileExtension?.runWordPressAdminScaleSweepInteractions) {
-    return profileExtension.runWordPressAdminScaleSweepInteractions({
-      page,
-      baseUrl: siteUrl,
-      spec: pageSpec,
-      interactions: pageSpec.interactions,
-      mark,
-    });
-  }
-
-  if (pageProfiler?.runBrowserActions) {
-    return pageProfiler.runBrowserActions(page, pageSpec.interactions, {
-      mark,
-      timeout: pageSpec.interactionTimeout,
-      failureScreenshotPath: pageSpec.failureScreenshotPath,
-      tracePath: pageSpec.tracePath,
-    });
-  }
-
-  return {
-    skipped: true,
-    reason: 'No declarative WordPress page interaction runner is available in the installed extensions.',
-    interaction_count: pageSpec.interactions.length,
-  };
-}
-
-function shouldMarkInteractionFallback(profile, interaction) {
-  if (!interaction) {
-    return false;
-  }
-  if (profile?.interactions !== undefined) {
-    return false;
-  }
-  if (interaction.skipped) {
-    return false;
-  }
-  return true;
 }
 
 function summarizeWordPressRequests(entries = []) {
@@ -250,9 +240,12 @@ function summarizeWordPressRequests(entries = []) {
 
 export default async function studioWordPressAdminScaleSweepBench() {
   const currentVariant = variant();
+  const { path: profilerPath, module: profiler } = loadWordPressRequestProfiler();
+  const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
   const manifest = await loadWordPressAdminScaleSweepManifest({
     json: setting('wordpress_admin_scale_sweep_manifest_json'),
     path: expandHome(setting('wordpress_admin_scale_sweep_manifest')),
+    pageProfiler,
   });
   const runId = `${currentVariant}-wordpress-admin-scale-sweep-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const artifactDir = path.join(studioArtifactDir('studio-wordpress-admin-scale-sweep-artifacts'), runId);
@@ -267,8 +260,6 @@ export default async function studioWordPressAdminScaleSweepBench() {
   await mkdir(artifactDir, { recursive: true });
 
   const totalStarted = Date.now();
-  const { path: profilerPath, module: profiler } = loadWordPressRequestProfiler();
-  const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
   let create;
   let start;
   let initialStatusResult;
@@ -283,9 +274,6 @@ export default async function studioWordPressAdminScaleSweepBench() {
   let wordpressRequests = [];
   const pageResults = [];
   const metrics = {};
-  const network = [];
-  const startedRequests = new Map();
-  let phase = 'setup';
 
   try {
     if (createdSite) {
@@ -296,6 +284,8 @@ export default async function studioWordPressAdminScaleSweepBench() {
     initialStatusResult = await siteStatus(sitePath);
     installedPlugins = await installProfilePlugins(sitePath);
     profileExtension = await loadProfileExtensionModule();
+    assertInteractionSupport({ manifest, pageProfiler, profileExtension });
+    assertAdminSweepSummarySupport({ pageProfiler, profileExtension });
     if (profileExtension?.setupWordPressAdminScaleSweep || profileExtension?.setupWordPressPageProfile) {
       const startedSetup = Date.now();
       const setup = profileExtension.setupWordPressAdminScaleSweep || profileExtension.setupWordPressPageProfile;
@@ -318,60 +308,40 @@ export default async function studioWordPressAdminScaleSweepBench() {
       screenshot: true,
       waitForNetworkIdle: false,
       action: async ({ page, mark }) => {
-        page.on('request', (request) => startedRequests.set(request, { started: performance.now(), phase }));
-        page.on('requestfinished', async (request) => {
-          const response = await request.response().catch(() => null);
-          const started = startedRequests.get(request) || { started: performance.now(), phase: 'unknown' };
-          network.push({
-            phase: started.phase,
-            url: request.url(),
-            method: request.method(),
-            status: response?.status() ?? 0,
-            duration_ms: performance.now() - started.started,
-            resource_type: request.resourceType(),
-          });
-        });
-        page.on('requestfailed', (request) => {
-          const started = startedRequests.get(request) || { started: performance.now(), phase: 'unknown' };
-          network.push({
-            phase: started.phase,
-            url: request.url(),
-            method: request.method(),
-            status: 0,
-            failed: true,
-            failure: request.failure()?.errorText || 'request failed',
-            duration_ms: performance.now() - started.started,
-            resource_type: request.resourceType(),
-          });
-        });
-
-        phase = 'login';
         await page.goto(status.autoLoginUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
         await mark('auto_login_ready');
         loginFormSeen = await page.locator('#loginform').count().catch(() => 0);
 
-        const runPageProfile = profileExtension?.profileWordPressAdminScaleSweepPage || profileExtension?.profileWordPressPage || profileWordPressPage;
-        for (const pageSpec of manifest.pages) {
-          phase = `page:${pageSpec.id}`;
-          const startedNetworkIndex = network.length;
-          const profile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
-          await mark(`page_${pageSpec.metricId}_ready`);
-          const interaction = await runOptionalInteractions({ profileExtension, pageProfiler, page, pageSpec, siteUrl: status.siteUrl, mark, profile });
-          if (shouldMarkInteractionFallback(profile, interaction)) {
-            await mark(`page_${pageSpec.metricId}_interactions_done`);
-          }
-          const pageNetwork = scrubNetworkRequests(network.slice(startedNetworkIndex), status.siteUrl);
+        const runPagesProfile = profileExtension?.profileWordPressAdminScaleSweepPages || profileExtension?.profileWordPressPages || pageProfiler?.profileWordPressPages;
+        const adminPageProfiler = profileExtension?.summarizeWordPressAdminPageProfile ? profileExtension : pageProfiler;
+        if (!runPagesProfile) {
+          throw new Error('WordPress admin scale sweep requires pageProfiler.profileWordPressPages(). Update homeboy-extensions.');
+        }
+
+        const sweepProfile = await runPagesProfile({
+          page,
+          baseUrl: status.siteUrl,
+          siteUrl: status.siteUrl,
+          pageProfiler,
+          manifest,
+          mark,
+        });
+
+        const pageSummaries = [];
+        for (const profile of sweepProfile.pages || []) {
+          const pageSpec = manifest.pages.find((candidate) => candidate.id === profile.id) || { id: profile.id, label: profile.label, path: profile.path };
+          const pageSummary = adminPageProfiler.summarizeWordPressAdminPageProfile({ profile, spec: pageSpec });
+          pageSummaries.push(pageSummary);
           pageResults.push(
-            summarizeWordPressAdminScaleSweepPage({
+            adaptAdminPageSummary({
               pageSpec,
+              pageSummary,
               profile,
-              networkRequests: pageNetwork,
-              interactionResult: interaction,
             })
           );
         }
-        phase = 'done';
+        pageResults.profileSummaries = pageSummaries;
       },
     });
 
@@ -399,8 +369,10 @@ export default async function studioWordPressAdminScaleSweepBench() {
       metrics[`page_${pageMetricId}_slowest_resource_ms`] = metric(page.slowest_resource_ms);
     }
 
-    const summary = buildWordPressAdminScaleSweepSummary(pageResults);
-    const failingPageCount = pageResults.filter((page) => page.status >= 500 || page.status === 0 || page.failure_count > 0).length;
+    const adminPageProfiler = profileExtension?.buildWordPressAdminPageSweepSummary ? profileExtension : pageProfiler;
+    const summary = adminPageProfiler.buildWordPressAdminPageSweepSummary(pageResults.profileSummaries || pageResults.map((page) => page.profileSummary));
+    summary.markdown = adminPageProfiler.formatWordPressAdminPageSweepMarkdownReport(summary, { title: 'WordPress admin scale sweep' });
+    const failingPageCount = summary.totals.failedPageCount;
     const slowestPageMs = Math.max(0, ...pageResults.map((page) => metric(page.ready_ms)));
     const artifactFile = path.join(artifactDir, `result-${runId}.json`);
     await writeFile(

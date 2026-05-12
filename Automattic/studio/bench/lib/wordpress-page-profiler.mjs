@@ -23,7 +23,15 @@ export const SITE_EDITOR_PAGE_SPEC = {
   timeout: 120000,
 };
 
-export function wordpressPageProfilerSpec() {
+export function wordpressResourceInclude(options = {}) {
+  const pageProfiler = options.pageProfiler || loadWordPressPageProfiler(options).module;
+  if (!Array.isArray(pageProfiler?.DEFAULT_RESOURCE_INCLUDE)) {
+    throw new Error('Homeboy WordPress page profiler must export DEFAULT_RESOURCE_INCLUDE. Update homeboy-extensions.');
+  }
+  return pageProfiler.DEFAULT_RESOURCE_INCLUDE;
+}
+
+export function wordpressPageProfilerSpec(options = {}) {
   const rawSpec = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_SPEC_JSON;
   if (rawSpec) {
     return JSON.parse(rawSpec);
@@ -51,7 +59,7 @@ export function wordpressPageProfilerSpec() {
     resources: {
       includeResourceSubstrings: process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_RESOURCE_INCLUDE
         ? process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_RESOURCE_INCLUDE.split(',').map((value) => value.trim()).filter(Boolean)
-        : ['/wp-json/', '?rest_route=', '/wp-admin/', '/wp-content/', '/wp-includes/'],
+        : wordpressResourceInclude(options),
     },
     timeout,
   };
