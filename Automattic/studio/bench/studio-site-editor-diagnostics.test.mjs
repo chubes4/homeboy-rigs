@@ -445,6 +445,11 @@ test('summarizeWordPressAdminScaleSweepPage records readiness, REST bytes, failu
     profile: {
       status: 200,
       readyMs: 1234,
+      interactions: {
+        actions: [{ name: 'open_jobs_modal', status: 'passed', durationMs: 77 }],
+        durationMs: 77,
+        failed: false,
+      },
       resources: {
         resources: [
           { url: '/wp-json/datamachine/v1/jobs', durationMs: 250, transferSize: 1000, kind: 'fetch' },
@@ -456,6 +461,11 @@ test('summarizeWordPressAdminScaleSweepPage records readiness, REST bytes, failu
       { url: '/wp-json/datamachine/v1/jobs', method: 'GET', status: 200, duration_ms: 250 },
       { url: '/wp-json/datamachine/v1/fail', method: 'GET', status: 500, duration_ms: 100 },
     ],
+    interactionResult: {
+      skipped: true,
+      reason: 'fallback runner unavailable',
+      interaction_count: 1,
+    },
     artifacts: { trace: '/tmp/trace.zip', screenshot: '/tmp/page.png' },
   });
 
@@ -465,6 +475,8 @@ test('summarizeWordPressAdminScaleSweepPage records readiness, REST bytes, failu
   assert.equal(page.rest_bytes, 1000);
   assert.equal(page.failed_request_count, 1);
   assert.equal(page.failure_count, 1);
+  assert.equal(page.interaction.actions[0].name, 'open_jobs_modal');
+  assert.equal(page.interaction.skipped, undefined);
   assert.equal(page.slowest_resources[0].url, '/wp-content/plugins/data-machine/app.js');
   assert.equal(page.artifacts.trace, '/tmp/trace.zip');
 });

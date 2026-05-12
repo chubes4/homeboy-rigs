@@ -134,6 +134,7 @@ export function summarizeWordPressAdminScaleSweepPage({ pageSpec, profile, netwo
     .slice()
     .sort((a, b) => numberValue(b.duration_ms) - numberValue(a.duration_ms))
     .slice(0, 20);
+  const interaction = profile?.interactions ?? interactionResult ?? null;
   const failures = [
     ...failedRequests.map((request) => ({
       type: 'request',
@@ -142,7 +143,7 @@ export function summarizeWordPressAdminScaleSweepPage({ pageSpec, profile, netwo
       error: request.failure || '',
     })),
     ...(profile?.failure ? [{ type: 'profile', error: profile.failure }] : []),
-    ...(interactionResult?.failure ? [{ type: 'interaction', error: interactionResult.failure }] : []),
+    ...(interaction?.failed || interaction?.failure ? [{ type: 'interaction', error: interaction.failure || 'interaction failed' }] : []),
   ];
 
   return {
@@ -161,7 +162,7 @@ export function summarizeWordPressAdminScaleSweepPage({ pageSpec, profile, netwo
     slowest_resources: resources.slowest,
     slowest_requests: slowestNetwork,
     failures,
-    interaction: interactionResult || null,
+    interaction,
     artifacts: artifacts || {},
     rawProfile: profile,
   };

@@ -177,21 +177,51 @@ async function sanitizeNetworkArtifact(artifact) {
   await writeFile(artifact.path, redact(raw));
 }
 
-async function runOptionalInteractions({ profileExtension, pageProfiler, page, pageSpec, siteUrl, mark }) {
+async function runOptionalInteractions({ profileExtension, pageProfiler, page, pageSpec, siteUrl, mark, profile }) {
+  if (profile?.interactions !== undefined) {
+    return profile.interactions;
+  }
   if (!pageSpec.interactions.length) {
     return null;
   }
 
-  const runner = profileExtension?.runWordPressAdminScaleSweepInteractions || pageProfiler?.runWordPressPageInteractions;
-  if (!runner) {
-    return {
-      skipped: true,
-      reason: 'No declarative WordPress page interaction runner is available in the installed extensions.',
-      interaction_count: pageSpec.interactions.length,
-    };
+  if (profileExtension?.runWordPressAdminScaleSweepInteractions) {
+    return profileExtension.runWordPressAdminScaleSweepInteractions({
+      page,
+      baseUrl: siteUrl,
+      spec: pageSpec,
+      interactions: pageSpec.interactions,
+      mark,
+    });
   }
 
-  return runner({ page, baseUrl: siteUrl, spec: pageSpec, interactions: pageSpec.interactions, mark });
+  if (pageProfiler?.runBrowserActions) {
+    return pageProfiler.runBrowserActions(page, pageSpec.interactions, {
+      mark,
+      timeout: pageSpec.interactionTimeout,
+      failureScreenshotPath: pageSpec.failureScreenshotPath,
+      tracePath: pageSpec.tracePath,
+    });
+  }
+
+  return {
+    skipped: true,
+    reason: 'No declarative WordPress page interaction runner is available in the installed extensions.',
+    interaction_count: pageSpec.interactions.length,
+  };
+}
+
+function shouldMarkInteractionFallback(profile, interaction) {
+  if (!interaction) {
+    return false;
+  }
+  if (profile?.interactions !== undefined) {
+    return false;
+  }
+  if (interaction.skipped) {
+    return false;
+  }
+  return true;
 }
 
 function summarizeWordPressRequests(entries = []) {
@@ -327,8 +357,8 @@ export default async function studioWordPressAdminScaleSweepBench() {
           const startedNetworkIndex = network.length;
           const profile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
           await mark(`page_${pageSpec.metricId}_ready`);
-          const interaction = await runOptionalInteractions({ profileExtension, pageProfiler, page, pageSpec, siteUrl: status.siteUrl, mark });
-          if (interaction) {
+          const interaction = await runOptionalInteractions({ profileExtension, pageProfiler, page, pageSpec, siteUrl: status.siteUrl, mark, profile });
+          if (shouldMarkInteractionFallback(profile, interaction)) {
             await mark(`page_${pageSpec.metricId}_interactions_done`);
           }
           const pageNetwork = scrubNetworkRequests(network.slice(startedNetworkIndex), status.siteUrl);
