@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   artifactDir as studioArtifactDir,
@@ -7,6 +7,7 @@ import {
   parseStudioSiteStatus,
   redact,
   safeResult,
+  sanitizeArtifact,
   stopStudioSite,
   studioSiteStatus,
   variant,
@@ -39,14 +40,6 @@ function autoLoginUrl(siteUrl, relativePath) {
   const url = new URL('/studio-auto-login', siteUrl);
   url.searchParams.set('redirect_to', new URL(relativePath, siteUrl).pathname);
   return url.toString();
-}
-
-async function sanitizeNetworkArtifact(artifact) {
-  if (!artifact || typeof artifact.path !== 'string') {
-    return;
-  }
-  const raw = await readFile(artifact.path, 'utf8');
-  await writeFile(artifact.path, redact(raw));
 }
 
 async function firstContentfulPaint(page) {
@@ -107,7 +100,7 @@ export default async function studioAdminThemePageBrowserBench() {
       },
     });
 
-    await sanitizeNetworkArtifact(browserResult.artifacts?.network);
+    await sanitizeArtifact(browserResult.artifacts?.network);
     stop = await stopSite(sitePath);
 
     const totalElapsedMs = Date.now() - totalStarted;

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
@@ -9,6 +9,7 @@ import {
   parseStudioSiteStatus,
   runCli,
   safeResult,
+  sanitizeArtifact,
   stopStudioSite,
   studioSiteStatus,
   variant,
@@ -47,14 +48,6 @@ const { runBrowserBench } = await import(BROWSER_HELPER);
 function siteAdminUrl(siteUrl, relativePath = '') {
   const base = siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`;
   return new URL(`wp-admin/${relativePath}`, base).toString();
-}
-
-async function sanitizeArtifact(artifact) {
-  if (!artifact || typeof artifact.path !== 'string') {
-    return;
-  }
-  const raw = await readFile(artifact.path, 'utf8');
-  await writeFile(artifact.path, raw.replace(/([?&](?:token|password|key|nonce)=)[^&#\s]+/gi, '$1[redacted]'));
 }
 
 async function runBotPath({ label, artifactDir, sitePath, status, requestProfiler, pageProfiler, candidate }) {

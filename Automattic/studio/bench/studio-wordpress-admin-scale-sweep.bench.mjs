@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -11,6 +11,7 @@ import {
   redact,
   runCli,
   safeResult,
+  sanitizeArtifact,
   setting,
   startStudioSite,
   stopStudioSite,
@@ -206,14 +207,6 @@ function adaptAdminPageSummary({ pageSpec, pageSummary, profile, artifacts }) {
   };
 }
 
-async function sanitizeNetworkArtifact(artifact) {
-  if (!artifact || typeof artifact.path !== 'string') {
-    return;
-  }
-  const raw = await readFile(artifact.path, 'utf8');
-  await writeFile(artifact.path, redact(raw));
-}
-
 function summarizeWordPressRequests(entries = []) {
   const byRequest = new Map();
   for (const entry of entries) {
@@ -345,7 +338,7 @@ export default async function studioWordPressAdminScaleSweepBench() {
       },
     });
 
-    await sanitizeNetworkArtifact(browserResult.artifacts?.network);
+    await sanitizeArtifact(browserResult.artifacts?.network);
     wordpressRequests = profiler?.collectWordPressRequestProfiles?.(sitePath) || [];
     profiler?.uninstallWordPressRequestProfiler?.(sitePath);
     if (createdSite) {

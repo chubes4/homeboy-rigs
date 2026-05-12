@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -8,6 +8,7 @@ import {
   parseStudioSiteStatus,
   redact,
   safeResult,
+  sanitizeArtifact,
   setting,
   stopStudioSite,
   studioSiteStatus,
@@ -164,13 +165,6 @@ function summarizeRoutes({ routes, browserResults, wpSummaries, bootstrapSummari
       slowest_priority_bands: wpRows.flatMap((row) => row.priority_bands).sort((a, b) => b.duration_ms - a.duration_ms).slice(0, 5),
     };
   });
-}
-
-async function sanitizeArtifact(artifact) {
-  if (!artifact?.path) {
-    return;
-  }
-  await writeFile(artifact.path, redact(await readFile(artifact.path, 'utf8')));
 }
 
 export default async function studioRestLatencyDiagnosticsBench() {
