@@ -93,9 +93,7 @@ if ( ! function_exists( 'homeboy_bootstrap_timeline_record' ) ) {
 		if ( ! $start || ! $file ) {
 			return;
 		}
-		file_put_contents(
-			$file,
-			json_encode(
+		$line = json_encode(
 				array(
 					'event'      => $event,
 					'request_id' => $GLOBALS['homeboy_bootstrap_timeline_id'] ?? '',
@@ -104,9 +102,8 @@ if ( ! function_exists( 'homeboy_bootstrap_timeline_record' ) ) {
 					't_ms'       => ( microtime( true ) - $start ) * 1000,
 					'time'       => microtime( true ),
 				)
-			) . "\\n",
-			FILE_APPEND | LOCK_EX
-		);
+			) . "\\n";
+		@file_put_contents( $file, $line, FILE_APPEND | LOCK_EX );
 	}
 }
 homeboy_bootstrap_timeline_record( 'entry.start' );
