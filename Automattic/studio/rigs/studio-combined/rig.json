@@ -59,6 +59,7 @@
       "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs",
       "${package.root}/bench/studio-dashboard-browser.bench.mjs",
       "${package.root}/bench/studio-page-timing-matrix.bench.mjs",
+      "${package.root}/bench/studio-rest-latency-diagnostics.bench.mjs",
       "${package.root}/bench/studio-site-editor-browser.bench.mjs",
       "${package.root}/bench/studio-site-editor-diagnostics.bench.mjs",
       "${package.root}/bench/studio-site-editor-preload-comparison.bench.mjs"
