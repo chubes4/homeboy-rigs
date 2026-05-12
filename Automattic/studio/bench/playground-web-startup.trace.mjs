@@ -17,7 +17,7 @@ const TIMEOUT_MS = Number(process.env.PLAYGROUND_WEB_TRACE_TIMEOUT_MS || 120_000
 const ARTIFACT_DIR = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join(tmpdir(), 'playground-web-trace-artifacts');
 
 const { createTraceRecorder } = await import(pathToFileURL(`${HELPER_DIR}/timeline.mjs`).href);
-const { installConsoleBridge, pollHttp } = await import(pathToFileURL(`${HELPER_DIR}/probes.mjs`).href);
+const { pollHttp } = await import(pathToFileURL(`${HELPER_DIR}/probes.mjs`).href);
 
 const playwright = require(require.resolve('playwright', { paths: [PLAYGROUND_PATH] }));
 const recorder = createTraceRecorder({ scenarioId: 'playground-web-startup' });
@@ -126,11 +126,34 @@ function buildUrl(baseUrl, variant) {
 	const url = new URL(baseUrl);
 	url.searchParams.set('url', '/');
 	url.searchParams.set('trace-run', `${variant}-${Date.now()}`);
+	url.searchParams.set('homeboy-trace', '1');
 	if (variant === 'seeded') {
 		url.searchParams.set('preinstalled-sqlite-template', TEMPLATE_PATH);
 	}
 	url.hash = JSON.stringify({ preferredVersions: { wp: WP_VERSION, php: PHP_VERSION } });
 	return url.toString();
+}
+
+function installHomeboyTraceBridge(page, variant) {
+	page.on('console', async (message) => {
+		const text = typeof message.text === 'function' ? message.text() : String(message);
+		if (!text.startsWith('trace:')) {
+			return;
+		}
+		try {
+			const payload = JSON.parse(text.slice('trace:'.length));
+			if (!payload || typeof payload.source !== 'string' || typeof payload.event !== 'string') {
+				return;
+			}
+			await recorder.recordEvent(`${payload.source}.${variant}`, payload.event, {
+				variant,
+				source: payload.source,
+				...(payload.data || {}),
+			});
+		} catch {
+			await recorder.recordEvent(`browser.${variant}`, 'trace_parse_error', { text });
+		}
+	});
 }
 
 async function collectResources(page, variant) {
@@ -159,7 +182,7 @@ async function measure(browser, baseUrl, variant) {
 	});
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	installConsoleBridge(page, { prefix: 'trace:', source: `browser.${variant}`, onEvent });
+	installHomeboyTraceBridge(page, variant);
 
 	try {
 		await page.goto(buildUrl(baseUrl, variant), { waitUntil: 'commit', timeout: TIMEOUT_MS });
