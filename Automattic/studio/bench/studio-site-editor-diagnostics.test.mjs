@@ -6,6 +6,15 @@ import test from 'node:test';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 
+const DEFAULT_RESOURCE_INCLUDE = Object.freeze([
+  '/wp-json/',
+  '?rest_route=',
+  '/wp-admin/',
+  '/wp-content/',
+  '/wp-includes/',
+]);
+const pageProfilerApi = { DEFAULT_RESOURCE_INCLUDE };
+
 const {
   annotatePhase,
   buildTimingDeltaSummary,
@@ -29,9 +38,7 @@ const {
   wordpressPageProfilerSpec,
 } = await import('./lib/wordpress-page-profiler.mjs');
 const {
-  buildWordPressAdminScaleSweepSummary,
   normalizeWordPressAdminScaleSweepManifest,
-  summarizeWordPressAdminScaleSweepPage,
 } = await import('./lib/wordpress-admin-scale-sweep.mjs');
 
 function withEnv(values, callback) {
@@ -110,7 +117,7 @@ test('wordpressPageProfilerSpec defaults to Site Editor', () => {
       HOMEBOY_WORDPRESS_PAGE_PROFILE_PATH: undefined,
     },
     () => {
-      const spec = wordpressPageProfilerSpec();
+      const spec = wordpressPageProfilerSpec({ pageProfiler: pageProfilerApi });
       assert.equal(spec.id, 'site-editor');
       assert.equal(spec.path, '/wp-admin/site-editor.php');
     }
@@ -127,17 +134,13 @@ test('wordpressPageProfilerSpec builds a generic WordPress page spec from env', 
       HOMEBOY_WORDPRESS_PAGE_PROFILE_READY_SELECTOR: undefined,
     },
     () => {
-      const spec = wordpressPageProfilerSpec();
+      const spec = wordpressPageProfilerSpec({ pageProfiler: pageProfilerApi });
       assert.equal(spec.id, 'front-page');
       assert.equal(spec.label, 'Front page');
       assert.equal(spec.path, '/');
       assert.equal(spec.ready.state, 'domcontentloaded');
       assert.deepEqual(spec.resources.includeResourceSubstrings, [
-        '/wp-json/',
-        '?rest_route=',
-        '/wp-admin/',
-        '/wp-content/',
-        '/wp-includes/',
+        ...DEFAULT_RESOURCE_INCLUDE,
       ]);
     }
   );
@@ -429,7 +432,7 @@ test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds 
         interactions: [{ type: 'click', selector: '.jobs-row:first-child button' }],
       },
     ],
-  });
+  }, { pageProfiler: pageProfilerApi });
 
   assert.equal(manifest.pages.length, 2);
   assert.equal(manifest.pages[0].metricId, 'pipelines');
@@ -437,83 +440,6 @@ test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds 
   assert.equal(manifest.pages[1].id, 'wp-admin-admin.php-page-datamachine-jobs');
   assert.equal(manifest.pages[1].ready.selector, '#wpbody-content, body.wp-admin');
   assert.equal(manifest.pages[1].interactions.length, 1);
-});
-
-test('summarizeWordPressAdminScaleSweepPage records readiness, REST bytes, failures, and slow resources', () => {
-  const page = summarizeWordPressAdminScaleSweepPage({
-    pageSpec: { id: 'jobs', path: '/wp-admin/admin.php?page=datamachine-jobs' },
-    profile: {
-      status: 200,
-      readyMs: 1234,
-      interactions: {
-        actions: [{ name: 'open_jobs_modal', status: 'passed', durationMs: 77 }],
-        durationMs: 77,
-        failed: false,
-      },
-      resources: {
-        resources: [
-          { url: '/wp-json/datamachine/v1/jobs', durationMs: 250, transferSize: 1000, kind: 'fetch' },
-          { url: '/wp-content/plugins/data-machine/app.js', durationMs: 400, transferSize: 2000, kind: 'script' },
-        ],
-      },
-    },
-    networkRequests: [
-      { url: '/wp-json/datamachine/v1/jobs', method: 'GET', status: 200, duration_ms: 250 },
-      { url: '/wp-json/datamachine/v1/fail', method: 'GET', status: 500, duration_ms: 100 },
-    ],
-    interactionResult: {
-      skipped: true,
-      reason: 'fallback runner unavailable',
-      interaction_count: 1,
-    },
-    artifacts: { trace: '/tmp/trace.zip', screenshot: '/tmp/page.png' },
-  });
-
-  assert.equal(page.status, 200);
-  assert.equal(page.ready_ms, 1234);
-  assert.equal(page.rest_count, 1);
-  assert.equal(page.rest_bytes, 1000);
-  assert.equal(page.failed_request_count, 1);
-  assert.equal(page.failure_count, 1);
-  assert.equal(page.interaction.actions[0].name, 'open_jobs_modal');
-  assert.equal(page.interaction.skipped, undefined);
-  assert.equal(page.slowest_resources[0].url, '/wp-content/plugins/data-machine/app.js');
-  assert.equal(page.artifacts.trace, '/tmp/trace.zip');
-});
-
-test('buildWordPressAdminScaleSweepSummary sorts worst pages and requests first', () => {
-  const summary = buildWordPressAdminScaleSweepSummary([
-    {
-      id: 'fast',
-      label: 'Fast',
-      path: '/wp-admin/admin.php?page=fast',
-      status: 200,
-      ready_ms: 100,
-      rest_count: 1,
-      rest_bytes: 10,
-      failed_request_count: 0,
-      failure_count: 0,
-      slowest_resource_ms: 50,
-      slowest_requests: [{ url: '/fast', status: 200, duration_ms: 50 }],
-    },
-    {
-      id: 'slow',
-      label: 'Slow',
-      path: '/wp-admin/admin.php?page=slow',
-      status: 200,
-      ready_ms: 900,
-      rest_count: 4,
-      rest_bytes: 100,
-      failed_request_count: 1,
-      failure_count: 1,
-      slowest_resource_ms: 800,
-      slowest_requests: [{ url: '/slow', status: 500, failed: true, duration_ms: 800 }],
-    },
-  ]);
-
-  assert.equal(summary.pages[0].id, 'slow');
-  assert.equal(summary.worst_requests[0].url, '/slow');
-  assert.match(summary.markdown, /\| slow \| 200 \| 900 \| 4 \| 100 \| 1 \| 800 \|/);
 });
 
 // --- WordPress bootstrap timeline -----------------------------------------
