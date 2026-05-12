@@ -67,6 +67,7 @@ homeboy bench --rig studio-combined --scenario studio-db-dropin-startup --iterat
 
 # Browser-visible wp-admin paths.
 homeboy bench --rig studio-combined --scenario studio-page-timing-matrix --iterations 1 --shared-state /tmp/studio-slow-path-bench
+homeboy bench --rig studio-combined --scenario studio-wordpress-admin-scale-sweep --iterations 1 --shared-state /tmp/studio-slow-path-bench
 homeboy bench --rig studio-combined --scenario studio-dashboard-browser --iterations 1 --shared-state /tmp/studio-slow-path-bench
 homeboy bench --rig studio-combined --scenario studio-admin-theme-page-browser --iterations 1 --shared-state /tmp/studio-slow-path-bench
 
@@ -75,7 +76,7 @@ homeboy bench --rig studio-combined --scenario studio-site-editor-diagnostics --
 homeboy bench --rig studio-combined --scenario studio-rest-latency-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
 ```
 
-Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use the focused browser scenarios when a matrix page needs a dedicated trace, use `studio-site-editor-diagnostics` when the signal points at Site Editor readiness, and use `studio-rest-latency-diagnostics` when the signal points at per-request REST latency, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use `studio-wordpress-admin-scale-sweep` when plugin admin screens need page-profiler diagnostics across one prepared site. Use the focused browser scenarios when a matrix page needs a dedicated trace, use `studio-site-editor-diagnostics` when the signal points at Site Editor readiness, and use `studio-rest-latency-diagnostics` when the signal points at per-request REST latency, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
 
 `studio-rest-latency-diagnostics` logs into a fresh Studio site, extracts a real REST nonce from the post editor, and fetches a static asset, the front page, representative authenticated REST endpoints, and `admin-ajax.php` several times in one browser session. By default it installs WordPress bootstrap and request profilers so route summaries can compare browser timing, WordPress entry-to-shutdown timing, MU-plugin-to-shutdown timing, and likely outer transport/proxy overhead. Use `studio_rest_latency_iterations`, `studio_rest_latency_routes`, and `studio_rest_latency_profile_wordpress=0` to adjust the matrix or run an uninstrumented control:
 
@@ -96,6 +97,18 @@ homeboy bench --rig studio-combined \
   --iterations 1 \
   --shared-state /tmp/studio-page-timing
 ```
+
+`studio-wordpress-admin-scale-sweep` is the reusable plugin-admin stress rig. It logs into one prepared Studio site, profiles every page in a manifest with the Homeboy WordPress page profiler, and writes one combined artifact with per-page ready time, REST count, REST bytes, slowest resources, failures, trace/screenshot references, and a summary table sorted by the worst pages and requests. It can create a fresh Studio site or target an existing site with `HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_SITE_PATH`. Provide pages with `HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_MANIFEST_JSON` or `HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_MANIFEST`:
+
+```bash
+HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_MANIFEST_JSON='{"pages":[{"id":"pipelines","path":"/wp-admin/admin.php?page=datamachine-pipelines","ready":{"selector":".datamachine-pipelines-app"}},{"id":"jobs","path":"/wp-admin/admin.php?page=datamachine-jobs","ready":{"selector":".datamachine-jobs-app"}}]}' \
+homeboy bench --rig studio-combined \
+  --scenario studio-wordpress-admin-scale-sweep \
+  --iterations 1 \
+  --shared-state /tmp/studio-admin-scale-sweep
+```
+
+Manifest pages may include an `interactions` array. The rig records those declarations now and runs them only when the installed Homeboy Extensions page profiler exposes a compatible declarative interaction hook, so the workload stays usable with current released extension APIs.
 
 The Studio trace workload exercises the packaged app at `apps/studio/out` and records create-site readiness boundaries across the desktop shell, CLI log output, `cli.json`, HTTP readiness, `getSiteDetails()`, and the visible running-state UI.
 
