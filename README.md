@@ -72,9 +72,20 @@ homeboy bench --rig studio-combined --scenario studio-admin-theme-page-browser -
 
 # Site Editor readiness and REST/bootstrap diagnostics.
 homeboy bench --rig studio-combined --scenario studio-site-editor-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
+homeboy bench --rig studio-combined --scenario studio-rest-latency-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
 ```
 
-Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use the focused browser scenarios when a matrix page needs a dedicated trace, and use `studio-site-editor-diagnostics` when the signal points at Site Editor, REST request waterfalls, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use the focused browser scenarios when a matrix page needs a dedicated trace, use `studio-site-editor-diagnostics` when the signal points at Site Editor readiness, and use `studio-rest-latency-diagnostics` when the signal points at per-request REST latency, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+
+`studio-rest-latency-diagnostics` logs into a fresh Studio site, extracts a real REST nonce from the post editor, and fetches a static asset, the front page, representative authenticated REST endpoints, and `admin-ajax.php` several times in one browser session. By default it installs WordPress bootstrap and request profilers so route summaries can compare browser timing, WordPress entry-to-shutdown timing, MU-plugin-to-shutdown timing, and likely outer transport/proxy overhead. Use `studio_rest_latency_iterations`, `studio_rest_latency_routes`, and `studio_rest_latency_profile_wordpress=0` to adjust the matrix or run an uninstrumented control:
+
+```bash
+homeboy bench --rig studio-combined \
+  --scenario studio-rest-latency-diagnostics \
+  --setting studio_rest_latency_iterations=5 \
+  --iterations 1 \
+  --shared-state /tmp/studio-rest-latency
+```
 
 `studio-page-timing-matrix` visits a configurable path list and records per-page HTTP status, ready time, DOMContentLoaded, load, TTFB, first contentful paint, request counts, failed requests, slowest requests, login-form regressions, and timeout markers. `elapsed_ms` is the page-ready timing, not a network-idle wait, because editor screens intentionally keep background requests such as heartbeat alive. A short network-idle probe is still reported separately as diagnostic data. By default it covers the front page, sample page, Dashboard, Plugins, Themes, Add Themes, Posts, Add New Post, and Site Editor. Override the paths with a comma-separated string or JSON array, or include `admin-menu` to crawl every wp-admin URL exposed in the current site's admin menu:
 
