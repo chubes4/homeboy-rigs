@@ -536,6 +536,26 @@ block_editor_rest_api_preload( $preload_paths, $block_editor_context );
   assert.equal(installSiteEditorPreloadCandidateSource(patched), patched);
 });
 
+test('installSiteEditorPreloadCandidateSource supports method-aware extra paths', () => {
+  const source = `<?php
+$preload_paths = array();
+block_editor_rest_api_preload( $preload_paths, $block_editor_context );
+`;
+  const patched = withEnv(
+    {
+      HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON: JSON.stringify([
+        '/wp/v2/types/post?context=edit',
+        { path: '/wp/v2/settings', method: 'OPTIONS' },
+      ]),
+      HOMEBOY_SITE_EDITOR_PRELOAD_NAVIGATION_FALLBACK: '1',
+    },
+    () => installSiteEditorPreloadCandidateSource(source)
+  );
+  assert.match(patched, /\$preload_paths\[\] = '\/wp\/v2\/types\/post\?context=view'|\$preload_paths\[\] = '\/wp\/v2\/types\/post\?context=edit'/);
+  assert.match(patched, /array\( '\/wp\/v2\/settings', 'OPTIONS' \)/);
+  assert.match(patched, /WP_Navigation_Fallback::get_fallback\(\)/);
+});
+
 test('installSiteEditorPreloadCandidateSource fails when preload call is missing', () => {
   assert.throws(
     () => installSiteEditorPreloadCandidateSource('<?php $preload_paths = array();'),

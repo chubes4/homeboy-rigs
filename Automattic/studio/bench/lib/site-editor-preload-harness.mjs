@@ -3,6 +3,50 @@ import path from 'node:path';
 
 const PRELOAD_MARKER = 'HOMEBOY_SITE_EDITOR_PRELOAD_CANDIDATE';
 
+function phpString(value) {
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function extraPreloadDeclaration(entry) {
+  if (typeof entry === 'string') {
+    return `$preload_paths[] = ${phpString(entry)};`;
+  }
+  if (!entry || typeof entry !== 'object' || typeof entry.path !== 'string') {
+    throw new Error('extra preload entries must be strings or objects with a path string');
+  }
+  const method = String(entry.method || 'GET').toUpperCase();
+  if (method === 'GET') {
+    return `$preload_paths[] = ${phpString(entry.path)};`;
+  }
+  return `$preload_paths[] = array( ${phpString(entry.path)}, ${phpString(method)} );`;
+}
+
+function extraPreloadPatch() {
+  const raw = process.env.HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON;
+  const entries = raw ? JSON.parse(raw) : [];
+  if (!Array.isArray(entries)) {
+    throw new Error('HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON must be an array');
+  }
+  if (entries.length === 0 && process.env.HOMEBOY_SITE_EDITOR_PRELOAD_NAVIGATION_FALLBACK !== '1') {
+    return '';
+  }
+
+  const lines = [
+    `// ${PRELOAD_MARKER}_EXTRA: begin`,
+    ...entries.map(extraPreloadDeclaration),
+  ];
+  if (process.env.HOMEBOY_SITE_EDITOR_PRELOAD_NAVIGATION_FALLBACK === '1') {
+    lines.push(
+      "$homeboy_navigation_fallback = class_exists( 'WP_Navigation_Fallback' ) ? WP_Navigation_Fallback::get_fallback() : null;",
+      'if ( $homeboy_navigation_fallback instanceof WP_Post ) {',
+      "\t$preload_paths[] = '/wp/v2/navigation/' . $homeboy_navigation_fallback->ID . '?context=edit';",
+      '}'
+    );
+  }
+  lines.push(`// ${PRELOAD_MARKER}_EXTRA: end`);
+  return lines.join('\n');
+}
+
 export function installSiteEditorPreloadCandidateSource(source) {
 	if (source.includes(PRELOAD_MARKER)) {
 		return source;
@@ -152,6 +196,11 @@ $preload_paths[] = '/wp/v2/taxonomies?context=view';
 	if (!source.includes(needle)) {
 		throw new Error('site-editor.php preload call not found');
 	}
+
+  const extraPatch = extraPreloadPatch();
+  if (extraPatch) {
+    patch += `\n${extraPatch}\n`;
+  }
 
   return source.replace(needle, `${patch}\n${needle}`);
 }

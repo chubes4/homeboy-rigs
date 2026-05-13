@@ -146,12 +146,16 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
     warmup.restWaterfall = pageProfiler.summarizeWordPressRestWaterfall({
       readyMs: warmup.readyMs,
       apiFetchAttempts: warmup.restWaterfall?.apiFetchAttempts || [],
+      preloadChecks: warmup.restWaterfall?.preloadChecks || [],
+      restPreloads: warmup.restWaterfall?.preloads || [],
       resourceTimings: [],
       networkRequests: network.filter((request) => request.phase === 'warmup-site-editor'),
     });
     measure.restWaterfall = pageProfiler.summarizeWordPressRestWaterfall({
       readyMs: measure.readyMs,
       apiFetchAttempts: measure.restWaterfall?.apiFetchAttempts || [],
+      preloadChecks: measure.restWaterfall?.preloadChecks || [],
+      restPreloads: measure.restWaterfall?.preloads || [],
       resourceTimings: [],
       networkRequests: network.filter((request) => request.phase === 'measure-site-editor'),
     });
