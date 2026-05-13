@@ -73,10 +73,13 @@ homeboy bench --rig studio-combined --scenario studio-admin-theme-page-browser -
 
 # Site Editor readiness and REST/bootstrap diagnostics.
 homeboy bench --rig studio-combined --scenario studio-site-editor-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
+homeboy bench --rig studio-combined --scenario studio-site-editor-preload-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
 homeboy bench --rig studio-combined --scenario studio-rest-latency-diagnostics --iterations 1 --shared-state /tmp/studio-slow-path-bench
 ```
 
 Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use `studio-wordpress-admin-scale-sweep` when plugin admin screens need page-profiler diagnostics across one prepared site. Use the focused browser scenarios when a matrix page needs a dedicated trace, use `studio-site-editor-diagnostics` when the signal points at Site Editor readiness, and use `studio-rest-latency-diagnostics` when the signal points at per-request REST latency, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+
+`studio-site-editor-preload-diagnostics` injects a focused set of Site Editor REST preloads into a fresh Studio site's `site-editor.php`, loads the Site Editor once, and reports whether watched routes were satisfied from preload/cache or still reached the network. The artifact includes the page profiler's `restWaterfall.preloadDiagnostics` rows so remaining network requests are classified by likely cause, such as `_locale` query mismatches, fetch-all `per_page` rewrites, duplicate/single-use cache consumption, or no matching preload. Set `HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXACT_VISIBLE=1` to add exact visible `_locale=user` route variants alongside the default probe preloads.
 
 `studio-rest-latency-diagnostics` logs into a fresh Studio site, extracts a real REST nonce from the post editor, and fetches a static asset, the front page, representative authenticated REST endpoints, and `admin-ajax.php` several times in one browser session. By default it installs WordPress bootstrap and request profilers so route summaries can compare browser timing, WordPress entry-to-shutdown timing, MU-plugin-to-shutdown timing, and likely outer transport/proxy overhead. Use `studio_rest_latency_iterations`, `studio_rest_latency_routes`, and `studio_rest_latency_profile_wordpress=0` to adjust the matrix or run an uninstrumented control:
 
