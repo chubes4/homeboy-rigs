@@ -319,6 +319,16 @@ export default async function studioSiteEditorPreloadComparisonBench() {
           profilerAvailable: Boolean(requestProfiler),
           pageProfilerPath,
           pageProfilerAvailable: Boolean(pageProfiler),
+          preloadExperiment: {
+            scenario: process.env.HOMEBOY_SITE_EDITOR_SCENARIO || 'default',
+            mode: process.env.HOMEBOY_SITE_EDITOR_PRELOAD_MODE || 'broad',
+            extraPreloadPaths: process.env.HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON
+              ? JSON.parse(process.env.HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON)
+              : [],
+            dynamicPreloads: process.env.HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON
+              ? JSON.parse(process.env.HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON)
+              : [],
+          },
           timings: {
             baseline_site_create_ms: baselineCreate.elapsedMs,
             baseline_site_status_ms: baselineStatusResult.elapsedMs,

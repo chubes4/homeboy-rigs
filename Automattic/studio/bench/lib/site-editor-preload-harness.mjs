@@ -3,6 +3,59 @@ import path from 'node:path';
 
 const PRELOAD_MARKER = 'HOMEBOY_SITE_EDITOR_PRELOAD_CANDIDATE';
 
+function quotePhpString(value) {
+  return `'${String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function preloadExpression(spec) {
+  if (typeof spec === 'string') {
+    return quotePhpString(spec);
+  }
+  if (!spec || typeof spec !== 'object' || typeof spec.path !== 'string') {
+    throw new Error('preload path specs must be strings or objects with a path');
+  }
+  if (!spec.method || String(spec.method).toUpperCase() === 'GET') {
+    return quotePhpString(spec.path);
+  }
+  return `array( ${quotePhpString(spec.path)}, ${quotePhpString(String(spec.method).toUpperCase())} )`;
+}
+
+function preloadLinesFromJsonEnv(name) {
+  const raw = process.env[name];
+  if (!raw) {
+    return [];
+  }
+
+  const specs = JSON.parse(raw);
+  if (!Array.isArray(specs)) {
+    throw new Error(`${name} must be an array`);
+  }
+  return specs.map((spec) => `$preload_paths[] = ${preloadExpression(spec)};`);
+}
+
+function dynamicPreloadLines() {
+  const raw = process.env.HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON;
+  if (!raw) {
+    return [];
+  }
+  const specs = JSON.parse(raw);
+  if (!Array.isArray(specs)) {
+    throw new Error('HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON must be an array');
+  }
+
+  const lines = [];
+  if (specs.includes('navigation-fallback')) {
+    lines.push(`
+$homeboy_navigation_fallback = class_exists( 'WP_Navigation_Fallback' ) ? WP_Navigation_Fallback::get_fallback() : null;
+if ( $homeboy_navigation_fallback instanceof WP_Post ) {
+	$preload_paths[] = '/wp-block-editor/v1/navigation-fallback?_embed=true';
+	$preload_paths[] = '/wp/v2/navigation/' . $homeboy_navigation_fallback->ID . '?context=edit';
+}
+`);
+  }
+  return lines;
+}
+
 export function installSiteEditorPreloadCandidateSource(source) {
 	if (source.includes(PRELOAD_MARKER)) {
 		return source;
@@ -152,6 +205,18 @@ $preload_paths[] = '/wp/v2/taxonomies?context=view';
 	if (!source.includes(needle)) {
 		throw new Error('site-editor.php preload call not found');
 	}
+
+  const extraLines = [
+    ...preloadLinesFromJsonEnv('HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON'),
+    ...dynamicPreloadLines(),
+  ];
+  if (extraLines.length > 0) {
+    patch += `
+// ${PRELOAD_MARKER}_EXTRA: begin
+${extraLines.join('\n')}
+// ${PRELOAD_MARKER}_EXTRA: end
+`;
+  }
 
   return source.replace(needle, `${patch}\n${needle}`);
 }
