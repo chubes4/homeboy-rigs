@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -40,6 +40,9 @@ const {
 const {
   normalizeWordPressAdminScaleSweepManifest,
 } = await import('./lib/wordpress-admin-scale-sweep.mjs');
+const {
+  sanitizeArtifact,
+} = await import('./lib/studio-bench.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -65,6 +68,25 @@ function withEnv(values, callback) {
 }
 
 // --- path resolution -------------------------------------------------------
+
+test('sanitizeArtifact redacts sensitive network artifact values', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-rigs-sanitize-'));
+  const artifactPath = path.join(tempDir, 'network.json');
+  await writeFile(
+    artifactPath,
+    JSON.stringify({ url: 'http://example.test/wp-json/?token=abc123&nonce=secret', autoLoginUrl: 'http://example.test/studio-auto-login?token=login' })
+  );
+
+  try {
+    await sanitizeArtifact({ path: artifactPath });
+    const sanitized = await readFile(artifactPath, 'utf8');
+    assert.match(sanitized, /token=\[redacted\]/);
+    assert.match(sanitized, /nonce=\[redacted\]/);
+    assert.doesNotMatch(sanitized, /abc123|secret|login/);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
 
 test('timingCorrelatorPath sits next to the request profiler by default', () => {
   withEnv({ HOMEBOY_SETTINGS_JSON: undefined }, () => {

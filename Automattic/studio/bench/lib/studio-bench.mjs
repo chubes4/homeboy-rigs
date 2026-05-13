@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -52,6 +52,13 @@ export function redact(text) {
     .replace(/("adminPassword"\s*:\s*")[^"]+(")/g, '$1[redacted]$2')
     .replace(/(autoLoginUrl"?\s*[:=]\s*"?)[^"\s,}]+/gi, '$1[redacted]')
     .replace(/([?&](?:token|password|key|nonce)=)[^&#\s]+/gi, '$1[redacted]');
+}
+
+export async function sanitizeArtifact(artifact) {
+  if (!artifact || typeof artifact.path !== 'string') {
+    return;
+  }
+  await writeFile(artifact.path, redact(await readFile(artifact.path, 'utf8')));
 }
 
 export function safeResult(result) {
