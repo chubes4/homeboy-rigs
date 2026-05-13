@@ -536,24 +536,28 @@ block_editor_rest_api_preload( $preload_paths, $block_editor_context );
   assert.equal(installSiteEditorPreloadCandidateSource(patched), patched);
 });
 
-test('installSiteEditorPreloadCandidateSource supports method-aware extra paths', () => {
-  const source = `<?php
-$preload_paths = array();
-block_editor_rest_api_preload( $preload_paths, $block_editor_context );
-`;
-  const patched = withEnv(
+test('installSiteEditorPreloadCandidateSource injects extra method and dynamic preload controls', () => {
+  withEnv(
     {
       HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON: JSON.stringify([
         '/wp/v2/types/post?context=edit',
         { path: '/wp/v2/settings', method: 'OPTIONS' },
       ]),
-      HOMEBOY_SITE_EDITOR_PRELOAD_NAVIGATION_FALLBACK: '1',
+      HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON: JSON.stringify(['navigation-fallback']),
     },
-    () => installSiteEditorPreloadCandidateSource(source)
+    () => {
+      const source = `<?php
+$preload_paths = array();
+block_editor_rest_api_preload( $preload_paths, $block_editor_context );
+`;
+      const patched = installSiteEditorPreloadCandidateSource(source);
+      assert.match(patched, /'\/wp\/v2\/types\/post\?context=edit'/);
+      assert.match(patched, /array\( '\/wp\/v2\/settings', 'OPTIONS' \)/);
+      assert.match(patched, /WP_Navigation_Fallback::get_fallback\(\)/);
+      assert.match(patched, /'\/wp-block-editor\/v1\/navigation-fallback\?_embed=true'/);
+      assert.match(patched, /'\/wp\/v2\/navigation\/' \.[\s\S]*\?context=edit/);
+    }
   );
-  assert.match(patched, /\$preload_paths\[\] = '\/wp\/v2\/types\/post\?context=view'|\$preload_paths\[\] = '\/wp\/v2\/types\/post\?context=edit'/);
-  assert.match(patched, /array\( '\/wp\/v2\/settings', 'OPTIONS' \)/);
-  assert.match(patched, /WP_Navigation_Fallback::get_fallback\(\)/);
 });
 
 test('installSiteEditorPreloadCandidateSource fails when preload call is missing', () => {

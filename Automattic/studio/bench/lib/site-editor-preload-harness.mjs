@@ -3,48 +3,57 @@ import path from 'node:path';
 
 const PRELOAD_MARKER = 'HOMEBOY_SITE_EDITOR_PRELOAD_CANDIDATE';
 
-function phpString(value) {
-  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+function quotePhpString(value) {
+  return `'${String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
-function extraPreloadDeclaration(entry) {
-  if (typeof entry === 'string') {
-    return `$preload_paths[] = ${phpString(entry)};`;
+function preloadExpression(spec) {
+  if (typeof spec === 'string') {
+    return quotePhpString(spec);
   }
-  if (!entry || typeof entry !== 'object' || typeof entry.path !== 'string') {
-    throw new Error('extra preload entries must be strings or objects with a path string');
+  if (!spec || typeof spec !== 'object' || typeof spec.path !== 'string') {
+    throw new Error('preload path specs must be strings or objects with a path');
   }
-  const method = String(entry.method || 'GET').toUpperCase();
-  if (method === 'GET') {
-    return `$preload_paths[] = ${phpString(entry.path)};`;
+  if (!spec.method || String(spec.method).toUpperCase() === 'GET') {
+    return quotePhpString(spec.path);
   }
-  return `$preload_paths[] = array( ${phpString(entry.path)}, ${phpString(method)} );`;
+  return `array( ${quotePhpString(spec.path)}, ${quotePhpString(String(spec.method).toUpperCase())} )`;
 }
 
-function extraPreloadPatch() {
-  const raw = process.env.HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON;
-  const entries = raw ? JSON.parse(raw) : [];
-  if (!Array.isArray(entries)) {
-    throw new Error('HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON must be an array');
-  }
-  if (entries.length === 0 && process.env.HOMEBOY_SITE_EDITOR_PRELOAD_NAVIGATION_FALLBACK !== '1') {
-    return '';
+function preloadLinesFromJsonEnv(name) {
+  const raw = process.env[name];
+  if (!raw) {
+    return [];
   }
 
-  const lines = [
-    `// ${PRELOAD_MARKER}_EXTRA: begin`,
-    ...entries.map(extraPreloadDeclaration),
-  ];
-  if (process.env.HOMEBOY_SITE_EDITOR_PRELOAD_NAVIGATION_FALLBACK === '1') {
-    lines.push(
-      "$homeboy_navigation_fallback = class_exists( 'WP_Navigation_Fallback' ) ? WP_Navigation_Fallback::get_fallback() : null;",
-      'if ( $homeboy_navigation_fallback instanceof WP_Post ) {',
-      "\t$preload_paths[] = '/wp/v2/navigation/' . $homeboy_navigation_fallback->ID . '?context=edit';",
-      '}'
-    );
+  const specs = JSON.parse(raw);
+  if (!Array.isArray(specs)) {
+    throw new Error(`${name} must be an array`);
   }
-  lines.push(`// ${PRELOAD_MARKER}_EXTRA: end`);
-  return lines.join('\n');
+  return specs.map((spec) => `$preload_paths[] = ${preloadExpression(spec)};`);
+}
+
+function dynamicPreloadLines() {
+  const raw = process.env.HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON;
+  if (!raw) {
+    return [];
+  }
+  const specs = JSON.parse(raw);
+  if (!Array.isArray(specs)) {
+    throw new Error('HOMEBOY_SITE_EDITOR_DYNAMIC_PRELOADS_JSON must be an array');
+  }
+
+  const lines = [];
+  if (specs.includes('navigation-fallback')) {
+    lines.push(`
+$homeboy_navigation_fallback = class_exists( 'WP_Navigation_Fallback' ) ? WP_Navigation_Fallback::get_fallback() : null;
+if ( $homeboy_navigation_fallback instanceof WP_Post ) {
+	$preload_paths[] = '/wp-block-editor/v1/navigation-fallback?_embed=true';
+	$preload_paths[] = '/wp/v2/navigation/' . $homeboy_navigation_fallback->ID . '?context=edit';
+}
+`);
+  }
+  return lines;
 }
 
 export function installSiteEditorPreloadCandidateSource(source) {
@@ -197,9 +206,16 @@ $preload_paths[] = '/wp/v2/taxonomies?context=view';
 		throw new Error('site-editor.php preload call not found');
 	}
 
-  const extraPatch = extraPreloadPatch();
-  if (extraPatch) {
-    patch += `\n${extraPatch}\n`;
+  const extraLines = [
+    ...preloadLinesFromJsonEnv('HOMEBOY_SITE_EDITOR_EXTRA_PRELOAD_PATHS_JSON'),
+    ...dynamicPreloadLines(),
+  ];
+  if (extraLines.length > 0) {
+    patch += `
+// ${PRELOAD_MARKER}_EXTRA: begin
+${extraLines.join('\n')}
+// ${PRELOAD_MARKER}_EXTRA: end
+`;
   }
 
   return source.replace(needle, `${patch}\n${needle}`);

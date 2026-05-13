@@ -51,45 +51,50 @@ $preload_paths[] = array( $navigation_rest_route . '?_locale=user', 'OPTIONS' );
 
 function extraPreloadPatch() {
   const raw = process.env.HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA_PATHS_JSON;
-  const includeNavigationFallback = process.env.HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_NAVIGATION_FALLBACK === '1';
-  if (!raw && !includeNavigationFallback) {
+  const dynamicRaw = process.env.HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_DYNAMIC_PRELOADS_JSON;
+  const lines = [];
+
+  if (raw) {
+    const paths = JSON.parse(raw);
+    if (!Array.isArray(paths)) {
+      throw new Error('HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA_PATHS_JSON must be an array');
+    }
+    lines.push(...paths.map((pathValue) => {
+      if (typeof pathValue === 'string') {
+        return `$preload_paths[] = ${JSON.stringify(pathValue)};`;
+      }
+      if (!pathValue || typeof pathValue !== 'object' || typeof pathValue.path !== 'string') {
+        throw new Error('extra preload paths must be strings or objects with a path');
+      }
+      if (!pathValue.method || String(pathValue.method).toUpperCase() === 'GET') {
+        return `$preload_paths[] = ${JSON.stringify(pathValue.path)};`;
+      }
+      return `$preload_paths[] = array( ${JSON.stringify(pathValue.path)}, ${JSON.stringify(String(pathValue.method).toUpperCase())} );`;
+    }));
+  }
+
+  if (dynamicRaw) {
+    const dynamicSpecs = JSON.parse(dynamicRaw);
+    if (!Array.isArray(dynamicSpecs)) {
+      throw new Error('HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_DYNAMIC_PRELOADS_JSON must be an array');
+    }
+    if (dynamicSpecs.includes('navigation-fallback')) {
+      lines.push(`$homeboy_navigation_fallback = class_exists( 'WP_Navigation_Fallback' ) ? WP_Navigation_Fallback::get_fallback() : null;
+if ( $homeboy_navigation_fallback instanceof WP_Post ) {
+	$preload_paths[] = '/wp-block-editor/v1/navigation-fallback?_embed=true';
+	$preload_paths[] = '/wp/v2/navigation/' . $homeboy_navigation_fallback->ID . '?context=edit';
+}`);
+    }
+  }
+
+  if (lines.length === 0) {
     return '';
   }
-
-  const paths = raw ? JSON.parse(raw) : [];
-  if (!Array.isArray(paths)) {
-    throw new Error('HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA_PATHS_JSON must be an array');
-  }
-
-  const phpString = (value) => `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
-  const declaration = (entry) => {
-    if (typeof entry === 'string') {
-      return `$preload_paths[] = ${phpString(entry)};`;
-    }
-    if (!entry || typeof entry !== 'object' || typeof entry.path !== 'string') {
-      throw new Error('extra preload entries must be strings or objects with a path string');
-    }
-    const method = String(entry.method || 'GET').toUpperCase();
-    return method === 'GET'
-      ? `$preload_paths[] = ${phpString(entry.path)};`
-      : `$preload_paths[] = array( ${phpString(entry.path)}, ${phpString(method)} );`;
-  };
-
-  const lines = [
+  return [
     '// HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA: begin',
-    ...paths.map(declaration),
-  ];
-  if (includeNavigationFallback) {
-    lines.push(
-      "$homeboy_navigation_fallback = class_exists( 'WP_Navigation_Fallback' ) ? WP_Navigation_Fallback::get_fallback() : null;",
-      'if ( $homeboy_navigation_fallback instanceof WP_Post ) {',
-      "\t$preload_paths[] = '/wp/v2/navigation/' . $homeboy_navigation_fallback->ID . '?context=edit';",
-      '}'
-    );
-  }
-  lines.push('// HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA: end');
-
-  return lines.join('\n');
+    ...lines,
+    '// HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA: end',
+  ].join('\n');
 }
 
 const WATCH_TARGETS = [
