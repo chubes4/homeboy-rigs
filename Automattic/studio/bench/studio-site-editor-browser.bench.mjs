@@ -1,6 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import {
   artifactDir as studioArtifactDir,
   createStudioSite,
@@ -12,6 +11,12 @@ import {
   studioSiteStatus,
   variant,
 } from './lib/studio-bench.mjs';
+import {
+  SITE_EDITOR_PAGE_SPEC,
+  loadWordPressPageProfiler,
+  loadWordPressRequestProfiler,
+  profileWordPressPage,
+} from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
 
@@ -36,11 +41,6 @@ async function stopSite(sitePath) {
   return stopStudioSite(sitePath, { timeoutMs: 90000 });
 }
 
-function siteAdminUrl(siteUrl, relativePath = '') {
-  const base = siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`;
-  return new URL(`wp-admin/${relativePath}`, base).toString();
-}
-
 async function sanitizeNetworkArtifact(artifact) {
   if (!artifact || typeof artifact.path !== 'string') {
     return;
@@ -49,49 +49,20 @@ async function sanitizeNetworkArtifact(artifact) {
   await writeFile(artifact.path, redact(raw));
 }
 
-async function waitForSiteEditorReady(page) {
-  const timings = {};
-  const started = performance.now();
-  const elapsed = () => performance.now() - started;
-
-  const response = await page.goto(siteAdminUrl(page.__studioSiteUrl, 'site-editor.php'), {
-    waitUntil: 'commit',
-    timeout: 120000,
-  });
-  timings.commit_ms = elapsed();
-  timings.status = response ? response.status() : 0;
-
-  await page.waitForSelector('iframe[name="editor-canvas"]', {
-    state: 'visible',
-    timeout: 120000,
-  });
-  timings.editor_canvas_iframe_visible_ms = elapsed();
-
-  const frame = page.frame({ name: 'editor-canvas' });
-  if (!frame) {
-    throw new Error('Site Editor canvas frame not found');
+function siteEditorTimingsFromProfile(profile) {
+  const readiness = profile?.readiness || {};
+  if (readiness.commitMs === undefined || readiness.frameSelectorMs === undefined) {
+    throw new Error('Homeboy WordPress page profiler must expose phased readiness. Update homeboy-extensions.');
   }
 
-  await frame.waitForLoadState('domcontentloaded', { timeout: 120000 });
-  timings.editor_canvas_domcontentloaded_ms = elapsed();
-
-  await frame.waitForSelector('[data-block]', { timeout: 60000 });
-  timings.first_data_block_ms = elapsed();
-
-  await frame.waitForFunction(
-    () => {
-      return (
-        document.querySelectorAll('[data-block]').length > 0 &&
-        !document.querySelector('.components-spinner') &&
-        !document.querySelector('.is-loading') &&
-        !document.querySelector('.wp-block-editor__loading')
-      );
-    },
-    { timeout: 60000 }
-  );
-  timings.site_editor_ready_ms = elapsed();
-
-  return timings;
+  return {
+    commit_ms: readiness.commitMs,
+    status: profile.status,
+    editor_canvas_iframe_visible_ms: readiness.selectorMs,
+    editor_canvas_domcontentloaded_ms: readiness.frameLoadStateMs,
+    first_data_block_ms: readiness.frameSelectorMs,
+    site_editor_ready_ms: readiness.readyMs ?? profile.readyMs,
+  };
 }
 
 export default async function studioSiteEditorBrowserBench() {
@@ -107,8 +78,12 @@ export default async function studioSiteEditorBrowserBench() {
   let stop;
   let status;
   let browserResult;
+  let pageProfilerPath = '';
+  let pageProfilerAvailable = false;
   let warmupTimings = {};
   let measureTimings = {};
+  let warmupProfile = {};
+  let measureProfile = {};
   let loginFormSeen = 0;
 
   try {
@@ -118,6 +93,12 @@ export default async function studioSiteEditorBrowserBench() {
     if (!status.siteUrl || !status.autoLoginUrl) {
       throw new Error(`site status missing siteUrl/autoLoginUrl: ${redact(statusResult.stdout).slice(0, 1000)}`);
     }
+
+    const { path: profilerPath } = loadWordPressRequestProfiler();
+    const pageProfilerResult = loadWordPressPageProfiler({ profilerPath });
+    pageProfilerPath = pageProfilerResult.path;
+    const pageProfiler = pageProfilerResult.module;
+    pageProfilerAvailable = Boolean(pageProfiler);
 
     browserResult = await runBrowserBench({
       id: 'studio-site-editor-browser',
@@ -133,14 +114,28 @@ export default async function studioSiteEditorBrowserBench() {
 
         loginFormSeen = await page.locator('#loginform').count();
 
-        warmupTimings = await waitForSiteEditorReady(page);
+        warmupProfile = await profileWordPressPage({
+          page,
+          siteUrl: status.siteUrl,
+          pageProfiler,
+          pageSpec: SITE_EDITOR_PAGE_SPEC,
+          mark,
+        });
+        warmupTimings = siteEditorTimingsFromProfile(warmupProfile);
         await mark('warmup_site_editor_ready');
 
-        await page.goto(siteAdminUrl(status.siteUrl), { waitUntil: 'domcontentloaded', timeout: 120000 });
+        await page.goto(new URL('/wp-admin/', status.siteUrl).toString(), { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.waitForLoadState('networkidle', { timeout: 120000 });
         await mark('browser_admin_networkidle_between_runs');
 
-        measureTimings = await waitForSiteEditorReady(page);
+        measureProfile = await profileWordPressPage({
+          page,
+          siteUrl: status.siteUrl,
+          pageProfiler,
+          pageSpec: SITE_EDITOR_PAGE_SPEC,
+          mark,
+        });
+        measureTimings = siteEditorTimingsFromProfile(measureProfile);
         await mark('measure_site_editor_ready');
       },
     });
@@ -157,6 +152,8 @@ export default async function studioSiteEditorBrowserBench() {
           variant: currentVariant,
           sitePath,
           siteUrl: status.siteUrl,
+          pageProfilerPath,
+          pageProfilerAvailable,
           timings: {
             site_create_ms: create.elapsedMs,
             site_status_ms: statusResult.elapsedMs,
@@ -165,6 +162,10 @@ export default async function studioSiteEditorBrowserBench() {
           siteEditorTimings: {
             warmup: warmupTimings,
             measure: measureTimings,
+          },
+          pageProfiles: {
+            warmup: warmupProfile,
+            measure: measureProfile,
           },
           commands: {
             create: safeResult(create),
@@ -191,6 +192,7 @@ export default async function studioSiteEditorBrowserBench() {
 
     return {
       metrics: {
+        ...browserResult.metrics,
         success_rate: 1,
         elapsed_ms: totalElapsedMs,
         site_create_ms: metric(create.elapsedMs),
@@ -204,7 +206,6 @@ export default async function studioSiteEditorBrowserBench() {
         site_editor_ready_ms: metric(measureTimings.site_editor_ready_ms),
         site_editor_warmup_ready_ms: metric(warmupTimings.site_editor_ready_ms),
         total_elapsed_ms: totalElapsedMs,
-        ...browserResult.metrics,
       },
       artifacts: {
         raw_result: artifactFile,
