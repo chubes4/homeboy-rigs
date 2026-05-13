@@ -15,6 +15,11 @@ export const SITE_EDITOR_PAGE_SPEC = {
     frameName: 'editor-canvas',
     frameState: 'domcontentloaded',
     frameSelector: '[data-block]',
+    frameFunction: () =>
+      document.querySelectorAll('[data-block]').length > 0 &&
+      !document.querySelector('.components-spinner') &&
+      !document.querySelector('.is-loading') &&
+      !document.querySelector('.wp-block-editor__loading'),
     timeout: 120000,
   },
   resources: {
