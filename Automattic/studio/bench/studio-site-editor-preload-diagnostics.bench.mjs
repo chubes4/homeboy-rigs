@@ -49,6 +49,24 @@ $preload_paths[] = array( $navigation_rest_route . '?_locale=user', 'OPTIONS' );
 // HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXACT_VISIBLE: end
 `;
 
+function extraPreloadPatch() {
+  const raw = process.env.HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA_PATHS_JSON;
+  if (!raw) {
+    return '';
+  }
+
+  const paths = JSON.parse(raw);
+  if (!Array.isArray(paths)) {
+    throw new Error('HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA_PATHS_JSON must be an array');
+  }
+
+  return [
+    '// HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA: begin',
+    ...paths.map((pathValue) => `$preload_paths[] = ${JSON.stringify(pathValue)};`),
+    '// HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXTRA: end',
+  ].join('\n');
+}
+
 const WATCH_TARGETS = [
   { label: 'settings OPTIONS', method: 'OPTIONS', pattern: /^\/wp\/v2\/settings(?:\?|$)/ },
   { label: 'pattern categories', method: 'GET', pattern: /^\/wp\/v2\/wp_pattern_category(?:\?|$)/ },
@@ -77,7 +95,12 @@ async function injectPreloadPatch(sitePath) {
   }
 
   const exactVisible = process.env.HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXACT_VISIBLE === '1';
-  const patch = exactVisible ? `${WESTON_PRELOAD_PATCH}\n${EXACT_VISIBLE_PRELOAD_PATCH}` : WESTON_PRELOAD_PATCH;
+  const extraPatch = extraPreloadPatch();
+  const patch = [
+    WESTON_PRELOAD_PATCH,
+    exactVisible ? EXACT_VISIBLE_PRELOAD_PATCH : '',
+    extraPatch,
+  ].filter(Boolean).join('\n');
 
   await writeFile(file, source.replace(needle, `${patch}\n${needle}`));
   return patch;
