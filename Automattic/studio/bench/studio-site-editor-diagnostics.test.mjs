@@ -142,6 +142,9 @@ test('wordpressPageProfilerSpec defaults to Site Editor', () => {
       const spec = wordpressPageProfilerSpec({ pageProfiler: pageProfilerApi });
       assert.equal(spec.id, 'site-editor');
       assert.equal(spec.path, '/wp-admin/site-editor.php');
+      assert.equal(spec.ready.selector, 'iframe[name="editor-canvas"]');
+      assert.equal(spec.ready.frameSelector, '[data-block]');
+      assert.equal(typeof spec.ready.frameFunction, 'function');
     }
   );
 });
