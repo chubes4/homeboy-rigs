@@ -307,6 +307,75 @@
             "file": "/Users/chubes/Developer/wordpress-playground@investigate-preinstalled-sqlite-template/package.json"
           }
         ]
+      },
+      {
+        "path": "${package.root}/bench/studio-cli-seeded-template-comparison.trace.mjs",
+        "check_groups": [],
+        "trace_default_phase_preset": "studio-cli-seeded-template-comparison",
+        "trace_phase_presets": {
+          "studio-cli-seeded-template-comparison": [
+            "start:scenario.start",
+            "baseline_start:measurement.baseline.start",
+            "baseline_create_start:cli.baseline.site_create.start",
+            "baseline_create_ready:cli.baseline.site_create.ready",
+            "baseline_online:probe.baseline.site_status.online",
+            "baseline_http_ready:probe.baseline.http.ready",
+            "baseline_wp_state:measurement.baseline.wordpress_state.ready",
+            "baseline_ready:measurement.baseline.ready",
+            "seed_generated:template.seed.generated_from_baseline",
+            "seed_template:template.seeded.template_installed",
+            "seeded_start:measurement.seeded.start",
+            "seeded_create_start:cli.seeded.site_create.start",
+            "seeded_create_ready:cli.seeded.site_create.ready",
+            "seeded_online:probe.seeded.site_status.online",
+            "seeded_http_ready:probe.seeded.http.ready",
+            "seeded_wp_state:measurement.seeded.wordpress_state.ready",
+            "seeded_ready:measurement.seeded.ready",
+            "blueprint_fixture:blueprint.fixture.written",
+            "blueprint_baseline_start:measurement.blueprint_baseline.start",
+            "blueprint_baseline_ready:measurement.blueprint_baseline.ready",
+            "blueprint_seeded_start:measurement.blueprint_seeded.start",
+            "blueprint_seeded_ready:measurement.blueprint_seeded.ready",
+            "comparison:comparison.ready",
+            "ready:scenario.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.baseline_start_to_baseline_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "studio_site_running",
+            "category": "site_create"
+          },
+          "phase.seeded_start_to_seeded_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "studio_site_running",
+            "category": "site_create"
+          },
+          "phase.baseline_create_start_to_baseline_create_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "studio_site_running",
+            "category": "site_materialization"
+          },
+          "phase.seeded_create_start_to_seeded_create_ready": {
+            "critical": true,
+            "blocking": true,
+            "cacheable": true,
+            "blocks": "studio_site_running",
+            "category": "site_materialization"
+          }
+        },
+        "trace_guardrails": [
+          {
+            "label": "Studio CLI build exists",
+            "file": "${components.studio.path}/apps/cli/dist/cli/main.mjs"
+          }
+        ]
       }
     ]
   },
