@@ -1,7 +1,10 @@
-import { access, copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { access, copyFile, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import {
 	STUDIO_PATH,
 	parseStudioSiteStatus,
@@ -34,6 +37,7 @@ const TEMPLATE_LOCK_DIR = path.join(tmpdir(), 'homeboy-studio-seeded-template.lo
 const { createTraceRecorder } = await import(pathToFileURL(`${HELPER_DIR}/timeline.mjs`).href);
 const { pollHttp } = await import(pathToFileURL(`${HELPER_DIR}/probes.mjs`).href);
 const recorder = createTraceRecorder({ scenarioId: 'studio-cli-seeded-template-comparison' });
+const execFileAsync = promisify(execFile);
 recorder.timestampMs = () => Math.round(performance.now() - recorder.start);
 const runId = `hs-${process.pid}-${Date.now()}-${Math.random()
 	.toString(36)
@@ -50,6 +54,7 @@ const generatedSeedDbPath = path.join(sessionPath, 'generated-seed.ht.sqlite');
 const resultPath = path.join(ARTIFACT_DIR, `${runId}.json`);
 const blueprintPath = path.join(sessionPath, 'blueprint.json');
 const variants = [];
+const diagnosedVariants = new Set();
 let templateWasBundled = false;
 let templateMovedToBackup = false;
 let templateLockHeld = false;
@@ -67,6 +72,195 @@ async function exists(filePath) {
 	} catch {
 		return false;
 	}
+}
+
+function safeArtifactName(value) {
+	return String(value || 'unknown').replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'unknown';
+}
+
+async function writeDiagnosticArtifact(name, content, kind = 'text') {
+	const artifactPath = path.join(ARTIFACT_DIR, name);
+	await mkdir(path.dirname(artifactPath), { recursive: true });
+	await writeFile(artifactPath, content);
+	recorder.addArtifact(name, artifactPath, kind);
+	return artifactPath;
+}
+
+async function readJsonIfExists(filePath) {
+	try {
+		return JSON.parse(await readFile(filePath, 'utf8'));
+	} catch {
+		return null;
+	}
+}
+
+async function captureProcessSnapshot(variant) {
+	try {
+		const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,ppid=,stat=,comm=,args='], {
+			maxBuffer: 1024 * 1024,
+		});
+		const patterns = [/wordpress-server-child\.mjs/, /playground-server-child\.mjs/, /daemon\.sock/, /studio.*site create/];
+		const lines = stdout.split(/\r?\n/).filter((line) => patterns.some((pattern) => pattern.test(line)));
+		const content = lines.length > 0 ? `${lines.join('\n')}\n` : 'No matching Studio process rows found.\n';
+		const artifactPath = await writeDiagnosticArtifact(
+			`${safeArtifactName(variant)}-process-snapshot.txt`,
+			content
+		);
+		await recorder.recordEvent(`diagnostics.${variant}`, 'process_snapshot.captured', {
+			path: artifactPath,
+			match_count: lines.length,
+		});
+	} catch (error) {
+		await recorder.recordEvent(`diagnostics.${variant}`, 'process_snapshot.failed', {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+async function captureDaemonLogs(variant) {
+	const logsDir = path.join(cliEnv().HOME, '.studio/daemon/logs');
+	if (!(await exists(logsDir))) {
+		await recorder.recordEvent(`diagnostics.${variant}`, 'daemon_logs.missing', { path: logsDir });
+		return;
+	}
+
+	try {
+		const logs = [];
+		for (const entry of (await readdir(logsDir, { withFileTypes: true })).filter((item) => item.isFile()).slice(0, 20)) {
+			const filePath = path.join(logsDir, entry.name);
+			const content = redact(await readFile(filePath, 'utf8').catch(() => ''));
+			logs.push({ file: entry.name, tail: content.slice(-4000) });
+		}
+		const artifactPath = await writeDiagnosticArtifact(
+			`${safeArtifactName(variant)}-daemon-log-tails.json`,
+			JSON.stringify({ logs_dir: logsDir, logs }, null, 2),
+			'json'
+		);
+		await recorder.recordEvent(`diagnostics.${variant}`, 'daemon_logs.captured', {
+			path: artifactPath,
+			log_count: logs.length,
+		});
+	} catch (error) {
+		await recorder.recordEvent(`diagnostics.${variant}`, 'daemon_logs.failed', {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+async function captureConfigSnapshot(variant) {
+	const cliConfigFile = path.join(cliConfigPath, 'cli.json');
+	const sharedConfigFile = path.join(sharedConfigPath, 'shared.json');
+	const snapshot = {
+		cli_config_path: cliConfigFile,
+		shared_config_path: sharedConfigFile,
+		cli_config: await readJsonIfExists(cliConfigFile),
+		shared_config: await readJsonIfExists(sharedConfigFile),
+	};
+	const artifactPath = await writeDiagnosticArtifact(
+		`${safeArtifactName(variant)}-config-snapshot.json`,
+		redact(JSON.stringify(snapshot, null, 2)),
+		'json'
+	);
+	await recorder.recordEvent(`diagnostics.${variant}`, 'config_snapshot.captured', { path: artifactPath });
+	return snapshot;
+}
+
+async function capturePortSnapshot(variant, configSnapshot) {
+	const urls = new Set();
+	for (const site of configSnapshot?.cli_config?.sites || []) {
+		if (site?.url) urls.add(site.url);
+		if (site?.siteUrl) urls.add(site.siteUrl);
+	}
+
+	const ports = [...urls].map((url) => {
+		try {
+			const parsed = new URL(url);
+			return Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
+		} catch {
+			return null;
+		}
+	}).filter((port) => Number.isFinite(port));
+
+	const results = [];
+	for (const port of [...new Set(ports)]) {
+		results.push({ port, listening: await canConnectPort(port) });
+	}
+
+	const artifactPath = await writeDiagnosticArtifact(
+		`${safeArtifactName(variant)}-port-snapshot.json`,
+		JSON.stringify({ urls: [...urls], ports: results }, null, 2),
+		'json'
+	);
+	await recorder.recordEvent(`diagnostics.${variant}`, 'port_snapshot.captured', {
+		path: artifactPath,
+		port_count: results.length,
+	});
+}
+
+function canConnectPort(port) {
+	return new Promise((resolve) => {
+		const socket = createConnection({ host: '127.0.0.1', port, timeout: 500 });
+		const done = (listening) => {
+			socket.destroy();
+			resolve(listening);
+		};
+		socket.once('connect', () => done(true));
+		socket.once('timeout', () => done(false));
+		socket.once('error', () => done(false));
+	});
+}
+
+async function captureSiteManifest(variant, sitePath) {
+	const entries = await directoryManifest(sitePath, 3);
+	const artifactPath = await writeDiagnosticArtifact(
+		`${safeArtifactName(variant)}-site-manifest.json`,
+		JSON.stringify({ site_path: sitePath, entries }, null, 2),
+		'json'
+	);
+	await recorder.recordEvent(`diagnostics.${variant}`, 'site_manifest.captured', {
+		path: artifactPath,
+		entry_count: entries.length,
+	});
+}
+
+async function directoryManifest(root, maxDepth, current = root, depth = 0) {
+	try {
+		const rows = [];
+		for (const entry of await readdir(current, { withFileTypes: true })) {
+			const absolute = path.join(current, entry.name);
+			const relative = path.relative(root, absolute);
+			const metadata = await stat(absolute).catch(() => null);
+			rows.push({
+				path: relative,
+				type: entry.isDirectory() ? 'directory' : 'file',
+				bytes: metadata?.isFile() ? metadata.size : undefined,
+			});
+			if (entry.isDirectory() && depth < maxDepth) {
+				rows.push(...(await directoryManifest(root, maxDepth, absolute, depth + 1)));
+			}
+		}
+		return rows;
+	} catch (error) {
+		return [{ path: path.relative(root, current) || '.', type: 'error', error: error.message }];
+	}
+}
+
+async function captureVariantFailureDiagnostics(variant, sitePath, details = {}) {
+	if (diagnosedVariants.has(variant)) {
+		return;
+	}
+	diagnosedVariants.add(variant);
+	await recorder.recordEvent(`diagnostics.${variant}`, 'capture.start', {
+		site_path: sitePath,
+		error: details.error ? redact(String(details.error)).split('\n')[0] : null,
+		code: details.result?.code ?? null,
+	});
+	await captureProcessSnapshot(variant);
+	await captureDaemonLogs(variant);
+	const configSnapshot = await captureConfigSnapshot(variant);
+	await capturePortSnapshot(variant, configSnapshot);
+	await captureSiteManifest(variant, sitePath);
+	await recorder.recordEvent(`diagnostics.${variant}`, 'capture.ready');
 }
 
 async function acquireTemplateLock() {
@@ -128,6 +322,10 @@ async function runStudioCli(args, variant, eventName, options = {}) {
 		stderr_tail: redact(result.stderr).slice(-1000),
 	});
 	if (result.code !== 0 && options.allowFailure !== true) {
+		await recorder.recordEvent(`cli.${variant}`, `${eventName}.failed`, {
+			code: result.code,
+			stderr_tail: redact(result.stderr).slice(-1000),
+		});
 		throw new Error(
 			`studio ${args.join(' ')} exited ${result.code}; stderr=${redact(result.stderr).slice(-4000)}`
 		);
@@ -329,131 +527,147 @@ async function writeBlueprintFixture() {
 async function measureVariant(variant, options = {}) {
 	const siteName = options.siteName || `Homeboy ${variant} Seeded Template ${process.pid}`;
 	const sitePath = path.join(sitesDir, variant);
-	await recorder.recordEvent(`measurement.${variant}`, 'start', {
-		studio_path: STUDIO_PATH,
-		wp_version: WP_VERSION,
-		php_version: PHP_VERSION,
-		site_path: sitePath,
-		blueprint: options.blueprint || null,
-	});
+	try {
+		await recorder.recordEvent(`measurement.${variant}`, 'start', {
+			studio_path: STUDIO_PATH,
+			wp_version: WP_VERSION,
+			php_version: PHP_VERSION,
+			site_path: sitePath,
+			blueprint: options.blueprint || null,
+		});
 
-	const createResult = await runStudioCli(
-		[
-			'site',
-			'create',
-			'--name',
-			siteName,
-			'--path',
-			sitePath,
-			'--wp',
-			WP_VERSION,
-			'--php',
-			PHP_VERSION,
-			'--admin-username',
-			ADMIN_USERNAME,
-			'--admin-password',
-			ADMIN_PASSWORD,
-			'--admin-email',
-			ADMIN_EMAIL,
-			...(options.blueprint ? ['--blueprint', options.blueprint] : []),
-			'--skip-browser',
-			'--skip-log-details',
-		],
-		variant,
-		'site_create'
-	);
+		const createResult = await runStudioCli(
+			[
+				'site',
+				'create',
+				'--name',
+				siteName,
+				'--path',
+				sitePath,
+				'--wp',
+				WP_VERSION,
+				'--php',
+				PHP_VERSION,
+				'--admin-username',
+				ADMIN_USERNAME,
+				'--admin-password',
+				ADMIN_PASSWORD,
+				'--admin-email',
+				ADMIN_EMAIL,
+				...(options.blueprint ? ['--blueprint', options.blueprint] : []),
+				'--skip-browser',
+				'--skip-log-details',
+			],
+			variant,
+			'site_create',
+			{ allowFailure: true }
+		);
+		if (createResult.code !== 0) {
+			await recorder.recordEvent(`cli.${variant}`, 'site_create.failed', {
+				code: createResult.code,
+				stderr_tail: redact(createResult.stderr).slice(-1000),
+			});
+			await captureVariantFailureDiagnostics(variant, sitePath, { result: createResult });
+			throw new Error(
+				`studio site create failed for ${variant}; exit=${createResult.code}; stderr=${redact(createResult.stderr).slice(-4000)}`
+			);
+		}
 
-	const status = await waitForOnlineStatus(sitePath, variant);
-	await pollHttp(status.siteUrl, {
-		source: `probe.${variant}`,
-		readyStatus: [200, 399],
-		intervalMs: 250,
-		requestTimeoutMs: HTTP_REQUEST_TIMEOUT_MS,
-		timeoutMs: 60_000,
-		onEvent: recorder.recordEvent.bind(recorder),
-	});
-	await assertEndpoint(variant, status.siteUrl, '/', 'frontend');
-	await assertEndpoint(variant, status.siteUrl, '/wp-json/', 'rest-api');
-	await assertEndpoint(variant, status.siteUrl, '/wp-admin/', 'wp-admin');
+		const status = await waitForOnlineStatus(sitePath, variant);
+		await pollHttp(status.siteUrl, {
+			source: `probe.${variant}`,
+			readyStatus: [200, 399],
+			intervalMs: 250,
+			requestTimeoutMs: HTTP_REQUEST_TIMEOUT_MS,
+			timeoutMs: 60_000,
+			onEvent: recorder.recordEvent.bind(recorder),
+		});
+		await assertEndpoint(variant, status.siteUrl, '/', 'frontend');
+		await assertEndpoint(variant, status.siteUrl, '/wp-json/', 'rest-api');
+		await assertEndpoint(variant, status.siteUrl, '/wp-admin/', 'wp-admin');
 
-	const databasePath = path.join(sitePath, 'wp-content/database/.ht.sqlite');
-	const hasDatabase = await exists(databasePath);
-	recorder.recordAssertion(
-		`${variant}-sqlite-database`,
-		hasDatabase ? 'pass' : 'fail',
-		`${variant} site has a SQLite database file`,
-		{ database_path: databasePath }
-	);
-
-	const wordpressState = await queryWordPressState(sitePath, variant);
-	await recorder.recordEvent(`measurement.${variant}`, 'wordpress_state.ready', wordpressState);
-	recorder.recordAssertion(
-		`${variant}-home-siteurl-match`,
-		wordpressState.home === wordpressState.siteurl ? 'pass' : 'fail',
-		`${variant} home and siteurl match`,
-		wordpressState
-	);
-	recorder.recordAssertion(
-		`${variant}-home-uses-site-url`,
-		wordpressState.home === status.siteUrl.replace(/\/$/, '') ? 'pass' : 'fail',
-		`${variant} home option matches Studio site URL`,
-		{ home: wordpressState.home, siteUrl: status.siteUrl }
-	);
-	recorder.recordAssertion(
-		`${variant}-permalink-structure`,
-		wordpressState.permalink_structure === '/%year%/%monthnum%/%day%/%postname%/' ? 'pass' : 'fail',
-		`${variant} permalink structure matches Studio default`,
-		wordpressState
-	);
-	recorder.recordAssertion(
-		`${variant}-blogname`,
-		wordpressState.blogname === siteName ? 'pass' : 'fail',
-		`${variant} blogname matches requested site name`,
-		wordpressState
-	);
-	if (options.expectedBlogdescription) {
+		const databasePath = path.join(sitePath, 'wp-content/database/.ht.sqlite');
+		const hasDatabase = await exists(databasePath);
 		recorder.recordAssertion(
-			`${variant}-blueprint-blogdescription`,
-			wordpressState.blogdescription === options.expectedBlogdescription ? 'pass' : 'fail',
-			`${variant} Blueprint-applied blogdescription is preserved`,
+			`${variant}-sqlite-database`,
+			hasDatabase ? 'pass' : 'fail',
+			`${variant} site has a SQLite database file`,
+			{ database_path: databasePath }
+		);
+
+		const wordpressState = await queryWordPressState(sitePath, variant);
+		await recorder.recordEvent(`measurement.${variant}`, 'wordpress_state.ready', wordpressState);
+		recorder.recordAssertion(
+			`${variant}-home-siteurl-match`,
+			wordpressState.home === wordpressState.siteurl ? 'pass' : 'fail',
+			`${variant} home and siteurl match`,
 			wordpressState
 		);
+		recorder.recordAssertion(
+			`${variant}-home-uses-site-url`,
+			wordpressState.home === status.siteUrl.replace(/\/$/, '') ? 'pass' : 'fail',
+			`${variant} home option matches Studio site URL`,
+			{ home: wordpressState.home, siteUrl: status.siteUrl }
+		);
+		recorder.recordAssertion(
+			`${variant}-permalink-structure`,
+			wordpressState.permalink_structure === '/%year%/%monthnum%/%day%/%postname%/' ? 'pass' : 'fail',
+			`${variant} permalink structure matches Studio default`,
+			wordpressState
+		);
+		recorder.recordAssertion(
+			`${variant}-blogname`,
+			wordpressState.blogname === siteName ? 'pass' : 'fail',
+			`${variant} blogname matches requested site name`,
+			wordpressState
+		);
+		if (options.expectedBlogdescription) {
+			recorder.recordAssertion(
+				`${variant}-blueprint-blogdescription`,
+				wordpressState.blogdescription === options.expectedBlogdescription ? 'pass' : 'fail',
+				`${variant} Blueprint-applied blogdescription is preserved`,
+				wordpressState
+			);
+		}
+		recorder.recordAssertion(
+			`${variant}-users`,
+			Number(wordpressState.users) >= 1 ? 'pass' : 'fail',
+			`${variant} has at least one WordPress user`,
+			wordpressState
+		);
+		await assertAdminPassword(sitePath, variant);
+
+		const stopResult = await stopStudioSite(sitePath, {
+			allowFailure: true,
+			timeoutMs: 120_000,
+			env: cliEnv(),
+		});
+		await recorder.recordEvent(`cli.${variant}`, 'site_stop.ready', safeResult(stopResult));
+
+		const measurement = {
+			variant,
+			siteName,
+			sitePath,
+			status,
+			databasePath,
+			wordpressState,
+			timings: {
+				site_create_ms: createResult.elapsedMs,
+				site_create_no_start_ms: createResult.elapsedMs,
+				site_start_ms: 0,
+			},
+			commands: {
+				create: safeResult(createResult),
+				stop: safeResult(stopResult),
+			},
+		};
+		variants.push(measurement);
+		await recorder.recordEvent(`measurement.${variant}`, 'ready', measurement.timings);
+		return measurement;
+	} catch (error) {
+		await captureVariantFailureDiagnostics(variant, sitePath, { error }).catch(() => {});
+		throw error;
 	}
-	recorder.recordAssertion(
-		`${variant}-users`,
-		Number(wordpressState.users) >= 1 ? 'pass' : 'fail',
-		`${variant} has at least one WordPress user`,
-		wordpressState
-	);
-	await assertAdminPassword(sitePath, variant);
-
-	const stopResult = await stopStudioSite(sitePath, {
-		allowFailure: true,
-		timeoutMs: 120_000,
-		env: cliEnv(),
-	});
-	await recorder.recordEvent(`cli.${variant}`, 'site_stop.ready', safeResult(stopResult));
-
-	const measurement = {
-		variant,
-		siteName,
-		sitePath,
-		status,
-		databasePath,
-		wordpressState,
-		timings: {
-			site_create_ms: createResult.elapsedMs,
-			site_create_no_start_ms: createResult.elapsedMs,
-			site_start_ms: 0,
-		},
-		commands: {
-			create: safeResult(createResult),
-			stop: safeResult(stopResult),
-		},
-	};
-	variants.push(measurement);
-	await recorder.recordEvent(`measurement.${variant}`, 'ready', measurement.timings);
-	return measurement;
 }
 
 try {
@@ -511,7 +725,7 @@ try {
 		summary: 'Studio CLI baseline and seeded-template create-site comparison completed',
 	});
 } catch (error) {
-	const message = error instanceof Error ? error.stack || error.message : String(error);
+	const message = redact(error instanceof Error ? error.stack || error.message : String(error));
 	recorder.recordAssertion('studio-cli-seeded-template-comparison', 'fail', message.split('\n')[0]);
 	await writeFile(resultPath, JSON.stringify({ variants, failure: message }, null, 2)).catch(() => {});
 	recorder.addArtifact('seeded template comparison result', resultPath, 'json');

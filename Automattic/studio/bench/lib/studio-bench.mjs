@@ -50,6 +50,7 @@ export function expandHome(value) {
 export function redact(text) {
   return String(text || '')
     .replace(/("adminPassword"\s*:\s*")[^"]+(")/g, '$1[redacted]$2')
+    .replace(/(--admin-password\s+)\S+/g, '$1[redacted]')
     .replace(/(autoLoginUrl"?\s*[:=]\s*"?)[^"\s,}]+/gi, '$1[redacted]')
     .replace(/([?&](?:token|password|key|nonce)=)[^&#\s]+/gi, '$1[redacted]');
 }

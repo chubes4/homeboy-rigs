@@ -340,6 +340,18 @@
             "ready:scenario.ready"
           ]
         },
+        "trace_probes": [
+          {
+            "type": "process.snapshot",
+            "pattern": "(wordpress-server-child|playground-server-child)\\.mjs|studio.*site create",
+            "interval_ms": 500
+          },
+          {
+            "type": "port.snapshot",
+            "port_range": "8881-8899",
+            "interval_ms": 500
+          }
+        ],
         "trace_span_metadata": {
           "phase.baseline_start_to_baseline_ready": {
             "critical": true,
