@@ -1,0 +1,86 @@
+{
+  "id": "gutenberg-rtc",
+  "description": "Gutenberg real-time collaboration stress rig. Uses Playwright for small/medium editor correctness scenarios and synthetic Yjs/REST clients for high-cardinality sync endpoint load.",
+  "components": {
+    "gutenberg": {
+      "path": "~/Developer/gutenberg",
+      "branch": "trunk",
+      "extensions": {
+        "nodejs": {
+          "gutenberg_rtc_component_path": "~/Developer/gutenberg"
+        }
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "gutenberg-rtc:${env.HOMEBOY_SETTINGS_GUTENBERG_RTC_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.gutenberg.path}"
+    ]
+  },
+  "bench": {
+    "default_component": "gutenberg",
+    "warmup_iterations": 0
+  },
+  "bench_workloads": {
+    "nodejs": [
+      { "path": "${package.root}/bench/gutenberg-rtc-browser-basic.bench.mjs" },
+      { "path": "${package.root}/bench/gutenberg-rtc-browser-tabs.bench.mjs" },
+      { "path": "${package.root}/bench/gutenberg-rtc-protocol-load.bench.mjs" },
+      { "path": "${package.root}/bench/gutenberg-rtc-conflict-fuzzer.bench.mjs" },
+      { "path": "${package.root}/bench/gutenberg-rtc-settings-matrix.bench.mjs" }
+    ]
+  },
+  "bench_profiles": {
+    "smoke": [
+      "gutenberg-rtc-browser-basic",
+      "gutenberg-rtc-protocol-load"
+    ],
+    "hot": [
+      "gutenberg-rtc-protocol-load",
+      "gutenberg-rtc-conflict-fuzzer"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Gutenberg checkout exists",
+        "file": "${components.gutenberg.path}/package.json",
+        "contains": "\"name\": \"gutenberg\""
+      },
+      {
+        "kind": "check",
+        "label": "Gutenberg RTC e2e fixtures exist",
+        "file": "${components.gutenberg.path}/test/e2e/specs/editor/collaboration/fixtures/collaboration-utils.ts"
+      },
+      {
+        "kind": "check",
+        "label": "Gutenberg HTTP polling provider exists",
+        "file": "${components.gutenberg.path}/packages/sync/src/providers/http-polling/polling-manager.ts"
+      },
+      {
+        "kind": "check",
+        "label": "Gutenberg sync server exists",
+        "file": "${components.gutenberg.path}/lib/compat/wordpress-7.0/class-wp-http-polling-sync-server.php"
+      }
+    ],
+    "up": [
+      {
+        "kind": "check",
+        "label": "Gutenberg checkout exists",
+        "file": "${components.gutenberg.path}/package.json",
+        "contains": "\"name\": \"gutenberg\""
+      },
+      {
+        "kind": "command",
+        "label": "Install Gutenberg npm dependencies when missing",
+        "cwd": "${components.gutenberg.path}",
+        "command": "if [ ! -x node_modules/.bin/wp-env ]; then npm install; fi"
+      }
+    ],
+    "down": []
+  }
+}

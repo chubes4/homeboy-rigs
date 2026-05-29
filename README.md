@@ -172,6 +172,17 @@ WooCommerce site-generation benchmarks are tracked as future work until the Stud
 
 `stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs.
 
+## WordPress/gutenberg
+
+`rigs/gutenberg-rtc/rig.json` is the planned Gutenberg real-time collaboration stress rig. It is structured around small/medium Playwright editor scenarios plus high-cardinality synthetic Yjs/REST load against the real WordPress sync endpoint.
+
+```bash
+homeboy rig install ./WordPress/gutenberg
+homeboy rig up gutenberg-rtc
+homeboy rig check gutenberg-rtc
+homeboy bench --rig gutenberg-rtc --profile smoke --iterations 1 --setting rtc_clients=10
+```
+
 ## chubes4/isolated-block-editor
 
 `rigs/isolated-block-editor/rig.json` runs the checks used while shaving Isolated Block Editor toward modern Gutenberg APIs.
