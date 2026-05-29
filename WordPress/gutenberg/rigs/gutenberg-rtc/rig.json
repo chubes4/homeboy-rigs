@@ -67,7 +67,7 @@
         "file": "${components.gutenberg.path}/lib/compat/wordpress-7.0/class-wp-http-polling-sync-server.php"
       }
     ],
-    "up": [
+    "bench_prepare": [
       {
         "kind": "check",
         "label": "Gutenberg checkout exists",
@@ -81,6 +81,7 @@
         "command": "if [ ! -x node_modules/.bin/wp-env ]; then npm install; fi"
       }
     ],
+    "up": [],
     "down": []
   }
 }

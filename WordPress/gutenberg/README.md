@@ -17,12 +17,16 @@ in the post editor.
 
 ```bash
 homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
-homeboy rig up gutenberg-rtc
 homeboy rig check gutenberg-rtc
 homeboy bench --rig gutenberg-rtc --scenario gutenberg-rtc-browser-basic --iterations 1
 homeboy bench --rig gutenberg-rtc --scenario gutenberg-rtc-protocol-load --iterations 1 --setting rtc_clients=100
 homeboy bench --rig gutenberg-rtc --profile hot --iterations 1 --setting rtc_clients=1000 --force-hot
 ```
+
+`homeboy bench --rig gutenberg-rtc` runs the rig's `bench_prepare` pipeline before
+the timed workload. That pipeline installs Gutenberg npm dependencies when
+`node_modules/.bin/wp-env` is missing, then Homeboy runs the normal rig health
+check before benchmark timing starts.
 
 ## Layers
 

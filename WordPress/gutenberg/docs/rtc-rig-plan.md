@@ -145,10 +145,12 @@ Axes:
 3. Implement `protocol-load` with synthetic Yjs clients that authenticate once,
    create one post, and hit `/wp-sync/v1/updates` directly.
 4. Add artifact capture and deterministic seeds.
-5. Run local smoke: 2 browser users, 10 synthetic clients.
-6. Add hot profiles: 100 synthetic clients and 1000 synthetic clients, intended
+5. Use the rig `bench_prepare` pipeline to bootstrap Gutenberg dependencies
+   before timed workload execution when `wp-env` is missing.
+6. Run local smoke: 2 browser users, 10 synthetic clients.
+7. Add hot profiles: 100 synthetic clients and 1000 synthetic clients, intended
    for `homeboy bench --runner <lab-runner>` or `--force-hot`.
-7. Promote recurring failures into Gutenberg issues/PRs with artifact links.
+8. Promote recurring failures into Gutenberg issues/PRs with artifact links.
 
 ## 4. Guardrails
 

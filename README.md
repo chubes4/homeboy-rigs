@@ -178,7 +178,6 @@ WooCommerce site-generation benchmarks are tracked as future work until the Stud
 
 ```bash
 homeboy rig install ./WordPress/gutenberg
-homeboy rig up gutenberg-rtc
 homeboy rig check gutenberg-rtc
 homeboy bench --rig gutenberg-rtc --profile smoke --iterations 1 --setting rtc_clients=10
 ```
