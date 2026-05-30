@@ -6,6 +6,7 @@ import { requestProfilerPath } from './site-editor-timing-deltas.mjs';
 
 const require = createRequire(import.meta.url);
 const PAGE_PROFILER_FILENAME = 'page-profiler.js';
+const ADMIN_PAGE_SCENARIOS_FILENAME = 'admin-page-scenarios.js';
 
 export const SITE_EDITOR_PAGE_SPEC = {
   id: 'site-editor',
@@ -83,12 +84,33 @@ export function pageProfilerPath(options = {}) {
   return path.join(path.dirname(profiler), PAGE_PROFILER_FILENAME);
 }
 
+export function adminPageScenariosPath(options = {}) {
+  const explicit = options.override || process.env.HOMEBOY_WORDPRESS_ADMIN_PAGE_SCENARIOS_PATH;
+  if (explicit) {
+    return explicit;
+  }
+
+  const profiler = options.pageProfilerPath || pageProfilerPath(options);
+  if (!profiler) {
+    return '';
+  }
+  return path.join(path.dirname(profiler), ADMIN_PAGE_SCENARIOS_FILENAME);
+}
+
 export function loadWordPressPageProfiler(options = {}) {
   const profilerPath = pageProfilerPath(options);
   if (!profilerPath || !existsSync(profilerPath)) {
     return { path: profilerPath, module: null };
   }
   return { path: profilerPath, module: require(profilerPath) };
+}
+
+export function loadWordPressAdminPageScenarios(options = {}) {
+  const scenariosPath = adminPageScenariosPath(options);
+  if (!scenariosPath || !existsSync(scenariosPath)) {
+    return { path: scenariosPath, module: null };
+  }
+  return { path: scenariosPath, module: require(scenariosPath) };
 }
 
 export function loadWordPressRequestProfiler(options = {}) {
@@ -108,6 +130,36 @@ export async function profileWordPressPage({ page, siteUrl, pageProfiler, pageSp
     page,
     baseUrl: siteUrl,
     spec: pageSpec || wordpressPageProfilerSpec(),
+    wordpressProfilerRows,
+    mark,
+  });
+}
+
+export function wordpressAdminPageScenario({ adminPageScenarios, pageSpec } = {}) {
+  if (!adminPageScenarios?.normalizeWordPressAdminPageScenarioInput) {
+    throw new Error('Homeboy WordPress admin page scenarios are unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_ADMIN_PAGE_SCENARIOS_PATH.');
+  }
+
+  return adminPageScenarios.normalizeWordPressAdminPageScenarioInput(pageSpec || wordpressPageProfilerSpec());
+}
+
+export async function profileWordPressAdminPageScenario({
+  page,
+  siteUrl,
+  adminPageScenarios,
+  pageSpec,
+  wordpressProfilerRows = [],
+  mark,
+}) {
+  if (!adminPageScenarios?.profileWordPressAdminPageScenario) {
+    throw new Error('Homeboy WordPress admin page scenario profiler is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_ADMIN_PAGE_SCENARIOS_PATH.');
+  }
+
+  return adminPageScenarios.profileWordPressAdminPageScenario({
+    page,
+    baseUrl: siteUrl,
+    siteUrl,
+    scenario: wordpressAdminPageScenario({ adminPageScenarios, pageSpec }),
     wordpressProfilerRows,
     mark,
   });

@@ -14,6 +14,11 @@ const DEFAULT_RESOURCE_INCLUDE = Object.freeze([
   '/wp-includes/',
 ]);
 const pageProfilerApi = { DEFAULT_RESOURCE_INCLUDE };
+const SITE_EDITOR_PAGE_SPEC_FOR_TEST = {
+  id: 'site-editor',
+  path: '/wp-admin/site-editor.php',
+  ready: { selector: 'iframe[name="editor-canvas"]' },
+};
 
 const {
   annotatePhase,
@@ -34,7 +39,11 @@ const {
 } = await import('./lib/site-editor-preload-harness.mjs');
 const {
   pageProfilerPath,
+  adminPageScenariosPath,
+  loadWordPressAdminPageScenarios,
+  profileWordPressAdminPageScenario,
   profileWordPressPage,
+  wordpressAdminPageScenario,
   wordpressPageProfilerSpec,
 } = await import('./lib/wordpress-page-profiler.mjs');
 const {
@@ -132,6 +141,14 @@ test('pageProfilerPath sits next to the request profiler by default', () => {
   );
 });
 
+test('adminPageScenariosPath sits next to the page profiler by default', () => {
+  const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
+  assert.equal(
+    adminPageScenariosPath({ profilerPath }),
+    '/tmp/he/wordpress/lib/admin-page-scenarios.js'
+  );
+});
+
 test('wordpressPageProfilerSpec defaults to Site Editor', () => {
   withEnv(
     {
@@ -211,6 +228,62 @@ test('loadTimingCorrelator loads a real correlator module from disk', async () =
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
+});
+
+test('loadWordPressAdminPageScenarios loads a real scenario module from disk', async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'admin-page-scenarios-'));
+  try {
+    const file = path.join(tmp, 'admin-page-scenarios.js');
+    await writeFile(
+      file,
+      "module.exports = { normalizeWordPressAdminPageScenarioInput: (spec) => ({ ...spec, normalized: true }), profileWordPressAdminPageScenario: async (input) => ({ id: input.scenario.id, status: 200, readyMs: 42 }) };\n"
+    );
+    const { module: loaded, path: resolvedPath } = loadWordPressAdminPageScenarios({ override: file });
+    assert.equal(resolvedPath, file);
+    assert.equal(typeof loaded.normalizeWordPressAdminPageScenarioInput, 'function');
+    assert.equal(typeof loaded.profileWordPressAdminPageScenario, 'function');
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('wordpressAdminPageScenario normalizes the selected page spec through Homeboy scenarios', () => {
+  const scenario = wordpressAdminPageScenario({
+    adminPageScenarios: {
+      normalizeWordPressAdminPageScenarioInput: (spec) => ({
+        ...spec,
+        resources: { includeResourceSubstrings: ['/wp-json/'] },
+      }),
+    },
+    pageSpec: SITE_EDITOR_PAGE_SPEC_FOR_TEST,
+  });
+
+  assert.equal(scenario.id, 'site-editor');
+  assert.equal(scenario.path, '/wp-admin/site-editor.php');
+  assert.deepEqual(scenario.resources.includeResourceSubstrings, ['/wp-json/']);
+});
+
+test('profileWordPressAdminPageScenario delegates profiling to Homeboy scenario API', async () => {
+  const calls = [];
+  const profile = await profileWordPressAdminPageScenario({
+    page: { goto: async () => ({ status: () => 200 }) },
+    siteUrl: 'http://example.test',
+    adminPageScenarios: {
+      normalizeWordPressAdminPageScenarioInput: (spec) => ({ ...spec, normalized: true }),
+      profileWordPressAdminPageScenario: async (input) => {
+        calls.push(input);
+        return { id: input.scenario.id, status: 200, readyMs: 123 };
+      },
+    },
+    pageSpec: SITE_EDITOR_PAGE_SPEC_FOR_TEST,
+    mark: async () => {},
+  });
+
+  assert.equal(profile.id, 'site-editor');
+  assert.equal(profile.readyMs, 123);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].baseUrl, 'http://example.test');
+  assert.equal(calls[0].scenario.normalized, true);
 });
 
 // --- phase annotation ------------------------------------------------------

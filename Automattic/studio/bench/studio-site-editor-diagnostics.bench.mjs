@@ -31,8 +31,9 @@ import {
 } from './lib/wordpress-bootstrap-timeline.mjs';
 import {
   loadWordPressPageProfiler,
+  loadWordPressAdminPageScenarios,
   loadWordPressRequestProfiler,
-  profileWordPressPage,
+  profileWordPressAdminPageScenario,
   wordpressPageProfilerSpec,
 } from './lib/wordpress-page-profiler.mjs';
 
@@ -229,6 +230,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
   const totalStarted = Date.now();
   const { path: profilerPath, module: profiler } = loadWordPressRequestProfiler();
   const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
+  const { path: adminPageScenariosPath, module: adminPageScenarios } = loadWordPressAdminPageScenarios({ profilerPath, pageProfilerPath });
   const { path: correlatorPath, module: correlator } = loadTimingCorrelator({ profilerPath });
   let create;
   let start;
@@ -326,10 +328,10 @@ export default async function studioSiteEditorDiagnosticsBench() {
 
         loginFormSeen = await page.locator('#loginform').count();
 
-        const runPageProfile = profileExtension?.profileWordPressPage || profileWordPressPage;
+        const runPageProfile = profileExtension?.profileWordPressAdminPageScenario || profileWordPressAdminPageScenario;
 
         phase = 'warmup-page';
-        warmupProfile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
+        warmupProfile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, adminPageScenarios, pageSpec, mark });
         await mark('warmup_wordpress_page_ready');
 
         phase = 'dashboard-between-runs';
@@ -338,7 +340,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
         await mark('browser_admin_networkidle_between_runs');
 
         phase = 'measure-page';
-        measureProfile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, pageSpec, mark });
+        measureProfile = await runPageProfile({ page, siteUrl: status.siteUrl, pageProfiler, adminPageScenarios, pageSpec, mark });
         await mark('measure_wordpress_page_ready');
         phase = 'done';
       },
@@ -388,6 +390,8 @@ export default async function studioSiteEditorDiagnosticsBench() {
           profilerAvailable: Boolean(profiler),
           pageProfilerPath,
           pageProfilerAvailable: Boolean(pageProfiler),
+          adminPageScenariosPath,
+          adminPageScenariosAvailable: Boolean(adminPageScenarios),
           correlatorPath,
           correlatorAvailable: Boolean(correlator),
           bootstrapTimelineArtifactPath,
