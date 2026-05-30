@@ -32,9 +32,10 @@ import {
 } from './lib/wordpress-bootstrap-timeline.mjs';
 import {
   SITE_EDITOR_PAGE_SPEC,
+  loadWordPressAdminPageScenarios,
   loadWordPressPageProfiler,
   loadWordPressRequestProfiler,
-  profileWordPressPage,
+  profileWordPressAdminPageScenario,
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
@@ -50,7 +51,7 @@ function siteAdminUrl(siteUrl, relativePath = '') {
   return new URL(`wp-admin/${relativePath}`, base).toString();
 }
 
-async function runBotPath({ label, artifactDir, sitePath, status, requestProfiler, pageProfiler, candidate }) {
+async function runBotPath({ label, artifactDir, sitePath, status, requestProfiler, pageProfiler, adminPageScenarios, candidate }) {
   if (candidate) {
     await installSiteEditorPreloadCandidate(sitePath);
   }
@@ -110,10 +111,10 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       await mark(`${label}_auto_login_networkidle`);
 
       setPhase('warmup-site-editor');
-      warmup = await profileWordPressPage({
+      warmup = await profileWordPressAdminPageScenario({
         page,
         siteUrl: status.siteUrl,
-        pageProfiler,
+        adminPageScenarios,
         pageSpec: SITE_EDITOR_PAGE_SPEC,
         mark,
       });
@@ -126,10 +127,10 @@ async function runBotPath({ label, artifactDir, sitePath, status, requestProfile
       await mark(`${label}_admin_networkidle_between_runs`);
 
       setPhase('measure-site-editor');
-      measure = await profileWordPressPage({
+      measure = await profileWordPressAdminPageScenario({
         page,
         siteUrl: status.siteUrl,
-        pageProfiler,
+        adminPageScenarios,
         pageSpec: SITE_EDITOR_PAGE_SPEC,
         mark,
       });
@@ -262,6 +263,7 @@ export default async function studioSiteEditorPreloadComparisonBench() {
   const totalStarted = Date.now();
   const { path: profilerPath, module: requestProfiler } = loadWordPressRequestProfiler();
   const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
+  const { path: adminPageScenariosPath, module: adminPageScenarios } = loadWordPressAdminPageScenarios({ profilerPath, pageProfilerPath });
   const baselineSitePath = path.join(artifactDir, 'baseline-site');
   const candidateSitePath = path.join(artifactDir, 'candidate-site');
   let baselineCreate;
@@ -285,6 +287,7 @@ export default async function studioSiteEditorPreloadComparisonBench() {
       status: baselineSite.status,
       requestProfiler,
       pageProfiler,
+      adminPageScenarios,
       candidate: false,
     });
 
@@ -301,6 +304,7 @@ export default async function studioSiteEditorPreloadComparisonBench() {
       status: candidateSite.status,
       requestProfiler,
       pageProfiler,
+      adminPageScenarios,
       candidate: true,
     });
 
@@ -323,6 +327,8 @@ export default async function studioSiteEditorPreloadComparisonBench() {
           profilerAvailable: Boolean(requestProfiler),
           pageProfilerPath,
           pageProfilerAvailable: Boolean(pageProfiler),
+          adminPageScenariosPath,
+          adminPageScenariosAvailable: Boolean(adminPageScenarios),
           preloadExperiment: {
             scenario: process.env.HOMEBOY_SITE_EDITOR_SCENARIO || 'default',
             mode: process.env.HOMEBOY_SITE_EDITOR_PRELOAD_MODE || 'broad',
