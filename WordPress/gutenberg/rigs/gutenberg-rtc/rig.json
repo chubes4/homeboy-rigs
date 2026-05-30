@@ -62,9 +62,10 @@
         "file": "${components.gutenberg.path}/packages/sync/src/providers/http-polling/polling-manager.ts"
       },
       {
-        "kind": "check",
+        "kind": "command",
         "label": "Gutenberg sync server exists",
-        "file": "${components.gutenberg.path}/lib/compat/wordpress-7.0/class-wp-http-polling-sync-server.php"
+        "cwd": "${components.gutenberg.path}",
+        "command": "test -f lib/compat/wordpress-7.1/class-wp-http-polling-sync-server.php || test -f lib/compat/wordpress-7.0/class-wp-http-polling-sync-server.php"
       }
     ],
     "bench_prepare": [
