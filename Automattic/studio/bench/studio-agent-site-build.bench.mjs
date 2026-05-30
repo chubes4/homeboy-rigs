@@ -74,6 +74,7 @@ export {
 } from './lib/site-build-gates.mjs';
 
 const DEFAULT_STUDIO_PORT = 8881;
+const INVOCATION_NAMESPACE = 'studio-agent-site-build';
 const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
 const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
 const MODEL_SETTING = 'studio_agent_model';
@@ -90,40 +91,41 @@ function envPath(key) {
   return typeof process.env[key] === 'string' && process.env[key] ? process.env[key] : '';
 }
 
-function optionalPort(key) {
-  const value = Number(process.env[key] || 0);
-  if (!value) {
-    return null;
+export async function createStudioBenchRuntime(sharedState = SHARED_STATE) {
+  const helperPath = envPath('HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER');
+  if (!helperPath) {
+    const artifactDir = path.join(sharedState, 'studio-agent-site-build-artifacts');
+    return {
+      invocationId: '',
+      artifactDir,
+      siteRoot: path.join(artifactDir, 'sites'),
+      stateDir: '',
+      cliConfigDir: '',
+      appDataDir: '',
+      processManagerHome: '',
+      tmpDir: '',
+      portBase: null,
+      portMax: null,
+      env: {},
+      async prepareDirs() {},
+      assertPort() {},
+    };
   }
-  if (!Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new Error(`${key} must be a TCP port number, got ${process.env[key]}`);
-  }
-  return value;
-}
 
-export function resolveBenchRuntime(sharedState = SHARED_STATE) {
-  const invocationId = envPath('HOMEBOY_INVOCATION_ID');
-  const invocationStateDir = envPath('HOMEBOY_INVOCATION_STATE_DIR');
-  const invocationArtifactDir = envPath('HOMEBOY_INVOCATION_ARTIFACT_DIR');
-  const invocationTmpDir = envPath('HOMEBOY_INVOCATION_TMP_DIR');
-  const portBase = optionalPort('HOMEBOY_INVOCATION_PORT_BASE');
-  const portMax = optionalPort('HOMEBOY_INVOCATION_PORT_MAX');
-  const stateDir = invocationStateDir ? path.join(invocationStateDir, 'studio-agent-site-build') : '';
-  const artifactDir = invocationArtifactDir || path.join(sharedState, 'studio-agent-site-build-artifacts');
-  const tmpDir = invocationTmpDir || (stateDir ? path.join(stateDir, 'tmp') : '');
+  const { resolveHomeboyInvocationRuntime } = await import(helperPath);
+  const invocationRuntime = resolveHomeboyInvocationRuntime({ namespace: INVOCATION_NAMESPACE });
+  const stateDir = invocationRuntime.dirs.state || '';
+  const artifactDir =
+    invocationRuntime.baseDirs.artifact || path.join(sharedState, 'studio-agent-site-build-artifacts');
+  const tmpDir = invocationRuntime.dirs.tmp || (stateDir ? path.join(stateDir, 'tmp') : '');
   const cliConfigDir = stateDir ? path.join(stateDir, 'cli-config') : '';
   const appDataDir = stateDir ? path.join(stateDir, 'appdata') : '';
   const processManagerHome = stateDir ? path.join(stateDir, 'daemon') : '';
-
-  if ((portBase === null) !== (portMax === null)) {
-    throw new Error('HOMEBOY_INVOCATION_PORT_BASE and HOMEBOY_INVOCATION_PORT_MAX must be set together.');
-  }
-  if (portBase !== null && portMax !== null && portMax < portBase) {
-    throw new Error(`HOMEBOY invocation port range is invalid: ${portBase}-${portMax}.`);
-  }
+  const portBase = invocationRuntime.portRange?.base ?? null;
+  const portMax = invocationRuntime.portRange?.max ?? null;
 
   return {
-    invocationId,
+    invocationId: invocationRuntime.invocationId || '',
     artifactDir,
     siteRoot: stateDir ? path.join(stateDir, 'sites') : path.join(artifactDir, 'sites'),
     stateDir,
@@ -133,21 +135,23 @@ export function resolveBenchRuntime(sharedState = SHARED_STATE) {
     tmpDir,
     portBase,
     portMax,
-    env: stateDir
-      ? {
+    env: invocationRuntime.isolated
+      ? invocationRuntime.childEnv({
           E2E: '1',
           E2E_CLI_CONFIG_PATH: cliConfigDir,
           E2E_APP_DATA_PATH: appDataDir,
           STUDIO_PROCESS_MANAGER_HOME: processManagerHome,
           ...(tmpDir ? { TMPDIR: tmpDir } : {}),
-        }
+        })
       : {},
+    prepareDirs: () => invocationRuntime.prepareDirs(),
+    assertPort: invocationRuntime.assertPort,
   };
 }
 
-function cliEnv(extra = {}) {
+async function cliEnv(extra = {}) {
   const staticSiteImporterPath = expandHome(setting('studio_static_site_importer_plugin_path') || '');
-  const runtime = resolveBenchRuntime();
+  const runtime = await createStudioBenchRuntime();
   return {
     ...process.env,
     ...(staticSiteImporterPath
@@ -163,6 +167,7 @@ async function prepareStudioRuntime(runtime) {
     return;
   }
 
+  await runtime.prepareDirs();
   await mkdir(runtime.cliConfigDir, { recursive: true });
   await mkdir(runtime.appDataDir, { recursive: true });
   await mkdir(runtime.processManagerHome, { recursive: true });
@@ -190,11 +195,7 @@ async function prepareStudioRuntime(runtime) {
   await writeFile(configPath, JSON.stringify({ version: 1, sites: reservedSites, snapshots: [] }, null, 2) + '\n');
 }
 
-function assertInvocationPort(status, runtime) {
-  if (runtime.portBase === null || runtime.portMax === null) {
-    return;
-  }
-
+function statusPort(status) {
   const siteUrl = String(status?.siteUrl || status?.url || '');
   let urlPort = 0;
   try {
@@ -202,20 +203,15 @@ function assertInvocationPort(status, runtime) {
   } catch {
     urlPort = 0;
   }
-  const port = Number(status?.port || urlPort || 0);
-  if (!Number.isInteger(port) || port < runtime.portBase || port > runtime.portMax) {
-    throw new Error(
-      `Homeboy invocation "${runtime.invocationId || 'unknown'}" expected Studio to use a port in ${runtime.portBase}-${runtime.portMax}, but site status reported ${port || 'none'}. Isolated ports cannot be guaranteed.`
-    );
-  }
+  return Number(status?.port || urlPort || 0);
 }
 
 async function runCli(args, options = {}) {
-  return sharedRunCli(args, { ...options, env: cliEnv(options.env) });
+  return sharedRunCli(args, { ...options, env: await cliEnv(options.env) });
 }
 
 async function runEval(prompt, vars) {
-  return sharedRunEval(prompt, vars, { env: cliEnv() });
+  return sharedRunEval(prompt, vars, { env: await cliEnv() });
 }
 
 function promptVariant() {
@@ -663,7 +659,7 @@ function optionalArtifactPath(name, value) {
 
 
 export default async function studioAgentSiteBuildBench() {
-  const runtime = resolveBenchRuntime();
+  const runtime = await createStudioBenchRuntime();
   const currentVariant = variant();
   const runId = `${currentVariant}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const artifactDir = runtime.artifactDir;
@@ -692,7 +688,7 @@ export default async function studioAgentSiteBuildBench() {
   const quality = await probeQuality(sitePath, { runCli });
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const status = await siteStatus(sitePath);
-  assertInvocationPort(status, runtime);
+  runtime.assertPort(statusPort(status));
   const importReport = await collectLatestImportReport(sitePath);
   const importerTimings = importerTimingMetrics(importReport);
   await mkdir(artifactDir, { recursive: true });
