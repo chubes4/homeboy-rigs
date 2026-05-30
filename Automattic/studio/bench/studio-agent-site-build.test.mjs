@@ -9,12 +9,12 @@ process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 const {
   agentSuccessGate,
   availablePromptVariants,
+  createStudioBenchRuntime,
   hiddenEditorContentDiagnostics,
   importerBlockQualityFailureDetails,
   importerBlockQualityMetrics,
   importerTimingMetrics,
   promptVariantCatalog,
-  resolveBenchRuntime,
   restoreMissingSourceStaticFiles,
   semanticTargetMetric,
   siteBuildPrompt,
@@ -27,7 +27,42 @@ const {
 
 const { collectLatestGeneratedTheme } = await import('./lib/design-gates.mjs');
 
-function withEnv(values, callback) {
+const invocationRuntimeHelper = `data:text/javascript,${encodeURIComponent(`
+export function resolveHomeboyInvocationRuntime({ namespace }) {
+  const state = process.env.HOMEBOY_INVOCATION_STATE_DIR ? process.env.HOMEBOY_INVOCATION_STATE_DIR + '/' + namespace : null;
+  const artifact = process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR ? process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR + '/' + namespace : null;
+  const tmp = process.env.HOMEBOY_INVOCATION_TMP_DIR ? process.env.HOMEBOY_INVOCATION_TMP_DIR + '/' + namespace : null;
+  return {
+    isolated: true,
+    namespace,
+    invocationId: process.env.HOMEBOY_INVOCATION_ID || null,
+    baseDirs: {
+      state: process.env.HOMEBOY_INVOCATION_STATE_DIR || null,
+      artifact: process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR || null,
+      tmp: process.env.HOMEBOY_INVOCATION_TMP_DIR || null,
+    },
+    dirs: { state, artifact, tmp },
+    portRange: {
+      base: Number(process.env.HOMEBOY_INVOCATION_PORT_BASE),
+      max: Number(process.env.HOMEBOY_INVOCATION_PORT_MAX),
+    },
+    childEnv(extra = {}) {
+      return {
+        HOMEBOY_INVOCATION_NAMESPACE: namespace,
+        HOMEBOY_INVOCATION_STATE_DIR: state,
+        HOMEBOY_INVOCATION_ARTIFACT_DIR: artifact,
+        HOMEBOY_INVOCATION_TMP_DIR: tmp,
+        TMPDIR: tmp,
+        ...extra,
+      };
+    },
+    async prepareDirs() {},
+    assertPort(port) { return Number(port); },
+  };
+}
+`)}`;
+
+async function withEnv(values, callback) {
   const previous = {};
   for (const key of Object.keys(values)) {
     previous[key] = process.env[key];
@@ -39,7 +74,7 @@ function withEnv(values, callback) {
   }
 
   try {
-    return callback();
+    return await callback();
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
@@ -94,18 +129,13 @@ test('site-build prompt file override bypasses discovered variants', async () =>
   }
 });
 
-test('bench runtime falls back to shared-state artifacts without Homeboy invocation env', () => {
-  withEnv(
+test('bench runtime falls back to shared-state artifacts without invocation helper', async () => {
+  await withEnv(
     {
-      HOMEBOY_INVOCATION_ID: undefined,
-      HOMEBOY_INVOCATION_STATE_DIR: undefined,
-      HOMEBOY_INVOCATION_ARTIFACT_DIR: undefined,
-      HOMEBOY_INVOCATION_TMP_DIR: undefined,
-      HOMEBOY_INVOCATION_PORT_BASE: undefined,
-      HOMEBOY_INVOCATION_PORT_MAX: undefined,
+      HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER: undefined,
     },
-    () => {
-      const runtime = resolveBenchRuntime('/tmp/shared-state');
+    async () => {
+      const runtime = await createStudioBenchRuntime('/tmp/shared-state');
 
       assert.equal(runtime.invocationId, '');
       assert.equal(runtime.artifactDir, '/tmp/shared-state/studio-agent-site-build-artifacts');
@@ -117,9 +147,10 @@ test('bench runtime falls back to shared-state artifacts without Homeboy invocat
   );
 });
 
-test('bench runtime consumes Homeboy invocation env for isolated paths and ports', () => {
-  withEnv(
+test('bench runtime composes the Homeboy invocation helper output for Studio', async () => {
+  await withEnv(
     {
+      HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER: invocationRuntimeHelper,
       HOMEBOY_INVOCATION_ID: 'inv-test',
       HOMEBOY_INVOCATION_STATE_DIR: '/tmp/inv/state',
       HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv/artifacts',
@@ -127,8 +158,8 @@ test('bench runtime consumes Homeboy invocation env for isolated paths and ports
       HOMEBOY_INVOCATION_PORT_BASE: '20000',
       HOMEBOY_INVOCATION_PORT_MAX: '20009',
     },
-    () => {
-      const runtime = resolveBenchRuntime('/tmp/shared-state');
+    async () => {
+      const runtime = await createStudioBenchRuntime('/tmp/shared-state');
 
       assert.equal(runtime.invocationId, 'inv-test');
       assert.equal(runtime.artifactDir, '/tmp/inv/artifacts');
@@ -136,15 +167,19 @@ test('bench runtime consumes Homeboy invocation env for isolated paths and ports
       assert.equal(runtime.cliConfigDir, '/tmp/inv/state/studio-agent-site-build/cli-config');
       assert.equal(runtime.appDataDir, '/tmp/inv/state/studio-agent-site-build/appdata');
       assert.equal(runtime.processManagerHome, '/tmp/inv/state/studio-agent-site-build/daemon');
-      assert.equal(runtime.tmpDir, '/tmp/inv/tmp');
+      assert.equal(runtime.tmpDir, '/tmp/inv/tmp/studio-agent-site-build');
       assert.equal(runtime.portBase, 20000);
       assert.equal(runtime.portMax, 20009);
       assert.deepEqual(runtime.env, {
+        HOMEBOY_INVOCATION_NAMESPACE: 'studio-agent-site-build',
+        HOMEBOY_INVOCATION_STATE_DIR: '/tmp/inv/state/studio-agent-site-build',
+        HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv/artifacts/studio-agent-site-build',
+        HOMEBOY_INVOCATION_TMP_DIR: '/tmp/inv/tmp/studio-agent-site-build',
+        TMPDIR: '/tmp/inv/tmp/studio-agent-site-build',
         E2E: '1',
         E2E_CLI_CONFIG_PATH: '/tmp/inv/state/studio-agent-site-build/cli-config',
         E2E_APP_DATA_PATH: '/tmp/inv/state/studio-agent-site-build/appdata',
         STUDIO_PROCESS_MANAGER_HOME: '/tmp/inv/state/studio-agent-site-build/daemon',
-        TMPDIR: '/tmp/inv/tmp',
       });
     }
   );
