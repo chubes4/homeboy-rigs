@@ -1,3 +1,4 @@
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 export const GUTENBERG_PATH = process.env.HOMEBOY_COMPONENT_PATH;
