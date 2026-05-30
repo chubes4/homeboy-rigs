@@ -1,5 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import {
   artifactDir as studioArtifactDir,
   createStudioSite,
@@ -7,7 +6,6 @@ import {
   parseStudioSiteStatus,
   redact,
   safeResult,
-  sanitizeArtifact,
   stopStudioSite,
   studioSiteStatus,
   variant,
@@ -20,12 +18,22 @@ import {
 } from './lib/wordpress-page-profiler.mjs';
 
 const BROWSER_HELPER = process.env.HOMEBOY_NODEJS_BROWSER_BENCH_HELPER;
+const ARTIFACT_CONTEXT_HELPER = process.env.HOMEBOY_NODEJS_BENCH_ARTIFACT_CONTEXT;
+const REDACTION_HELPER = process.env.HOMEBOY_NODEJS_BENCH_REDACTION;
 
 if (!BROWSER_HELPER) {
   throw new Error('HOMEBOY_NODEJS_BROWSER_BENCH_HELPER is required');
 }
+if (!ARTIFACT_CONTEXT_HELPER) {
+  throw new Error('HOMEBOY_NODEJS_BENCH_ARTIFACT_CONTEXT is required');
+}
+if (!REDACTION_HELPER) {
+  throw new Error('HOMEBOY_NODEJS_BENCH_REDACTION is required');
+}
 
-const { runBrowserBench } = await import(BROWSER_HELPER);
+const { runBrowserPageScenario } = await import(BROWSER_HELPER);
+const { createBenchArtifactContext } = await import(ARTIFACT_CONTEXT_HELPER);
+const { sanitizeArtifactFile } = await import(REDACTION_HELPER);
 
 async function createSite(sitePath) {
   return createStudioSite(sitePath, {
@@ -60,9 +68,12 @@ function siteEditorTimingsFromProfile(profile) {
 
 export default async function studioSiteEditorBrowserBench() {
   const currentVariant = variant();
-  const runId = `${currentVariant}-site-editor-browser-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const artifactDir = path.join(studioArtifactDir('studio-site-editor-browser-artifacts'), runId);
-  const sitePath = path.join(artifactDir, 'site');
+  const artifactContext = createBenchArtifactContext({
+    id: `${currentVariant}-site-editor-browser`,
+    artifactsDir: studioArtifactDir('studio-site-editor-browser-artifacts'),
+  });
+  const artifactDir = artifactContext.artifactDir;
+  const sitePath = artifactContext.artifactPath('site', { prefix: '', extension: '' });
   await mkdir(artifactDir, { recursive: true });
 
   const totalStarted = Date.now();
@@ -93,7 +104,7 @@ export default async function studioSiteEditorBrowserBench() {
     const pageProfiler = pageProfilerResult.module;
     pageProfilerAvailable = Boolean(pageProfiler);
 
-    browserResult = await runBrowserBench({
+    browserResult = await runBrowserPageScenario({
       id: 'studio-site-editor-browser',
       artifactsDir: artifactDir,
       trace: true,
@@ -131,47 +142,49 @@ export default async function studioSiteEditorBrowserBench() {
         measureTimings = siteEditorTimingsFromProfile(measureProfile);
         await mark('measure_site_editor_ready');
       },
+      postSanitizeAssertions: [
+        { type: 'artifact', key: 'trace', kind: 'playwright-trace' },
+        { type: 'artifact', key: 'screenshot', kind: 'screenshot' },
+      ],
+      sanitizeArtifacts: async ({ artifacts }) => {
+        if (artifacts.network?.path) {
+          await sanitizeArtifactFile(artifacts.network.path, { profile: 'web' });
+        }
+        return artifacts;
+      },
     });
 
-    await sanitizeArtifact(browserResult.artifacts?.network);
     stop = await stopSite(sitePath);
 
     const totalElapsedMs = Date.now() - totalStarted;
-    const artifactFile = path.join(artifactDir, `result-${runId}.json`);
-    await writeFile(
-      artifactFile,
-      JSON.stringify(
-        {
-          variant: currentVariant,
-          sitePath,
-          siteUrl: status.siteUrl,
-          pageProfilerPath,
-          pageProfilerAvailable,
-          timings: {
-            site_create_ms: create.elapsedMs,
-            site_status_ms: statusResult.elapsedMs,
-            total_elapsed_ms: totalElapsedMs,
-          },
-          siteEditorTimings: {
-            warmup: warmupTimings,
-            measure: measureTimings,
-          },
-          pageProfiles: {
-            warmup: warmupProfile,
-            measure: measureProfile,
-          },
-          commands: {
-            create: safeResult(create),
-            status: safeResult(statusResult),
-            stop: safeResult(stop),
-          },
-          browserMetrics: browserResult.metrics,
-          browserArtifacts: browserResult.artifacts,
-        },
-        null,
-        2
-      )
-    );
+    const rawResultArtifact = await artifactContext.writeJson('raw-result', {
+      variant: currentVariant,
+      sitePath,
+      siteUrl: status.siteUrl,
+      pageProfilerPath,
+      pageProfilerAvailable,
+      timings: {
+        site_create_ms: create.elapsedMs,
+        site_status_ms: statusResult.elapsedMs,
+        total_elapsed_ms: totalElapsedMs,
+      },
+      siteEditorTimings: {
+        warmup: warmupTimings,
+        measure: measureTimings,
+      },
+      pageProfiles: {
+        warmup: warmupProfile,
+        measure: measureProfile,
+      },
+      commands: {
+        create: safeResult(create),
+        status: safeResult(statusResult),
+        stop: safeResult(stop),
+      },
+      browserMetrics: browserResult.metrics,
+      browserArtifacts: browserResult.artifacts,
+    }, { kind: 'browser-page-scenario-result', label: 'Studio Site Editor browser raw result' });
+    const artifactFile = rawResultArtifact.path;
 
     if (measureTimings.status < 200 || measureTimings.status >= 400) {
       throw new Error(`Site Editor returned HTTP status ${measureTimings.status}; raw_result=${artifactFile}`);
@@ -201,7 +214,7 @@ export default async function studioSiteEditorBrowserBench() {
         total_elapsed_ms: totalElapsedMs,
       },
       artifacts: {
-        raw_result: artifactFile,
+        raw_result: rawResultArtifact,
         site_path: sitePath,
         ...browserResult.artifacts,
       },
