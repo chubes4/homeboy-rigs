@@ -1,54 +1,38 @@
 import { readFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+
+const WORKLOAD_UTILS = process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS;
+
+if (!WORKLOAD_UTILS) {
+  throw new Error('HOMEBOY_NODEJS_WORKLOAD_UTILS is required');
+}
+
+const {
+  artifactDir: sharedArtifactDir,
+  expandHome,
+  metric,
+  redactText,
+  runCommand,
+  setting,
+} = await import(WORKLOAD_UTILS);
 
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
 
 export const STUDIO_PATH = process.env.HOMEBOY_COMPONENT_PATH;
-export const SHARED_STATE = process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir();
+export const SHARED_STATE = path.dirname(sharedArtifactDir('__studio_bench_shared_state__'));
 
 if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
 }
 
-export function setting(key) {
-  try {
-    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
-    if (settings && typeof settings[key] === 'string') {
-      return settings[key];
-    }
-  } catch {
-    // Ignore malformed settings and fall back to direct env/debug defaults.
-  }
-
-  return process.env[`HOMEBOY_SETTINGS_${key.toUpperCase()}`] || '';
-}
+export { expandHome, metric, setting };
 
 export function variant() {
   return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
 }
 
-export function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
-}
-
-export function expandHome(value) {
-  if (!value) {
-    return value;
-  }
-  if (value === '~') {
-    return os.homedir();
-  }
-  if (value.startsWith('~/')) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
-}
-
 export function redact(text) {
-  return String(text || '')
+  return redactText(String(text || ''), { replacement: '[redacted]' })
     .replace(/("adminPassword"\s*:\s*")[^"]+(")/g, '$1[redacted]$2')
     .replace(/(autoLoginUrl"?\s*[:=]\s*"?)[^"\s,}]+/gi, '$1[redacted]')
     .replace(/([?&](?:token|password|key|nonce)=)[^&#\s]+/gi, '$1[redacted]');
@@ -67,62 +51,15 @@ export function safeResult(result) {
 }
 
 export function artifactDir(name, sharedState = SHARED_STATE) {
-  return path.join(sharedState, name);
+  return sharedArtifactDir(name, { sharedState });
 }
 
 export function run(args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const started = Date.now();
-    let settled = false;
-    let stdout = '';
-    let stderr = '';
-    const child = spawn(process.execPath, args, {
-      cwd: options.cwd || STUDIO_PATH,
-      env: { ...process.env, ...(options.env || {}) },
-    });
-
-    const timer = options.timeoutMs
-      ? setTimeout(() => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-          child.kill('SIGKILL');
-          reject(
-            new Error(
-              `${args.join(' ')} timed out after ${options.timeoutMs}ms; stdout=${stdout.slice(-1000)}; stderr=${stderr.slice(-1000)}`
-            )
-          );
-        }, options.timeoutMs)
-      : undefined;
-
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', (error) => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      reject(error);
-    });
-    child.on('close', (code) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      if (timer) {
-        clearTimeout(timer);
-      }
-      const elapsedMs = Date.now() - started;
-      if (code !== 0 && options.allowFailure !== true) {
-        reject(new Error(`${args.join(' ')} exited ${code}; stderr=${stderr.slice(0, 1500)}`));
-        return;
-      }
-      resolve({ code, stdout, stderr, elapsedMs });
-    });
+  return runCommand(process.execPath, args, {
+    ...options,
+    cwd: options.cwd || STUDIO_PATH,
+    redact: false,
+    redaction: { replacement: '[redacted]', ...(options.redaction || {}) },
   });
 }
 
