@@ -209,6 +209,7 @@ function semanticFingerprintExtractor(groups) {
       role: roleOf(element),
       text: normalizeText(element.textContent),
       href: element.getAttribute('href') || '',
+      descendant_href: clickable.find((item) => item.getAttribute('href'))?.getAttribute('href') || '',
       own_classes: classTokens(element),
       child_classes: childClassTokens(element),
       contains_logo: containsLogo(element),
@@ -367,6 +368,25 @@ function semanticAllowsNavigationClassRoleChange(sourceOwner, frontendOwner) {
   );
 }
 
+function semanticAllowsLinkPreservingWrapper(sourceOwner, frontendOwner) {
+  if (semanticRole(sourceOwner) !== 'link' || semanticRole(frontendOwner) === 'link') {
+    return false;
+  }
+
+  if (Number(frontendOwner.clickable_descendant_count || 0) < 1) {
+    return false;
+  }
+
+  const sourceHref = String(sourceOwner.href || '');
+  const frontendHref = String(frontendOwner.href || frontendOwner.descendant_href || '');
+  if (sourceHref && sourceHref !== frontendHref) {
+    return false;
+  }
+
+  const frontendTokens = new Set(semanticTextTokens(frontendOwner.text));
+  return semanticTextTokens(sourceOwner.text).every((token) => frontendTokens.has(token));
+}
+
 function semanticMismatch(type, reason, source, frontend, extra = {}) {
   return {
     type,
@@ -380,7 +400,7 @@ function semanticMismatch(type, reason, source, frontend, extra = {}) {
   };
 }
 
-function compareSemanticFingerprints(source, frontend) {
+export function compareSemanticFingerprints(source, frontend) {
   const mismatches = [];
   const optionalSelectorAbsences = [];
   const counts = {
@@ -431,7 +451,7 @@ function compareSemanticFingerprints(source, frontend) {
     const sourceClickable = Number(sourceOwner.clickable_descendant_count || 0);
     const frontendClickable = Number(frontendOwner.clickable_descendant_count || 0);
 
-    if (sourceRole === 'link' && frontendRole !== 'link') {
+    if (sourceRole === 'link' && frontendRole !== 'link' && !semanticAllowsLinkPreservingWrapper(sourceOwner, frontendOwner)) {
       counts.role_mismatch_count++;
       counts.class_owner_changed_count++;
       if (frontendClickable > sourceClickable) {
@@ -448,6 +468,7 @@ function compareSemanticFingerprints(source, frontend) {
     if (
       roleChanged &&
       !semanticAllowsNavigationClassRoleChange(sourceOwner, frontendOwner) &&
+      !semanticAllowsLinkPreservingWrapper(sourceOwner, frontendOwner) &&
       (sourceInteractive || frontendInteractive || sourceOwner.concept || frontendOwner.concept)
     ) {
       counts.role_mismatch_count++;

@@ -9,6 +9,7 @@ process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 const {
   agentSuccessGate,
   availablePromptVariants,
+  compareSemanticFingerprints,
   createStudioBenchRuntime,
   hiddenEditorContentDiagnostics,
   importerBlockQualityFailureDetails,
@@ -310,6 +311,74 @@ test('zero semantic-fidelity mismatches keep successful agent runs green', () =>
   assert.equal(gate.metrics.agent_error_rate, 0);
   assert.equal(gate.semanticMismatchCount, 0);
   assert.deepEqual(gate.semanticFailureDetails, []);
+});
+
+test('semantic fidelity treats core/button wrappers as link-preserving', () => {
+  const comparison = compareSemanticFingerprints(
+    {
+      class_owners: [
+        {
+          role: 'link',
+          tag: 'a',
+          href: '#cta',
+          text: 'Start generating faster',
+          own_classes: ['button'],
+          clickable_descendant_count: 1,
+        },
+      ],
+    },
+    {
+      class_owners: [
+        {
+          role: 'group',
+          tag: 'div',
+          href: '',
+          descendant_href: '#cta',
+          text: 'Start generating faster',
+          own_classes: ['button'],
+          child_classes: ['wp-block-button__link', 'wp-element-button'],
+          clickable_descendant_count: 1,
+        },
+      ],
+    }
+  );
+
+  assert.equal(comparison.mismatch_count, 0);
+  assert.equal(comparison.role_mismatch_count, 0);
+  assert.equal(comparison.class_owner_changed_count, 0);
+});
+
+test('semantic fidelity still reports wrappers that lose link hrefs', () => {
+  const comparison = compareSemanticFingerprints(
+    {
+      class_owners: [
+        {
+          role: 'link',
+          tag: 'a',
+          href: '#cta',
+          text: 'Start generating faster',
+          own_classes: ['button'],
+          clickable_descendant_count: 1,
+        },
+      ],
+    },
+    {
+      class_owners: [
+        {
+          role: 'group',
+          tag: 'div',
+          href: '',
+          descendant_href: '',
+          text: 'Start generating faster',
+          own_classes: ['button'],
+          clickable_descendant_count: 1,
+        },
+      ],
+    }
+  );
+
+  assert.equal(comparison.mismatch_count, 1);
+  assert.equal(comparison.mismatches[0].reason, 'classed_link_became_non_link');
 });
 
 test('importer block-quality counters hard-fail the agent success gate', () => {

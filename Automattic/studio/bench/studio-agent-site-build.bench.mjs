@@ -35,7 +35,7 @@ import {
   compareSemanticFidelity as compareSemanticFidelityImpl,
   semanticTargetMetric,
 } from './lib/semantic-fidelity.mjs';
-export { semanticMismatchFailureDetails, semanticTargetMetric } from './lib/semantic-fidelity.mjs';
+export { compareSemanticFingerprints, semanticMismatchFailureDetails, semanticTargetMetric } from './lib/semantic-fidelity.mjs';
 
 import { comparisonTargets, resolveSourceStaticFile } from './lib/fidelity-targets.mjs';
 export { resolveSourceStaticFile } from './lib/fidelity-targets.mjs';
