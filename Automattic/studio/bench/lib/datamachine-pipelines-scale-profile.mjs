@@ -267,6 +267,7 @@ add_action('admin_init', function () {
 `;
 
   await mkdir(path.dirname(loaderPath), { recursive: true });
+  await mkdir(path.dirname(artifactPath), { recursive: true });
   await writeFile(loaderPath, php);
   await writeFile(
     artifactPath,

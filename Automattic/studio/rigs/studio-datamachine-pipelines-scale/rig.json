@@ -1,0 +1,26 @@
+{
+  "id": "studio-datamachine-pipelines-scale",
+  "description": "Studio WordPress admin profile for the Data Machine Pipelines page with a configurable scale fixture.",
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio",
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "studio_bench_variant": "datamachine-pipelines-scale"
+        }
+      }
+    }
+  },
+  "bench": {
+    "default_component": "studio"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/studio-datamachine-pipelines-scale-profile.bench.mjs",
+        "port_range_size": 10
+      }
+    ]
+  }
+}
