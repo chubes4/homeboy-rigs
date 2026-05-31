@@ -52,6 +52,10 @@ const {
 const {
   sanitizeArtifact,
 } = await import('./lib/studio-bench.mjs');
+const {
+  setupWordPressPageProfile: setupDatamachinePipelinesScaleProfile,
+  cleanupWordPressPageProfile: cleanupDatamachinePipelinesScaleProfile,
+} = await import('./lib/datamachine-pipelines-scale-profile.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -204,6 +208,49 @@ test('wordpressPageProfilerSpec supports selector readiness and resource include
       assert.deepEqual(spec.resources.includeResourceSubstrings, ['/wp-json/', '/custom-cache/']);
     }
   );
+});
+
+test('Data Machine pipelines scale profile writes configurable seed loader and artifact', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'dm-pipelines-scale-'));
+  const sitePath = path.join(tempDir, 'site');
+  const artifactDir = path.join(tempDir, 'artifacts');
+
+  try {
+    const setupProfile = await withEnv(
+      {
+        HOMEBOY_DATAMACHINE_PIPELINE_COUNT: '2',
+        HOMEBOY_DATAMACHINE_FLOWS_PER_PIPELINE: '3',
+        HOMEBOY_DATAMACHINE_STEPS_PER_FLOW: '4',
+        HOMEBOY_DATAMACHINE_CONFIG_PAYLOAD_SIZE: '16',
+        HOMEBOY_DATAMACHINE_SCALE_SEED_SLUG: 'test-scale',
+      },
+      () => setupDatamachinePipelinesScaleProfile({ sitePath, artifactDir })
+    );
+
+    assert.equal(setupProfile.pipelineCount, 2);
+    assert.equal(setupProfile.flowsPerPipeline, 3);
+    assert.equal(setupProfile.stepsPerFlow, 4);
+    assert.equal(setupProfile.configPayloadSize, 16);
+    assert.equal(setupProfile.seedSlug, 'test-scale');
+
+    const loader = await readFile(setupProfile.loaderPath, 'utf8');
+    assert.match(loader, /Temporary Homeboy Data Machine scale profile loader/);
+    assert.match(loader, /test-scale/);
+    assert.match(loader, /datamachine_pipelines/);
+    assert.deepEqual(JSON.parse(await readFile(setupProfile.artifactPath, 'utf8')), {
+      pipelineCount: 2,
+      flowsPerPipeline: 3,
+      stepsPerFlow: 4,
+      configPayloadSize: 16,
+      seedSlug: 'test-scale',
+      loaderPath: setupProfile.loaderPath,
+    });
+
+    await cleanupDatamachinePipelinesScaleProfile({ setupProfile });
+    await assert.rejects(() => readFile(setupProfile.loaderPath, 'utf8'), { code: 'ENOENT' });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('loadTimingCorrelator returns null module when the file is absent', () => {

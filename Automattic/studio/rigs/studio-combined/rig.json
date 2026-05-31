@@ -63,6 +63,10 @@
       "${package.root}/bench/studio-rest-latency-diagnostics.bench.mjs",
       "${package.root}/bench/studio-site-editor-browser.bench.mjs",
       "${package.root}/bench/studio-site-editor-diagnostics.bench.mjs",
+      {
+        "path": "${package.root}/bench/studio-datamachine-pipelines-scale-profile.bench.mjs",
+        "port_range_size": 10
+      },
       "${package.root}/bench/studio-site-editor-preload-comparison.bench.mjs",
       "${package.root}/bench/studio-site-editor-preload-diagnostics.bench.mjs"
     ]
