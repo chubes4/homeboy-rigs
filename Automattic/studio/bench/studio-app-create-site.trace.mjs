@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -23,33 +23,42 @@ if (!STUDIO_PATH) {
 if (!RESULTS_FILE) {
   throw new Error('HOMEBOY_TRACE_RESULTS_FILE is required');
 }
+if (!HELPER_DIR) {
+  throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
+}
+if (!process.env.HOMEBOY_TRACE_ARTIFACT_DIR) {
+  process.env.HOMEBOY_TRACE_ARTIFACT_DIR = ARTIFACT_DIR;
+}
 
 const playwright = require(require.resolve('playwright', { paths: [STUDIO_PATH] }));
 const { findLatestBuild, parseElectronApp } = require(
   require.resolve('electron-playwright-helpers', { paths: [STUDIO_PATH] })
 );
-const { pollHttp: helperPollHttp } = HELPER_DIR
-  ? await import(pathToFileURL(`${HELPER_DIR}/probes.mjs`).href)
-  : { pollHttp: null };
+const { createTraceRecorder } = await import(pathToFileURL(`${HELPER_DIR}/timeline.mjs`).href);
+const { parseLogLines, pollHttp: helperPollHttp, pollJsonFile } = await import(
+  pathToFileURL(`${HELPER_DIR}/probes.mjs`).href
+);
 
-const timeline = [];
-const assertions = [];
-const artifacts = [];
-const startedAt = performance.now();
+const recorder = createTraceRecorder({
+  componentId: COMPONENT_ID,
+  scenarioId: SCENARIO_ID,
+  resultsFile: RESULTS_FILE,
+});
+const pendingEvents = new Set();
 const seenCliMessages = new Set();
 
-function timestampMs() {
-  return Math.round(performance.now() - startedAt);
-}
-
 function event(source, name, data = {}) {
-  const entry = { t_ms: timestampMs(), source, event: name, data };
-  timeline.push(entry);
-  return entry;
+  const promise = recorder.recordEvent(source, name, data);
+  return queuePending(promise);
 }
 
-// Local observation helpers preserve the current trace behavior until the Node.js
-// Homeboy extension ships reusable trace probes.
+function queuePending(promise) {
+  pendingEvents.add(promise);
+  promise.catch(() => {}).finally(() => pendingEvents.delete(promise));
+  return promise;
+}
+
+// Studio-specific event naming keeps the existing trace phase presets stable.
 function eventNameFromCliMessage(message) {
   return message
     .replace(/\u2026/g, '')
@@ -58,28 +67,39 @@ function eventNameFromCliMessage(message) {
     .replace(/^_+|_+$/g, '');
 }
 
-function captureCliEvents(chunk) {
-	for (const line of chunk.toString().split(/\r?\n/)) {
-		captureHarnessEvent(line);
-		const match = line.match(
-			/^\[CLI - ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\s+(.*)$/i
-		);
-    if (!match) {
-      continue;
-    }
-		const [, commandId, message] = match;
-		if (message.startsWith('[HOMEBOY_TRACE] ')) {
-			captureHarnessEvent(message);
-			continue;
-		}
-		const eventName = eventNameFromCliMessage(message);
-    const key = `${commandId}:${eventName}`;
-    if (!eventName || seenCliMessages.has(key)) {
-      continue;
-    }
-    seenCliMessages.add(key);
-    event('cli', eventName, { command_id: commandId, message });
+async function captureCliEvents(chunk) {
+  const text = chunk.toString();
+  for (const line of text.split(/\r?\n/)) {
+    captureHarnessEvent(line);
   }
+
+  await parseLogLines(
+    text,
+    [
+      {
+        source: 'cli',
+        event: 'cli.message',
+        pattern:
+          /^\[CLI - ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\s+(.*)$/i,
+        data: (match) => ({ command_id: match[1], message: match[2] }),
+      },
+    ],
+    (source, _name, data) => {
+      if (data.message.startsWith('[HOMEBOY_TRACE] ')) {
+        captureHarnessEvent(data.message);
+        return null;
+      }
+
+      const eventName = eventNameFromCliMessage(data.message);
+      const key = `${data.command_id}:${eventName}`;
+      if (!eventName || seenCliMessages.has(key)) {
+        return null;
+      }
+
+      seenCliMessages.add(key);
+      return event(source, eventName, data);
+    }
+  );
 }
 
 function captureHarnessEvent(text) {
@@ -233,63 +253,32 @@ function extractStudioFailureMessage(log) {
 }
 
 async function pollHttp(port, timeoutMs, getFailureMessage = () => null) {
-  if (helperPollHttp) {
-    const result = await Promise.race([
-      helperPollHttp(`http://${HTTP_PROBE_HOST}:${port}/`, {
-        source: 'probe',
-        intervalMs: 250,
-        readyStatus: 200,
-        requestTimeoutMs: HTTP_REQUEST_TIMEOUT_MS,
-        timeoutMs,
-        onEvent: (source, name, data) => {
-          event(source, name, data);
-          if (source === 'probe' && name === 'http.first_response') {
-            event('probe', 'http_first_response', { port, status: data.status });
-          }
-          if (source === 'probe' && name === 'http.ready') {
-            event('probe', 'http_ready', { port, status: data.status });
-          }
-          if (source === 'probe' && name === 'http.timeout') {
-            event('probe', 'http_timeout', { port });
-          }
-        },
-      }),
-      waitForStudioFailure(getFailureMessage, timeoutMs),
-    ]);
-    if (result.status !== 'ready') {
-      throw new Error(`HTTP did not become ready on port ${port}`);
-    }
-    return result;
+  const result = await Promise.race([
+    helperPollHttp(`http://${HTTP_PROBE_HOST}:${port}/`, {
+      source: 'probe',
+      intervalMs: 250,
+      readyStatus: 200,
+      requestTimeoutMs: HTTP_REQUEST_TIMEOUT_MS,
+      timeoutMs,
+      onEvent: (source, name, data) => {
+        event(source, name, data);
+        if (source === 'probe' && name === 'http.first_response') {
+          event('probe', 'http_first_response', { port, status: data.status });
+        }
+        if (source === 'probe' && name === 'http.ready') {
+          event('probe', 'http_ready', { port, status: data.status });
+        }
+        if (source === 'probe' && name === 'http.timeout') {
+          event('probe', 'http_timeout', { port });
+        }
+      },
+    }),
+    waitForStudioFailure(getFailureMessage, timeoutMs),
+  ]);
+  if (result.status !== 'ready') {
+    throw new Error(`HTTP did not become ready on port ${port}`);
   }
-
-  const deadline = Date.now() + timeoutMs;
-  let sawResponse = false;
-  while (Date.now() < deadline) {
-    const failureMessage = getFailureMessage();
-    if (failureMessage) {
-      event('probe', 'studio_failure_detected', { message: failureMessage });
-      throw new Error(failureMessage);
-    }
-    try {
-      const response = await fetch(`http://${HTTP_PROBE_HOST}:${port}/`, {
-        signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
-      });
-      if (!sawResponse) {
-        event('probe', 'http_first_response', { port, status: response.status });
-        sawResponse = true;
-      }
-      if (response.status >= 200 && response.status < 400) {
-        event('probe', 'http_ready', { port, status: response.status });
-        return;
-      }
-      await wait(250);
-    } catch {
-      await wait(100);
-    }
-  }
-  event('probe', 'http_timeout', { port });
-  const failureMessage = getFailureMessage();
-  throw new Error(failureMessage || `HTTP did not become ready on port ${port}`);
+  return result;
 }
 
 async function waitForStudioFailure(getFailureMessage, timeoutMs) {
@@ -419,33 +408,37 @@ async function captureSeedDatabase(site) {
 
 async function pollCliConfig(cliConfigPath, siteName, timeoutMs) {
   const configFile = path.join(cliConfigPath, 'cli.json');
-  const deadline = Date.now() + timeoutMs;
-  let seenSite = false;
-  let seenPort;
-
-  while (Date.now() < deadline) {
-    try {
-      const data = JSON.parse(await readFile(configFile, 'utf8'));
+  const result = await pollJsonFile(configFile, {
+    source: 'probe',
+    intervalMs: 50,
+    timeoutMs,
+    select: (data) => {
       const sites = Array.isArray(data.sites) ? data.sites : [];
-      const site = sites.find((candidate) => candidate.name === siteName);
-      if (site && !seenSite) {
-        seenSite = true;
-        event('probe', 'cli_config_site_seen', {
-          id: site.id,
-          path: site.path,
-          port: site.port,
-          running: site.running,
-        });
+      return sites.find((candidate) => candidate.name === siteName) || null;
+    },
+    events: [
+      {
+        name: 'cli_config_site_seen',
+        when: (site) => Boolean(site),
+        data: (site) => ({ id: site.id, path: site.path, port: site.port, running: site.running }),
+      },
+      {
+        name: 'cli_config_port_known',
+        when: (site) => site?.port > 0,
+        data: (site) => ({ id: site.id, port: site.port }),
+        terminal: true,
+      },
+    ],
+    onEvent: (source, name, data) => {
+      if (name.startsWith('json.')) {
+        return null;
       }
-      if (site?.port > 0 && site.port !== seenPort) {
-        seenPort = site.port;
-        event('probe', 'cli_config_port_known', { id: site.id, port: site.port });
-        return site;
-      }
-    } catch {
-      // Config file may not exist yet or may be mid-write.
-    }
-    await wait(50);
+      return event(source, name, data);
+    },
+  });
+
+  if (result.status === 'matched' && result.event === 'cli_config_port_known') {
+    return result.value;
   }
 
   event('probe', 'cli_config_port_timeout', { site_name: siteName });
@@ -453,17 +446,11 @@ async function pollCliConfig(cliConfigPath, siteName, timeoutMs) {
 }
 
 function assertion(id, ok, message) {
-  const item = { id, status: ok ? 'pass' : 'fail', message };
-  assertions.push(item);
-  return item;
-}
-
-function relativeArtifact(filePath) {
-  return path.relative(ARTIFACT_DIR, filePath);
+  return recorder.recordAssertion(id, ok ? 'pass' : 'fail', message);
 }
 
 function addArtifact(label, filePath) {
-  artifacts.push({ label, path: relativeArtifact(filePath) });
+  return recorder.addArtifact(label, filePath);
 }
 
 async function captureArtifacts(mainWindow, mainProcessLog, suffix = '') {
@@ -493,20 +480,8 @@ async function captureArtifacts(mainWindow, mainProcessLog, suffix = '') {
 }
 
 async function writeResults(status, summary, failure) {
-  const envelope = {
-    component_id: COMPONENT_ID,
-    scenario_id: SCENARIO_ID,
-    status,
-    summary,
-    timeline,
-    assertions,
-    artifacts,
-  };
-  if (failure) {
-    envelope.failure = failure;
-  }
-  await mkdir(path.dirname(RESULTS_FILE), { recursive: true });
-  await writeFile(RESULTS_FILE, JSON.stringify(envelope, null, 2));
+  await Promise.allSettled([...pendingEvents]);
+  await recorder.writeTraceResults({ status, summary, failure });
 }
 
 async function waitFor(locator, eventName, timeout = 120_000) {
@@ -587,11 +562,11 @@ async function main() {
     const child = electronApp.process();
     child.stdout?.on('data', (chunk) => {
       mainProcessLog += chunk.toString();
-      captureCliEvents(chunk);
+      queuePending(captureCliEvents(chunk));
     });
     child.stderr?.on('data', (chunk) => {
       mainProcessLog += chunk.toString();
-      captureCliEvents(chunk);
+      queuePending(captureCliEvents(chunk));
     });
 
     event('desktop', 'first_window.wait_start');
