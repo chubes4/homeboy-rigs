@@ -89,7 +89,17 @@ export {
 
 const requireFromBench = createRequire(import.meta.url);
 
+export function normalizeImportReport(importReport) {
+  return {
+    report: null,
+    error: '',
+    ...(importReport && typeof importReport === 'object' ? importReport : {}),
+    reportPath: typeof importReport?.reportPath === 'string' ? importReport.reportPath : '',
+  };
+}
+
 export async function restoreMissingSourceStaticFiles(importReport, sitePath, result) {
+  const normalizedImportReport = normalizeImportReport(importReport);
   const writes = new Map();
   for (const call of Array.isArray(result?.toolCalls) ? result.toolCalls : []) {
     const filePath = call?.input?.file_path || call?.input?.path || '';
@@ -103,10 +113,10 @@ export async function restoreMissingSourceStaticFiles(importReport, sitePath, re
     return;
   }
 
-  for (const target of comparisonTargets(importReport)) {
+  for (const target of comparisonTargets(normalizedImportReport)) {
     const surfaces = target?.comparison_hooks?.render_surfaces || {};
     const sourceFile = surfaces.source_static?.url || target?.source_file || '';
-    const hostPath = resolveSourceStaticFile(sourceFile, importReport.reportPath, sitePath);
+    const hostPath = resolveSourceStaticFile(sourceFile, normalizedImportReport.reportPath, sitePath);
     if (!hostPath) {
       continue;
     }
@@ -129,7 +139,7 @@ export async function restoreMissingSourceStaticFiles(importReport, sitePath, re
 }
 
 export async function compareSemanticFidelity(importReport, artifactDir, sitePath) {
-  return compareSemanticFidelityImpl(importReport, artifactDir, sitePath, {
+  return compareSemanticFidelityImpl(normalizeImportReport(importReport), artifactDir, sitePath, {
     studioPath: STUDIO_PATH,
     viewport: VISUAL_VIEWPORT,
   });
@@ -427,7 +437,7 @@ export default async function studioAgentSiteBuildBench() {
   const qualityProbeMs = Date.now() - qualityProbeStarted;
   const status = await siteStatus(sitePath);
   runtime.assertPort(statusPort(status));
-  const importReport = await collectLatestImportReport(sitePath);
+  const importReport = normalizeImportReport(await collectLatestImportReport(sitePath));
   const importerTimings = importerTimingMetrics(importReport);
   await mkdir(artifactDir, { recursive: true });
   await restoreMissingSourceStaticFiles(importReport, sitePath, result);

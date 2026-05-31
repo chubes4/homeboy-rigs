@@ -14,6 +14,7 @@ const {
   importerBlockQualityFailureDetails,
   importerBlockQualityMetrics,
   importerTimingMetrics,
+  normalizeImportReport,
   promptVariantCatalog,
   restoreMissingSourceStaticFiles,
   semanticTargetMetric,
@@ -228,6 +229,34 @@ test('bench restores missing SSI source files from Studio Write tool path input'
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+});
+
+test('bench normalizes import reports without a reportPath', async () => {
+  const importReport = normalizeImportReport({ report: { quality: {} } });
+
+  assert.deepEqual(importReport, {
+    report: { quality: {} },
+    reportPath: '',
+    error: '',
+  });
+});
+
+test('bench source restore tolerates import reports without a reportPath', async () => {
+  await restoreMissingSourceStaticFiles(
+    {
+      report: {
+        visual_fidelity: {
+          comparison_targets: [
+            {
+              source_file: '/wordpress/tmp/static-site/index.html',
+            },
+          ],
+        },
+      },
+    },
+    '/tmp/studio-site',
+    { toolCalls: [] }
+  );
 });
 
 test('generated-theme discovery reports missing SSI import instead of throwing', async () => {
