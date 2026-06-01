@@ -1,13 +1,18 @@
 {
   "id": "gutenberg-rtc",
-  "description": "Gutenberg real-time collaboration stress rig. Uses Playwright for small/medium editor correctness scenarios and synthetic Yjs/REST clients for high-cardinality sync endpoint load.",
+  "description": "Gutenberg real-time collaboration stress rig. Uses the WordPress/WP Codebox bench runtime for synthetic high-cardinality sync endpoint load.",
   "components": {
     "gutenberg": {
       "path": "~/Developer/gutenberg",
       "branch": "trunk",
       "extensions": {
-        "nodejs": {
-          "gutenberg_rtc_component_path": "~/Developer/gutenberg"
+        "wordpress": {
+          "wp_codebox_wordpress_version": "7.1",
+          "bench_env": {
+            "GUTENBERG_RTC_CLIENTS": "10",
+            "GUTENBERG_RTC_ROUNDS": "3",
+            "GUTENBERG_RTC_BATCH_SIZE": "25"
+          }
         }
       }
     }
@@ -25,22 +30,16 @@
     "warmup_iterations": 0
   },
   "bench_workloads": {
-    "nodejs": [
-      { "path": "${package.root}/bench/gutenberg-rtc-browser-basic.bench.mjs" },
-      { "path": "${package.root}/bench/gutenberg-rtc-browser-tabs.bench.mjs" },
-      { "path": "${package.root}/bench/gutenberg-rtc-protocol-load.bench.mjs" },
-      { "path": "${package.root}/bench/gutenberg-rtc-conflict-fuzzer.bench.mjs" },
-      { "path": "${package.root}/bench/gutenberg-rtc-settings-matrix.bench.mjs" }
+    "wordpress": [
+      { "path": "${package.root}/bench/gutenberg-rtc-protocol-load.php" }
     ]
   },
   "bench_profiles": {
     "smoke": [
-      "gutenberg-rtc-browser-basic",
       "gutenberg-rtc-protocol-load"
     ],
     "hot": [
-      "gutenberg-rtc-protocol-load",
-      "gutenberg-rtc-conflict-fuzzer"
+      "gutenberg-rtc-protocol-load"
     ]
   },
   "pipeline": {
@@ -68,20 +67,7 @@
         "command": "test -f lib/compat/wordpress-7.1/class-wp-http-polling-sync-server.php || test -f lib/compat/wordpress-7.0/class-wp-http-polling-sync-server.php"
       }
     ],
-    "bench_prepare": [
-      {
-        "kind": "check",
-        "label": "Gutenberg checkout exists",
-        "file": "${components.gutenberg.path}/package.json",
-        "contains": "\"name\": \"gutenberg\""
-      },
-      {
-        "kind": "command",
-        "label": "Install Gutenberg npm dependencies when missing",
-        "cwd": "${components.gutenberg.path}",
-        "command": "if [ ! -x node_modules/.bin/wp-env ]; then npm install; fi"
-      }
-    ],
+    "bench_prepare": [],
     "up": [],
     "down": []
   }
