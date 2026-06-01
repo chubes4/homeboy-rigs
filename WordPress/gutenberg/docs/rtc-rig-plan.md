@@ -85,7 +85,15 @@ Metrics:
 - `http_5xx_count`
 - `stored_update_count`
 - `compaction_count`
+- `divergent_clients`
 - `final_crdt_equal`
+
+`divergent_clients` is a tracked stress signal for opaque synthetic payloads,
+not a correctness gate. It counts clients whose observed synthetic update set
+differs from the baseline client after catch-up. Treat non-zero values as scale
+matrix evidence to compare across runs. In real Yjs payload mode, divergence is a
+convergence failure because all clients should share the same final document
+state.
 
 Artifacts:
 
@@ -154,6 +162,8 @@ Axes:
 - Use synthetic clients for 100/1000-client load while preserving the real
   WordPress REST server, auth, permission, storage, compaction, and payload
   limits.
+- Treat opaque synthetic-payload divergence as a metric, not a hard failure;
+  reserve convergence failure gates for realistic document payloads.
 - Keep scenario failures reproducible with `seed`, `client_count`, `operation`
   profile, and created post ID in the artifact.
 - Do not publish local-only artifact paths as maintainer-facing evidence; mirror

@@ -179,7 +179,14 @@ return function (): array {
 		$clients
 	);
 	$unique_state_hashes = count( array_unique( $final_state_hashes ) );
-	$divergent_clients   = max( 0, $unique_state_hashes - 1 );
+	// Opaque payload divergence is a stress signal, not a correctness failure.
+	$baseline_hash       = $final_state_hashes[0] ?? '';
+	$divergent_clients   = count(
+		array_filter(
+			$final_state_hashes,
+			static fn ( string $state_hash ): bool => $state_hash !== $baseline_hash
+		)
+	);
 	sort( $latencies, SORT_NUMERIC );
 	$percentile = static function ( array $values, float $percentile ): float {
 		if ( empty( $values ) ) {

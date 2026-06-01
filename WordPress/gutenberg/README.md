@@ -41,3 +41,15 @@ See `docs/rtc-rig-plan.md` for the implementation plan.
 - `gutenberg-rtc-protocol-load` runs inside WP Codebox, creates a draft post,
   enables RTC, and drives `/wp-sync/v1/updates` with configurable synthetic
   clients using opaque sync payloads.
+
+## Metric Semantics
+
+- `divergent_clients` is an opaque synthetic-payload stress signal for the
+  protocol-load workload. Opaque payloads are intentionally not a full Yjs
+  document model, so non-zero divergence means clients observed different
+  synthetic update sets under load; it is not by itself a correctness failure.
+- Pass/fail gates for opaque protocol-load runs stay tied to endpoint health,
+  request handling, and artifact capture. Track `divergent_clients` over time in
+  scale-matrix summaries to spot changes in sync behavior under load.
+- When the workload runs with real Yjs payloads, non-zero divergence is a
+  convergence failure because clients should reach the same document state.
