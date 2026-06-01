@@ -7,7 +7,7 @@
       "branch": "trunk",
       "extensions": {
         "wordpress": {
-          "wp_codebox_wordpress_version": "7.1",
+          "wp_codebox_wordpress_version": "7.0",
           "bench_env": {
             "GUTENBERG_RTC_CLIENTS": "10",
             "GUTENBERG_RTC_ROUNDS": "3",
