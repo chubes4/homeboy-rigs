@@ -3,17 +3,13 @@
 ## 1. Rig Contract
 
 Create a package installable with `homeboy rig install ./WordPress/gutenberg`.
-The rig points at the local Gutenberg checkout and runs Homeboy Node benchmark
-workloads from this package.
+The rig points at the local Gutenberg checkout and runs WordPress benchmark
+workloads through Homeboy Extensions' WP Codebox backend.
 
 ```text
 WordPress/gutenberg/
   rigs/gutenberg-rtc/rig.json
-  bench/gutenberg-rtc-browser-basic.bench.mjs
-  bench/gutenberg-rtc-browser-tabs.bench.mjs
-  bench/gutenberg-rtc-protocol-load.bench.mjs
-  bench/gutenberg-rtc-conflict-fuzzer.bench.mjs
-  bench/gutenberg-rtc-settings-matrix.bench.mjs
+  bench/gutenberg-rtc-protocol-load.php
 ```
 
 ## 2. Benchmark Pyramid
@@ -139,15 +135,14 @@ Axes:
 
 ## 3. Implementation Sequence
 
-1. Make `homeboy bench list --rig gutenberg-rtc` discover all scenario IDs.
-2. Implement `browser-basic` by reusing Gutenberg's existing collaboration e2e
-   helpers where possible.
-3. Implement `protocol-load` with synthetic Yjs clients that authenticate once,
-   create one post, and hit `/wp-sync/v1/updates` directly.
+1. Make `homeboy bench list --rig gutenberg-rtc` discover the WP Codebox-backed
+   protocol scenario.
+2. Implement `protocol-load` as a PHP `wordpress.bench` workload mounted from
+   the rig package into the disposable Codebox runtime.
+3. Create one post, enable collaboration, and hit `/wp-sync/v1/updates` directly
+   through the WordPress REST server.
 4. Add artifact capture and deterministic seeds.
-5. Use the rig `bench_prepare` pipeline to bootstrap Gutenberg dependencies
-   before timed workload execution when `wp-env` is missing.
-6. Run local smoke: 2 browser users, 10 synthetic clients.
+5. Run local smoke with 10 synthetic clients.
 7. Add hot profiles: 100 synthetic clients and 1000 synthetic clients, intended
    for `homeboy bench --runner <lab-runner>` or `--force-hot`.
 8. Promote recurring failures into Gutenberg issues/PRs with artifact links.
