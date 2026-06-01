@@ -29,7 +29,7 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 ## Layers
 
 ```text
-WP Codebox WordPress runtime      disposable WP 7.1 runtime, no Docker/wp-env
+WP Codebox WordPress runtime      disposable WP 7.0 runtime, no Docker/wp-env
 Synthetic REST clients            10-1000 clients, real WP sync endpoint load
 Homeboy BenchResults              normalized metrics, metadata, artifacts
 ```

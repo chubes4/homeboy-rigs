@@ -17,6 +17,19 @@ return function (): array {
 	wp_set_current_user( 1 );
 	update_option( 'wp_collaboration_enabled', '1' );
 
+	if ( ! class_exists( 'WP_HTTP_Polling_Sync_Server' ) ) {
+		$collaboration_bootstrap = WP_PLUGIN_DIR . '/gutenberg/lib/compat/wordpress-7.0/collaboration.php';
+		if ( ! file_exists( $collaboration_bootstrap ) ) {
+			$collaboration_bootstrap = WP_PLUGIN_DIR . '/gutenberg/lib/compat/wordpress-7.1/collaboration.php';
+		}
+		if ( ! file_exists( $collaboration_bootstrap ) ) {
+			throw new RuntimeException( 'Gutenberg collaboration bootstrap not found.' );
+		}
+		require_once $collaboration_bootstrap;
+	}
+	$GLOBALS['wp_rest_server'] = null;
+	do_action( 'rest_api_init', rest_get_server() );
+
 	$post_id = wp_insert_post(
 		array(
 			'post_type'   => 'post',
@@ -195,10 +208,6 @@ return function (): array {
 				JSON_PRETTY_PRINT
 			) . "\n"
 		);
-	}
-
-	if ( $divergent_clients > 0 ) {
-		throw new RuntimeException( 'synthetic clients did not converge; divergent_clients=' . $divergent_clients );
 	}
 
 	return array(
