@@ -19,10 +19,24 @@ import { setting } from './studio-bench.mjs';
 
 const require = createRequire(import.meta.url);
 
-const DEFAULT_REQUEST_PROFILER_PATH =
-  '/Users/chubes/Developer/homeboy-extensions/wordpress/lib/request-profiler.js';
-
 const TIMING_CORRELATOR_FILENAME = 'timing-correlator.js';
+
+function wordpressHelperManifestPath() {
+  return setting('wordpress_helper_manifest_path') || process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST || '';
+}
+
+export function wordpressHelperPath(name) {
+  const manifestPath = wordpressHelperManifestPath();
+  if (!manifestPath || !existsSync(manifestPath)) {
+    return '';
+  }
+
+  const manifest = require(manifestPath);
+  const resolved = typeof manifest.getWordPressHelperManifest === 'function'
+    ? manifest.getWordPressHelperManifest()
+    : manifest.WORDPRESS_HELPER_MANIFEST || manifest;
+  return typeof resolved?.helpers?.[name] === 'string' ? resolved.helpers[name] : '';
+}
 
 /**
  * Resolve the WordPress request profiler path used by the diagnostics
@@ -31,7 +45,9 @@ const TIMING_CORRELATOR_FILENAME = 'timing-correlator.js';
  * @returns {string}
  */
 export function requestProfilerPath() {
-  return setting('wordpress_request_profiler_path') || DEFAULT_REQUEST_PROFILER_PATH;
+  return setting('wordpress_request_profiler_path') ||
+    process.env.HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER ||
+    wordpressHelperPath('requestProfiler');
 }
 
 /**
@@ -52,6 +68,10 @@ export function timingCorrelatorPath(options = {}) {
   const explicit = options.override ?? setting('wordpress_timing_correlator_path');
   if (explicit) {
     return explicit;
+  }
+  const helper = process.env.HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER || wordpressHelperPath('timingCorrelator');
+  if (helper) {
+    return helper;
   }
   const profiler = options.profilerPath ?? requestProfilerPath();
   if (!profiler) {
