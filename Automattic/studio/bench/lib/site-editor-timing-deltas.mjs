@@ -16,27 +16,11 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { setting } from './studio-bench.mjs';
+import { wordpressHelperPath } from './wordpress-helper-discovery.mjs';
 
 const require = createRequire(import.meta.url);
 
 const TIMING_CORRELATOR_FILENAME = 'timing-correlator.js';
-
-function wordpressHelperManifestPath() {
-  return setting('wordpress_helper_manifest_path') || process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST || '';
-}
-
-export function wordpressHelperPath(name) {
-  const manifestPath = wordpressHelperManifestPath();
-  if (!manifestPath || !existsSync(manifestPath)) {
-    return '';
-  }
-
-  const manifest = require(manifestPath);
-  const resolved = typeof manifest.getWordPressHelperManifest === 'function'
-    ? manifest.getWordPressHelperManifest()
-    : manifest.WORDPRESS_HELPER_MANIFEST || manifest;
-  return typeof resolved?.helpers?.[name] === 'string' ? resolved.helpers[name] : '';
-}
 
 /**
  * Resolve the WordPress request profiler path used by the diagnostics
@@ -45,9 +29,9 @@ export function wordpressHelperPath(name) {
  * @returns {string}
  */
 export function requestProfilerPath() {
-  return setting('wordpress_request_profiler_path') ||
-    process.env.HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER ||
-    wordpressHelperPath('requestProfiler');
+  return setting('wordpress_request_profiler_path') || wordpressHelperPath('requestProfiler', {
+    envVar: 'HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER',
+  });
 }
 
 /**
@@ -65,13 +49,11 @@ export function requestProfilerPath() {
  * @returns {string}
  */
 export function timingCorrelatorPath(options = {}) {
-  const explicit = options.override ?? setting('wordpress_timing_correlator_path');
+  const explicit = options.override ?? (setting('wordpress_timing_correlator_path') || wordpressHelperPath('timingCorrelator', {
+    envVar: 'HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER',
+  }));
   if (explicit) {
     return explicit;
-  }
-  const helper = process.env.HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER || wordpressHelperPath('timingCorrelator');
-  if (helper) {
-    return helper;
   }
   const profiler = options.profilerPath ?? requestProfilerPath();
   if (!profiler) {

@@ -46,6 +46,7 @@ const {
   wordpressAdminPageScenario,
   wordpressPageProfilerSpec,
 } = await import('./lib/wordpress-page-profiler.mjs');
+const { probePageQuality } = await import('./lib/wordpress-quality.mjs');
 const {
   normalizeWordPressAdminScaleSweepManifest,
 } = await import('./lib/wordpress-admin-scale-sweep.mjs');
@@ -80,42 +81,102 @@ function withEnv(values, callback) {
   }
 }
 
-async function withBootstrapTimelineHelper(callback) {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-bootstrap-helper-'));
-  const helperPath = path.join(tempDir, 'wordpress-bootstrap-timeline.cjs');
-  const manifestPath = path.join(tempDir, 'helper-manifest.cjs');
-  await writeFile(
-    helperPath,
-    `module.exports = {
-      instrumentIndexPhp(source) {
-        return source.includes('HOMEBOY_BOOTSTRAP_TIMELINE') ? source : source + ${JSON.stringify('\n/* HOMEBOY_BOOTSTRAP_TIMELINE entry.start entry.shutdown */\n')};
-      },
-      instrumentWpSettingsPhp(source) {
-        return source.includes('wp-settings.after_muplugins_loaded') ? source : source + ${JSON.stringify('\n/* wp-settings.start wp-settings.after_require_wp_db wp-settings.before_load_most wp-settings.after_blocks_index wp-settings.after_muplugins_loaded */\n')};
-      },
-      summarizeWordPressBootstrapTimeline(rows) {
-        const groups = new Map();
-        for (const row of rows) {
-          const group = groups.get(row.request_id) || { uri: row.uri, method: row.method, durationMs: 0, events: [] };
-          group.durationMs = Math.max(group.durationMs, row.t_ms);
-          const previous = group.events[group.events.length - 1];
-          group.events.push({ event: row.event, tMs: row.t_ms, deltaFromPreviousMs: previous ? row.t_ms - previous.tMs : row.t_ms });
-          groups.set(row.request_id, group);
-        }
-        return Array.from(groups.values()).sort((a, b) => b.durationMs - a.durationMs);
-      },
-    };`
-  );
-  await writeFile(
-    manifestPath,
-    `module.exports = { getWordPressHelperManifest: () => ({ helpers: { bootstrapTimeline: ${JSON.stringify(helperPath)} } }) };`
-  );
-
-  try {
-    return await withEnv({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: manifestPath }, callback);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
+async function withEnvAsync(values, callback) {
+  const previous = {};
+  for (const key of Object.keys(values)) {
+    previous[key] = process.env[key];
+    if (values[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = values[key];
+    }
   }
+  try {
+    return await callback();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
+async function writeFakeWordPressManifest() {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-wordpress-manifest-'));
+  const extensionRoot = path.join(tempDir, 'wordpress');
+  const libDir = path.join(extensionRoot, 'lib');
+  await import('node:fs/promises').then(({ mkdir }) => mkdir(libDir, { recursive: true }));
+  const requestProfiler = path.join(libDir, 'request-profiler.js');
+  const timingCorrelator = path.join(libDir, 'timing-correlator.js');
+  const bootstrapTimeline = path.join(libDir, 'wordpress-bootstrap-timeline.js');
+  const pageProfiler = path.join(libDir, 'page-profiler.js');
+  const adminPageScenarios = path.join(libDir, 'admin-page-scenarios.js');
+  const blockQuality = path.join(libDir, 'block-quality.js');
+  const manifestPath = path.join(libDir, 'helper-manifest.js');
+
+  await writeFile(requestProfiler, "module.exports = { installWordPressRequestProfiler() {} };\n");
+  await writeFile(timingCorrelator, "module.exports = { correlateBrowserAndWordPressTimings: () => ({ correlated: [], unmatchedBrowser: [], unmatchedWordPress: [] }) };\n");
+  await writeFile(pageProfiler, "module.exports = { DEFAULT_RESOURCE_INCLUDE: ['/wp-json/'] };\n");
+  await writeFile(adminPageScenarios, "module.exports = { normalizeWordPressAdminPageScenarioInput: (spec) => spec, profileWordPressAdminPageScenario: async () => ({ status: 200 }) };\n");
+  await writeFile(blockQuality, `
+module.exports = {
+  wordpressPostBlockQualityProbeCode: (postId) => 'fake probe for ' + postId,
+  parseWordPressBlockQualityProbeOutput: () => ({ fallback_count: 2, core_html_without_fallback: 3, stored_content_hash: 'abc' }),
+};
+`);
+  await writeFile(bootstrapTimeline, `
+module.exports = {
+  instrumentIndexPhp(source) {
+    if (source.includes('HOMEBOY_BOOTSTRAP_TIMELINE')) return source;
+    return source.replace('<?php', "<?php /* HOMEBOY_BOOTSTRAP_TIMELINE */ homeboy_bootstrap_timeline_record( 'entry.start' ); homeboy_bootstrap_timeline_record( 'entry.shutdown' ); ");
+  },
+  instrumentWpSettingsPhp(source) {
+    if (source.includes('HOMEBOY_BOOTSTRAP_TIMELINE')) return source;
+    return source.replace('<?php', "<?php /* HOMEBOY_BOOTSTRAP_TIMELINE */ homeboy_bootstrap_timeline_mark( 'wp-settings.start' ); homeboy_bootstrap_timeline_mark( 'wp-settings.after_require_wp_db' ); homeboy_bootstrap_timeline_mark( 'wp-settings.before_load_most' ); homeboy_bootstrap_timeline_mark( 'wp-settings.after_blocks_index' ); homeboy_bootstrap_timeline_mark( 'wp-settings.after_muplugins_loaded' ); ");
+  },
+  summarizeWordPressBootstrapTimeline(rows) {
+    const byRequest = new Map();
+    for (const row of rows) {
+      const id = row.request_id || 'unknown';
+      byRequest.set(id, [...(byRequest.get(id) || []), row]);
+    }
+    return [...byRequest.values()].map((events) => {
+      events.sort((a, b) => (a.t_ms || 0) - (b.t_ms || 0));
+      const last = events.at(-1) || {};
+      let previous = 0;
+      return {
+        uri: last.uri || '',
+        method: last.method || '',
+        durationMs: last.t_ms || 0,
+        events: events.map((event) => {
+          const tMs = event.t_ms || 0;
+          const deltaFromPreviousMs = tMs - previous;
+          previous = tMs;
+          return { event: event.event, tMs, deltaFromPreviousMs };
+        }),
+      };
+    }).sort((a, b) => b.durationMs - a.durationMs);
+  },
+};
+`);
+  await writeFile(manifestPath, `
+module.exports = {
+  getWordPressHelperManifest: () => ({
+    version: 1,
+    extensionRoot: ${JSON.stringify(extensionRoot)},
+    helpers: {
+      requestProfiler: ${JSON.stringify(requestProfiler)},
+      timingCorrelator: ${JSON.stringify(timingCorrelator)},
+      bootstrapTimeline: ${JSON.stringify(bootstrapTimeline)},
+    },
+  }),
+};
+`);
+
+  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality };
 }
 
 // --- path resolution -------------------------------------------------------
@@ -175,29 +236,34 @@ test('requestProfilerPath honors the wordpress_request_profiler_path setting', (
   );
 });
 
-test('requestProfilerPath uses the WordPress helper manifest when no explicit path is configured', async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-helper-manifest-'));
-  const manifestPath = path.join(tempDir, 'helper-manifest.cjs');
-  await writeFile(
-    manifestPath,
-    `module.exports = { getWordPressHelperManifest: () => ({ helpers: { requestProfiler: ${JSON.stringify(path.join(tempDir, 'request-profiler.js'))}, timingCorrelator: ${JSON.stringify(path.join(tempDir, 'timing-correlator.js'))} } }) };`
-  );
-
+test('requestProfilerPath uses the WordPress helper discovery contract', async () => {
+  const fixture = await writeFakeWordPressManifest();
   try {
-    withEnv(
+    await withEnvAsync(
       {
         HOMEBOY_SETTINGS_JSON: undefined,
-        HOMEBOY_WORDPRESS_HELPER_MANIFEST: manifestPath,
+        HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath,
         HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER: undefined,
       },
-      () => {
-        assert.equal(requestProfilerPath(), path.join(tempDir, 'request-profiler.js'));
-        assert.equal(timingCorrelatorPath(), path.join(tempDir, 'timing-correlator.js'));
+      async () => {
+        assert.equal(requestProfilerPath(), fixture.requestProfiler);
       }
     );
   } finally {
-    await rm(tempDir, { recursive: true, force: true });
+    await rm(fixture.tempDir, { recursive: true, force: true });
   }
+});
+
+test('timingCorrelatorPath honors the direct WordPress helper env var', () => {
+  withEnv(
+    {
+      HOMEBOY_SETTINGS_JSON: undefined,
+      HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER: '/tmp/direct/timing-correlator.js',
+    },
+    () => {
+      assert.equal(timingCorrelatorPath(), '/tmp/direct/timing-correlator.js');
+    }
+  );
 });
 
 test('pageProfilerPath sits next to the request profiler by default', () => {
@@ -625,6 +691,33 @@ test('profileWordPressPage delegates page readiness to the Homeboy Extensions pa
   assert.equal(result, profile);
 });
 
+test('probePageQuality delegates post-scoped block probing to the WordPress helper', async () => {
+  const fixture = await writeFakeWordPressManifest();
+  try {
+    await withEnvAsync(
+      { HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath },
+      async () => {
+        const calls = [];
+        const quality = await probePageQuality('/tmp/site', 123, {
+          runCli: async (args) => {
+            calls.push(args);
+            return { stdout: '{"ignored":true}' };
+          },
+        });
+
+        assert.equal(calls.length, 1);
+        assert.deepEqual(calls[0].slice(0, 5), ['wp', '--path', '/tmp/site', '--php-version', '8.3']);
+        assert.match(calls[0].at(-1), /fake probe for 123/);
+        assert.equal(quality.bfb_fallback_count, 2);
+        assert.equal(quality.core_html_without_bfb_fallback, 3);
+        assert.equal(quality.stored_content_hash, 'abc');
+      }
+    );
+  } finally {
+    await rm(fixture.tempDir, { recursive: true, force: true });
+  }
+});
+
 // --- WordPress admin scale sweep ------------------------------------------
 
 test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds defaults', () => {
@@ -652,17 +745,28 @@ test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds 
 
 // --- WordPress bootstrap timeline -----------------------------------------
 
-test('instrumentIndexPhp adds entry and shutdown timeline hooks once', async () => {
-  const source = "<?php\ndefine( 'WP_USE_THEMES', true );\nrequire __DIR__ . '/wp-blog-header.php';\n";
-  const instrumented = await withBootstrapTimelineHelper(() => instrumentIndexPhp(source));
-  assert.match(instrumented, /HOMEBOY_BOOTSTRAP_TIMELINE/);
-  assert.match(instrumented, /entry\.start/);
-  assert.match(instrumented, /entry\.shutdown/);
-  assert.equal(await withBootstrapTimelineHelper(() => instrumentIndexPhp(instrumented)), instrumented);
+test('instrumentIndexPhp adds entry and shutdown timeline hooks once', () => {
+  return writeFakeWordPressManifest().then(async (fixture) => {
+    try {
+      await withEnvAsync({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath }, async () => {
+        const source = "<?php\ndefine( 'WP_USE_THEMES', true );\nrequire __DIR__ . '/wp-blog-header.php';\n";
+        const instrumented = instrumentIndexPhp(source);
+        assert.match(instrumented, /HOMEBOY_BOOTSTRAP_TIMELINE/);
+        assert.match(instrumented, /entry\.start/);
+        assert.match(instrumented, /entry\.shutdown/);
+        assert.equal(instrumentIndexPhp(instrumented), instrumented);
+      });
+    } finally {
+      await rm(fixture.tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
-test('instrumentWpSettingsPhp adds early WordPress bootstrap marks once', async () => {
-  const source = `<?php
+test('instrumentWpSettingsPhp adds early WordPress bootstrap marks once', () => {
+  return writeFakeWordPressManifest().then(async (fixture) => {
+    try {
+      await withEnvAsync({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath }, async () => {
+        const source = `<?php
 define( 'WPINC', 'wp-includes' );
 require_wp_db();
 wp_start_object_cache();
@@ -680,27 +784,39 @@ wp_plugin_directory_constants();
 unset( $mu_plugin, $_wp_plugin_file );
 do_action( 'muplugins_loaded' );
 `;
-  const instrumented = await withBootstrapTimelineHelper(() => instrumentWpSettingsPhp(source));
-  assert.match(instrumented, /wp-settings\.start/);
-  assert.match(instrumented, /wp-settings\.after_require_wp_db/);
-  assert.match(instrumented, /wp-settings\.before_load_most/);
-  assert.match(instrumented, /wp-settings\.after_blocks_index/);
-  assert.match(instrumented, /wp-settings\.after_muplugins_loaded/);
-  assert.equal(await withBootstrapTimelineHelper(() => instrumentWpSettingsPhp(instrumented)), instrumented);
+        const instrumented = instrumentWpSettingsPhp(source);
+        assert.match(instrumented, /wp-settings\.start/);
+        assert.match(instrumented, /wp-settings\.after_require_wp_db/);
+        assert.match(instrumented, /wp-settings\.before_load_most/);
+        assert.match(instrumented, /wp-settings\.after_blocks_index/);
+        assert.match(instrumented, /wp-settings\.after_muplugins_loaded/);
+        assert.equal(instrumentWpSettingsPhp(instrumented), instrumented);
+      });
+    } finally {
+      await rm(fixture.tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
-test('summarizeWordPressBootstrapTimeline groups requests and reports per-event deltas', async () => {
-  const summary = await withBootstrapTimelineHelper(() => summarizeWordPressBootstrapTimeline([
-    { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.start', t_ms: 0 },
-    { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.shutdown', t_ms: 20 },
-    { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.start', t_ms: 0 },
-    { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'wp-settings.start', t_ms: 2 },
-    { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.shutdown', t_ms: 75 },
-  ]));
-  assert.equal(summary.length, 2);
-  assert.equal(summary[0].uri, '/wp-json/slow');
-  assert.equal(summary[0].duration_ms, 75);
-  assert.equal(summary[0].events[2].delta_from_previous_ms, 73);
+test('summarizeWordPressBootstrapTimeline normalizes upstream camelCase summaries', async () => {
+  const fixture = await writeFakeWordPressManifest();
+  try {
+    await withEnvAsync({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath }, async () => {
+      const summary = summarizeWordPressBootstrapTimeline([
+        { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.start', t_ms: 0 },
+        { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.shutdown', t_ms: 20 },
+        { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.start', t_ms: 0 },
+        { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'wp-settings.start', t_ms: 2 },
+        { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.shutdown', t_ms: 75 },
+      ]);
+      assert.equal(summary.length, 2);
+      assert.equal(summary[0].uri, '/wp-json/slow');
+      assert.equal(summary[0].duration_ms, 75);
+      assert.equal(summary[0].events[2].delta_from_previous_ms, 73);
+    });
+  } finally {
+    await rm(fixture.tempDir, { recursive: true, force: true });
+  }
 });
 
 // --- Site Editor preload comparison ---------------------------------------

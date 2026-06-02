@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 import { runCli as defaultRunCli } from './studio-bench.mjs';
 import { collectLatestGeneratedTheme } from './design-gates.mjs';
+import { loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
 
 export {
   collectGeneratedThemeUxGates,
@@ -97,53 +98,6 @@ $counts['target_core_html_without_bfb_fallback'] = max( 0, $counts['target_core_
 echo wp_json_encode( $counts, JSON_PRETTY_PRINT ) . PHP_EOL;
 `;
 
-export function pageQualityProbeCode(pageId) {
-  const encodedPageId = Buffer.from(String(pageId)).toString('base64');
-
-  return String.raw`
-function bench_count_blocks( $blocks, &$counts ) {
-    foreach ( $blocks as $block ) {
-        $name = isset( $block['blockName'] ) ? (string) $block['blockName'] : '';
-        if ( '' !== $name ) {
-            $counts['total_blocks']++;
-            if ( 'core/html' === $name ) {
-                $counts['core_html_blocks']++;
-            }
-        }
-        if ( ! empty( $block['innerBlocks'] ) ) {
-            bench_count_blocks( $block['innerBlocks'], $counts );
-        }
-    }
-}
-
-$page_id = absint( base64_decode( '${encodedPageId}' ) );
-$post = get_post( $page_id );
-if ( ! $post ) {
-    fwrite( STDERR, 'Inserted page not found: ' . $page_id );
-    exit( 1 );
-}
-
-$content = (string) $post->post_content;
-$counts = array(
-    'posts_seen' => '' === trim( $content ) ? 0 : 1,
-    'posts_with_blocks' => false !== strpos( $content, '<!-- wp:' ) ? 1 : 0,
-    'total_blocks' => 0,
-    'core_html_blocks' => 0,
-    'serialized_block_comments' => substr_count( $content, '<!-- wp:' ),
-    'bfb_fallback_count' => (int) get_option( 'studio_bfb_unsupported_fallback_count', 0 ),
-    'stored_content_hash' => hash( 'sha256', $content ),
-    'stored_content_bytes' => strlen( $content ),
-    'stored_content_preview' => substr( $content, 0, 2000 ),
-);
-
-if ( '' !== trim( $content ) ) {
-    bench_count_blocks( parse_blocks( $content ), $counts );
-}
-
-echo wp_json_encode( $counts, JSON_PRETTY_PRINT ) . PHP_EOL;
-`;
-}
-
 export async function probeQuality(sitePath, options = {}) {
   const runCli = options.runCli || defaultRunCli;
   const { stdout } = await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', QUALITY_PROBE]);
@@ -152,8 +106,27 @@ export async function probeQuality(sitePath, options = {}) {
 
 export async function probePageQuality(sitePath, pageId, options = {}) {
   const runCli = options.runCli || defaultRunCli;
-  const { stdout } = await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', pageQualityProbeCode(pageId)]);
-  return parseQualityProbeOutput(stdout);
+  const { module: blockQuality } = loadWordPressLibHelper('block-quality.js', options);
+  if (!blockQuality?.wordpressPostBlockQualityProbeCode || !blockQuality?.parseWordPressBlockQualityProbeOutput) {
+    throw new Error('Homeboy WordPress block quality helper is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.');
+  }
+  const { stdout } = await runCli([
+    'wp',
+    '--path',
+    sitePath,
+    '--php-version',
+    '8.3',
+    'eval',
+    blockQuality.wordpressPostBlockQualityProbeCode(pageId, {
+      fallbackOptionNames: ['studio_bfb_unsupported_fallback_count'],
+    }),
+  ]);
+  const quality = blockQuality.parseWordPressBlockQualityProbeOutput(stdout);
+  return {
+    ...quality,
+    bfb_fallback_count: quality.fallback_count || 0,
+    core_html_without_bfb_fallback: quality.core_html_without_fallback || 0,
+  };
 }
 
 function parseQualityProbeOutput(stdout) {
