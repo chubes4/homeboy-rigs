@@ -3,8 +3,9 @@
 ## 1. Rig Contract
 
 Create a package installable with `homeboy rig install ./WordPress/gutenberg`.
-The rig points at the local Gutenberg checkout and runs WordPress benchmark
-workloads through Homeboy Extensions' WP Codebox backend.
+The rig points at the local Gutenberg checkout and owns the Gutenberg-specific
+protocol-load workload. Homeboy Extensions' `wordpress.bench` adapter runs that
+workload on a disposable WP Codebox WordPress runtime.
 
 ```text
 WordPress/gutenberg/
@@ -55,7 +56,7 @@ Artifacts:
 
 ## 3. Implementation Sequence
 
-1. Make `homeboy bench list --rig gutenberg-rtc` discover the WP Codebox-backed
+1. Make `homeboy bench list --rig gutenberg-rtc` discover the `homeboy-rigs`
    protocol scenario.
 2. Implement `protocol-load` as a PHP `wordpress.bench` workload mounted from
    the rig package into the disposable Codebox runtime.

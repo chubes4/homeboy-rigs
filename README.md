@@ -174,7 +174,7 @@ WooCommerce site-generation benchmarks are tracked as future work until the Stud
 
 ## WordPress/gutenberg
 
-`rigs/gutenberg-rtc/rig.json` is the planned Gutenberg real-time collaboration stress rig. It currently exposes one WP Codebox-backed WordPress bench workload, `gutenberg-rtc-protocol-load`, for high-cardinality synthetic REST load against the real WordPress sync endpoint.
+`rigs/gutenberg-rtc/rig.json` is the planned Gutenberg real-time collaboration stress rig. It currently exposes one `homeboy-rigs` workload, `gutenberg-rtc-protocol-load`, that runs through the Homeboy Extensions WordPress bench adapter on a disposable WP Codebox runtime for high-cardinality synthetic REST load against the real WordPress sync endpoint.
 
 ```bash
 homeboy rig install ./WordPress/gutenberg
