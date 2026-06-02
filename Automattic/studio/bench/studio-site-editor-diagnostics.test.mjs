@@ -80,6 +80,44 @@ function withEnv(values, callback) {
   }
 }
 
+async function withBootstrapTimelineHelper(callback) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-bootstrap-helper-'));
+  const helperPath = path.join(tempDir, 'wordpress-bootstrap-timeline.cjs');
+  const manifestPath = path.join(tempDir, 'helper-manifest.cjs');
+  await writeFile(
+    helperPath,
+    `module.exports = {
+      instrumentIndexPhp(source) {
+        return source.includes('HOMEBOY_BOOTSTRAP_TIMELINE') ? source : source + ${JSON.stringify('\n/* HOMEBOY_BOOTSTRAP_TIMELINE entry.start entry.shutdown */\n')};
+      },
+      instrumentWpSettingsPhp(source) {
+        return source.includes('wp-settings.after_muplugins_loaded') ? source : source + ${JSON.stringify('\n/* wp-settings.start wp-settings.after_require_wp_db wp-settings.before_load_most wp-settings.after_blocks_index wp-settings.after_muplugins_loaded */\n')};
+      },
+      summarizeWordPressBootstrapTimeline(rows) {
+        const groups = new Map();
+        for (const row of rows) {
+          const group = groups.get(row.request_id) || { uri: row.uri, method: row.method, durationMs: 0, events: [] };
+          group.durationMs = Math.max(group.durationMs, row.t_ms);
+          const previous = group.events[group.events.length - 1];
+          group.events.push({ event: row.event, tMs: row.t_ms, deltaFromPreviousMs: previous ? row.t_ms - previous.tMs : row.t_ms });
+          groups.set(row.request_id, group);
+        }
+        return Array.from(groups.values()).sort((a, b) => b.durationMs - a.durationMs);
+      },
+    };`
+  );
+  await writeFile(
+    manifestPath,
+    `module.exports = { getWordPressHelperManifest: () => ({ helpers: { bootstrapTimeline: ${JSON.stringify(helperPath)} } }) };`
+  );
+
+  try {
+    return await withEnv({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: manifestPath }, callback);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
 // --- path resolution -------------------------------------------------------
 
 test('sanitizeArtifact redacts sensitive network artifact values', async () => {
@@ -135,6 +173,31 @@ test('requestProfilerPath honors the wordpress_request_profiler_path setting', (
       assert.equal(requestProfilerPath(), '/another/profiler.js');
     }
   );
+});
+
+test('requestProfilerPath uses the WordPress helper manifest when no explicit path is configured', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-helper-manifest-'));
+  const manifestPath = path.join(tempDir, 'helper-manifest.cjs');
+  await writeFile(
+    manifestPath,
+    `module.exports = { getWordPressHelperManifest: () => ({ helpers: { requestProfiler: ${JSON.stringify(path.join(tempDir, 'request-profiler.js'))}, timingCorrelator: ${JSON.stringify(path.join(tempDir, 'timing-correlator.js'))} } }) };`
+  );
+
+  try {
+    withEnv(
+      {
+        HOMEBOY_SETTINGS_JSON: undefined,
+        HOMEBOY_WORDPRESS_HELPER_MANIFEST: manifestPath,
+        HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER: undefined,
+      },
+      () => {
+        assert.equal(requestProfilerPath(), path.join(tempDir, 'request-profiler.js'));
+        assert.equal(timingCorrelatorPath(), path.join(tempDir, 'timing-correlator.js'));
+      }
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('pageProfilerPath sits next to the request profiler by default', () => {
@@ -589,16 +652,16 @@ test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds 
 
 // --- WordPress bootstrap timeline -----------------------------------------
 
-test('instrumentIndexPhp adds entry and shutdown timeline hooks once', () => {
+test('instrumentIndexPhp adds entry and shutdown timeline hooks once', async () => {
   const source = "<?php\ndefine( 'WP_USE_THEMES', true );\nrequire __DIR__ . '/wp-blog-header.php';\n";
-  const instrumented = instrumentIndexPhp(source);
+  const instrumented = await withBootstrapTimelineHelper(() => instrumentIndexPhp(source));
   assert.match(instrumented, /HOMEBOY_BOOTSTRAP_TIMELINE/);
   assert.match(instrumented, /entry\.start/);
   assert.match(instrumented, /entry\.shutdown/);
-  assert.equal(instrumentIndexPhp(instrumented), instrumented);
+  assert.equal(await withBootstrapTimelineHelper(() => instrumentIndexPhp(instrumented)), instrumented);
 });
 
-test('instrumentWpSettingsPhp adds early WordPress bootstrap marks once', () => {
+test('instrumentWpSettingsPhp adds early WordPress bootstrap marks once', async () => {
   const source = `<?php
 define( 'WPINC', 'wp-includes' );
 require_wp_db();
@@ -617,23 +680,23 @@ wp_plugin_directory_constants();
 unset( $mu_plugin, $_wp_plugin_file );
 do_action( 'muplugins_loaded' );
 `;
-  const instrumented = instrumentWpSettingsPhp(source);
+  const instrumented = await withBootstrapTimelineHelper(() => instrumentWpSettingsPhp(source));
   assert.match(instrumented, /wp-settings\.start/);
   assert.match(instrumented, /wp-settings\.after_require_wp_db/);
   assert.match(instrumented, /wp-settings\.before_load_most/);
   assert.match(instrumented, /wp-settings\.after_blocks_index/);
   assert.match(instrumented, /wp-settings\.after_muplugins_loaded/);
-  assert.equal(instrumentWpSettingsPhp(instrumented), instrumented);
+  assert.equal(await withBootstrapTimelineHelper(() => instrumentWpSettingsPhp(instrumented)), instrumented);
 });
 
-test('summarizeWordPressBootstrapTimeline groups requests and reports per-event deltas', () => {
-  const summary = summarizeWordPressBootstrapTimeline([
+test('summarizeWordPressBootstrapTimeline groups requests and reports per-event deltas', async () => {
+  const summary = await withBootstrapTimelineHelper(() => summarizeWordPressBootstrapTimeline([
     { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.start', t_ms: 0 },
     { request_id: 'fast', uri: '/wp-json/fast', method: 'GET', event: 'entry.shutdown', t_ms: 20 },
     { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.start', t_ms: 0 },
     { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'wp-settings.start', t_ms: 2 },
     { request_id: 'slow', uri: '/wp-json/slow', method: 'GET', event: 'entry.shutdown', t_ms: 75 },
-  ]);
+  ]));
   assert.equal(summary.length, 2);
   assert.equal(summary[0].uri, '/wp-json/slow');
   assert.equal(summary[0].duration_ms, 75);
