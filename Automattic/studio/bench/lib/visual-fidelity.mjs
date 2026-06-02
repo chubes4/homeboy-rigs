@@ -5,6 +5,7 @@ import zlib from 'node:zlib';
 
 import { STUDIO_PATH } from './studio-bench.mjs';
 import { asArray, comparisonTargets, safeSlug, stringArray, surfaceUrl } from './fidelity-targets.mjs';
+import { loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
 export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
@@ -45,141 +46,25 @@ export async function loadVisualSurface(page, url) {
   await page.waitForTimeout(300);
 }
 
-async function loadEditorSurface(page, url) {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.waitForSelector('iframe[name="editor-canvas"]', { timeout: 30_000 });
-
-  const frameHandle = await page.locator('iframe[name="editor-canvas"]').elementHandle();
-  const frame = await frameHandle?.contentFrame();
-  if (!frame) {
-    throw new Error('Editor canvas iframe did not expose a content frame.');
+function loadEditorCanvasProbes() {
+  const { module } = loadWordPressLibHelper('editor-canvas-probes.js');
+  if (!module) {
+    throw new Error('Homeboy WordPress editor canvas probes are unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.');
   }
-
-  await frame.waitForFunction(
-    () => {
-      const layout = document.querySelector('.block-editor-block-list__layout');
-      if (!layout) {
-        return false;
-      }
-
-      const rect = layout.getBoundingClientRect();
-      const isLoading =
-        layout.matches('.is-loading, [aria-busy="true"]') ||
-        layout.querySelector('.is-loading, [aria-busy="true"], .components-spinner');
-      const blockCount = layout.querySelectorAll('.block-editor-block-list__block, [data-block]').length;
-      return rect.width > 0 && rect.height > 0 && !isLoading && blockCount > 0;
-    },
-    { timeout: 30_000 }
-  );
-
-  await frame.addStyleTag({
-    content: `
-      *, *::before, *::after {
-        animation-delay: 0s !important;
-        animation-duration: 0.001ms !important;
-        caret-color: transparent !important;
-        transition-delay: 0s !important;
-        transition-duration: 0.001ms !important;
-      }
-      .block-editor-block-list__block,
-      .block-editor-block-list__block::before,
-      .block-editor-block-list__block::after,
-      .is-selected,
-      .is-highlighted,
-      .has-child-selected {
-        box-shadow: none !important;
-        outline: 0 !important;
-      }
-      .block-editor-block-contextual-toolbar,
-      .block-editor-block-list__insertion-point,
-      .block-editor-block-list__breadcrumb,
-      .block-editor-inserter,
-      .block-editor-inserter__quick-inserter,
-      .block-editor-rich-text__editable::after,
-      .components-popover,
-      .components-toolbar,
-      .components-toolbar-group,
-      .is-root-container > .block-list-appender {
-        display: none !important;
-      }
-    `,
-  });
-  await frame.waitForTimeout(300);
-  return frame;
+  return module;
 }
 
 async function captureEditorScreenshot(page, url, screenshotPath) {
-  const frame = await loadEditorSurface(page, url);
-  const layout = frame.locator('.block-editor-block-list__layout').first();
-  await layout.screenshot({ path: screenshotPath, timeout: 30_000 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await loadEditorCanvasProbes().captureWordPressEditorCanvasScreenshot(page, screenshotPath, {
+    url,
+    waitUntil: 'domcontentloaded',
+    timeoutMs: 30_000,
+  });
 }
 
 async function evaluateVisualSurface(page, groups) {
-  const evaluatedGroups = [];
-
-  for (const group of groups) {
-    const selectors = [];
-
-    for (const selector of group.selectors) {
-      try {
-        const matches = await page.$$eval(selector, (elements) =>
-          elements.map((element) => {
-            const rect = element.getBoundingClientRect();
-            const style = window.getComputedStyle(element);
-            const visible =
-              rect.width > 0 &&
-              rect.height > 0 &&
-              style.display !== 'none' &&
-              style.visibility !== 'hidden' &&
-              Number(style.opacity || '1') > 0;
-
-            return {
-              visible,
-              boundingBox: {
-                x: Math.round(rect.x),
-                y: Math.round(rect.y),
-                width: Math.round(rect.width),
-                height: Math.round(rect.height),
-              },
-              text: String(element.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160),
-            };
-          })
-        );
-        selectors.push({
-          selector,
-          count: matches.length,
-          visible_count: matches.filter((match) => match.visible).length,
-          nonzero_bounding_box_count: matches.filter(
-            (match) => match.boundingBox.width > 0 && match.boundingBox.height > 0
-          ).length,
-          first_match: matches[0] || null,
-        });
-      } catch (error) {
-        selectors.push({
-          selector,
-          count: 0,
-          visible_count: 0,
-          nonzero_bounding_box_count: 0,
-          error: error instanceof Error ? error.message : String(error),
-          first_match: null,
-        });
-      }
-    }
-
-    evaluatedGroups.push({
-      name: group.name,
-      selectors,
-      selector_count: selectors.length,
-      missing_selector_count: selectors.filter((item) => item.count === 0).length,
-      errored_selector_count: selectors.filter((item) => item.error).length,
-      matched_selector_count: selectors.filter((item) => item.count > 0).length,
-      visible_selector_count: selectors.filter((item) => item.visible_count > 0).length,
-      nonzero_bounding_box_selector_count: selectors.filter((item) => item.nonzero_bounding_box_count > 0).length,
-    });
-  }
-
-  return evaluatedGroups;
+  return loadEditorCanvasProbes().summarizeVisibleSelectors(page, groups).then((summary) => summary.groups);
 }
 
 function visualSurfaceTotals(groups) {

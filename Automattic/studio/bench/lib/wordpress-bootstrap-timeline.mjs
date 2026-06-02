@@ -2,22 +2,18 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-import { requestProfilerPath, wordpressHelperPath } from './site-editor-timing-deltas.mjs';
+import { requestProfilerPath } from './site-editor-timing-deltas.mjs';
+import { wordpressHelperPath } from './wordpress-helper-discovery.mjs';
 
 const require = createRequire(import.meta.url);
 const BOOTSTRAP_TIMELINE_FILENAME = 'wordpress-bootstrap-timeline.js';
 
 function bootstrapTimelinePath(options = {}) {
-  const explicit = options.override ||
-    process.env.HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_PATH ||
-    process.env.HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_HELPER;
+  const explicit = options.override || process.env.HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_PATH || wordpressHelperPath('bootstrapTimeline', {
+    envVar: 'HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_HELPER',
+  });
   if (explicit) {
     return explicit;
-  }
-
-  const helper = wordpressHelperPath('bootstrapTimeline');
-  if (helper) {
-    return helper;
   }
 
   const profiler = options.profilerPath || requestProfilerPath();

@@ -14,9 +14,10 @@ import {
 	stopStudioSite,
 } from './lib/studio-bench.mjs';
 
-const HELPER_DIR =
-	process.env.HOMEBOY_TRACE_HELPER_DIR ||
-	'/Users/chubes/Developer/homeboy-extensions/nodejs/scripts/trace/lib';
+const HELPER_DIR = process.env.HOMEBOY_TRACE_HELPER_DIR;
+if (!HELPER_DIR) {
+	throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
+}
 const ARTIFACT_DIR =
 	process.env.HOMEBOY_TRACE_ARTIFACT_DIR ||
 	path.join(tmpdir(), 'studio-seeded-template-trace-artifacts');

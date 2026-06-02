@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { requestProfilerPath } from './site-editor-timing-deltas.mjs';
+import { wordpressLibHelperPath } from './wordpress-helper-discovery.mjs';
 
 const require = createRequire(import.meta.url);
 const PAGE_PROFILER_FILENAME = 'page-profiler.js';
@@ -77,6 +78,11 @@ export function pageProfilerPath(options = {}) {
     return explicit;
   }
 
+  const manifestPath = wordpressLibHelperPath(PAGE_PROFILER_FILENAME, options);
+  if (manifestPath) {
+    return manifestPath;
+  }
+
   const profiler = options.profilerPath || requestProfilerPath();
   if (!profiler) {
     return '';
@@ -88,6 +94,11 @@ export function adminPageScenariosPath(options = {}) {
   const explicit = options.override || process.env.HOMEBOY_WORDPRESS_ADMIN_PAGE_SCENARIOS_PATH;
   if (explicit) {
     return explicit;
+  }
+
+  const manifestPath = wordpressLibHelperPath(ADMIN_PAGE_SCENARIOS_FILENAME, options);
+  if (manifestPath) {
+    return manifestPath;
   }
 
   const profiler = options.pageProfilerPath || pageProfilerPath(options);

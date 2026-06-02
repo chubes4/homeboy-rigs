@@ -7,7 +7,10 @@ import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 
 const require = createRequire(import.meta.url);
-const HELPER_DIR = process.env.HOMEBOY_TRACE_HELPER_DIR || '/Users/chubes/Developer/homeboy-extensions/nodejs/scripts/trace/lib';
+const HELPER_DIR = process.env.HOMEBOY_TRACE_HELPER_DIR;
+if (!HELPER_DIR) {
+	throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
+}
 const PLAYGROUND_PATH = process.env.PLAYGROUND_WEB_TRACE_PLAYGROUND_PATH || '/Users/chubes/Developer/wordpress-playground@investigate-preinstalled-sqlite-template';
 const BASE_URL = process.env.PLAYGROUND_WEB_TRACE_BASE_URL || 'http://127.0.0.1:5400/website-server/';
 const WP_VERSION = process.env.PLAYGROUND_WEB_TRACE_WP_VERSION || '6.8';
