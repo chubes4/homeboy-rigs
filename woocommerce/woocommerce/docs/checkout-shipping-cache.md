@@ -57,6 +57,7 @@ The rig sets conservative defaults through `bench_env`:
 - `WC_SHIPPING_CACHE_CART_ITEMS=40`
 - `WC_SHIPPING_CACHE_PACKAGES=8`
 - `WC_SHIPPING_CACHE_WARM_RUNS=5`
+- `WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS=3`
 - `WC_SHIPPING_CACHE_REHASH_RUNS=3`
 
 Override them with Homeboy settings, for example:
@@ -82,6 +83,21 @@ When `HOMEBOY_BENCH_SHARED_STATE` is set, the workload writes:
 The artifact contains the run ID, issue URLs, seeded product IDs, shipping zone
 ID, per-pass timing rows, session cache keys observed, and the same summary
 metrics returned in the Homeboy BenchResults envelope.
+
+## Matrix Report
+
+Use `tools/checkout-shipping-cache-matrix-report.mjs` to generate the compact
+Markdown report shell and to summarize real shared-state artifacts when they are
+available:
+
+```bash
+node woocommerce/woocommerce/tools/checkout-shipping-cache-matrix-report.mjs \
+  --input /tmp/woocommerce-performance-bench
+```
+
+The report keeps timing evidence separate from shipping-rate call-count evidence
+and leaves baseline/candidate red-green deltas empty unless real artifacts are
+provided.
 
 ## Current TODOs
 

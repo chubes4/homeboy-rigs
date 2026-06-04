@@ -40,6 +40,18 @@ cp Automattic/studio/stacks/*.json ~/.config/homeboy/stacks/
 cp WordPress/wordpress-playground/stacks/*.json ~/.config/homeboy/stacks/
 ```
 
+## Lint
+
+Run the repo-local package lint before opening rig package PRs:
+
+```bash
+node scripts/lint-rig-packages.mjs
+```
+
+The lint path scans for unresolved conflict markers, validates JSON specs, and
+runs `php -l` against PHP bench workloads when PHP is available. GitHub Actions
+runs the same script with PHP installed.
+
 ## Automattic/studio
 
 `rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
