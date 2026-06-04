@@ -228,6 +228,24 @@ homeboy rig check playground-cli-diagnostics
 homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1 --shared-state /tmp/playground-cli-diagnostics
 ```
 
+## woocommerce/woocommerce
+
+`rigs/woocommerce-performance/rig.json` runs WooCommerce checkout/shipping cache
+performance workloads against a local WooCommerce monorepo checkout mounted into
+the WP Codebox WordPress bench runtime.
+
+```bash
+homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
+homeboy rig check woocommerce-performance
+homeboy rig up woocommerce-performance
+homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
+```
+
+The runner must provide `~/Developer/woocommerce/plugins/woocommerce`. The rig
+check reports missing checkout, Composer dependency, and generated feature-config
+prerequisites with targeted messages. Use `homeboy rig up` for the safe dependency
+prep path before benchmarking.
+
 ## chubes4/isolated-block-editor
 
 `rigs/isolated-block-editor/rig.json` runs the checks used while shaving Isolated Block Editor toward modern Gutenberg APIs.
