@@ -1,0 +1,282 @@
+<?php
+/**
+ * WP Codebox-backed WooCommerce checkout shipping-cache workload.
+ *
+ * Runs inside the disposable WordPress runtime owned by `wordpress.bench`.
+ */
+return function (): array {
+	if ( ! class_exists( 'WooCommerce' ) ) {
+		$woocommerce_entrypoint = WP_PLUGIN_DIR . '/woocommerce/woocommerce.php';
+		if ( ! file_exists( $woocommerce_entrypoint ) ) {
+			throw new RuntimeException( 'WooCommerce plugin entrypoint is not mounted.' );
+		}
+		require_once $woocommerce_entrypoint;
+	}
+
+	if ( ! class_exists( 'WooCommerce' ) || ! function_exists( 'WC' ) ) {
+		throw new RuntimeException( 'WooCommerce is not loaded.' );
+	}
+	if ( ! function_exists( 'wc_load_cart' ) ) {
+		throw new RuntimeException( 'WooCommerce cart loader is not available.' );
+	}
+
+	$cart_items  = max( 1, min( 1000, (int) ( getenv( 'WC_SHIPPING_CACHE_CART_ITEMS' ) ?: 40 ) ) );
+	$packages    = max( 1, min( $cart_items, (int) ( getenv( 'WC_SHIPPING_CACHE_PACKAGES' ) ?: 8 ) ) );
+	$warm_runs   = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_WARM_RUNS' ) ?: 5 ) ) );
+	$rehash_runs = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_REHASH_RUNS' ) ?: 3 ) ) );
+	$run_id      = 'woocommerce-checkout-shipping-cache-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
+	$issues      = array(
+		'https://github.com/woocommerce/woocommerce/issues/49259',
+		'https://github.com/woocommerce/woocommerce/issues/32055',
+		'https://github.com/woocommerce/woocommerce/issues/26569',
+	);
+
+	wp_set_current_user( 1 );
+	update_option( 'woocommerce_store_address', '123 Performance Way' );
+	update_option( 'woocommerce_store_city', 'San Francisco' );
+	update_option( 'woocommerce_default_country', 'US:CA' );
+	update_option( 'woocommerce_currency', 'USD' );
+	update_option( 'woocommerce_weight_unit', 'lbs' );
+	update_option( 'woocommerce_dimension_unit', 'in' );
+
+	if ( ! WC()->session ) {
+		if ( method_exists( WC(), 'initialize_session' ) ) {
+			WC()->initialize_session();
+		} elseif ( class_exists( 'WC_Session_Handler' ) ) {
+			WC()->session = new WC_Session_Handler();
+			WC()->session->init();
+		}
+	}
+	if ( WC()->session ) {
+		WC()->session->set_customer_session_cookie( true );
+	}
+	wc_load_cart();
+	WC()->cart->empty_cart();
+
+	if ( WC()->customer ) {
+		WC()->customer->set_billing_country( 'US' );
+		WC()->customer->set_billing_state( 'CA' );
+		WC()->customer->set_billing_postcode( '94107' );
+		WC()->customer->set_shipping_country( 'US' );
+		WC()->customer->set_shipping_state( 'CA' );
+		WC()->customer->set_shipping_postcode( '94107' );
+		WC()->customer->set_shipping_city( 'San Francisco' );
+		WC()->customer->set_shipping_address( '123 Performance Way' );
+		WC()->customer->save();
+	}
+
+	$zone = new WC_Shipping_Zone();
+	$zone->set_zone_name( 'Homeboy Performance US ' . $run_id );
+	$zone->set_zone_order( 0 );
+	$zone->add_location( 'US', 'country' );
+	$zone->save();
+	$flat_rate_instance_id = $zone->add_shipping_method( 'flat_rate' );
+	update_option(
+		'woocommerce_flat_rate_' . $flat_rate_instance_id . '_settings',
+		array(
+			'enabled'    => 'yes',
+			'title'      => 'Homeboy Flat Rate',
+			'tax_status' => 'none',
+			'cost'       => '5',
+		)
+	);
+	if ( class_exists( 'WC_Cache_Helper' ) ) {
+		WC_Cache_Helper::get_transient_version( 'shipping', true );
+	}
+
+	$product_ids = array();
+	for ( $i = 0; $i < $cart_items; $i++ ) {
+		$product = new WC_Product_Simple();
+		$product->set_name( 'Homeboy Shipping Cache Product ' . $run_id . ' #' . ( $i + 1 ) );
+		$product->set_slug( 'homeboy-shipping-cache-' . $run_id . '-' . ( $i + 1 ) );
+		$product->set_sku( 'homeboy-shipping-cache-' . $run_id . '-' . ( $i + 1 ) );
+		$product->set_regular_price( '10' );
+		$product->set_price( '10' );
+		$product->set_virtual( false );
+		$product->set_weight( '1' );
+		$product->set_length( '4' );
+		$product->set_width( '4' );
+		$product->set_height( '4' );
+		$product->set_manage_stock( false );
+		$product->set_stock_status( 'instock' );
+		$product->save();
+		$product_ids[] = $product->get_id();
+
+		WC()->cart->add_to_cart(
+			$product->get_id(),
+			1,
+			0,
+			array(),
+			array( 'homeboy_line' => $i )
+		);
+	}
+
+	$split_packages = static function ( array $cart_packages ) use ( $packages ): array {
+		$base_package = $cart_packages[0] ?? array();
+		$contents     = array_values( $base_package['contents'] ?? array() );
+		if ( empty( $contents ) ) {
+			return $cart_packages;
+		}
+
+		$chunk_size = max( 1, (int) ceil( count( $contents ) / $packages ) );
+		$split      = array();
+		foreach ( array_chunk( $contents, $chunk_size ) as $index => $chunk ) {
+			$package             = $base_package;
+			$package['contents'] = array();
+			foreach ( $chunk as $item_index => $item ) {
+				$package['contents'][ 'homeboy_' . $index . '_' . $item_index ] = $item;
+			}
+			$package['homeboy_package_index'] = $index;
+			$split[]                          = $package;
+		}
+
+		return $split;
+	};
+	add_filter( 'woocommerce_cart_shipping_packages', $split_packages, 100 );
+
+	$clear_shipping_cache = static function () use ( $packages ): void {
+		if ( ! WC()->session ) {
+			return;
+		}
+		for ( $i = 0; $i < $packages; $i++ ) {
+			WC()->session->__unset( 'shipping_for_package_' . $i );
+		}
+		WC()->session->__unset( 'chosen_shipping_methods' );
+	};
+
+	$session_cache_keys = static function () use ( $packages ): array {
+		$keys = array();
+		if ( ! WC()->session ) {
+			return $keys;
+		}
+		for ( $i = 0; $i < $packages; $i++ ) {
+			$key = 'shipping_for_package_' . $i;
+			if ( null !== WC()->session->get( $key, null ) ) {
+				$keys[] = $key;
+			}
+		}
+		return $keys;
+	};
+
+	$measure_shipping = static function ( string $label ) use ( $session_cache_keys ): array {
+		$before   = microtime( true );
+		$packages = WC()->cart->calculate_shipping();
+		$elapsed  = ( microtime( true ) - $before ) * 1000;
+		$rates    = 0;
+		foreach ( $packages as $package ) {
+			if ( $package instanceof WC_Shipping_Rate ) {
+				$rates++;
+				continue;
+			}
+			if ( is_array( $package ) ) {
+				$rates += count( $package['rates'] ?? array() );
+			}
+		}
+
+		return array(
+			'label'              => $label,
+			'elapsed_ms'         => $elapsed,
+			'package_count'      => count( $packages ),
+			'rate_count'         => $rates,
+			'session_cache_keys' => $session_cache_keys(),
+		);
+	};
+
+	WC()->cart->calculate_totals();
+	$rows = array();
+
+	$clear_shipping_cache();
+	$rows[] = $measure_shipping( 'cold' );
+
+	for ( $i = 0; $i < $warm_runs; $i++ ) {
+		$rows[] = $measure_shipping( 'warm_' . ( $i + 1 ) );
+	}
+
+	for ( $i = 0; $i < $rehash_runs; $i++ ) {
+		WC()->customer->set_shipping_postcode( '941' . str_pad( (string) ( 10 + $i ), 2, '0', STR_PAD_LEFT ) );
+		WC()->customer->save();
+		$rows[] = $measure_shipping( 'rehash_' . ( $i + 1 ) );
+	}
+
+	remove_filter( 'woocommerce_cart_shipping_packages', $split_packages, 100 );
+
+	$percentile = static function ( array $values, float $percentile ): float {
+		if ( empty( $values ) ) {
+			return 0.0;
+		}
+		sort( $values, SORT_NUMERIC );
+		$index = (int) floor( ( count( $values ) - 1 ) * $percentile );
+		return (float) $values[ $index ];
+	};
+	$only_elapsed = static function ( array $rows, string $prefix ): array {
+		$values = array();
+		foreach ( $rows as $row ) {
+			if ( 0 === strpos( $row['label'], $prefix ) ) {
+				$values[] = (float) $row['elapsed_ms'];
+			}
+		}
+		return $values;
+	};
+
+	$cold_row      = $rows[0];
+	$warm_values   = $only_elapsed( $rows, 'warm_' );
+	$rehash_values = $only_elapsed( $rows, 'rehash_' );
+	$warm_p50      = $percentile( $warm_values, 0.50 );
+	$warm_p95      = $percentile( $warm_values, 0.95 );
+	$rehash_p50    = $percentile( $rehash_values, 0.50 );
+	$final_cache   = $session_cache_keys();
+	$summary       = array(
+		'success_rate'              => 1,
+		'cart_items'                => $cart_items,
+		'configured_package_target' => $packages,
+		'actual_package_count'      => (int) $cold_row['package_count'],
+		'shipping_rate_count'       => (int) $cold_row['rate_count'],
+		'warm_runs'                 => $warm_runs,
+		'rehash_runs'               => $rehash_runs,
+		'cold_shipping_ms'          => (float) $cold_row['elapsed_ms'],
+		'warm_shipping_p50_ms'      => $warm_p50,
+		'warm_shipping_p95_ms'      => $warm_p95,
+		'warm_shipping_max_ms'      => empty( $warm_values ) ? 0 : max( $warm_values ),
+		'rehash_shipping_p50_ms'    => $rehash_p50,
+		'rehash_shipping_max_ms'    => empty( $rehash_values ) ? 0 : max( $rehash_values ),
+		'warm_to_cold_ratio'        => (float) $cold_row['elapsed_ms'] > 0 ? $warm_p50 / (float) $cold_row['elapsed_ms'] : 0,
+		'rehash_to_warm_ratio'      => $warm_p50 > 0 ? $rehash_p50 / $warm_p50 : 0,
+		'session_cache_key_count'   => count( $final_cache ),
+	);
+
+	$artifact_path = '';
+	$shared_state  = getenv( 'HOMEBOY_BENCH_SHARED_STATE' );
+	if ( $shared_state ) {
+		$artifact_dir = rtrim( $shared_state, '/' ) . '/checkout-shipping-cache';
+		wp_mkdir_p( $artifact_dir );
+		$artifact_path = $artifact_dir . '/' . $run_id . '.json';
+		file_put_contents(
+			$artifact_path,
+			wp_json_encode(
+				array(
+					'run_id'             => $run_id,
+					'issues'             => $issues,
+					'product_ids'        => $product_ids,
+					'shipping_zone_id'   => $zone->get_id(),
+					'shipping_method_id' => $flat_rate_instance_id,
+					'rows'               => $rows,
+					'final_cache_keys'   => $final_cache,
+					'metrics'            => $summary,
+				),
+				JSON_PRETTY_PRINT
+			) . "\n"
+		);
+	}
+
+	return array(
+		'metrics'   => $summary,
+		'metadata'  => array(
+			'runner'       => 'wp-codebox',
+			'workload'     => 'checkout-shipping-cache',
+			'issues'       => $issues,
+			'zone_id'      => $zone->get_id(),
+			'product_seed' => 'simple-physical',
+		),
+		'artifacts' => $artifact_path ? array( 'raw_result' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
+	);
+};
