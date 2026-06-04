@@ -22,10 +22,11 @@ return function (): array {
 
 	$cart_items  = max( 1, min( 1000, (int) ( getenv( 'WC_SHIPPING_CACHE_CART_ITEMS' ) ?: 40 ) ) );
 	$packages    = max( 1, min( $cart_items, (int) ( getenv( 'WC_SHIPPING_CACHE_PACKAGES' ) ?: 8 ) ) );
-	$warm_runs   = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_WARM_RUNS' ) ?: 5 ) ) );
-	$rehash_runs = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_REHASH_RUNS' ) ?: 3 ) ) );
-	$run_id      = 'woocommerce-checkout-shipping-cache-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
-	$issues      = array(
+	$warm_runs        = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_WARM_RUNS' ) ?: 5 ) ) );
+	$total_churn_runs = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS' ) ?: 3 ) ) );
+	$rehash_runs      = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_REHASH_RUNS' ) ?: 3 ) ) );
+	$run_id           = 'woocommerce-checkout-shipping-cache-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
+	$issues           = array(
 		'https://github.com/woocommerce/woocommerce/issues/49259',
 		'https://github.com/woocommerce/woocommerce/issues/32055',
 		'https://github.com/woocommerce/woocommerce/issues/26569',
@@ -111,7 +112,8 @@ return function (): array {
 		);
 	}
 
-	$split_packages = static function ( array $cart_packages ) use ( $packages ): array {
+	$total_churn_step = 0;
+	$split_packages   = static function ( array $cart_packages ) use ( $packages, &$total_churn_step ): array {
 		$base_package = $cart_packages[0] ?? array();
 		$contents     = array_values( $base_package['contents'] ?? array() );
 		if ( empty( $contents ) ) {
@@ -127,12 +129,22 @@ return function (): array {
 				$package['contents'][ 'homeboy_' . $index . '_' . $item_index ] = $item;
 			}
 			$package['homeboy_package_index'] = $index;
-			$split[]                          = $package;
+			if ( $total_churn_step > 0 ) {
+				$package['subtotal'] = (float) ( 100 + $index + $total_churn_step );
+				$package['total']    = (float) ( 200 + $index + $total_churn_step );
+			}
+			$split[] = $package;
 		}
 
 		return $split;
 	};
 	add_filter( 'woocommerce_cart_shipping_packages', $split_packages, 100 );
+
+	$rate_calculation_calls = 0;
+	$count_rate_calculation = static function () use ( &$rate_calculation_calls ): void {
+		++$rate_calculation_calls;
+	};
+	add_action( 'woocommerce_before_get_rates_for_package', $count_rate_calculation );
 
 	$clear_shipping_cache = static function () use ( $packages ): void {
 		if ( ! WC()->session ) {
@@ -158,11 +170,13 @@ return function (): array {
 		return $keys;
 	};
 
-	$measure_shipping = static function ( string $label ) use ( $session_cache_keys ): array {
-		$before   = microtime( true );
-		$packages = WC()->cart->calculate_shipping();
-		$elapsed  = ( microtime( true ) - $before ) * 1000;
-		$rates    = 0;
+	$measure_shipping = static function ( string $label ) use ( $session_cache_keys, &$rate_calculation_calls ): array {
+		$rate_calls_before = $rate_calculation_calls;
+		$before            = microtime( true );
+		$packages          = WC()->cart->calculate_shipping();
+		$elapsed           = ( microtime( true ) - $before ) * 1000;
+		$rate_calls_delta  = $rate_calculation_calls - $rate_calls_before;
+		$rates             = 0;
 		foreach ( $packages as $package ) {
 			if ( $package instanceof WC_Shipping_Rate ) {
 				$rates++;
@@ -174,11 +188,12 @@ return function (): array {
 		}
 
 		return array(
-			'label'              => $label,
-			'elapsed_ms'         => $elapsed,
-			'package_count'      => count( $packages ),
-			'rate_count'         => $rates,
-			'session_cache_keys' => $session_cache_keys(),
+			'label'                  => $label,
+			'elapsed_ms'             => $elapsed,
+			'package_count'          => count( $packages ),
+			'rate_count'             => $rates,
+			'rate_calculation_calls' => $rate_calls_delta,
+			'session_cache_keys'     => $session_cache_keys(),
 		);
 	};
 
@@ -192,6 +207,13 @@ return function (): array {
 		$rows[] = $measure_shipping( 'warm_' . ( $i + 1 ) );
 	}
 
+	for ( $i = 0; $i < $total_churn_runs; $i++ ) {
+		$total_churn_step = $i + 1;
+		$rows[]           = $measure_shipping( 'total_churn_' . ( $i + 1 ) );
+	}
+
+	$total_churn_step = 0;
+
 	for ( $i = 0; $i < $rehash_runs; $i++ ) {
 		WC()->customer->set_shipping_postcode( '941' . str_pad( (string) ( 10 + $i ), 2, '0', STR_PAD_LEFT ) );
 		WC()->customer->save();
@@ -199,6 +221,7 @@ return function (): array {
 	}
 
 	remove_filter( 'woocommerce_cart_shipping_packages', $split_packages, 100 );
+	remove_action( 'woocommerce_before_get_rates_for_package', $count_rate_calculation );
 
 	$percentile = static function ( array $values, float $percentile ): float {
 		if ( empty( $values ) ) {
@@ -217,29 +240,48 @@ return function (): array {
 		}
 		return $values;
 	};
+	$sum_rate_calls = static function ( array $rows, string $prefix ): int {
+		$calls = 0;
+		foreach ( $rows as $row ) {
+			if ( 0 === strpos( $row['label'], $prefix ) ) {
+				$calls += (int) ( $row['rate_calculation_calls'] ?? 0 );
+			}
+		}
+		return $calls;
+	};
 
-	$cold_row      = $rows[0];
-	$warm_values   = $only_elapsed( $rows, 'warm_' );
-	$rehash_values = $only_elapsed( $rows, 'rehash_' );
-	$warm_p50      = $percentile( $warm_values, 0.50 );
-	$warm_p95      = $percentile( $warm_values, 0.95 );
-	$rehash_p50    = $percentile( $rehash_values, 0.50 );
-	$final_cache   = $session_cache_keys();
-	$summary       = array(
+	$cold_row           = $rows[0];
+	$warm_values        = $only_elapsed( $rows, 'warm_' );
+	$total_churn_values = $only_elapsed( $rows, 'total_churn_' );
+	$rehash_values      = $only_elapsed( $rows, 'rehash_' );
+	$warm_p50           = $percentile( $warm_values, 0.50 );
+	$warm_p95           = $percentile( $warm_values, 0.95 );
+	$total_churn_p50    = $percentile( $total_churn_values, 0.50 );
+	$rehash_p50         = $percentile( $rehash_values, 0.50 );
+	$final_cache        = $session_cache_keys();
+	$summary            = array(
 		'success_rate'              => 1,
 		'cart_items'                => $cart_items,
 		'configured_package_target' => $packages,
 		'actual_package_count'      => (int) $cold_row['package_count'],
 		'shipping_rate_count'       => (int) $cold_row['rate_count'],
 		'warm_runs'                 => $warm_runs,
+		'total_churn_runs'          => $total_churn_runs,
 		'rehash_runs'               => $rehash_runs,
 		'cold_shipping_ms'          => (float) $cold_row['elapsed_ms'],
+		'cold_rate_calculation_calls' => (int) $cold_row['rate_calculation_calls'],
 		'warm_shipping_p50_ms'      => $warm_p50,
 		'warm_shipping_p95_ms'      => $warm_p95,
 		'warm_shipping_max_ms'      => empty( $warm_values ) ? 0 : max( $warm_values ),
+		'warm_rate_calculation_calls' => $sum_rate_calls( $rows, 'warm_' ),
+		'total_churn_shipping_p50_ms' => $total_churn_p50,
+		'total_churn_shipping_max_ms' => empty( $total_churn_values ) ? 0 : max( $total_churn_values ),
+		'total_churn_rate_calculation_calls' => $sum_rate_calls( $rows, 'total_churn_' ),
 		'rehash_shipping_p50_ms'    => $rehash_p50,
 		'rehash_shipping_max_ms'    => empty( $rehash_values ) ? 0 : max( $rehash_values ),
+		'rehash_rate_calculation_calls' => $sum_rate_calls( $rows, 'rehash_' ),
 		'warm_to_cold_ratio'        => (float) $cold_row['elapsed_ms'] > 0 ? $warm_p50 / (float) $cold_row['elapsed_ms'] : 0,
+		'total_churn_to_warm_ratio' => $warm_p50 > 0 ? $total_churn_p50 / $warm_p50 : 0,
 		'rehash_to_warm_ratio'      => $warm_p50 > 0 ? $rehash_p50 / $warm_p50 : 0,
 		'session_cache_key_count'   => count( $final_cache ),
 	);
