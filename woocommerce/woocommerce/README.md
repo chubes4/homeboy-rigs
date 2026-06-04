@@ -84,8 +84,9 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
-  packages, and measures cold, warm, and address-rehashed shipping calculation
-  passes through WooCommerce's checkout/cart shipping cache path.
+  packages, and measures cold, warm, totals-only churn, and address-rehashed
+  shipping calculation passes through WooCommerce's checkout/cart shipping cache
+  path.
 
 ## Metrics
 
@@ -93,6 +94,8 @@ The first slice reports:
 
 - `cold_shipping_ms`, `warm_shipping_p50_ms`, `warm_shipping_p95_ms`, and
   `warm_to_cold_ratio`.
+- `total_churn_shipping_p50_ms`, `total_churn_to_warm_ratio`, and
+  `total_churn_rate_calculation_calls` for package subtotal/total-only churn.
 - `rehash_shipping_p50_ms` and `rehash_to_warm_ratio` for address/hash changes.
 - Package, item, rate, and session-cache key counts.
 
