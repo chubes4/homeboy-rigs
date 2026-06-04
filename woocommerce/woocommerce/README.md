@@ -100,3 +100,18 @@ The first slice reports:
 - Package, item, rate, and session-cache key counts.
 
 See `docs/checkout-shipping-cache.md` for workload details and current TODOs.
+
+## Matrix Report
+
+Use the report generator to prepare compact Markdown evidence for WooCommerce PR
+comments without inventing missing baseline/candidate numbers:
+
+```bash
+node woocommerce/woocommerce/tools/checkout-shipping-cache-matrix-report.mjs \
+  --input /tmp/woocommerce-performance-bench
+```
+
+The report separates timing evidence from shipping-rate call-count evidence and
+documents the cache invalidation controls covered by the current workload. See
+`docs/checkout-shipping-cache-matrix-report.md` for the planned matrix commands
+and current dependency blockers.
