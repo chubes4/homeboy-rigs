@@ -48,19 +48,118 @@
             "blocking": true
           }
         }
+      },
+      {
+        "path": "${package.root}/bench/ece-product-page-scroll-to-ece.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-waterfall",
+        "trace_phase_presets": {
+          "browser-waterfall": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "setup:wordpress.fixture.ready",
+            "probe:browser.probe.ready",
+            "metrics:waterfall.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_setup": {
+            "category": "runtime_setup",
+            "blocking": true
+          },
+          "phase.setup_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
+      },
+      {
+        "path": "${package.root}/bench/ece-product-page-quantity-change.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-waterfall",
+        "trace_phase_presets": {
+          "browser-waterfall": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "setup:wordpress.fixture.ready",
+            "probe:browser.probe.ready",
+            "metrics:waterfall.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_setup": {
+            "category": "runtime_setup",
+            "blocking": true
+          },
+          "phase.setup_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
+      },
+      {
+        "path": "${package.root}/bench/ece-product-page-variation-change.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-waterfall",
+        "trace_phase_presets": {
+          "browser-waterfall": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "setup:wordpress.fixture.ready",
+            "probe:browser.probe.ready",
+            "metrics:waterfall.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_setup": {
+            "category": "runtime_setup",
+            "blocking": true
+          },
+          "phase.setup_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
       }
     ]
   },
   "trace_profiles": {
-    "smoke": [
-      "ece-product-page-waterfall"
-    ],
-    "secure-browser": [
-      "ece-product-page-waterfall"
-    ],
-    "hot": [
-      "ece-product-page-waterfall"
-    ]
+    "smoke": {
+      "scenario": "ece-product-page-waterfall"
+    },
+    "secure-browser": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "secure-browser"
+      }
+    },
+    "hot": {
+      "scenario": "ece-product-page-waterfall"
+    },
+    "scroll-to-ece": {
+      "scenario": "ece-product-page-scroll-to-ece"
+    },
+    "quantity-change": {
+      "scenario": "ece-product-page-quantity-change"
+    },
+    "variation-change": {
+      "scenario": "ece-product-page-variation-change"
+    }
   },
   "pipeline": {
     "check": [

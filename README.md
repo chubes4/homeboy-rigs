@@ -270,10 +270,24 @@ homeboy rig check woocommerce-stripe-ece-product-page
 homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall --output /tmp/wc-stripe-ece-waterfall.json
 ```
 
+Additional trace scenarios cover post-load interactions for scrolling to the ECE
+container, changing quantity, and attempting variation changes while preserving
+the original load-only `smoke` behavior.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-scroll-to-ece
+homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-quantity-change
+homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-variation-change
+```
+
 The `smoke` profile keeps the default WP Codebox browser behavior. The optional
 `secure-browser` profile depends on generic upstream preview/profile contracts
 from Extra-Chill/homeboy#3554 and Automattic/wp-codebox#651/#652 and keeps
 Stripe-specific scenario behavior in this rig package.
+Default local HTTP/headless traces are request/lifecycle evidence, not wallet
+eligibility proof. Secure-context evidence requires the `secure-browser` profile
+and an HTTPS public preview URL; each trace records requested/effective browser
+context metadata so the evidence type is explicit.
 
 ```bash
 homeboy trace --rig woocommerce-stripe-ece-product-page \

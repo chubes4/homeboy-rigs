@@ -5,12 +5,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
+import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario } from './ece-product-page-scenarios.mjs';
 
 const execFileAsync = promisify(execFile);
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'woocommerce-gateway-stripe';
-const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || 'ece-product-page-waterfall';
+const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || DEFAULT_ECE_SCENARIO_ID;
+const scenario = eceProductPageScenario(scenarioId);
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join(tmpdir(), 'wc-stripe-ece-waterfall-artifacts');
 const wpCodeboxBin = process.env.HOMEBOY_WP_CODEBOX_BIN || 'wp-codebox';
@@ -107,6 +109,18 @@ function numberOrNull(value) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
 }
 
+function parseViewport(value) {
+  const match = /^(\d+)x(\d+)$/.exec(value || '');
+  if (!match) {
+    return null;
+  }
+
+  return {
+    width: Number.parseInt(match[1], 10),
+    height: Number.parseInt(match[2], 10),
+  };
+}
+
 function peakSampleValue(samples, key) {
   if (!Array.isArray(samples)) {
     return null;
@@ -122,6 +136,8 @@ try {
     woocommerce_path: woocommercePath,
     ece_locations: csvToJsonArray(eceLocations),
     accepted_payment_methods: csvToJsonArray(acceptedPaymentMethods),
+    ece_scenario_profile: scenario.profile,
+    ece_interaction: scenario.interaction,
     browser_profile: profileOptions.profile,
   });
 
@@ -233,7 +249,72 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   window.setTimeout(() => window.clearInterval(state.interval), 15000);
   observe();
 })();`;
-  const browserProbeScript = "const probe = window.__wcStripeEceRenderProbe || null; if (probe && probe.interval) { window.clearInterval(probe.interval); } window.__wpCodeboxProbeCheckpoint && window.__wpCodeboxProbeCheckpoint('ece-waterfall-after-wait', { buttons: document.querySelectorAll('#wc-stripe-express-checkout-element iframe, #wc-stripe-express-checkout-element button').length, renderProbe: probe }); return { title: document.title, eceContainer: !!document.querySelector('#wc-stripe-express-checkout-element'), eceChildren: document.querySelectorAll('#wc-stripe-express-checkout-element > div').length, iframes: document.querySelectorAll('iframe').length, renderProbe: probe };";
+  const browserProbeScript = `
+    const probe = window.__wcStripeEceRenderProbe || null;
+    const interactionEvents = [];
+    const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+    const elapsed = () => probe?.startedAt ? Math.round(performance.now() - probe.startedAt) : null;
+    const sample = () => {
+      const container = document.querySelector('#wc-stripe-express-checkout-element');
+      const isVisible = (node) => {
+        if (!node || !(node instanceof Element)) {
+          return false;
+        }
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      };
+      if (!container) {
+        return {
+          ece_container: false,
+          ece_child_count: 0,
+          ece_iframe_count: 0,
+          ece_visible_iframe_count: 0,
+          ece_button_count: 0,
+          ece_visible_button_count: 0,
+        };
+      }
+      const iframes = Array.from(container.querySelectorAll('iframe'));
+      const buttons = Array.from(container.querySelectorAll('button'));
+      return {
+        ece_container: true,
+        ece_child_count: container.children?.length || 0,
+        ece_iframe_count: iframes.length,
+        ece_visible_iframe_count: iframes.filter(isVisible).length,
+        ece_button_count: buttons.length,
+        ece_visible_button_count: buttons.filter(isVisible).length,
+      };
+    };
+    const interactionSnapshot = (name) => {
+      interactionEvents.push({ name, t_ms: elapsed(), ...sample() });
+    };
+    ${eceInteractionScript(scenario)}
+    if (probe && probe.interval) {
+      window.clearInterval(probe.interval);
+    }
+    const finalSnapshot = sample();
+    window.__wpCodeboxProbeCheckpoint && window.__wpCodeboxProbeCheckpoint('ece-waterfall-after-wait', {
+      scenario: ${JSON.stringify(scenario.id)},
+      interaction: ${JSON.stringify(scenario.interaction)},
+      buttons: document.querySelectorAll('#wc-stripe-express-checkout-element iframe, #wc-stripe-express-checkout-element button').length,
+      interactionEvents,
+      renderProbe: probe,
+    });
+    return {
+      title: document.title,
+      scenario: ${JSON.stringify(scenario.id)},
+      interaction: ${JSON.stringify(scenario.interaction)},
+      interactionEvents,
+      isSecureContext: window.isSecureContext === true,
+      locationOrigin: window.location.origin,
+      userAgent: navigator.userAgent,
+      eceContainer: !!document.querySelector('#wc-stripe-express-checkout-element'),
+      eceChildren: document.querySelectorAll('#wc-stripe-express-checkout-element > div').length,
+      iframes: document.querySelectorAll('iframe').length,
+      finalSnapshot,
+      renderProbe: probe,
+    };
+  `;
   const recipe = {
     schema: 'wp-codebox/workspace-recipe/v1',
     runtime: {
@@ -289,7 +370,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const networkPath = browserDir ? path.join(browserDir, 'network.jsonl') : '';
   const summaryPath = browserDir ? path.join(browserDir, 'summary.json') : '';
   const performancePath = browserDir ? path.join(browserDir, 'performance.json') : '';
+  const consolePath = browserDir ? path.join(browserDir, 'console.jsonl') : '';
+  const errorsPath = browserDir ? path.join(browserDir, 'errors.jsonl') : '';
   const network = await readJsonl(networkPath);
+  const consoleMessages = await readJsonl(consolePath);
+  const pageErrors = await readJsonl(errorsPath);
   const responses = network.filter((entry) => entry.type === 'response');
   const urls = responses.map((entry) => entry.url || entry.request?.url || '').filter(Boolean);
   const stripeUrls = urls.filter((url) => /(^|\.)stripe\.com|stripe\.network/.test(url));
@@ -304,6 +389,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const renderMarks = renderProbe?.marks || {};
   const renderLatest = renderProbe?.latest || {};
   const renderSamples = renderProbe?.samples || [];
+  const requestedViewport = parseViewport(viewport);
+  const effectiveViewport = summary?.viewport || summary?.summary?.viewport || null;
+  const interactionEvents = Array.isArray(scriptResult?.interactionEvents) ? scriptResult.interactionEvents : [];
+  const interactionSucceeded = scenario.interaction === 'load-only' || interactionEvents.some((entry) => entry?.ok === true);
 
   event('browser', 'probe.ready', {
     total_responses: responses.length,
@@ -315,7 +404,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     stripe_response_count: stripeUrls.length,
     google_response_count: googleUrls.length,
     iframe_response_count: iframeResponses.length,
+    console_message_count: consoleMessages.length,
+    page_error_count: pageErrors.length,
     browser_probe_duration_ms: summary?.durationMs ?? null,
+    browser_requested_viewport_width: requestedViewport?.width ?? null,
+    browser_requested_viewport_height: requestedViewport?.height ?? null,
+    browser_effective_viewport_width: effectiveViewport?.width ?? null,
+    browser_effective_viewport_height: effectiveViewport?.height ?? null,
+    browser_secure_context_effective: scriptResult?.isSecureContext === true,
     browser_dom_content_loaded_ms: relativeTimingMs(cdpMetrics, 'DomContentLoaded'),
     browser_first_meaningful_paint_ms: relativeTimingMs(cdpMetrics, 'FirstMeaningfulPaint'),
     browser_iframe_count: browserMetrics.browser_iframe_count ?? null,
@@ -346,6 +442,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_render_final_visible_iframe_count: renderLatest.visible_iframe_count ?? null,
     ece_render_final_button_count: renderLatest.button_count ?? null,
     ece_render_final_visible_button_count: renderLatest.visible_button_count ?? null,
+    ece_interaction_event_count: interactionEvents.length,
+    ece_interaction_succeeded: interactionSucceeded,
   };
 
   await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
@@ -354,12 +452,32 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     `${JSON.stringify(
       {
         final_url: summary?.summary?.finalUrl || summary?.finalUrl || null,
+        scenario: {
+          id: scenario.id,
+          profile: scenario.profile,
+          interaction: scenario.interaction,
+          description: scenario.description,
+        },
         browser_profile: profileOptions.profile,
-        runtime_preview: profileOptions.runtimePreview,
-        browser_probe_args: profileOptions.browserProbeArgs,
+        requested_browser_context: {
+          viewport,
+          browser_profile: profileOptions.profile,
+          runtime_preview: profileOptions.runtimePreview,
+          browser_probe_args: profileOptions.browserProbeArgs,
+          secure_context_profile: profileOptions.profile === 'secure-browser',
+        },
+        effective_browser_context: {
+          viewport: effectiveViewport,
+          is_secure_context: scriptResult?.isSecureContext === true,
+          location_origin: scriptResult?.locationOrigin || null,
+          user_agent: scriptResult?.userAgent || null,
+        },
         stripe_urls_sample: stripeUrls.slice(0, 20),
         google_urls_sample: googleUrls.slice(0, 20),
+        console_messages_sample: consoleMessages.slice(0, 20),
+        page_errors_sample: pageErrors.slice(0, 20),
         browser_script_result: scriptResult,
+        interaction_events: interactionEvents,
         render_probe_events: Array.isArray(renderProbe.events) ? renderProbe.events.slice(0, 100) : [],
       },
       null,
@@ -387,6 +505,16 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         id: 'network-response-count',
         status: responses.length > 0 ? 'pass' : 'fail',
         message: `Observed ${responses.length} total network responses.`,
+      },
+      {
+        id: 'page-errors-recorded',
+        status: 'pass',
+        message: `Recorded ${pageErrors.length} page errors.`,
+      },
+      {
+        id: 'scenario-interaction',
+        status: 'pass',
+        message: `${scenario.interaction} interaction produced ${interactionEvents.length} event(s).`,
       },
     ],
     artifacts: [
