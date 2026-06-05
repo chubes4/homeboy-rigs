@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,6 +20,7 @@ const eceLocations = process.env.HOMEBOY_WC_STRIPE_ECE_LOCATIONS || 'product';
 const acceptedPaymentMethods = process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_METHODS || 'card,link';
 const probeDuration = process.env.HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION || '7s';
 const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
+const profileOptions = buildEceProfileOptions();
 
 if (!componentPath) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -120,6 +122,7 @@ try {
     woocommerce_path: woocommercePath,
     ece_locations: csvToJsonArray(eceLocations),
     accepted_payment_methods: csvToJsonArray(acceptedPaymentMethods),
+    browser_profile: profileOptions.profile,
   });
 
   await writeFile(
@@ -235,6 +238,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     schema: 'wp-codebox/workspace-recipe/v1',
     runtime: {
       wp: wpVersion,
+      ...(profileOptions.runtimePreview ? { preview: profileOptions.runtimePreview } : {}),
       blueprint: {
         steps: [
           { step: 'activatePlugin', pluginPath: '/wordpress/wp-content/plugins/woocommerce/woocommerce.php' },
@@ -258,6 +262,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
             'wait-for=networkidle',
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
+            ...profileOptions.browserProbeArgs,
             'capture=console,errors,html,network,performance,memory,screenshot',
             `pre-page-script=${prePageScript}`,
             `script=${browserProbeScript}`,
@@ -272,7 +277,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
 
   event('wp_codebox', 'recipe.start', { recipe_file: recipeFile });
   const { command, args } = wpCodeboxCommand();
-  const result = await execFileAsync(command, [...args, 'recipe-run', '--recipe', recipeFile, '--artifacts', codeboxArtifacts, '--json'], {
+  const result = await execFileAsync(command, [...args, 'recipe-run', '--recipe', recipeFile, '--artifacts', codeboxArtifacts, ...profileOptions.recipeRunArgs, '--json'], {
     maxBuffer: 1024 * 1024 * 50,
   });
   await writeFile(outputFile, result.stdout);
@@ -349,6 +354,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     `${JSON.stringify(
       {
         final_url: summary?.summary?.finalUrl || summary?.finalUrl || null,
+        browser_profile: profileOptions.profile,
+        runtime_preview: profileOptions.runtimePreview,
+        browser_probe_args: profileOptions.browserProbeArgs,
         stripe_urls_sample: stripeUrls.slice(0, 20),
         google_urls_sample: googleUrls.slice(0, 20),
         browser_script_result: scriptResult,
