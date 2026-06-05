@@ -74,6 +74,7 @@ php bin/generate-feature-config.php
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
+homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
 ```
 
@@ -94,6 +95,9 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   across many unique layered-nav count query hashes to measure growth of the
   single `wc_layered_nav_counts_*` taxonomy transient reported in WooCommerce
   issue #17355.
+- `layered-nav-catalog-crawl` uses real `filter_*` request combinations and
+  renders the layered-nav widget list path for each request shape, measuring
+  the same transient growth through a crawler/catalog-traffic-shaped path.
 
 ## Metrics
 
