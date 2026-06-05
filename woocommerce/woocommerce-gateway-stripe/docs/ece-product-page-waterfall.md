@@ -16,6 +16,43 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
    artifacts.
 8. Extract normalized waterfall metrics into `ece-waterfall-metrics.json`.
 
+## Browser Profiles
+
+The default `smoke` profile preserves the existing WP Codebox browser-probe
+defaults: local Playground origin, default Chromium context, and the rig's fixed
+`1366x900` viewport.
+
+Set `woocommerce_stripe_ece_browser_profile=secure-browser` to run the same
+Stripe product-page scenario through generic secure/browser-visible upstream
+knobs:
+
+- Homeboy trace `port_range_size` allocates a preview port and exposes it as
+  `HOMEBOY_INVOCATION_PORT_BASE/MAX` once Extra-Chill/homeboy#3554 lands.
+- WP Codebox recipe/CLI preview routing receives `preview.port`,
+  `preview.bind`, and `preview.publicUrl` from generic preview settings once
+  Automattic/wp-codebox#651 lands.
+- `wordpress.browser-probe` receives generic browser context args such as
+  `browser=chromium`, `device=Desktop Chrome`, `locale=en-US`, and `timezone`
+  once Automattic/wp-codebox#652 lands.
+
+The profile does not encode Stripe, wallet, or payment semantics in WP Codebox.
+Those decisions stay in this Homeboy Rigs workload.
+
+Example secure-profile run against upstream branches that provide the generic
+contracts:
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --setting woocommerce_stripe_ece_browser_profile=secure-browser \
+  --setting woocommerce_stripe_ece_preview_public_url=https://example.test \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-secure-browser.json
+```
+
+If `woocommerce_stripe_ece_preview_port` is not set, the workload uses
+`HOMEBOY_INVOCATION_PORT_BASE` when Homeboy provides it. The preview bind
+defaults to `127.0.0.1`.
+
 ## Primary Signals
 
 The stable signals are structural:

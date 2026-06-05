@@ -23,6 +23,7 @@
       {
         "path": "${package.root}/bench/ece-product-page-waterfall.trace.mjs",
         "check_groups": [],
+        "port_range_size": 1,
         "trace_default_phase_preset": "browser-waterfall",
         "trace_phase_presets": {
           "browser-waterfall": [
@@ -52,6 +53,9 @@
   },
   "trace_profiles": {
     "smoke": [
+      "ece-product-page-waterfall"
+    ],
+    "secure-browser": [
       "ece-product-page-waterfall"
     ],
     "hot": [

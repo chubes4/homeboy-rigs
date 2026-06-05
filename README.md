@@ -258,6 +258,31 @@ check reports missing checkout, Composer dependency, and generated feature-confi
 prerequisites with targeted messages. Use `homeboy rig up` for the safe dependency
 prep path before benchmarking.
 
+## woocommerce/woocommerce-gateway-stripe
+
+`rigs/woocommerce-stripe-ece-product-page/rig.json` runs the product-page
+Express Checkout Element browser waterfall trace against a local WooCommerce
+Stripe checkout plus a packaged WooCommerce dependency.
+
+```bash
+homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
+homeboy rig check woocommerce-stripe-ece-product-page
+homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall --output /tmp/wc-stripe-ece-waterfall.json
+```
+
+The `smoke` profile keeps the default WP Codebox browser behavior. The optional
+`secure-browser` profile depends on generic upstream preview/profile contracts
+from Extra-Chill/homeboy#3554 and Automattic/wp-codebox#651/#652 and keeps
+Stripe-specific scenario behavior in this rig package.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --setting woocommerce_stripe_ece_browser_profile=secure-browser \
+  --setting woocommerce_stripe_ece_preview_public_url=https://example.test \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-secure-browser.json
+```
+
 ## chubes4/isolated-block-editor
 
 `rigs/isolated-block-editor/rig.json` runs the checks used while shaving Isolated Block Editor toward modern Gutenberg APIs.
