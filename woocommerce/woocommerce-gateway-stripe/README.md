@@ -16,6 +16,14 @@ product page in a browser probe, and records waterfall metrics.
 
 Primary metrics:
 
+- `ece_render_container_seen_ms`
+- `ece_render_first_child_ms`
+- `ece_render_first_iframe_ms`
+- `ece_render_first_visible_iframe_ms`
+- `ece_render_first_visible_button_ms`
+- `ece_render_peak_child_count`
+- `ece_render_peak_iframe_count`
+- `ece_render_peak_visible_iframe_count`
 - `stripe_response_count`
 - `network_response_count`
 - `browser_document_count`
@@ -97,3 +105,8 @@ Use request-count and browser-object metrics as the primary signal. The browser
 timing metrics are intentionally secondary because this workload includes local
 WP Codebox/Playground runtime work, full WordPress/WooCommerce page load, and
 Stripe third-party iframe/network timing.
+
+The ECE render metrics are captured by a `pre-page-script` observer injected
+before page scripts run. They are intended to match the merchant-visible symptom:
+how long it takes for Express Checkout containers, iframes, and visible button
+surfaces to appear after the browser starts loading the product page.
