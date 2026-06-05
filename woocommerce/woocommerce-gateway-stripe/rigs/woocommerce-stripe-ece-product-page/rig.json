@@ -1,0 +1,87 @@
+{
+  "id": "woocommerce-stripe-ece-product-page",
+  "description": "WooCommerce Stripe product-page Express Checkout Element waterfall rig for reproducing and measuring issue #1439 third-party page-load fan-out.",
+  "components": {
+    "woocommerce-gateway-stripe": {
+      "path": "~/Developer/woocommerce-gateway-stripe",
+      "branch": "develop"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "woocommerce-stripe-ece-product-page:${env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.woocommerce-gateway-stripe.path}"
+    ]
+  },
+  "trace": {
+    "default_component": "woocommerce-gateway-stripe"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/ece-product-page-waterfall.trace.mjs",
+        "check_groups": [],
+        "trace_default_phase_preset": "browser-waterfall",
+        "trace_phase_presets": {
+          "browser-waterfall": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "setup:wordpress.fixture.ready",
+            "probe:browser.probe.ready",
+            "metrics:waterfall.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_setup": {
+            "category": "runtime_setup",
+            "blocking": true
+          },
+          "phase.setup_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": [
+      "ece-product-page-waterfall"
+    ],
+    "hot": [
+      "ece-product-page-waterfall"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "command",
+        "label": "Stripe checkout exists",
+        "command": "stripe_path=\"${HOMEBOY_WC_STRIPE_COMPONENT_PATH:-$HOME/Developer/woocommerce-gateway-stripe}\"; test -f \"$stripe_path/woocommerce-gateway-stripe.php\" || { printf '%s\\n' \"Missing WooCommerce Stripe checkout: expected $stripe_path/woocommerce-gateway-stripe.php. Set HOMEBOY_WC_STRIPE_COMPONENT_PATH for rig checks or pass --path for trace runs.\"; exit 1; }"
+      },
+      {
+        "kind": "command",
+        "label": "Stripe benchmark fixture exists",
+        "command": "stripe_path=\"${HOMEBOY_WC_STRIPE_COMPONENT_PATH:-$HOME/Developer/woocommerce-gateway-stripe}\"; test -f \"$stripe_path/tests/benchmarks/fixture-bootstrap.php\" || { printf '%s\\n' \"Missing Stripe benchmark fixture at $stripe_path/tests/benchmarks/fixture-bootstrap.php. Run against a checkout containing woocommerce-gateway-stripe#5522 or later.\"; exit 1; }"
+      },
+      {
+        "kind": "command",
+        "label": "WooCommerce dependency plugin exists",
+        "command": "woocommerce_path=\"${HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH:-$HOME/Developer/woocommerce/plugins/woocommerce}\"; test -f \"$woocommerce_path/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce dependency plugin: expected $woocommerce_path/woocommerce.php. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory before running this rig.\"; exit 1; }"
+      },
+      {
+        "kind": "command",
+        "label": "WP Codebox CLI available",
+        "command": "if [ -n \"${HOMEBOY_WP_CODEBOX_BIN:-}\" ]; then test -f \"$HOMEBOY_WP_CODEBOX_BIN\" || { printf '%s\\n' \"HOMEBOY_WP_CODEBOX_BIN is set but not found: $HOMEBOY_WP_CODEBOX_BIN\"; exit 1; }; else command -v wp-codebox >/dev/null 2>&1 || { printf '%s\\n' 'Missing wp-codebox CLI. Install WP Codebox or set HOMEBOY_WP_CODEBOX_BIN to packages/cli/dist/index.js.'; exit 1; }; fi"
+      }
+    ],
+    "up": [],
+    "down": []
+  }
+}
