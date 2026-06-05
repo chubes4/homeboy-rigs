@@ -20,6 +20,7 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
 
 The stable signals are structural:
 
+- ECE container, child, iframe, visible iframe, and visible button timing.
 - Stripe/Stripe Network response count.
 - Total network response count.
 - Browser document count.
@@ -33,6 +34,19 @@ The stable signals are structural:
 treated as secondary until a larger interleaved matrix proves stable medians.
 The local workload includes WordPress setup, WP Codebox runtime scheduling,
 browser scheduling, and third-party Stripe network variance.
+
+## Render Timing Instrumentation
+
+The browser probe injects a pre-page observer before WooCommerce or Stripe page
+scripts run. It records the first time the ECE container is seen, becomes
+visible, receives children, receives Stripe iframes, receives visible iframes,
+receives visible buttons, and fires a transition event inside the ECE container.
+It also records peak child/iframe/button counts because Stripe can add and then
+remove surfaces during wallet eligibility checks.
+
+These fields are written to `ece-waterfall-metrics.json` with the
+`ece_render_*` prefix. The raw observer events are also preserved in
+`ece-waterfall-metadata.json` for debugging false positives or missing marks.
 
 ## Known Follow-Ups
 
