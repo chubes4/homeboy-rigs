@@ -101,6 +101,19 @@ function wpCodeboxCommand() {
   return { command: wpCodeboxBin, args: [] };
 }
 
+function numberOrNull(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
+}
+
+function peakSampleValue(samples, key) {
+  if (!Array.isArray(samples)) {
+    return null;
+  }
+
+  const values = samples.map((sample) => sample?.[key]).filter((value) => typeof value === 'number' && Number.isFinite(value));
+  return values.length > 0 ? Math.max(...values) : null;
+}
+
 try {
   event('scenario', 'start', {
     component_path: componentPath,
@@ -133,7 +146,91 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
 `
   );
 
-  const browserProbeScript = "window.__wpCodeboxProbeCheckpoint && window.__wpCodeboxProbeCheckpoint('ece-waterfall-after-wait', { buttons: document.querySelectorAll('#wc-stripe-express-checkout-element iframe, #wc-stripe-express-checkout-element button').length }); return { title: document.title, eceContainer: !!document.querySelector('#wc-stripe-express-checkout-element'), eceChildren: document.querySelectorAll('#wc-stripe-express-checkout-element > div').length, iframes: document.querySelectorAll('iframe').length };";
+  const prePageScript = `(() => {
+  const state = window.__wcStripeEceRenderProbe = {
+    startedAt: performance.now(),
+    events: [],
+    marks: {},
+    samples: [],
+  };
+  const elapsed = () => Math.round(performance.now() - state.startedAt);
+  const record = (name, data = {}) => {
+    state.events.push({ name, t_ms: elapsed(), data });
+  };
+  const mark = (name, data = {}) => {
+    if (state.marks[name] === undefined) {
+      state.marks[name] = elapsed();
+      record(name, data);
+    }
+  };
+  const isVisible = (node) => {
+    if (!node || !(node instanceof Element)) {
+      return false;
+    }
+    const style = window.getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+  };
+  const sample = () => {
+    const container = document.querySelector('#wc-stripe-express-checkout-element');
+    if (!container) {
+      return;
+    }
+    mark('container_seen');
+    if (isVisible(container)) {
+      mark('container_visible');
+    }
+    const children = Array.from(container.children || []);
+    const iframes = Array.from(container.querySelectorAll('iframe'));
+    const buttons = Array.from(container.querySelectorAll('button'));
+    const visibleIframes = iframes.filter(isVisible);
+    const visibleButtons = buttons.filter(isVisible);
+    if (children.length > 0) {
+      mark('first_child', { child_count: children.length });
+    }
+    if (iframes.length > 0) {
+      mark('first_iframe', { iframe_count: iframes.length });
+    }
+    if (visibleIframes.length > 0) {
+      mark('first_visible_iframe', { visible_iframe_count: visibleIframes.length });
+    }
+    if (visibleButtons.length > 0) {
+      mark('first_visible_button', { visible_button_count: visibleButtons.length });
+    }
+    state.latest = {
+      t_ms: elapsed(),
+      child_count: children.length,
+      iframe_count: iframes.length,
+      visible_iframe_count: visibleIframes.length,
+      button_count: buttons.length,
+      visible_button_count: visibleButtons.length,
+      container_visible: isVisible(container),
+    };
+    state.samples.push(state.latest);
+  };
+  const observer = new MutationObserver(sample);
+  const observe = () => {
+    if (!document.documentElement) {
+      window.setTimeout(observe, 0);
+      return;
+    }
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'height', 'width'] });
+    sample();
+  };
+  window.addEventListener('DOMContentLoaded', () => { record('domcontentloaded'); sample(); }, { once: true });
+  window.addEventListener('load', () => { record('load'); sample(); }, { once: true });
+  document.addEventListener('transitionend', (event) => {
+    const container = document.querySelector('#wc-stripe-express-checkout-element');
+    if (container && event.target instanceof Node && container.contains(event.target)) {
+      mark('first_transitionend', { property_name: event.propertyName || null });
+      sample();
+    }
+  }, true);
+  state.interval = window.setInterval(sample, 50);
+  window.setTimeout(() => window.clearInterval(state.interval), 15000);
+  observe();
+})();`;
+  const browserProbeScript = "const probe = window.__wcStripeEceRenderProbe || null; if (probe && probe.interval) { window.clearInterval(probe.interval); } window.__wpCodeboxProbeCheckpoint && window.__wpCodeboxProbeCheckpoint('ece-waterfall-after-wait', { buttons: document.querySelectorAll('#wc-stripe-express-checkout-element iframe, #wc-stripe-express-checkout-element button').length, renderProbe: probe }); return { title: document.title, eceContainer: !!document.querySelector('#wc-stripe-express-checkout-element'), eceChildren: document.querySelectorAll('#wc-stripe-express-checkout-element > div').length, iframes: document.querySelectorAll('iframe').length, renderProbe: probe };";
   const recipe = {
     schema: 'wp-codebox/workspace-recipe/v1',
     runtime: {
@@ -162,6 +259,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
             'capture=console,errors,html,network,performance,memory,screenshot',
+            `pre-page-script=${prePageScript}`,
             `script=${browserProbeScript}`,
           ],
         },
@@ -196,6 +294,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const performanceSummary = await readJsonAsync(performancePath);
   const browserMetrics = summary?.summary?.metrics ?? {};
   const cdpMetrics = performanceSummary?.final?.cdpMetrics ?? {};
+  const scriptResult = summary?.summary?.scriptResult || summary?.scriptResult || {};
+  const renderProbe = scriptResult?.renderProbe || {};
+  const renderMarks = renderProbe?.marks || {};
+  const renderLatest = renderProbe?.latest || {};
+  const renderSamples = renderProbe?.samples || [];
 
   event('browser', 'probe.ready', {
     total_responses: responses.length,
@@ -221,6 +324,23 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_dom_node_count: browserMetrics.browser_dom_node_count ?? performanceSummary?.final?.dom?.nodes ?? null,
     browser_document_count: performanceSummary?.final?.dom?.documents ?? null,
     browser_js_event_listener_count: cdpMetrics.JSEventListeners ?? null,
+    ece_render_container_seen_ms: numberOrNull(renderMarks.container_seen),
+    ece_render_container_visible_ms: numberOrNull(renderMarks.container_visible),
+    ece_render_first_child_ms: numberOrNull(renderMarks.first_child),
+    ece_render_first_iframe_ms: numberOrNull(renderMarks.first_iframe),
+    ece_render_first_visible_iframe_ms: numberOrNull(renderMarks.first_visible_iframe),
+    ece_render_first_visible_button_ms: numberOrNull(renderMarks.first_visible_button),
+    ece_render_first_transitionend_ms: numberOrNull(renderMarks.first_transitionend),
+    ece_render_peak_child_count: peakSampleValue(renderSamples, 'child_count'),
+    ece_render_peak_iframe_count: peakSampleValue(renderSamples, 'iframe_count'),
+    ece_render_peak_visible_iframe_count: peakSampleValue(renderSamples, 'visible_iframe_count'),
+    ece_render_peak_button_count: peakSampleValue(renderSamples, 'button_count'),
+    ece_render_peak_visible_button_count: peakSampleValue(renderSamples, 'visible_button_count'),
+    ece_render_final_child_count: renderLatest.child_count ?? null,
+    ece_render_final_iframe_count: renderLatest.iframe_count ?? null,
+    ece_render_final_visible_iframe_count: renderLatest.visible_iframe_count ?? null,
+    ece_render_final_button_count: renderLatest.button_count ?? null,
+    ece_render_final_visible_button_count: renderLatest.visible_button_count ?? null,
   };
 
   await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
@@ -231,7 +351,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         final_url: summary?.summary?.finalUrl || summary?.finalUrl || null,
         stripe_urls_sample: stripeUrls.slice(0, 20),
         google_urls_sample: googleUrls.slice(0, 20),
-        browser_script_result: summary?.summary?.scriptResult || summary?.scriptResult || null,
+        browser_script_result: scriptResult,
+        render_probe_events: Array.isArray(renderProbe.events) ? renderProbe.events.slice(0, 100) : [],
       },
       null,
       2
