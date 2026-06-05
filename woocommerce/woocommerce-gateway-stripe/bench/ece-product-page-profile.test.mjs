@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
+import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds } from './ece-product-page-scenarios.mjs';
 
 test('default smoke profile preserves browser probe defaults', () => {
   const options = buildEceProfileOptions('smoke');
@@ -52,4 +53,18 @@ test('secure-browser profile uses generic preview and browser profile args', () 
       }
     }
   }
+});
+
+test('ECE scenario registry preserves load-only default and exposes interactions', () => {
+  assert.equal(eceProductPageScenario().id, DEFAULT_ECE_SCENARIO_ID);
+  assert.equal(eceProductPageScenario(DEFAULT_ECE_SCENARIO_ID).interaction, 'load-only');
+  assert.equal(eceProductPageScenario('ece-product-page-scroll-to-ece').interaction, 'scroll-to-ece');
+  assert.equal(eceProductPageScenario('ece-product-page-quantity-change').interaction, 'quantity-change');
+  assert.ok(eceProductPageScenarioIds().includes(DEFAULT_ECE_SCENARIO_ID));
+  assert.ok(eceProductPageScenarioIds().includes('ece-product-page-scroll-to-ece'));
+});
+
+test('ECE interaction scripts keep Stripe selectors in the rig', () => {
+  assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-scroll-to-ece')), /#wc-stripe-express-checkout-element/);
+  assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-quantity-change')), /quantity_change/);
 });

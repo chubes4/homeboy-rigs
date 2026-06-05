@@ -14,6 +14,13 @@ runtime, mounts WooCommerce and WooCommerce Stripe, uses Stripe's benchmark
 fixture to create a purchasable product with product-page ECE enabled, opens the
 product page in a browser probe, and records waterfall metrics.
 
+The default `ece-product-page-waterfall` scenario remains load-only. Additional
+scenario IDs reuse the same fixture and add post-load product-page interactions:
+
+- `ece-product-page-scroll-to-ece`
+- `ece-product-page-quantity-change`
+- `ece-product-page-variation-change`
+
 Primary metrics:
 
 - `ece_render_container_seen_ms`
@@ -26,6 +33,10 @@ Primary metrics:
 - `ece_render_peak_visible_iframe_count`
 - `stripe_response_count`
 - `network_response_count`
+- `console_message_count`
+- `page_error_count`
+- `ece_interaction_event_count`
+- `ece_interaction_succeeded`
 - `browser_document_count`
 - `browser_js_event_listener_count`
 - `browser_dom_node_count`
@@ -78,6 +89,27 @@ Run a single trace:
 homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall
 ```
 
+Run the lifecycle matrix explicitly to compare load-only and interaction
+scenarios:
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  woocommerce-gateway-stripe ece-product-page-waterfall
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  woocommerce-gateway-stripe ece-product-page-scroll-to-ece
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  woocommerce-gateway-stripe ece-product-page-quantity-change
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  woocommerce-gateway-stripe ece-product-page-variation-change
+```
+
+Run one interaction scenario directly:
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  woocommerce-gateway-stripe ece-product-page-quantity-change
+```
+
 Pass `--path /path/to/woocommerce-gateway-stripe-worktree` when tracing a local
 candidate branch or proof worktree.
 
@@ -110,3 +142,11 @@ The ECE render metrics are captured by a `pre-page-script` observer injected
 before page scripts run. They are intended to match the merchant-visible symptom:
 how long it takes for Express Checkout containers, iframes, and visible button
 surfaces to appear after the browser starts loading the product page.
+
+The metadata artifact records requested and effective browser context, including
+requested viewport, effective viewport, browser profile, preview settings, final
+URL, user agent, and whether the page ran in `window.isSecureContext`. Treat the
+default local HTTP/headless profile as request/lifecycle evidence only. It can
+show Stripe requests, ECE containers, iframes, buttons, console output, and page
+errors, but it is not wallet-eligibility proof. Use the `secure-browser` profile
+with an HTTPS public preview URL when collecting secure-context wallet evidence.
