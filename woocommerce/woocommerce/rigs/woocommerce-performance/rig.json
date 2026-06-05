@@ -33,15 +33,18 @@
   },
   "bench_workloads": {
     "wordpress": [
-      { "path": "${package.root}/bench/checkout-shipping-cache.php" }
+      { "path": "${package.root}/bench/checkout-shipping-cache.php" },
+      { "path": "${package.root}/bench/layered-nav-count-cache.php" }
     ]
   },
   "bench_profiles": {
     "smoke": [
-      "checkout-shipping-cache"
+      "checkout-shipping-cache",
+      "layered-nav-count-cache"
     ],
     "hot": [
-      "checkout-shipping-cache"
+      "checkout-shipping-cache",
+      "layered-nav-count-cache"
     ]
   },
   "pipeline": {
