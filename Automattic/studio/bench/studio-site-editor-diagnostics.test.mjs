@@ -57,6 +57,10 @@ const {
   setupWordPressPageProfile: setupDatamachinePipelinesScaleProfile,
   cleanupWordPressPageProfile: cleanupDatamachinePipelinesScaleProfile,
 } = await import('./lib/datamachine-pipelines-scale-profile.mjs');
+const {
+  installStudioWordPressFixturePlugins,
+  restoreStudioWordPressFixturePlugins,
+} = await import('./lib/wordpress-fixture-plugins.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -117,6 +121,8 @@ async function writeFakeWordPressManifest() {
   const pageProfiler = path.join(libDir, 'page-profiler.js');
   const adminPageScenarios = path.join(libDir, 'admin-page-scenarios.js');
   const blockQuality = path.join(libDir, 'block-quality.js');
+  const fixtureSetup = path.join(libDir, 'fixture-setup.js');
+  const fixtureSetupRestoreLog = path.join(tempDir, 'fixture-restore.json');
   const blockThemeQualityProbe = path.join(benchLibDir, 'block-theme-quality-probe.php');
   const manifestPath = path.join(libDir, 'helper-manifest.js');
 
@@ -128,6 +134,24 @@ async function writeFakeWordPressManifest() {
 module.exports = {
   wordpressPostBlockQualityProbeCode: (postId) => 'fake probe for ' + postId,
   parseWordPressBlockQualityProbeOutput: () => ({ fallback_count: 2, core_html_without_fallback: 3, stored_content_hash: 'abc' }),
+};
+`);
+  await writeFile(fixtureSetup, `
+const fs = require('node:fs');
+
+module.exports = {
+  async installWordPressFixturePlugins(options) {
+    return options.plugins.map((plugin) => ({
+      ...plugin,
+      activateTimeoutMs: options.activateTimeoutMs,
+      linkPath: options.sitePath + '/wp-content/plugins/' + (plugin.slug || 'plugin'),
+      backupPath: options.sitePath + '/wp-content/plugins/' + (plugin.slug || 'plugin') + '.backup',
+      hadExistingPath: false,
+    }));
+  },
+  async restoreWordPressFixturePlugins(installedPlugins) {
+    fs.writeFileSync(${JSON.stringify(fixtureSetupRestoreLog)}, JSON.stringify(installedPlugins, null, 2));
+  },
 };
 `);
   await writeFile(blockThemeQualityProbe, "<?php // fake block theme quality probe\n");
@@ -180,7 +204,7 @@ module.exports = {
 };
 `);
 
-  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, blockThemeQualityProbe };
+  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog, blockThemeQualityProbe };
 }
 
 // --- path resolution -------------------------------------------------------
@@ -251,6 +275,43 @@ test('requestProfilerPath uses the WordPress helper discovery contract', async (
       },
       async () => {
         assert.equal(requestProfilerPath(), fixture.requestProfiler);
+      }
+    );
+  } finally {
+    await rm(fixture.tempDir, { recursive: true, force: true });
+  }
+});
+
+test('Studio WordPress fixture plugins delegate install and restore to Homeboy Extensions helper', async () => {
+  const fixture = await writeFakeWordPressManifest();
+  try {
+    await withEnvAsync(
+      {
+        HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath,
+        HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON: JSON.stringify([
+          { path: '~/fixture-plugin', slug: 'fixture-slug', plugin: 'fixture/main.php', copy: true, activate: false },
+        ]),
+        HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_PATHS: undefined,
+        HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_ACTIVATE_TIMEOUT_MS: '1234',
+        HOMEBOY_WORDPRESS_FIXTURE_SETUP_PATH: undefined,
+      },
+      async () => {
+        const installed = await installStudioWordPressFixturePlugins('/tmp/site', {
+          jsonEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON',
+          pathsEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_PATHS',
+          activateTimeoutEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_ACTIVATE_TIMEOUT_MS',
+        });
+
+        assert.equal(installed[0].path, path.join(os.homedir(), 'fixture-plugin'));
+        assert.equal(installed[0].slug, 'fixture-slug');
+        assert.equal(installed[0].plugin, 'fixture/main.php');
+        assert.equal(installed[0].copy, true);
+        assert.equal(installed[0].activate, false);
+        assert.equal(installed[0].activateTimeoutMs, 1234);
+
+        await restoreStudioWordPressFixturePlugins(installed);
+        const restored = JSON.parse(await readFile(fixture.fixtureSetupRestoreLog, 'utf8'));
+        assert.equal(restored[0].slug, 'fixture-slug');
       }
     );
   } finally {
