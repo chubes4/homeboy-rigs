@@ -13,6 +13,20 @@ const SCENARIOS = {
     interaction: 'scroll-to-ece',
     description: 'Scroll the product-page ECE container into view after load.',
   },
+  'ece-product-page-below-fold-load': {
+    id: 'ece-product-page-below-fold-load',
+    profile: 'below-fold-load',
+    interaction: 'load-only',
+    layout: 'below-fold',
+    description: 'Load a product page with the cart form below the fold and record initial ECE fan-out without scrolling.',
+  },
+  'ece-product-page-below-fold-scroll-to-ece': {
+    id: 'ece-product-page-below-fold-scroll-to-ece',
+    profile: 'below-fold-scroll-to-ece',
+    interaction: 'scroll-to-ece',
+    layout: 'below-fold',
+    description: 'Load a product page with the cart form below the fold, then scroll to ECE and record initialization.',
+  },
   'ece-product-page-quantity-change': {
     id: 'ece-product-page-quantity-change',
     profile: 'quantity-change',
@@ -40,11 +54,12 @@ export function eceInteractionScript(scenario) {
     case 'scroll-to-ece':
       return `
         const container = document.querySelector('#wc-stripe-express-checkout-element');
+        const scrollTarget = container?.closest('form.cart') || container?.closest('.summary') || container?.parentElement || container;
         interactionSnapshot('before_scroll_to_ece');
-        if (container) {
-          container.scrollIntoView({ block: 'center', inline: 'nearest' });
+        if (scrollTarget) {
+          scrollTarget.scrollIntoView({ block: 'center', inline: 'nearest' });
           interactionEvents.push({ name: 'scroll_to_ece', t_ms: elapsed(), ok: true });
-          await sleep(750);
+          await sleep(1500);
           sample();
           interactionSnapshot('after_scroll_to_ece');
         } else {
@@ -90,4 +105,29 @@ export function eceInteractionScript(scenario) {
     default:
       return `interactionSnapshot('load_only_final');`;
   }
+}
+
+export function eceLayoutScript(scenario) {
+  if (scenario.layout !== 'below-fold') {
+    return '';
+  }
+
+  return `
+    const installBelowFoldLayout = () => {
+      if (document.getElementById('homeboy-ece-below-fold-layout')) {
+        return;
+      }
+
+      const style = document.createElement('style');
+      style.id = 'homeboy-ece-below-fold-layout';
+      style.textContent = 'form.cart { margin-top: 1400px !important; }';
+      document.head.appendChild(style);
+    };
+
+    if (document.head) {
+      installBelowFoldLayout();
+    } else {
+      document.addEventListener('DOMContentLoaded', installBelowFoldLayout, { once: true });
+    }
+  `;
 }
