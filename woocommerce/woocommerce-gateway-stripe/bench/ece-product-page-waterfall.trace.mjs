@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
@@ -25,6 +26,7 @@ const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
 const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
 const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
+const traceHelperDir = process.env.HOMEBOY_TRACE_HELPER_DIR;
 
 if (!componentPath) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -32,12 +34,24 @@ if (!componentPath) {
 if (!resultsFile) {
   throw new Error('HOMEBOY_TRACE_RESULTS_FILE is required');
 }
+if (!traceHelperDir) {
+  throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
+}
 if (!existsSync(path.join(componentPath, 'tests/benchmarks/fixture-bootstrap.php'))) {
   throw new Error('Missing tests/benchmarks/fixture-bootstrap.php in the Stripe checkout. Run against woocommerce-gateway-stripe#5522 or later.');
 }
 if (!existsSync(path.join(woocommercePath, 'woocommerce.php'))) {
   throw new Error(`Missing WooCommerce dependency plugin at ${woocommercePath}. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory.`);
 }
+
+process.env.HOMEBOY_TRACE_ARTIFACT_DIR ||= artifactDir;
+const { createTraceReporter } = await import(pathToFileURL(path.join(traceHelperDir, 'timeline.mjs')).href);
+const trace = createTraceReporter({
+  componentId,
+  scenarioId,
+  resultsFile,
+});
+trace.recorder.timestampMs = () => Math.round(performance.now() - trace.recorder.start);
 
 await mkdir(artifactDir, { recursive: true });
 await mkdir(path.dirname(resultsFile), { recursive: true });
@@ -50,15 +64,8 @@ const codeboxArtifacts = path.join(artifactDir, 'wp-codebox-artifacts');
 const metricsPath = path.join(artifactDir, 'ece-waterfall-metrics.json');
 const metadataPath = path.join(artifactDir, 'ece-waterfall-metadata.json');
 
-const startedAt = performance.now();
-const timeline = [];
-
-function timestampMs() {
-  return Math.round(performance.now() - startedAt);
-}
-
 function event(source, name, data = {}) {
-	timeline.push({ t_ms: timestampMs(), source, event: name, data });
+  return trace.mark(name, data, source);
 }
 
 function csvToJsonArray(value) {
@@ -93,10 +100,6 @@ function relativeTimingMs(cdpMetrics, metricName) {
   }
 
   return Math.round((value - navigationStart) * 1000);
-}
-
-function relativeArtifactPath(pathname) {
-  return path.relative(artifactDir, pathname);
 }
 
 function wpCodeboxCommand() {
@@ -600,6 +603,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   };
 
   await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
+  trace.artifact({ label: 'Waterfall metrics', path: metricsPath });
   await writeFile(
     metadataPath,
     `${JSON.stringify(
@@ -648,6 +652,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       2
     )}\n`
   );
+  trace.artifact({ label: 'Waterfall metadata', path: metadataPath });
   event('waterfall', 'metrics.ready', metrics);
 
   const simulatedClsPass =
@@ -657,85 +662,78 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         ? typeof metrics.browser_cls === 'number' && metrics.browser_cls <= 0.01 && eceRenderedVisibleButton
         : true;
   const pass = output.success === true && stripeUrls.length > 0 && simulatedClsPass;
-  const traceResult = {
-    component_id: componentId,
-    scenario_id: scenarioId,
-    status: pass ? 'pass' : 'fail',
-    summary: pass
-      ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
-      : 'Browser waterfall capture did not observe Stripe network responses.',
-    timeline,
-    assertions: [
-      {
-        id: 'stripe-network-observed',
-        status: stripeUrls.length > 0 ? 'pass' : 'fail',
-        message: `Observed ${stripeUrls.length} Stripe/stripe.network responses.`,
-      },
-      {
-        id: 'network-response-count',
-        status: responses.length > 0 ? 'pass' : 'fail',
-        message: `Observed ${responses.length} total network responses.`,
-      },
-      {
-        id: 'page-errors-recorded',
-        status: 'pass',
-        message: `Recorded ${pageErrors.length} page errors.`,
-      },
-      {
-        id: 'scenario-interaction',
-        status: 'pass',
-        message: `${scenario.interaction} interaction produced ${interactionEvents.length} event(s).`,
-      },
-      {
-        id: 'evidence-classification',
-        status: profileOptions.realWalletCapable ? (scriptResult?.isSecureContext === true ? 'pass' : 'fail') : 'pass',
-        message: profileOptions.realWalletCapable
-          ? `Real-wallet-capable profile ran with secure context=${scriptResult?.isSecureContext === true} and visible button=${eceRenderedVisibleButton}.`
-          : 'Synthetic-only profile ran without requiring real Stripe keys or wallet eligibility.',
-      },
-      ...(scenario.simulatedCls
-        ? [
-            {
-              id: 'simulated-cls-profile',
-              status: simulatedClsPass ? 'pass' : 'fail',
-              message:
-                scenario.simulatedCls === 'reserved'
-                  ? `Reserved simulated ECE CLS was ${metrics.browser_cls} with visible button=${eceRenderedVisibleButton}; expected near zero (<= 0.01).`
-                  : `Unreserved simulated ECE CLS was ${metrics.browser_cls} with visible button=${eceRenderedVisibleButton}; expected non-zero deterministic CLS.`,
-            },
-          ]
-        : []),
-    ],
-    artifacts: [
-      { label: 'WP Codebox output', path: relativeArtifactPath(outputFile) },
-      { label: 'Waterfall metrics', path: relativeArtifactPath(metricsPath) },
-      { label: 'Waterfall metadata', path: relativeArtifactPath(metadataPath) },
-      ...(summaryPath && existsSync(summaryPath) ? [{ label: 'Browser summary', path: relativeArtifactPath(summaryPath) }] : []),
-      ...(networkPath && existsSync(networkPath) ? [{ label: 'Browser network log', path: relativeArtifactPath(networkPath) }] : []),
-      ...(performancePath && existsSync(performancePath) ? [{ label: 'Browser performance', path: relativeArtifactPath(performancePath) }] : []),
-    ],
-  };
+  const summaryText = pass
+    ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
+    : 'Browser waterfall capture did not observe Stripe network responses.';
 
-  await writeFile(resultsFile, `${JSON.stringify(traceResult, null, 2)}\n`);
+  trace.assertion({
+    id: 'stripe-network-observed',
+    status: stripeUrls.length > 0 ? 'pass' : 'fail',
+    message: `Observed ${stripeUrls.length} Stripe/stripe.network responses.`,
+  });
+  trace.assertion({
+    id: 'network-response-count',
+    status: responses.length > 0 ? 'pass' : 'fail',
+    message: `Observed ${responses.length} total network responses.`,
+  });
+  trace.assertion({
+    id: 'page-errors-recorded',
+    status: 'pass',
+    message: `Recorded ${pageErrors.length} page errors.`,
+  });
+  trace.assertion({
+    id: 'scenario-interaction',
+    status: 'pass',
+    message: `${scenario.interaction} interaction produced ${interactionEvents.length} event(s).`,
+  });
+  trace.assertion({
+    id: 'evidence-classification',
+    status: profileOptions.realWalletCapable ? (scriptResult?.isSecureContext === true ? 'pass' : 'fail') : 'pass',
+    message: profileOptions.realWalletCapable
+      ? `Real-wallet-capable profile ran with secure context=${scriptResult?.isSecureContext === true} and visible button=${eceRenderedVisibleButton}.`
+      : 'Synthetic-only profile ran without requiring real Stripe keys or wallet eligibility.',
+  });
+  if (scenario.simulatedCls) {
+    trace.assertion({
+      id: 'simulated-cls-profile',
+      status: simulatedClsPass ? 'pass' : 'fail',
+      message:
+        scenario.simulatedCls === 'reserved'
+          ? `Reserved simulated ECE CLS was ${metrics.browser_cls} with visible button=${eceRenderedVisibleButton}; expected near zero (<= 0.01).`
+          : `Unreserved simulated ECE CLS was ${metrics.browser_cls} with visible button=${eceRenderedVisibleButton}; expected non-zero deterministic CLS.`,
+    });
+  }
+
+  trace.artifact({ label: 'WP Codebox output', path: outputFile });
+  if (summaryPath && existsSync(summaryPath)) {
+    trace.artifact({ label: 'Browser summary', path: summaryPath });
+  }
+  if (networkPath && existsSync(networkPath)) {
+    trace.artifact({ label: 'Browser network log', path: networkPath });
+  }
+  if (performancePath && existsSync(performancePath)) {
+    trace.artifact({ label: 'Browser performance', path: performancePath });
+  }
+
+  if (pass) {
+    await trace.pass(metrics, { summary: summaryText });
+  } else {
+    await trace.fail(null, metrics, { summary: summaryText });
+  }
   process.exitCode = pass ? 0 : 1;
 } catch (error) {
-  const traceResult = {
-    component_id: componentId,
-    scenario_id: scenarioId,
-    status: 'fail',
-    summary: error instanceof Error ? error.message : String(error),
-    timeline,
-    assertions: [
-      {
-        id: 'trace-workload-completed',
-        status: 'fail',
-        message: error instanceof Error ? error.message : String(error),
-      },
-    ],
-    artifacts: existsSync(outputFile) ? [{ label: 'WP Codebox output', path: relativeArtifactPath(outputFile) }] : [],
-  };
+  const summaryText = error instanceof Error ? error.message : String(error);
 
-  await writeFile(resultsFile, `${JSON.stringify(traceResult, null, 2)}\n`);
+  trace.assertion({
+    id: 'trace-workload-completed',
+    status: 'fail',
+    message: summaryText,
+  });
+  if (existsSync(outputFile)) {
+    trace.artifact({ label: 'WP Codebox output', path: outputFile });
+  }
+
+  await trace.fail(error, {}, { summary: summaryText });
   throw error;
 } finally {
   await rm(workDir, { recursive: true, force: true });
