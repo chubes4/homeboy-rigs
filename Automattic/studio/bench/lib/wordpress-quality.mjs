@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { runCli as defaultRunCli } from './studio-bench.mjs';
 import { collectLatestGeneratedTheme } from './design-gates.mjs';
-import { loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
+import { loadWordPressHelperManifest, loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
 
 export {
   collectGeneratedThemeUxGates,
@@ -12,95 +14,45 @@ export {
   structuralSelectorDriftDiagnostics,
 } from './design-gates.mjs';
 
-export const QUALITY_PROBE = String.raw`
-function bench_count_blocks( $blocks, &$counts ) {
-    foreach ( $blocks as $block ) {
-        $name = isset( $block['blockName'] ) ? (string) $block['blockName'] : '';
-        if ( '' !== $name ) {
-            $counts['total_blocks']++;
-            if ( 'core/html' === $name ) {
-                $counts['core_html_blocks']++;
-            }
-        }
-        if ( ! empty( $block['innerBlocks'] ) ) {
-            bench_count_blocks( $block['innerBlocks'], $counts );
-        }
-    }
+function blockThemeQualityProbePath(options = {}) {
+  const explicit = options.blockThemeQualityProbePath || process.env.HOMEBOY_WORDPRESS_BLOCK_THEME_QUALITY_PROBE;
+  if (explicit) {
+    return explicit;
+  }
+
+  const { manifest } = loadWordPressHelperManifest(options);
+  return manifest?.extensionRoot
+    ? path.join(manifest.extensionRoot, 'scripts', 'bench', 'lib', 'block-theme-quality-probe.php')
+    : '';
 }
 
-$counts = array(
-    'posts_seen' => 0,
-    'posts_with_blocks' => 0,
-    'pages_seen' => 0,
-    'templates_seen' => 0,
-    'template_parts_seen' => 0,
-    'target_pages_seen' => 0,
-    'target_posts_with_blocks' => 0,
-    'target_raw_html_unconverted' => 0,
-    'target_total_blocks' => 0,
-    'target_core_html_blocks' => 0,
-    'target_serialized_block_comments' => 0,
-    'total_blocks' => 0,
-    'core_html_blocks' => 0,
-    'serialized_block_comments' => 0,
-    'bfb_fallback_count' => (int) get_option( 'studio_bfb_unsupported_fallback_count', 0 ),
-);
-
-$front_page_id = (int) get_option( 'page_on_front', 0 );
-
-$posts = get_posts( array(
-    'post_type' => array( 'page', 'wp_template', 'wp_template_part' ),
-    'post_status' => 'any',
-    'numberposts' => -1,
+function blockThemeQualityProbeCode(probePath) {
+  const encodedPath = Buffer.from(probePath).toString('base64');
+  return String.raw`
+$homeboy_probe_path = base64_decode( '${encodedPath}', true );
+if ( ! is_string( $homeboy_probe_path ) || ! is_readable( $homeboy_probe_path ) ) {
+    fwrite( STDERR, 'Homeboy WordPress block theme quality probe is unavailable: ' . (string) $homeboy_probe_path );
+    exit( 1 );
+}
+require_once $homeboy_probe_path;
+$counts = homeboy_wordpress_collect_block_theme_quality( array(
+    'target_post_titles' => array( 'Studio Code' ),
+    'post_types'         => array( 'page', 'wp_template', 'wp_template_part' ),
 ) );
-
-foreach ( $posts as $post ) {
-    $content = (string) $post->post_content;
-    if ( '' === trim( $content ) ) {
-        continue;
-    }
-    $counts['posts_seen']++;
-    if ( 'page' === $post->post_type ) {
-        $counts['pages_seen']++;
-    }
-    if ( 'wp_template' === $post->post_type ) {
-        $counts['templates_seen']++;
-    }
-    if ( 'wp_template_part' === $post->post_type ) {
-        $counts['template_parts_seen']++;
-    }
-    $counts['serialized_block_comments'] += substr_count( $content, '<!-- wp:' );
-    if ( false !== strpos( $content, '<!-- wp:' ) ) {
-        $counts['posts_with_blocks']++;
-    }
-    $before_total     = $counts['total_blocks'];
-    $before_core_html = $counts['core_html_blocks'];
-    bench_count_blocks( parse_blocks( $content ), $counts );
-
-    $is_target_page = 'page' === $post->post_type && ( (int) $post->ID === $front_page_id || 'Studio Code' === $post->post_title );
-    if ( $is_target_page ) {
-        $counts['target_pages_seen']++;
-        $counts['target_serialized_block_comments'] += substr_count( $content, '<!-- wp:' );
-        if ( false !== strpos( $content, '<!-- wp:' ) ) {
-            $counts['target_posts_with_blocks']++;
-        }
-        if ( false === strpos( $content, '<!-- wp:' ) && preg_match( '/<\/?[a-z][\s>]/i', $content ) ) {
-            $counts['target_raw_html_unconverted']++;
-        }
-        $counts['target_total_blocks'] += $counts['total_blocks'] - $before_total;
-        $counts['target_core_html_blocks'] += $counts['core_html_blocks'] - $before_core_html;
-    }
-}
-
+$counts['bfb_fallback_count'] = (int) get_option( 'studio_bfb_unsupported_fallback_count', 0 );
 $counts['core_html_without_bfb_fallback'] = max( 0, $counts['core_html_blocks'] - $counts['bfb_fallback_count'] );
 $counts['target_core_html_without_bfb_fallback'] = max( 0, $counts['target_core_html_blocks'] - $counts['bfb_fallback_count'] );
-
 echo wp_json_encode( $counts, JSON_PRETTY_PRINT ) . PHP_EOL;
 `;
+}
 
 export async function probeQuality(sitePath, options = {}) {
   const runCli = options.runCli || defaultRunCli;
-  const { stdout } = await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', QUALITY_PROBE]);
+  const probePath = blockThemeQualityProbePath(options);
+  if (!probePath || !existsSync(probePath)) {
+    throw new Error('Homeboy WordPress block theme quality helper is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.');
+  }
+  const { stdout } = await runCli(['wp', '--path', sitePath, '--php-version', '8.3', 'eval', blockThemeQualityProbeCode(probePath)]);
   return parseQualityProbeOutput(stdout);
 }
 
