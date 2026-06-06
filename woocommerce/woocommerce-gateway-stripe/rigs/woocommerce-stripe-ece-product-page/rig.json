@@ -206,6 +206,12 @@
         "woocommerce_stripe_ece_browser_profile": "secure-browser"
       }
     },
+    "real-wallet": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "real-wallet"
+      }
+    },
     "hot": {
       "scenario": "ece-product-page-waterfall"
     },

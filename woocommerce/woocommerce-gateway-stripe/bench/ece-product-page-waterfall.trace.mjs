@@ -23,6 +23,8 @@ const acceptedPaymentMethods = process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_ME
 const probeDuration = process.env.HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION || '7s';
 const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
 const profileOptions = buildEceProfileOptions();
+const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
+const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
 
 if (!componentPath) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -130,6 +132,21 @@ function peakSampleValue(samples, key) {
   return values.length > 0 ? Math.max(...values) : null;
 }
 
+function stripeElementsSessionResponses(networkEntries) {
+  return networkEntries.filter((entry) => {
+    const url = entry.url || entry.request?.url || '';
+    return /api\.stripe\.com\/v1\/elements\/sessions/.test(url);
+  });
+}
+
+function responseStatus(entry) {
+  return entry.status ?? entry.response?.status ?? entry.responseStatus ?? null;
+}
+
+function stripeLoadMessages(messages) {
+  return messages.filter((entry) => /stripe|express checkout|paymentrequest|apple pay|google pay/i.test(JSON.stringify(entry)));
+}
+
 try {
   event('scenario', 'start', {
     component_path: componentPath,
@@ -139,6 +156,8 @@ try {
     ece_scenario_profile: scenario.profile,
     ece_interaction: scenario.interaction,
     browser_profile: profileOptions.profile,
+    real_wallet_capable: profileOptions.realWalletCapable,
+    synthetic_only: profileOptions.syntheticOnly,
   });
 
   await writeFile(
@@ -155,6 +174,18 @@ $state = WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap(
 		'accepted_payment_methods' => $accepted_payment_methods,
 	)
 );
+
+if ( ${profileOptions.realWalletCapable ? 'true' : 'false'} ) {
+	$stripe_settings = get_option( 'woocommerce_stripe_settings', array() );
+	if ( ! is_array( $stripe_settings ) ) {
+		$stripe_settings = array();
+	}
+	$stripe_settings['enabled']              = 'yes';
+	$stripe_settings['testmode']             = 'yes';
+	$stripe_settings['test_publishable_key'] = base64_decode( '${encodedStripePublishableKey}', true );
+	$stripe_settings['test_secret_key']      = base64_decode( '${encodedStripeSecretKey}', true );
+	update_option( 'woocommerce_stripe_settings', $stripe_settings );
+}
 
 update_option( 'permalink_structure', '/%postname%/' );
 flush_rewrite_rules();
@@ -294,12 +325,18 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       window.clearInterval(probe.interval);
     }
     const finalSnapshot = sample();
+    const stripeAvailability = {
+      paymentRequestSupported: typeof window.PaymentRequest === 'function',
+      applePaySessionSupported: typeof window.ApplePaySession === 'function',
+      securePaymentConfirmationSupported: typeof window.SecurePaymentConfirmationRequest === 'function',
+    };
     window.__wpCodeboxProbeCheckpoint && window.__wpCodeboxProbeCheckpoint('ece-waterfall-after-wait', {
       scenario: ${JSON.stringify(scenario.id)},
       interaction: ${JSON.stringify(scenario.interaction)},
       buttons: document.querySelectorAll('#wc-stripe-express-checkout-element iframe, #wc-stripe-express-checkout-element button').length,
       interactionEvents,
       renderProbe: probe,
+      stripeAvailability,
     });
     return {
       title: document.title,
@@ -313,6 +350,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       eceChildren: document.querySelectorAll('#wc-stripe-express-checkout-element > div').length,
       iframes: document.querySelectorAll('iframe').length,
       finalSnapshot,
+      stripeAvailability,
       renderProbe: probe,
     };
   `;
@@ -379,6 +417,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const responses = network.filter((entry) => entry.type === 'response');
   const urls = responses.map((entry) => entry.url || entry.request?.url || '').filter(Boolean);
   const stripeUrls = urls.filter((url) => /(^|\.)stripe\.com|stripe\.network/.test(url));
+  const elementsSessionResponses = stripeElementsSessionResponses(responses);
+  const elementsSessionStatuses = elementsSessionResponses.map(responseStatus).filter((status) => status !== null);
   const googleUrls = urls.filter((url) => /(^|\.)google\.com|(^|\.)gstatic\.com|googleapis\.com/.test(url));
   const iframeResponses = responses.filter((entry) => (entry.resourceType || entry.request?.resourceType) === 'iframe');
   const summary = await readJsonAsync(summaryPath);
@@ -394,6 +434,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const effectiveViewport = summary?.viewport || summary?.summary?.viewport || null;
   const interactionEvents = Array.isArray(scriptResult?.interactionEvents) ? scriptResult.interactionEvents : [];
   const interactionSucceeded = scenario.interaction === 'load-only' || interactionEvents.some((entry) => entry?.ok === true);
+  const stripeLoadConsoleMessages = stripeLoadMessages(consoleMessages);
+  const stripeLoadPageErrors = stripeLoadMessages(pageErrors);
+  const finalVisibleButtonCount = scriptResult?.finalSnapshot?.ece_visible_button_count ?? renderLatest.visible_button_count ?? 0;
+  const eceRenderedVisibleButton = finalVisibleButtonCount > 0 || peakSampleValue(renderSamples, 'visible_button_count') > 0;
 
   event('browser', 'probe.ready', {
     total_responses: responses.length,
@@ -413,6 +457,17 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_effective_viewport_width: effectiveViewport?.width ?? null,
     browser_effective_viewport_height: effectiveViewport?.height ?? null,
     browser_secure_context_effective: scriptResult?.isSecureContext === true,
+    ece_real_wallet_capable: profileOptions.realWalletCapable,
+    ece_synthetic_only: profileOptions.syntheticOnly,
+    ece_rendered_visible_button: eceRenderedVisibleButton,
+    stripe_elements_session_response_count: elementsSessionResponses.length,
+    stripe_elements_session_status: elementsSessionStatuses[0] ?? null,
+    stripe_elements_session_error_count: elementsSessionStatuses.filter((status) => status >= 400).length,
+    stripe_load_console_message_count: stripeLoadConsoleMessages.length,
+    stripe_load_page_error_count: stripeLoadPageErrors.length,
+    stripe_payment_request_supported: scriptResult?.stripeAvailability?.paymentRequestSupported === true,
+    stripe_apple_pay_session_supported: scriptResult?.stripeAvailability?.applePaySessionSupported === true,
+    stripe_secure_payment_confirmation_supported: scriptResult?.stripeAvailability?.securePaymentConfirmationSupported === true,
     browser_dom_content_loaded_ms: relativeTimingMs(cdpMetrics, 'DomContentLoaded'),
     browser_first_meaningful_paint_ms: relativeTimingMs(cdpMetrics, 'FirstMeaningfulPaint'),
     browser_iframe_count: browserMetrics.browser_iframe_count ?? null,
@@ -465,7 +520,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           browser_profile: profileOptions.profile,
           runtime_preview: profileOptions.runtimePreview,
           browser_probe_args: profileOptions.browserProbeArgs,
-          secure_context_profile: profileOptions.profile === 'secure-browser',
+          secure_context_profile: ['secure-browser', 'real-wallet'].includes(profileOptions.profile),
+          real_wallet_capable: profileOptions.realWalletCapable,
+          synthetic_only: profileOptions.syntheticOnly,
+          required_env: profileOptions.realWalletCapable ? ['STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY', 'HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL'] : [],
         },
         effective_browser_context: {
           viewport: effectiveViewport,
@@ -474,6 +532,12 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           user_agent: scriptResult?.userAgent || null,
         },
         stripe_urls_sample: stripeUrls.slice(0, 20),
+        stripe_elements_session: {
+          response_count: elementsSessionResponses.length,
+          statuses: elementsSessionStatuses,
+        },
+        stripe_load_console_messages_sample: stripeLoadConsoleMessages.slice(0, 20),
+        stripe_load_page_errors_sample: stripeLoadPageErrors.slice(0, 20),
         google_urls_sample: googleUrls.slice(0, 20),
         console_messages_sample: consoleMessages.slice(0, 20),
         page_errors_sample: pageErrors.slice(0, 20),
@@ -516,6 +580,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         id: 'scenario-interaction',
         status: 'pass',
         message: `${scenario.interaction} interaction produced ${interactionEvents.length} event(s).`,
+      },
+      {
+        id: 'evidence-classification',
+        status: profileOptions.realWalletCapable ? (scriptResult?.isSecureContext === true ? 'pass' : 'fail') : 'pass',
+        message: profileOptions.realWalletCapable
+          ? `Real-wallet-capable profile ran with secure context=${scriptResult?.isSecureContext === true} and visible button=${eceRenderedVisibleButton}.`
+          : 'Synthetic-only profile ran without requiring real Stripe keys or wallet eligibility.',
       },
     ],
     artifacts: [

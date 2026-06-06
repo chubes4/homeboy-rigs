@@ -285,9 +285,9 @@ The `smoke` profile keeps the default WP Codebox browser behavior. The optional
 from Extra-Chill/homeboy#3554 and Automattic/wp-codebox#651/#652 and keeps
 Stripe-specific scenario behavior in this rig package.
 Default local HTTP/headless traces are request/lifecycle evidence, not wallet
-eligibility proof. Secure-context evidence requires the `secure-browser` profile
-and an HTTPS public preview URL; each trace records requested/effective browser
-context metadata so the evidence type is explicit.
+eligibility proof. Secure-context plumbing evidence requires the
+`secure-browser` profile and an HTTPS public preview URL; each trace records
+requested/effective browser context metadata so the evidence type is explicit.
 
 ```bash
 homeboy trace --rig woocommerce-stripe-ece-product-page \
@@ -295,6 +295,23 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   --setting woocommerce_stripe_ece_preview_public_url=https://example.test \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-secure-browser.json
+```
+
+Use the `real-wallet` profile for real-wallet-capable evidence. It fails fast
+unless `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`, and an HTTPS public
+`HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL` are present. Metrics explicitly mark
+real-wallet artifacts with `ece_real_wallet_capable: true` and synthetic traces
+with `ece_synthetic_only: true`.
+
+```bash
+export STRIPE_PUBLISHABLE_KEY=pk_test_...
+export STRIPE_SECRET_KEY=sk_test_...
+export HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL=https://example.test
+
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile real-wallet \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-real-wallet.json
 ```
 
 ## chubes4/isolated-block-editor

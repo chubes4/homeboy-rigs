@@ -42,6 +42,14 @@ Primary metrics:
 - `browser_dom_node_count`
 - `browser_long_task_count`, `browser_long_task_total_ms`, and
   `browser_long_task_max_ms`
+- `ece_real_wallet_capable`
+- `ece_synthetic_only`
+- `ece_rendered_visible_button`
+- `stripe_elements_session_response_count`
+- `stripe_elements_session_status`
+- `stripe_elements_session_error_count`
+- `stripe_load_console_message_count`
+- `stripe_load_page_error_count`
 
 Secondary noisy metrics:
 
@@ -131,6 +139,43 @@ Useful settings:
 - `HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION=7s`
 - `HOMEBOY_WC_STRIPE_ECE_VIEWPORT=1366x900`
 
+## Real Wallet Profile
+
+The default `smoke`, `hot`, and interaction profiles remain synthetic lifecycle
+evidence. They intentionally keep working with the Stripe benchmark fixture's
+placeholder keys so network, DOM, and CLS-style render timing can be collected
+without real Stripe credentials.
+
+Use the `real-wallet` profile when collecting real-wallet-capable ECE evidence:
+
+```bash
+export STRIPE_PUBLISHABLE_KEY=pk_test_...
+export STRIPE_SECRET_KEY=sk_test_...
+export HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL=https://your-public-preview.example
+
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile real-wallet \
+  woocommerce-gateway-stripe ece-product-page-waterfall
+```
+
+The profile fails before WP Codebox starts when either `STRIPE_PUBLISHABLE_KEY`
+or `STRIPE_SECRET_KEY` is absent. It also requires
+`HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL` to be an HTTPS public origin; local
+HTTP origins and `localhost` are rejected because wallet eligibility requires a
+secure, public browser context.
+
+The real keys are injected only into the disposable WordPress setup step. They
+are not added to CLI arguments or recorded in metrics artifacts. Real-wallet
+artifacts explicitly report `ece_real_wallet_capable: true` and
+`ece_synthetic_only: false`; synthetic profiles report the inverse.
+
+Real-wallet evidence records:
+
+- Stripe Elements session response count, first status, and error count.
+- Stripe/ECE console and page-error counts.
+- Browser wallet capability flags such as Payment Request and Apple Pay support.
+- Whether a visible ECE button rendered by the end of the probe.
+
 ## Interpretation
 
 Use request-count and browser-object metrics as the primary signal. The browser
@@ -149,4 +194,6 @@ URL, user agent, and whether the page ran in `window.isSecureContext`. Treat the
 default local HTTP/headless profile as request/lifecycle evidence only. It can
 show Stripe requests, ECE containers, iframes, buttons, console output, and page
 errors, but it is not wallet-eligibility proof. Use the `secure-browser` profile
-with an HTTPS public preview URL when collecting secure-context wallet evidence.
+for secure-context browser plumbing checks, and use the `real-wallet` profile
+with Stripe test keys plus an HTTPS public preview URL when collecting
+real-wallet-capable evidence.

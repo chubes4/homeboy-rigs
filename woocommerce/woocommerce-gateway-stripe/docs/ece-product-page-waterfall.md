@@ -53,6 +53,24 @@ If `woocommerce_stripe_ece_preview_port` is not set, the workload uses
 `HOMEBOY_INVOCATION_PORT_BASE` when Homeboy provides it. The preview bind
 defaults to `127.0.0.1`.
 
+Set `woocommerce_stripe_ece_browser_profile=real-wallet` or use
+`--profile real-wallet` to collect real-wallet-capable ECE evidence. This
+profile refuses to run unless `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`,
+and an HTTPS public `HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL` are present.
+The keys are written only into the temporary WordPress setup script for the
+disposable run.
+
+```bash
+export STRIPE_PUBLISHABLE_KEY=pk_test_...
+export STRIPE_SECRET_KEY=sk_test_...
+export HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL=https://example.test
+
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile real-wallet \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-real-wallet.json
+```
+
 ## Primary Signals
 
 The stable signals are structural:
@@ -64,6 +82,9 @@ The stable signals are structural:
 - JS event listener count.
 - DOM node count.
 - Long-task count and total duration.
+- Real-wallet evidence classification: `ece_real_wallet_capable` and
+  `ece_synthetic_only`.
+- Stripe Elements session status/error counts and visible-button outcome.
 
 ## Secondary Signals
 
