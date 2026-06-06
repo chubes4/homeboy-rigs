@@ -33,15 +33,21 @@
   },
   "bench_workloads": {
     "wordpress": [
-      { "path": "${package.root}/bench/checkout-shipping-cache.php" }
+      { "path": "${package.root}/bench/checkout-shipping-cache.php" },
+      { "path": "${package.root}/bench/layered-nav-count-cache.php" },
+      { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" }
     ]
   },
   "bench_profiles": {
     "smoke": [
-      "checkout-shipping-cache"
+      "checkout-shipping-cache",
+      "layered-nav-count-cache",
+      "layered-nav-catalog-crawl"
     ],
     "hot": [
-      "checkout-shipping-cache"
+      "checkout-shipping-cache",
+      "layered-nav-count-cache",
+      "layered-nav-catalog-crawl"
     ]
   },
   "pipeline": {

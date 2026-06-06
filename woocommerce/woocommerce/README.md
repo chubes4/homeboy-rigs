@@ -17,6 +17,7 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/issues/49259
 - https://github.com/woocommerce/woocommerce/issues/32055
 - https://github.com/woocommerce/woocommerce/issues/26569
+- https://github.com/woocommerce/woocommerce/issues/17355
 
 ## Install
 
@@ -72,6 +73,8 @@ php bin/generate-feature-config.php
 ```bash
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
+homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
+homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
 ```
 
@@ -87,6 +90,14 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   packages, and measures cold, warm, totals-only churn, and address-rehashed
   shipping calculation passes through WooCommerce's checkout/cart shipping cache
   path.
+- `layered-nav-count-cache` seeds a real WooCommerce product attribute, terms,
+  and simple products, then exercises `Filterer::get_filtered_term_product_counts()`
+  across many unique layered-nav count query hashes to measure growth of the
+  single `wc_layered_nav_counts_*` taxonomy transient reported in WooCommerce
+  issue #17355.
+- `layered-nav-catalog-crawl` uses real `filter_*` request combinations and
+  renders the layered-nav widget list path for each request shape, measuring
+  the same transient growth through a crawler/catalog-traffic-shaped path.
 
 ## Metrics
 
@@ -98,6 +109,9 @@ The first slice reports:
   `total_churn_rate_calculation_calls` for package subtotal/total-only churn.
 - `rehash_shipping_p50_ms` and `rehash_to_warm_ratio` for address/hash changes.
 - Package, item, rate, and session-cache key counts.
+- `final_transient_entry_count`, `max_transient_entry_count`,
+  `final_serialized_value_bytes`, and `cache_exceeded_limit` for layered-nav
+  count cache growth.
 
 See `docs/checkout-shipping-cache.md` for workload details and current TODOs.
 
