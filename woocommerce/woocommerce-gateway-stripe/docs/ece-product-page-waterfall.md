@@ -71,6 +71,24 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   --output /tmp/wc-stripe-ece-real-wallet.json
 ```
 
+Use `--profile simulated-cls` and `--profile simulated-cls-reserved` for
+deterministic product-page CLS evidence that does not depend on live Stripe
+wallet eligibility. Both profiles inject a delayed 48px ECE-like button into
+`#wc-stripe-express-checkout-element-wallets-link`; the reserved variant applies
+the matching ECE container height before the delayed render.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile simulated-cls \
+  woocommerce-gateway-stripe ece-product-page-simulated-cls \
+  --output /tmp/wc-stripe-ece-simulated-cls.json
+
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile simulated-cls-reserved \
+  woocommerce-gateway-stripe ece-product-page-simulated-cls-reserved \
+  --output /tmp/wc-stripe-ece-simulated-cls-reserved.json
+```
+
 ## Primary Signals
 
 The stable signals are structural:
@@ -85,6 +103,10 @@ The stable signals are structural:
 - Real-wallet evidence classification: `ece_real_wallet_capable` and
   `ece_synthetic_only`.
 - Stripe Elements session status/error counts and visible-button outcome.
+- Deterministic CLS fields for simulated profiles: `browser_cls`,
+  `browser_layout_shift_count`, `ece_render_final_container_height`,
+  `ece_render_final_wallets_link_height`, and metadata-level layout-shift source
+  rectangles for the ECE container/sentinel path.
 
 ## Secondary Signals
 

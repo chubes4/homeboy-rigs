@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
-import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario } from './ece-product-page-scenarios.mjs';
+import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -147,6 +147,15 @@ function stripeLoadMessages(messages) {
   return messages.filter((entry) => /stripe|express checkout|paymentrequest|apple pay|google pay/i.test(JSON.stringify(entry)));
 }
 
+function roundedNumberOrNull(value, places = 4) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+
+  const multiplier = 10 ** places;
+  return Math.round(value * multiplier) / multiplier;
+}
+
 try {
   event('scenario', 'start', {
     component_path: componentPath,
@@ -198,11 +207,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
 
   const prePageScript = `(() => {
   ${eceLayoutScript(scenario)}
+  ${eceSimulatedClsScript(scenario)}
   const state = window.__wcStripeEceRenderProbe = {
     startedAt: performance.now(),
     events: [],
     marks: {},
     samples: [],
+    cls: 0,
+    layoutShifts: [],
   };
   const elapsed = () => Math.round(performance.now() - state.startedAt);
   const record = (name, data = {}) => {
@@ -222,6 +234,70 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     const rect = node.getBoundingClientRect();
     return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
   };
+  const selectorForNode = (node) => {
+    if (!node || !(node instanceof Element)) {
+      return null;
+    }
+    if (node.id) {
+      return '#' + node.id;
+    }
+    const className = Array.from(node.classList || []).slice(0, 3).join('.');
+    return node.tagName.toLowerCase() + (className ? '.' + className : '');
+  };
+  const rectForNode = (node) => {
+    if (!node || !(node instanceof Element)) {
+      return null;
+    }
+    const rect = node.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+  };
+  const trackedContainerMetrics = () => {
+    const root = document.querySelector('#wc-stripe-express-checkout-element');
+    const grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
+    const sentinel = document.querySelector('.homeboy-stripe-ece-cls-sentinel');
+    return {
+      ece_container_height: rectForNode(root)?.height ?? 0,
+      ece_container_rect: rectForNode(root),
+      ece_wallets_link_height: rectForNode(grouped)?.height ?? 0,
+      ece_wallets_link_rect: rectForNode(grouped),
+      ece_cls_sentinel_rect: rectForNode(sentinel),
+    };
+  };
+  try {
+    const layoutShiftObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (entry.hadRecentInput) {
+          continue;
+        }
+        const sources = Array.from(entry.sources || []).map((source) => ({
+          selector: selectorForNode(source.node),
+          current_rect: source.currentRect
+            ? { x: Math.round(source.currentRect.x), y: Math.round(source.currentRect.y), width: Math.round(source.currentRect.width), height: Math.round(source.currentRect.height) }
+            : null,
+          previous_rect: source.previousRect
+            ? { x: Math.round(source.previousRect.x), y: Math.round(source.previousRect.y), width: Math.round(source.previousRect.width), height: Math.round(source.previousRect.height) }
+            : null,
+        }));
+        state.cls += entry.value;
+        state.layoutShifts.push({
+          t_ms: elapsed(),
+          value: entry.value,
+          sources,
+          tracked_containers: trackedContainerMetrics(),
+        });
+        record('layout_shift', { value: entry.value, sources, tracked_containers: trackedContainerMetrics() });
+      }
+    });
+    layoutShiftObserver.observe({ type: 'layout-shift', buffered: true });
+    state.layoutShiftObserver = layoutShiftObserver;
+  } catch (error) {
+    record('layout_shift_observer_unavailable', { message: error?.message || String(error) });
+  }
   const sample = () => {
     const container = document.querySelector('#wc-stripe-express-checkout-element');
     if (!container) {
@@ -256,6 +332,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       button_count: buttons.length,
       visible_button_count: visibleButtons.length,
       container_visible: isVisible(container),
+      ...trackedContainerMetrics(),
     };
     state.samples.push(state.latest);
   };
@@ -324,6 +401,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     if (probe && probe.interval) {
       window.clearInterval(probe.interval);
     }
+    if (probe && probe.layoutShiftObserver) {
+      probe.layoutShiftObserver.disconnect();
+      delete probe.layoutShiftObserver;
+    }
     const finalSnapshot = sample();
     const stripeAvailability = {
       paymentRequestSupported: typeof window.PaymentRequest === 'function',
@@ -379,7 +460,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           command: 'wordpress.browser-probe',
           args: [
             'url=/?product=stripe-benchmark-product',
-            'wait-for=networkidle',
+            `wait-for=${scenario.waitFor || 'networkidle'}`,
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
             ...profileOptions.browserProbeArgs,
@@ -430,6 +511,18 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const renderMarks = renderProbe?.marks || {};
   const renderLatest = renderProbe?.latest || {};
   const renderSamples = renderProbe?.samples || [];
+  const layoutShifts = Array.isArray(renderProbe?.layoutShifts) ? renderProbe.layoutShifts : [];
+  const layoutShiftSourceDetails = layoutShifts.flatMap((entry) =>
+    Array.isArray(entry.sources)
+      ? entry.sources.map((source) => ({
+          t_ms: entry.t_ms ?? null,
+          value: roundedNumberOrNull(entry.value),
+          selector: source.selector ?? null,
+          previous_rect: source.previous_rect ?? null,
+          current_rect: source.current_rect ?? null,
+        }))
+      : []
+  );
   const requestedViewport = parseViewport(viewport);
   const effectiveViewport = summary?.viewport || summary?.summary?.viewport || null;
   const interactionEvents = Array.isArray(scriptResult?.interactionEvents) ? scriptResult.interactionEvents : [];
@@ -457,6 +550,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_effective_viewport_width: effectiveViewport?.width ?? null,
     browser_effective_viewport_height: effectiveViewport?.height ?? null,
     browser_secure_context_effective: scriptResult?.isSecureContext === true,
+    browser_cls: roundedNumberOrNull(renderProbe.cls),
+    browser_layout_shift_count: layoutShifts.length,
     ece_real_wallet_capable: profileOptions.realWalletCapable,
     ece_synthetic_only: profileOptions.syntheticOnly,
     ece_rendered_visible_button: eceRenderedVisibleButton,
@@ -498,6 +593,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_render_final_visible_iframe_count: renderLatest.visible_iframe_count ?? null,
     ece_render_final_button_count: renderLatest.button_count ?? null,
     ece_render_final_visible_button_count: renderLatest.visible_button_count ?? null,
+    ece_render_final_container_height: numberOrNull(renderLatest.ece_container_height),
+    ece_render_final_wallets_link_height: numberOrNull(renderLatest.ece_wallets_link_height),
     ece_interaction_event_count: interactionEvents.length,
     ece_interaction_succeeded: interactionSucceeded,
   };
@@ -544,6 +641,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         browser_script_result: scriptResult,
         interaction_events: interactionEvents,
         render_probe_events: Array.isArray(renderProbe.events) ? renderProbe.events.slice(0, 100) : [],
+        layout_shift_sources: layoutShiftSourceDetails.slice(0, 50),
+        layout_shifts: layoutShifts.slice(0, 50),
       },
       null,
       2
@@ -551,7 +650,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   );
   event('waterfall', 'metrics.ready', metrics);
 
-  const pass = output.success === true && stripeUrls.length > 0;
+  const simulatedClsPass =
+    scenario.simulatedCls === 'unreserved'
+      ? typeof metrics.browser_cls === 'number' && metrics.browser_cls > 0 && eceRenderedVisibleButton
+      : scenario.simulatedCls === 'reserved'
+        ? typeof metrics.browser_cls === 'number' && metrics.browser_cls <= 0.01 && eceRenderedVisibleButton
+        : true;
+  const pass = output.success === true && stripeUrls.length > 0 && simulatedClsPass;
   const traceResult = {
     component_id: componentId,
     scenario_id: scenarioId,
@@ -588,6 +693,18 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           ? `Real-wallet-capable profile ran with secure context=${scriptResult?.isSecureContext === true} and visible button=${eceRenderedVisibleButton}.`
           : 'Synthetic-only profile ran without requiring real Stripe keys or wallet eligibility.',
       },
+      ...(scenario.simulatedCls
+        ? [
+            {
+              id: 'simulated-cls-profile',
+              status: simulatedClsPass ? 'pass' : 'fail',
+              message:
+                scenario.simulatedCls === 'reserved'
+                  ? `Reserved simulated ECE CLS was ${metrics.browser_cls} with visible button=${eceRenderedVisibleButton}; expected near zero (<= 0.01).`
+                  : `Unreserved simulated ECE CLS was ${metrics.browser_cls} with visible button=${eceRenderedVisibleButton}; expected non-zero deterministic CLS.`,
+            },
+          ]
+        : []),
     ],
     artifacts: [
       { label: 'WP Codebox output', path: relativeArtifactPath(outputFile) },

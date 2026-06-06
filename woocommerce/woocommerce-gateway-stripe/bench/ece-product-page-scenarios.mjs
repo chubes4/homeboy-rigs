@@ -39,6 +39,22 @@ const SCENARIOS = {
     interaction: 'variation-change',
     description: 'Attempt a product variation selection change when variation controls exist.',
   },
+  'ece-product-page-simulated-cls': {
+    id: 'ece-product-page-simulated-cls',
+    profile: 'simulated-cls',
+    interaction: 'load-only',
+    simulatedCls: 'unreserved',
+    waitFor: 'load',
+    description: 'Inject a delayed ECE-like button without reserved space and record deterministic CLS.',
+  },
+  'ece-product-page-simulated-cls-reserved': {
+    id: 'ece-product-page-simulated-cls-reserved',
+    profile: 'simulated-cls-reserved',
+    interaction: 'load-only',
+    simulatedCls: 'reserved',
+    waitFor: 'load',
+    description: 'Reserve ECE button space before injecting the delayed ECE-like button and record CLS.',
+  },
 };
 
 export function eceProductPageScenario(scenarioId = DEFAULT_ECE_SCENARIO_ID) {
@@ -50,6 +66,22 @@ export function eceProductPageScenarioIds() {
 }
 
 export function eceInteractionScript(scenario) {
+  if (scenario.simulatedCls) {
+    return `
+      interactionSnapshot('before_simulated_cls_render');
+      await sleep(250);
+      if (typeof window.__homeboyStripeEceSimulateButton === 'function') {
+        window.__homeboyStripeEceSimulateButton();
+        interactionEvents.push({ name: 'simulated_cls_render', t_ms: elapsed(), ok: true, reserved: ${scenario.simulatedCls === 'reserved' ? 'true' : 'false'} });
+        await sleep(500);
+        sample();
+        interactionSnapshot('after_simulated_cls_render');
+      } else {
+        interactionEvents.push({ name: 'simulated_cls_render', t_ms: elapsed(), ok: false, reason: 'missing_simulated_cls_hook' });
+      }
+    `;
+  }
+
   switch (scenario.interaction) {
     case 'scroll-to-ece':
       return `
@@ -128,6 +160,112 @@ export function eceLayoutScript(scenario) {
       installBelowFoldLayout();
     } else {
       document.addEventListener('DOMContentLoaded', installBelowFoldLayout, { once: true });
+    }
+  `;
+}
+
+export function eceSimulatedClsScript(scenario) {
+  if (!scenario.simulatedCls) {
+    return '';
+  }
+
+  const reserveSpace = scenario.simulatedCls === 'reserved';
+
+  return `
+    const installSimulatedClsProfile = () => {
+      if (window.__homeboyStripeEceSimulatedClsInstalled) {
+        return;
+      }
+      window.__homeboyStripeEceSimulatedClsInstalled = true;
+
+      const style = document.createElement('style');
+      style.id = 'homeboy-stripe-ece-simulated-cls-style';
+      style.textContent = [
+        '#wc-stripe-express-checkout-element { display: block !important; width: 100% !important; ${reserveSpace ? 'min-height: 48px !important;' : ''} }',
+        '#wc-stripe-express-checkout-element-wallets-link { display: block !important; width: 100% !important; ${reserveSpace ? 'min-height: 48px !important;' : ''} }',
+        '.homeboy-stripe-ece-simulated-button { display: block; width: 100%; height: 48px; margin: 0; border: 0; border-radius: 4px; background: #111; color: #fff; font: 600 16px/48px system-ui, sans-serif; text-align: center; }',
+        '.homeboy-stripe-ece-cls-sentinel { display: block; height: 120px; margin-top: 12px; padding: 16px; background: #f3f4f6; color: #111827; box-sizing: border-box; }',
+      ].join('\\n');
+      document.head.appendChild(style);
+
+      const ensureContainers = () => {
+        let root = document.querySelector('#wc-stripe-express-checkout-element');
+        if (!root) {
+          const anchor = document.querySelector('form.cart') || document.querySelector('.summary') || document.body;
+          if (!anchor) {
+            return null;
+          }
+          root = document.createElement('div');
+          root.id = 'wc-stripe-express-checkout-element';
+          root.setAttribute('data-homeboy-simulated-ece-root', '1');
+          anchor.insertAdjacentElement(anchor.matches?.('form.cart') ? 'beforebegin' : 'afterbegin', root);
+        }
+        if (!root) {
+          return null;
+        }
+
+        let grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
+        if (!grouped) {
+          grouped = document.createElement('div');
+          grouped.id = 'wc-stripe-express-checkout-element-wallets-link';
+          root.appendChild(grouped);
+        }
+
+        let sentinel = document.querySelector('.homeboy-stripe-ece-cls-sentinel');
+        if (!sentinel) {
+          sentinel = document.createElement('div');
+          sentinel.className = 'homeboy-stripe-ece-cls-sentinel';
+          sentinel.textContent = 'Homeboy deterministic CLS sentinel below simulated ECE.';
+          root.insertAdjacentElement('afterend', sentinel);
+        }
+
+        return { root, grouped, sentinel };
+      };
+
+      const renderButton = () => {
+        const containers = ensureContainers();
+        if (!containers || containers.grouped.querySelector('.homeboy-stripe-ece-simulated-button')) {
+          return;
+        }
+
+        const probe = window.__wcStripeEceRenderProbe;
+        if (probe) {
+          probe.cls = 0;
+          probe.layoutShifts = [];
+          probe.events?.push({
+            name: 'simulated_cls_reset',
+            t_ms: Math.round(performance.now() - probe.startedAt),
+            data: { reserved: ${reserveSpace ? 'true' : 'false'} },
+          });
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'homeboy-stripe-ece-simulated-button';
+        button.textContent = 'Simulated Express Checkout';
+        containers.grouped.appendChild(button);
+        probe?.events?.push({
+          name: 'simulated_ece_button_inserted',
+          t_ms: Math.round(performance.now() - probe.startedAt),
+          data: { reserved: ${reserveSpace ? 'true' : 'false'} },
+        });
+      };
+
+      const waitForContainer = () => {
+        if (ensureContainers()) {
+          window.__homeboyStripeEceSimulateButton = renderButton;
+          return;
+        }
+        window.setTimeout(waitForContainer, 50);
+      };
+
+      waitForContainer();
+    };
+
+    if (document.head) {
+      installSimulatedClsProfile();
+    } else {
+      document.addEventListener('DOMContentLoaded', installSimulatedClsProfile, { once: true });
     }
   `;
 }

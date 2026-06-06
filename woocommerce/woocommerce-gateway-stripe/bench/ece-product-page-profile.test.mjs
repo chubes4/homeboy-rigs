@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
-import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds } from './ece-product-page-scenarios.mjs';
+import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 
 test('default smoke profile preserves browser probe defaults', () => {
   const options = buildEceProfileOptions('smoke');
@@ -162,11 +162,30 @@ test('ECE scenario registry preserves load-only default and exposes interactions
   assert.equal(eceProductPageScenario(DEFAULT_ECE_SCENARIO_ID).interaction, 'load-only');
   assert.equal(eceProductPageScenario('ece-product-page-scroll-to-ece').interaction, 'scroll-to-ece');
   assert.equal(eceProductPageScenario('ece-product-page-quantity-change').interaction, 'quantity-change');
+  assert.equal(eceProductPageScenario('ece-product-page-simulated-cls').simulatedCls, 'unreserved');
+  assert.equal(eceProductPageScenario('ece-product-page-simulated-cls-reserved').simulatedCls, 'reserved');
+  assert.equal(eceProductPageScenario('ece-product-page-simulated-cls').waitFor, 'load');
+  assert.equal(eceProductPageScenario('ece-product-page-simulated-cls-reserved').waitFor, 'load');
   assert.ok(eceProductPageScenarioIds().includes(DEFAULT_ECE_SCENARIO_ID));
   assert.ok(eceProductPageScenarioIds().includes('ece-product-page-scroll-to-ece'));
+  assert.ok(eceProductPageScenarioIds().includes('ece-product-page-simulated-cls'));
+  assert.ok(eceProductPageScenarioIds().includes('ece-product-page-simulated-cls-reserved'));
 });
 
 test('ECE interaction scripts keep Stripe selectors in the rig', () => {
   assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-scroll-to-ece')), /#wc-stripe-express-checkout-element/);
   assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-quantity-change')), /quantity_change/);
+  assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-simulated-cls')), /simulated_cls_render/);
+});
+
+test('ECE simulated CLS scripts track root and grouped ECE containers', () => {
+  const unreservedScript = eceSimulatedClsScript(eceProductPageScenario('ece-product-page-simulated-cls'));
+  const reservedScript = eceSimulatedClsScript(eceProductPageScenario('ece-product-page-simulated-cls-reserved'));
+
+  assert.match(unreservedScript, /homeboy-stripe-ece-simulated-button/);
+  assert.match(unreservedScript, /#wc-stripe-express-checkout-element/);
+  assert.match(unreservedScript, /#wc-stripe-express-checkout-element-wallets-link/);
+  assert.ok(!unreservedScript.includes("].join('\n');"));
+  assert.doesNotMatch(unreservedScript, /min-height: 48px/);
+  assert.match(reservedScript, /min-height: 48px/);
 });
