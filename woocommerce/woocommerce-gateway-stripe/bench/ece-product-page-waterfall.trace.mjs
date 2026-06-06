@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
-import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario } from './ece-product-page-scenarios.mjs';
+import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario } from './ece-product-page-scenarios.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -166,6 +166,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   );
 
   const prePageScript = `(() => {
+  ${eceLayoutScript(scenario)}
   const state = window.__wcStripeEceRenderProbe = {
     startedAt: performance.now(),
     events: [],
