@@ -150,81 +150,20 @@ export function importerTimingMetrics(importReport) {
 }
 
 export function agentAuthoredBlockMetrics(result) {
-  const toolCalls = Array.isArray(result?.toolCalls) ? result.toolCalls : [];
-  const writeCalls = toolCalls.filter((item) => item && item.name === 'Write');
-  let agentAuthoredWpHtmlOpeners = 0;
-  let agentAuthoredWpBlockComments = 0;
-  let agentAuthoredWpHtmlWriteCalls = 0;
-
-  for (const call of writeCalls) {
-    const content = typeof call?.input?.content === 'string' ? call.input.content : '';
-    const wpHtmlOpeners = countRegex(content, /<!--\s+wp:html\b/g);
-    agentAuthoredWpHtmlOpeners += wpHtmlOpeners;
-    agentAuthoredWpBlockComments += countRegex(content, /<!--\s+\/?wp:/g);
-    if (wpHtmlOpeners > 0) {
-      agentAuthoredWpHtmlWriteCalls++;
-    }
-  }
-
-  return {
-    agent_authored_wp_html_openers: agentAuthoredWpHtmlOpeners,
-    agent_authored_wp_html_write_calls: agentAuthoredWpHtmlWriteCalls,
-    agent_authored_wp_block_comments: agentAuthoredWpBlockComments,
-  };
+  return materializedSiteQualityHelper().agentAuthoredBlockMetrics(result);
 }
 
 export function nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport) {
-  const reasons = [];
-  const bfbFallbackCount = metric(quality?.bfb_fallback_count);
-  const coreHtmlWithoutBfbFallback = metric(quality?.core_html_without_bfb_fallback);
-  const importerQuality = importReport?.report?.quality || {};
-  const importerCoreHtmlBlocks = metric(importerQuality.core_html_block_count);
-  const importerInvalidBlocks = metric(importerQuality.invalid_block_count);
-  const agentAuthoredWpHtmlOpeners = metric(authoredBlocks.agent_authored_wp_html_openers);
-  const invalidEditorBlocks = metric(editorValidation?.invalid_blocks);
-  const targetPagesSeen = metric(quality?.target_pages_seen);
-  const targetPostsWithBlocks = metric(quality?.target_posts_with_blocks);
-
-  if (targetPagesSeen === 0 || targetPostsWithBlocks === 0) {
-    reasons.push('missing_target_block_page');
-  }
-  if (agentAuthoredWpHtmlOpeners > 0) {
-    reasons.push('agent_authored_wp_html');
-  }
-  if (coreHtmlWithoutBfbFallback > 0) {
-    reasons.push('core_html_without_bfb_fallback');
-  }
-  if (bfbFallbackCount > 0) {
-    reasons.push('bfb_fallback');
-  }
-  if (importerCoreHtmlBlocks > 0) {
-    reasons.push('importer_core_html_blocks');
-  }
-  if (importerInvalidBlocks > 0) {
-    reasons.push('importer_invalid_blocks');
-  }
-  if (importReport?.error) {
-    reasons.push('importer_report_error');
-  }
-  if (invalidEditorBlocks > 0) {
-    reasons.push('editor_invalid_blocks');
-  }
-  if (editorValidation?.error) {
-    reasons.push('editor_validation_error');
-  }
-
-  return {
-    native_block_quality_pass: reasons.length === 0,
-    native_block_quality_failure_count: reasons.length,
-    native_block_quality_failure_reasons: reasons,
-  };
+  return materializedSiteQualityHelper().nativeBlockQualityMetrics(quality, authoredBlocks, editorValidation, importReport);
 }
 
-function countRegex(value, pattern) {
-  return typeof value === 'string' ? (value.match(pattern) || []).length : 0;
-}
-
-function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
+function materializedSiteQualityHelper(options = {}) {
+  const { module } = loadWordPressLibHelper('materialized-site-quality.js', {
+    ...options,
+    helperKey: 'materializedSiteQuality',
+  });
+  if (!module?.nativeBlockQualityMetrics || !module?.agentAuthoredBlockMetrics) {
+    throw new Error('Homeboy WordPress materialized site quality helper is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.');
+  }
+  return module;
 }

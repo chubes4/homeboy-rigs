@@ -9,6 +9,7 @@ const WORDPRESS_LIB_HELPER_KEYS = new Map([
   ['block-quality.js', 'blockQuality'],
   ['editor-canvas-probes.js', 'editorCanvasProbes'],
   ['fixture-setup.js', 'fixtureSetup'],
+  ['materialized-site-quality.js', 'materializedSiteQuality'],
   ['request-profiler.js', 'requestProfiler'],
   ['timing-correlator.js', 'timingCorrelator'],
   ['wordpress-bootstrap-timeline.js', 'bootstrapTimeline'],
