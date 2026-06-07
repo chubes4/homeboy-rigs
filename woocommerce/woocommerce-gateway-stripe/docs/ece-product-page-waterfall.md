@@ -20,7 +20,31 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
 
 The default `smoke` profile preserves the existing WP Codebox browser-probe
 defaults: local Playground origin, default Chromium context, and the rig's fixed
-`1366x900` viewport.
+`1366x900` viewport. Use it for rig health only, not for browser performance
+conclusions.
+
+The product-page waterfall rig now has a small browser performance profile
+matrix. Generated `ece-waterfall-metrics.json` and `ece-waterfall-metadata.json`
+preserve the selected profile name, label, caveat, conclusion scope, wait mode,
+and throttle profile so downstream reports can carry the right labels without a
+Homeboy core reporting change.
+
+| Profile | Wait | Throttle | Supports | Caveat |
+| --- | --- | --- | --- | --- |
+| `webperf-desktop-load` | `load` | none | Normal-ish desktop LCP/FCP/TTFB/load/navigation timing shape. | Use for non-throttled absolute load context, not stable synthetic fan-out deltas. |
+| `webperf-desktop-slow-4g` | `load` | `low-end-mobile-slow-4g` | Stable synthetic third-party response fan-out and relative waterfall deltas. | Desktop rendering is intentionally paired with a slow synthetic throttle; do not present these as normal desktop absolute timings. |
+
+Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-load` to keep the
+desktop browser context without synthetic CPU/network throttling. This profile
+waits for `load` and then records the configured probe duration so LCP/FCP/TTFB,
+load, and navigation metrics remain visible without relying on `networkidle`.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --setting woocommerce_stripe_ece_browser_profile=webperf-desktop-load \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-desktop-load.json
+```
 
 Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-slow-4g` to keep
 the desktop browser context used by the synthetic ECE fixture while applying WP
@@ -117,6 +141,10 @@ The stable signals are structural:
 - JS event listener count.
 - DOM node count.
 - Long-task count and total duration.
+- Browser profile identity and caveats: `browser_profile`,
+  `browser_profile_label`, `browser_profile_caveat`,
+  `browser_profile_conclusion`, `browser_wait_for`, and
+  `browser_throttle_profile`.
 - WP Codebox web performance metrics when available: `browser_ttfb_ms`,
   `browser_fcp_ms`, `browser_lcp_ms`, and `browser_nav_duration_ms`.
 - Real-wallet evidence classification: `ece_real_wallet_capable` and

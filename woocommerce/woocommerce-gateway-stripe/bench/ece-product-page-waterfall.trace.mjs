@@ -168,6 +168,10 @@ try {
     ece_scenario_profile: scenario.profile,
     ece_interaction: scenario.interaction,
     browser_profile: profileOptions.profile,
+    browser_profile_label: profileOptions.profileLabel,
+    browser_profile_caveat: profileOptions.profileCaveat,
+    browser_wait_for: profileOptions.waitFor || scenario.waitFor || 'networkidle',
+    browser_throttle_profile: profileOptions.throttleProfile,
     real_wallet_capable: profileOptions.realWalletCapable,
     synthetic_only: profileOptions.syntheticOnly,
   });
@@ -581,6 +585,12 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   });
 
   const metrics = {
+    browser_profile: profileOptions.profile,
+    browser_profile_label: profileOptions.profileLabel,
+    browser_profile_caveat: profileOptions.profileCaveat,
+    browser_profile_conclusion: profileOptions.profileConclusion,
+    browser_wait_for: profileOptions.waitFor || scenario.waitFor || 'networkidle',
+    browser_throttle_profile: profileOptions.throttleProfile,
     network_response_count: responses.length,
     stripe_response_count: stripeUrls.length,
     google_response_count: googleUrls.length,
@@ -662,9 +672,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           description: scenario.description,
         },
         browser_profile: profileOptions.profile,
+        browser_profile_label: profileOptions.profileLabel,
+        browser_profile_caveat: profileOptions.profileCaveat,
+        browser_profile_conclusion: profileOptions.profileConclusion,
         requested_browser_context: {
           viewport,
           browser_profile: profileOptions.profile,
+          wait_for: profileOptions.waitFor || scenario.waitFor || 'networkidle',
+          throttle_profile: profileOptions.throttleProfile,
           runtime_preview: profileOptions.runtimePreview,
           browser_probe_args: profileOptions.browserProbeArgs,
           secure_context_profile: ['secure-browser', 'real-wallet'].includes(profileOptions.profile),

@@ -1,6 +1,48 @@
 export const DEFAULT_PROFILE = 'smoke';
 export const REAL_WALLET_PROFILE = 'real-wallet';
+export const WEBPERF_DESKTOP_LOAD_PROFILE = 'webperf-desktop-load';
 export const WEBPERF_DESKTOP_SLOW_4G_PROFILE = 'webperf-desktop-slow-4g';
+
+const DESKTOP_BROWSER_PROBE_ARGS = [
+  'browser=chromium',
+  'device=Desktop Chrome',
+  'locale=en-US',
+  'timezone=America/New_York',
+  'mobile=0',
+  'touch=0',
+];
+
+const PROFILE_METADATA = {
+  [DEFAULT_PROFILE]: {
+    label: 'Smoke',
+    caveat: 'Smoke profile uses WP Codebox browser-probe defaults; use it for rig health, not browser performance conclusions.',
+    conclusion: 'Rig health and fixture availability only.',
+  },
+  'secure-browser': {
+    label: 'Secure desktop browser',
+    caveat: 'Secure-browser profile exercises preview/browser visibility contracts; use it for secure-context plumbing evidence.',
+    conclusion: 'Secure preview routing and browser-visible integration behavior.',
+  },
+  [REAL_WALLET_PROFILE]: {
+    label: 'Real-wallet desktop browser',
+    caveat: 'Real-wallet profile depends on live Stripe keys, HTTPS preview routing, wallet eligibility, and third-party variance.',
+    conclusion: 'Wallet-capable ECE behavior under real Stripe configuration.',
+  },
+  [WEBPERF_DESKTOP_LOAD_PROFILE]: {
+    label: 'Desktop load',
+    caveat: 'Desktop load profile uses a desktop browser context without synthetic CPU/network throttle; use it for normal-ish absolute load timings, not stable synthetic fan-out deltas.',
+    conclusion: 'Non-throttled desktop LCP/FCP/TTFB/load/navigation timing shape.',
+  },
+  [WEBPERF_DESKTOP_SLOW_4G_PROFILE]: {
+    label: 'Desktop slow 4G',
+    caveat: 'Desktop slow-4g profile keeps desktop rendering while applying deterministic low-end-mobile-slow-4g throttle; use it for stable synthetic third-party fan-out deltas, not absolute desktop timings.',
+    conclusion: 'Stable synthetic third-party response fan-out and relative waterfall deltas.',
+  },
+};
+
+function profileMetadata(profile) {
+  return PROFILE_METADATA[profile] || PROFILE_METADATA[DEFAULT_PROFILE];
+}
 
 export function setting(name, defaultValue = '') {
   const envName = `HOMEBOY_SETTINGS_${name.toUpperCase()}`;
@@ -58,9 +100,33 @@ function requireRealWalletProfileEnv(publicUrl) {
 }
 
 export function buildEceProfileOptions(profile = eceBrowserProfile()) {
+  const metadata = profileMetadata(profile);
+
+  if (profile === WEBPERF_DESKTOP_LOAD_PROFILE) {
+    return {
+      profile,
+      profileLabel: metadata.label,
+      profileCaveat: metadata.caveat,
+      profileConclusion: metadata.conclusion,
+      throttleProfile: null,
+      realWalletCapable: false,
+      syntheticOnly: true,
+      stripePublishableKey: null,
+      stripeSecretKey: null,
+      runtimePreview: null,
+      recipeRunArgs: [],
+      browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
+      waitFor: 'load',
+    };
+  }
+
   if (profile === WEBPERF_DESKTOP_SLOW_4G_PROFILE) {
     return {
       profile,
+      profileLabel: metadata.label,
+      profileCaveat: metadata.caveat,
+      profileConclusion: metadata.conclusion,
+      throttleProfile: 'low-end-mobile-slow-4g',
       realWalletCapable: false,
       syntheticOnly: true,
       stripePublishableKey: null,
@@ -68,12 +134,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       runtimePreview: null,
       recipeRunArgs: [],
       browserProbeArgs: [
-        'browser=chromium',
-        'device=Desktop Chrome',
-        'locale=en-US',
-        'timezone=America/New_York',
-        'mobile=0',
-        'touch=0',
+        ...DESKTOP_BROWSER_PROBE_ARGS,
         'throttle=low-end-mobile-slow-4g',
       ],
       waitFor: 'load',
@@ -83,6 +144,10 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
   if (!['secure-browser', REAL_WALLET_PROFILE].includes(profile)) {
     return {
       profile,
+      profileLabel: metadata.label,
+      profileCaveat: metadata.caveat,
+      profileConclusion: metadata.conclusion,
+      throttleProfile: null,
       realWalletCapable: false,
       syntheticOnly: true,
       stripePublishableKey: null,
@@ -110,6 +175,10 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
 
   return {
     profile,
+    profileLabel: metadata.label,
+    profileCaveat: metadata.caveat,
+    profileConclusion: metadata.conclusion,
+    throttleProfile: null,
     realWalletCapable: profile === REAL_WALLET_PROFILE,
     syntheticOnly: profile !== REAL_WALLET_PROFILE,
     stripePublishableKey: profile === REAL_WALLET_PROFILE ? process.env.STRIPE_PUBLISHABLE_KEY : null,
@@ -120,14 +189,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       ...(bind ? ['--preview-bind', bind] : []),
       ...(publicUrl ? ['--preview-public-url', publicUrl] : []),
     ],
-    browserProbeArgs: [
-      'browser=chromium',
-      'device=Desktop Chrome',
-      'locale=en-US',
-      'timezone=America/New_York',
-      'mobile=0',
-      'touch=0',
-    ],
+    browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
     waitFor: null,
   };
 }

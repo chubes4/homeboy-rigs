@@ -1,16 +1,26 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test('default smoke profile preserves browser probe defaults', () => {
   const options = buildEceProfileOptions('smoke');
 
   assert.equal(options.profile, 'smoke');
+  assert.equal(options.profileLabel, 'Smoke');
+  assert.match(options.profileCaveat, /rig health/);
+  assert.equal(options.profileConclusion, 'Rig health and fixture availability only.');
+  assert.equal(options.throttleProfile, null);
   assert.equal(options.runtimePreview, null);
   assert.deepEqual(options.recipeRunArgs, []);
   assert.deepEqual(options.browserProbeArgs, []);
+  assert.equal(options.waitFor, null);
 });
 
 test('secure-browser profile uses generic preview and browser profile args', () => {
@@ -28,6 +38,9 @@ test('secure-browser profile uses generic preview and browser profile args', () 
     const options = buildEceProfileOptions('secure-browser');
 
     assert.equal(options.profile, 'secure-browser');
+    assert.equal(options.profileLabel, 'Secure desktop browser');
+    assert.match(options.profileCaveat, /secure-context plumbing/);
+    assert.equal(options.throttleProfile, null);
     assert.deepEqual(options.runtimePreview, {
       port: 49800,
       bind: '127.0.0.1',
@@ -44,6 +57,7 @@ test('secure-browser profile uses generic preview and browser profile args', () 
     assert.ok(options.browserProbeArgs.includes('browser=chromium'));
     assert.ok(options.browserProbeArgs.includes('device=Desktop Chrome'));
     assert.ok(options.browserProbeArgs.includes('locale=en-US'));
+    assert.equal(options.waitFor, null);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
@@ -55,18 +69,58 @@ test('secure-browser profile uses generic preview and browser profile args', () 
   }
 });
 
+test('webperf desktop load profile uses load wait without synthetic throttle', () => {
+  const options = buildEceProfileOptions('webperf-desktop-load');
+
+  assert.equal(options.profile, 'webperf-desktop-load');
+  assert.equal(options.profileLabel, 'Desktop load');
+  assert.match(options.profileCaveat, /without synthetic CPU\/network throttle/);
+  assert.match(options.profileConclusion, /Non-throttled desktop/);
+  assert.equal(options.runtimePreview, null);
+  assert.deepEqual(options.recipeRunArgs, []);
+  assert.equal(options.waitFor, 'load');
+  assert.equal(options.throttleProfile, null);
+  assert.ok(options.browserProbeArgs.includes('device=Desktop Chrome'));
+  assert.ok(options.browserProbeArgs.includes('mobile=0'));
+  assert.ok(options.browserProbeArgs.includes('touch=0'));
+  assert.ok(!options.browserProbeArgs.some((arg) => arg.startsWith('throttle=')));
+  assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
+});
+
 test('webperf desktop slow 4g profile keeps desktop context while applying Codebox throttle', () => {
   const options = buildEceProfileOptions('webperf-desktop-slow-4g');
 
   assert.equal(options.profile, 'webperf-desktop-slow-4g');
+  assert.equal(options.profileLabel, 'Desktop slow 4G');
+  assert.match(options.profileCaveat, /stable synthetic third-party fan-out deltas/);
+  assert.match(options.profileConclusion, /Stable synthetic third-party response fan-out/);
   assert.equal(options.runtimePreview, null);
   assert.deepEqual(options.recipeRunArgs, []);
   assert.equal(options.waitFor, 'load');
+  assert.equal(options.throttleProfile, 'low-end-mobile-slow-4g');
   assert.ok(options.browserProbeArgs.includes('device=Desktop Chrome'));
   assert.ok(options.browserProbeArgs.includes('mobile=0'));
   assert.ok(options.browserProbeArgs.includes('touch=0'));
   assert.ok(options.browserProbeArgs.includes('throttle=low-end-mobile-slow-4g'));
   assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
+});
+
+test('rig manifest exposes the ECE webperf profile matrix', () => {
+  const manifestPath = path.join(__dirname, '../rigs/woocommerce-stripe-ece-product-page/rig.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+
+  assert.deepEqual(manifest.trace_profiles['webperf-desktop-load'], {
+    scenario: 'ece-product-page-waterfall',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-desktop-load',
+    },
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-desktop-slow-4g'], {
+    scenario: 'ece-product-page-waterfall',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-desktop-slow-4g',
+    },
+  });
 });
 
 test('real-wallet profile fails fast when Stripe keys are missing', () => {
@@ -142,6 +196,9 @@ test('real-wallet profile carries real-wallet evidence settings without leaking 
     const options = buildEceProfileOptions('real-wallet');
 
     assert.equal(options.profile, 'real-wallet');
+    assert.equal(options.profileLabel, 'Real-wallet desktop browser');
+    assert.match(options.profileCaveat, /live Stripe keys/);
+    assert.equal(options.throttleProfile, null);
     assert.equal(options.realWalletCapable, true);
     assert.equal(options.syntheticOnly, false);
     assert.equal(options.stripePublishableKey, 'pk_test_real_fixture');
