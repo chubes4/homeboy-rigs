@@ -181,7 +181,7 @@ Keep the Studio bench harness layered so each repo owns the smallest stable surf
 - `homeboy-extensions/wordpress` is the future home for generic WordPress and block quality probes once their contracts are stable.
 - `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
 
-Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block theme quality probe from `Extra-Chill/homeboy-extensions#1018`. Fixture plugin install/restore, browser waterfall collection, and trace reporter adoption remain blocked until `Extra-Chill/homeboy-extensions#1132`, `#1131`, and `#1133` land; rigs should not add local fallback shims for those contracts.
+Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block theme quality probe from `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.
 
 Cleanup should move in small waves:
 

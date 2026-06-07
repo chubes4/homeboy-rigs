@@ -199,6 +199,9 @@ module.exports = {
       requestProfiler: ${JSON.stringify(requestProfiler)},
       timingCorrelator: ${JSON.stringify(timingCorrelator)},
       bootstrapTimeline: ${JSON.stringify(bootstrapTimeline)},
+      blockQuality: ${JSON.stringify(blockQuality)},
+      editorCanvasProbes: ${JSON.stringify(path.join(libDir, 'editor-canvas-probes.js'))},
+      fixtureSetup: ${JSON.stringify(fixtureSetup)},
     },
   }),
 };
