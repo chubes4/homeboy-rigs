@@ -258,6 +258,18 @@
     "smoke": {
       "scenario": "ece-product-page-waterfall"
     },
+    "webperf-desktop-load": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-load"
+      }
+    },
+    "webperf-desktop-slow-4g": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-slow-4g"
+      }
+    },
     "secure-browser": {
       "scenario": "ece-product-page-waterfall",
       "settings": {
