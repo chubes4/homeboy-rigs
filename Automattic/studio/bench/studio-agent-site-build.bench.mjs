@@ -42,29 +42,28 @@ export { resolveSourceStaticFile } from './lib/fidelity-targets.mjs';
 
 import {
   PROMPT_CATEGORY,
-  availablePromptVariants,
   createFreshSite,
   createStudioBenchRuntime,
   evalModel,
   prepareStudioRuntime,
-  promptTemplatePath,
-  promptVariantCatalog,
   runCli,
   runEval,
   siteBuildPrompt,
   siteStatus,
   statusPort,
   systemPromptFingerprint,
-  validatePromptVariantCatalog,
   variant,
+  workflowBenchScenario,
+  workflowBenchScenarioId,
+  workflowBenchScenarios,
 } from './lib/site-build-runtime.mjs';
 
 export {
-  availablePromptVariants,
   createStudioBenchRuntime,
-  promptVariantCatalog,
   siteBuildPrompt,
-  validatePromptVariantCatalog,
+  workflowBenchScenario,
+  workflowBenchScenarioId,
+  workflowBenchScenarios,
 } from './lib/site-build-runtime.mjs';
 
 import {
@@ -420,8 +419,8 @@ export default async function studioAgentSiteBuildBench() {
   await createFreshSite(sitePath);
   const siteCreateMs = Date.now() - siteCreateStarted;
 
-  const selectedPromptVariant = promptVariant();
-  const selectedPromptFile = String(await promptTemplatePath());
+  const selectedWorkflowBenchScenario = await workflowBenchScenario();
+  const selectedWorkflowBenchScenarioId = workflowBenchScenarioId();
   const systemPrompt = await systemPromptFingerprint();
   const prompt = await siteBuildPrompt(sitePath);
   const model = evalModel();
@@ -478,8 +477,8 @@ export default async function studioAgentSiteBuildBench() {
         variant: currentVariant,
         homeboy_invocation_id: runtime.invocationId,
         homeboy_invocation_port_range: runtime.portBase !== null ? `${runtime.portBase}-${runtime.portMax}` : '',
-        prompt_variant: selectedPromptVariant,
-        prompt_file: selectedPromptFile,
+        workflow_bench_scenario_id: selectedWorkflowBenchScenarioId,
+        workflow_bench_scenario_title: selectedWorkflowBenchScenario.title,
         prompt_category: PROMPT_CATEGORY,
         model,
         ...systemPrompt,
@@ -662,8 +661,8 @@ export default async function studioAgentSiteBuildBench() {
       benchmark_variant: currentVariant,
       homeboy_invocation_id: runtime.invocationId,
       homeboy_invocation_port_range: runtime.portBase !== null ? `${runtime.portBase}-${runtime.portMax}` : '',
-      prompt_variant: selectedPromptVariant,
-      prompt_file: selectedPromptFile,
+      workflow_bench_scenario_id: selectedWorkflowBenchScenarioId,
+      workflow_bench_scenario_title: selectedWorkflowBenchScenario.title,
       prompt_category: PROMPT_CATEGORY,
       model: model || 'default',
       design_primary_font_family: designFingerprint.patterns?.primary_font_family || '',

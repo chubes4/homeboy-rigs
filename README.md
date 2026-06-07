@@ -154,19 +154,23 @@ homeboy rig up studio-agent-claude-ssi
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench
 ```
 
-The site-build workload accepts a runtime namespace for parallel prompt-variant runs. The prompt variant still controls benchmark semantics; `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
+The site-build workload accepts a runtime namespace for parallel Workflow Bench runs. Select canonical Studio Web Workflow Bench scenarios with `studio_workflow_bench_scenario_id` and point `studio_workflow_bench_root`, `STUDIO_WEB_WORKFLOW_BENCH_ROOT`, or `WORKFLOW_BENCH_ROOT` at a Studio Web checkout. Homeboy Rigs consumes the canonical corpus directly; Studio Web owns scenario prompts, categories, proof surfaces, success gates, and matrix selection. `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
 
 ```bash
-HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=restaurant \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/Users/chubes/Developer/studio-web \
+HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-restaurant \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
-HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=saas \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/Users/chubes/Developer/studio-web \
+HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-saas \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
 homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
 wait
 ```
+
+The workload reads `eval/workflow-bench/scenarios/*.json` and `eval/workflow-bench/corpora/*.json` from the configured Studio Web checkout. The default scenario is `homeboy-plain-site-restaurant`.
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 

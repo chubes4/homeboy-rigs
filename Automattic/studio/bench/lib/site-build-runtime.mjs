@@ -16,10 +16,10 @@ import {
 
 const DEFAULT_STUDIO_PORT = 8881;
 const INVOCATION_NAMESPACE = 'studio-agent-site-build';
-const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
-const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
+const WORKFLOW_BENCH_SCENARIO_SETTING = 'studio_workflow_bench_scenario_id';
+const WORKFLOW_BENCH_ROOT_SETTING = 'studio_workflow_bench_root';
 const MODEL_SETTING = 'studio_agent_model';
-const DEFAULT_PROMPT_VARIANT = 'studio-code';
+const DEFAULT_WORKFLOW_BENCH_SCENARIO_ID = 'homeboy-plain-site-restaurant';
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
 
 export const PROMPT_CATEGORY = 'site-build';
@@ -157,101 +157,120 @@ export async function runEval(prompt, vars) {
   return sharedRunEval(prompt, vars, { env: await cliEnv() });
 }
 
-function promptVariant() {
-  return setting(PROMPT_VARIANT_SETTING) || DEFAULT_PROMPT_VARIANT;
+export function workflowBenchScenarioId() {
+  return setting(WORKFLOW_BENCH_SCENARIO_SETTING) || DEFAULT_WORKFLOW_BENCH_SCENARIO_ID;
 }
 
-export async function availablePromptVariants() {
-  return validatePromptVariantCatalog();
+export function workflowBenchRoot() {
+  return expandHome(
+    setting(WORKFLOW_BENCH_ROOT_SETTING) ||
+      process.env.STUDIO_WEB_WORKFLOW_BENCH_ROOT ||
+      process.env.WORKFLOW_BENCH_ROOT ||
+      ''
+  );
 }
 
-export async function validatePromptVariantCatalog() {
-  const promptsDir = new URL('../prompts/site-build/', import.meta.url);
-  const files = await promptFiles(promptsDir);
-  return Object.keys(promptVariantCatalog(files));
-}
-
-export function promptVariantCatalog(files) {
-  const variants = {};
-  const duplicatePaths = new Map();
-
-  for (const relativePath of files) {
-    const variantName = path.posix.basename(relativePath, '.md');
-    if (variants[variantName]) {
-      if (!duplicatePaths.has(variantName)) {
-        duplicatePaths.set(variantName, [variants[variantName]]);
-      }
-      duplicatePaths.get(variantName).push(relativePath);
-      continue;
-    }
-
-    variants[variantName] = relativePath;
-  }
-
-  if (duplicatePaths.size) {
-    const duplicates = [...duplicatePaths.entries()]
-      .map(([variantName, paths]) => `${variantName} (${paths.join(', ')})`)
-      .join('; ');
+export async function workflowBenchScenarios() {
+  const root = workflowBenchRoot();
+  if (!root) {
     throw new Error(
-      `Studio site-build prompt catalog has duplicate basename-derived variant IDs. Rename prompt files so each basename is unique. Duplicates: ${duplicates}.`
+      `Studio site-build requires the canonical Studio Web Workflow Bench corpus. Set ${WORKFLOW_BENCH_ROOT_SETTING}, STUDIO_WEB_WORKFLOW_BENCH_ROOT, or WORKFLOW_BENCH_ROOT to a Studio Web checkout.`
     );
   }
 
-  return variants;
+  const benchRoot = path.join(root, 'eval/workflow-bench');
+  return [
+    ...(await workflowBenchScenarioFiles(path.join(benchRoot, 'scenarios'))),
+    ...(await workflowBenchCorpusScenarios(path.join(benchRoot, 'corpora'))),
+  ];
 }
 
-async function promptFiles(directoryUrl, prefix = '') {
-  const entries = await readdir(directoryUrl, { withFileTypes: true });
-  const files = [];
-
+async function workflowBenchScenarioFiles(directoryPath) {
+  const entries = await readdir(directoryPath, { withFileTypes: true }).catch((error) => {
+    if (error?.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  });
+  const scenarios = [];
   for (const entry of entries) {
-    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      files.push(...(await promptFiles(new URL(`${entry.name}/`, directoryUrl), relativePath)));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      files.push(relativePath);
+    if (!entry.isFile() || !entry.name.endsWith('.json')) {
+      continue;
+    }
+    const scenario = JSON.parse(await readFile(path.join(directoryPath, entry.name), 'utf8'));
+    if (scenario.schema === 'workflow-bench/scenario/v1') {
+      scenarios.push(scenario);
     }
   }
-
-  return files.sort();
+  return scenarios;
 }
 
-export async function promptTemplatePath() {
-  const explicitPromptFile = expandHome(setting(PROMPT_FILE_SETTING) || '');
-  if (explicitPromptFile) {
-    return explicitPromptFile;
+async function workflowBenchCorpusScenarios(directoryPath) {
+  const entries = await readdir(directoryPath, { withFileTypes: true }).catch((error) => {
+    if (error?.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  });
+  const scenarios = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) {
+      continue;
+    }
+    const corpus = JSON.parse(await readFile(path.join(directoryPath, entry.name), 'utf8'));
+    if (corpus.schema !== 'workflow-bench/scenario-corpus/v1') {
+      continue;
+    }
+    for (const scenario of corpus.scenarios || []) {
+      scenarios.push(normalizeWorkflowBenchScenario(scenario, corpus));
+    }
+  }
+  return scenarios;
+}
+
+function normalizeWorkflowBenchScenario(scenario, corpus) {
+  if (scenario.schema === 'workflow-bench/scenario/v1') {
+    return scenario;
+  }
+  return {
+    schema: 'workflow-bench/scenario/v1',
+    id: scenario.id,
+    version: scenario.version || 1,
+    title: scenario.label,
+    category: scenario.category || 'other',
+    task: { type: scenario.task_type || 'create', prompt: scenario.prompt },
+    success_gates: (scenario.success_gates || []).map((gate, index) => ({
+      id: `gate-${index + 1}`,
+      kind: 'content',
+      severity: 'required',
+      description: String(gate),
+      evidence: ['output-artifacts'],
+    })),
+    metadata: { ...(scenario.metadata || {}), corpus_id: corpus.id || null },
+  };
+}
+
+export async function workflowBenchScenario() {
+  const scenarioId = workflowBenchScenarioId();
+  const scenarios = await workflowBenchScenarios();
+  const scenario = scenarios.find((item) => item.id === scenarioId);
+  if (scenario) {
+    return scenario;
   }
 
-  const variantName = promptVariant();
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(variantName)) {
-    throw new Error(`Invalid ${PROMPT_VARIANT_SETTING}: ${variantName}`);
-  }
-  const promptsDir = new URL('../prompts/site-build/', import.meta.url);
-  const relativePromptPath = promptVariantCatalog(await promptFiles(promptsDir))[variantName];
-  if (!relativePromptPath) {
-    const variants = await availablePromptVariants();
-    throw new Error(`Unknown ${PROMPT_VARIANT_SETTING}: ${variantName}. Available variants: ${variants.join(', ')}.`);
-  }
-
-  return new URL(`../prompts/site-build/${relativePromptPath}`, import.meta.url);
+  const scenarioIds = scenarios.map((item) => item.id).sort();
+  throw new Error(
+    `Unknown ${WORKFLOW_BENCH_SCENARIO_SETTING}: ${scenarioId}. Available scenario IDs: ${scenarioIds.join(', ')}.`
+  );
 }
 
 export async function siteBuildPrompt(sitePath) {
-  const promptPath = await promptTemplatePath();
-  let template;
-  try {
-    template = await readFile(promptPath, 'utf8');
-  } catch (error) {
-    const variants = await availablePromptVariants().catch(() => []);
-    const hint = variants.length ? ` Available variants: ${variants.join(', ')}.` : '';
-    throw new Error(
-      `Failed to read Studio site-build prompt for variant "${promptVariant()}" from ${String(promptPath)}.${hint} ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-  }
-
-  return template.trim().replaceAll('{{sitePath}}', sitePath).replaceAll('${sitePath}', sitePath);
+  const scenario = await workflowBenchScenario();
+  return String(scenario.task?.prompt || '')
+    .trim()
+    .replaceAll('{{sitePath}}', sitePath)
+    .replaceAll('${sitePath}', sitePath)
+    .replaceAll('active benchmark site', sitePath);
 }
 
 export async function systemPromptFingerprint() {
