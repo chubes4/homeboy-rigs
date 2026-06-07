@@ -199,6 +199,46 @@ if ( ${profileOptions.realWalletCapable ? 'true' : 'false'} ) {
 	update_option( 'woocommerce_stripe_settings', $stripe_settings );
 }
 
+$mu_plugin_dir = WP_CONTENT_DIR . '/mu-plugins';
+if ( ! is_dir( $mu_plugin_dir ) && ! wp_mkdir_p( $mu_plugin_dir ) ) {
+	throw new RuntimeException( 'Could not create mu-plugins directory for Stripe benchmark fixture.' );
+}
+
+file_put_contents(
+	$mu_plugin_dir . '/homeboy-stripe-ece-fixture-dependencies.php',
+	'<?php
+add_action(
+	"wp_enqueue_scripts",
+	function () {
+		if ( function_exists( "is_product" ) && is_product() ) {
+			wp_enqueue_script( "wc-settings" );
+		}
+	},
+	20
+);
+add_action(
+	"wp_head",
+	function () {
+		if ( ! function_exists( "is_product" ) || ! is_product() ) {
+			return;
+		}
+		?>
+<script id="homeboy-stripe-ece-wc-settings-shim">
+window.wc = window.wc || {};
+window.wcSettings = window.wcSettings || {};
+window.wc.wcSettings = window.wc.wcSettings || {
+	getSetting: function( name, defaultValue ) {
+		return Object.prototype.hasOwnProperty.call( window.wcSettings, name ) ? window.wcSettings[ name ] : defaultValue;
+	}
+};
+</script>
+		<?php
+	},
+	0
+);
+'
+);
+
 update_option( 'permalink_structure', '/%postname%/' );
 flush_rewrite_rules();
 
@@ -463,7 +503,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           command: 'wordpress.browser-probe',
           args: [
             'url=/?product=stripe-benchmark-product',
-            `wait-for=${scenario.waitFor || 'networkidle'}`,
+            `wait-for=${profileOptions.waitFor || scenario.waitFor || 'networkidle'}`,
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
             ...profileOptions.browserProbeArgs,
@@ -566,7 +606,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     stripe_payment_request_supported: scriptResult?.stripeAvailability?.paymentRequestSupported === true,
     stripe_apple_pay_session_supported: scriptResult?.stripeAvailability?.applePaySessionSupported === true,
     stripe_secure_payment_confirmation_supported: scriptResult?.stripeAvailability?.securePaymentConfirmationSupported === true,
-    browser_dom_content_loaded_ms: relativeTimingMs(cdpMetrics, 'DomContentLoaded'),
+    browser_nav_duration_ms: browserMetrics.browser_nav_duration_ms ?? performanceSummary?.final?.navigation?.durationMs ?? null,
+    browser_dom_content_loaded_ms: browserMetrics.browser_dom_content_loaded_ms ?? relativeTimingMs(cdpMetrics, 'DomContentLoaded'),
+    browser_load_event_ms: browserMetrics.browser_load_event_ms ?? performanceSummary?.final?.navigation?.loadEventMs ?? null,
+    browser_ttfb_ms: browserMetrics.browser_ttfb_ms ?? performanceSummary?.final?.navigation?.ttfbMs ?? null,
+    browser_fcp_ms: browserMetrics.browser_fcp_ms ?? performanceSummary?.final?.paint?.firstContentfulPaintMs ?? null,
+    browser_lcp_ms: browserMetrics.browser_lcp_ms ?? performanceSummary?.final?.paint?.largestContentfulPaintMs ?? null,
+    browser_lcp_size: browserMetrics.browser_lcp_size ?? performanceSummary?.final?.paint?.largestContentfulPaintSize ?? null,
     browser_first_meaningful_paint_ms: relativeTimingMs(cdpMetrics, 'FirstMeaningfulPaint'),
     browser_iframe_count: browserMetrics.browser_iframe_count ?? null,
     browser_resource_count: browserMetrics.browser_resource_count ?? performanceSummary?.summary?.resources ?? null,
@@ -661,10 +707,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       : scenario.simulatedCls === 'reserved'
         ? typeof metrics.browser_cls === 'number' && metrics.browser_cls <= 0.01 && eceRenderedVisibleButton
         : true;
-  const pass = output.success === true && stripeUrls.length > 0 && simulatedClsPass;
+  const stripeLoadPass = stripeLoadPageErrors.length === 0;
+  const pass = output.success === true && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
   const summaryText = pass
     ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
-    : 'Browser waterfall capture did not observe Stripe network responses.';
+    : stripeLoadPass
+      ? 'Browser waterfall capture did not observe Stripe network responses.'
+      : `Browser waterfall capture recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`;
 
   trace.assertion({
     id: 'stripe-network-observed',
@@ -680,6 +729,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     id: 'page-errors-recorded',
     status: 'pass',
     message: `Recorded ${pageErrors.length} page errors.`,
+  });
+  trace.assertion({
+    id: 'stripe-load-errors',
+    status: stripeLoadPass ? 'pass' : 'fail',
+    message: `Recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`,
   });
   trace.assertion({
     id: 'scenario-interaction',

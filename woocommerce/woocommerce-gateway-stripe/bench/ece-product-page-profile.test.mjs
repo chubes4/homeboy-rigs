@@ -55,6 +55,20 @@ test('secure-browser profile uses generic preview and browser profile args', () 
   }
 });
 
+test('webperf desktop slow 4g profile keeps desktop context while applying Codebox throttle', () => {
+  const options = buildEceProfileOptions('webperf-desktop-slow-4g');
+
+  assert.equal(options.profile, 'webperf-desktop-slow-4g');
+  assert.equal(options.runtimePreview, null);
+  assert.deepEqual(options.recipeRunArgs, []);
+  assert.equal(options.waitFor, 'load');
+  assert.ok(options.browserProbeArgs.includes('device=Desktop Chrome'));
+  assert.ok(options.browserProbeArgs.includes('mobile=0'));
+  assert.ok(options.browserProbeArgs.includes('touch=0'));
+  assert.ok(options.browserProbeArgs.includes('throttle=low-end-mobile-slow-4g'));
+  assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
+});
+
 test('real-wallet profile fails fast when Stripe keys are missing', () => {
   const previous = {
     STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY,

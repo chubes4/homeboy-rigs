@@ -1,5 +1,6 @@
 export const DEFAULT_PROFILE = 'smoke';
 export const REAL_WALLET_PROFILE = 'real-wallet';
+export const WEBPERF_DESKTOP_SLOW_4G_PROFILE = 'webperf-desktop-slow-4g';
 
 export function setting(name, defaultValue = '') {
   const envName = `HOMEBOY_SETTINGS_${name.toUpperCase()}`;
@@ -57,6 +58,28 @@ function requireRealWalletProfileEnv(publicUrl) {
 }
 
 export function buildEceProfileOptions(profile = eceBrowserProfile()) {
+  if (profile === WEBPERF_DESKTOP_SLOW_4G_PROFILE) {
+    return {
+      profile,
+      realWalletCapable: false,
+      syntheticOnly: true,
+      stripePublishableKey: null,
+      stripeSecretKey: null,
+      runtimePreview: null,
+      recipeRunArgs: [],
+      browserProbeArgs: [
+        'browser=chromium',
+        'device=Desktop Chrome',
+        'locale=en-US',
+        'timezone=America/New_York',
+        'mobile=0',
+        'touch=0',
+        'throttle=low-end-mobile-slow-4g',
+      ],
+      waitFor: 'load',
+    };
+  }
+
   if (!['secure-browser', REAL_WALLET_PROFILE].includes(profile)) {
     return {
       profile,
@@ -67,6 +90,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       runtimePreview: null,
       recipeRunArgs: [],
       browserProbeArgs: [],
+      waitFor: null,
     };
   }
 
@@ -104,5 +128,6 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       'mobile=0',
       'touch=0',
     ],
+    waitFor: null,
   };
 }

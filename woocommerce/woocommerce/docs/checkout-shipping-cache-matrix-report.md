@@ -43,5 +43,5 @@ homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache -
 
 - Extra-Chill/homeboy#3516 is needed before this report can consume canonical
   Homeboy baseline/candidate exports instead of local shared-state directories.
-- Extra-Chill/homeboy-extensions#1089 is needed for the deterministic expensive
-  shipping method fixture matrix dimension.
+- Extra-Chill/homeboy-extensions#1089 added deterministic expensive shipping
+  method fixture support for the matrix dimension.

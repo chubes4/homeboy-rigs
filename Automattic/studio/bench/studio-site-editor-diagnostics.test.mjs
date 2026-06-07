@@ -122,6 +122,7 @@ async function writeFakeWordPressManifest() {
   const fixtureSetup = path.join(libDir, 'fixture-setup.js');
   const fixtureSetupRestoreLog = path.join(tempDir, 'fixture-restore.json');
   const manifestPath = path.join(libDir, 'helper-manifest.js');
+  const helperConsumer = path.join(libDir, 'wordpress-helper-consumer.js');
 
   await writeFile(requestProfiler, "module.exports = { installWordPressRequestProfiler() {} };\n");
   await writeFile(timingCorrelator, "module.exports = { correlateBrowserAndWordPressTimings: () => ({ correlated: [], unmatchedBrowser: [], unmatchedWordPress: [] }) };\n");
@@ -203,8 +204,40 @@ module.exports = {
   }),
 };
 `);
+  await writeFile(helperConsumer, `
+const path = require('node:path');
 
-  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog };
+function loadWordPressHelperManifest() {
+  const manifestModule = require(${JSON.stringify(manifestPath)});
+  return {
+    path: ${JSON.stringify(manifestPath)},
+    manifest: manifestModule.getWordPressHelperManifest(),
+    found: true,
+    reason: '',
+  };
+}
+
+function wordpressHelperPath(name, options = {}) {
+  const explicit = options.override || (options.envVar ? process.env[options.envVar] : '');
+  if (explicit) return explicit;
+  return loadWordPressHelperManifest().manifest.helpers[name] || '';
+}
+
+function wordpressLibHelperPath(fileName, options = {}) {
+  const explicit = options.override || (options.envVar ? process.env[options.envVar] : '');
+  if (explicit) return explicit;
+  return path.join(loadWordPressHelperManifest().manifest.extensionRoot, 'lib', fileName);
+}
+
+function loadWordPressLibHelper(fileName, options = {}) {
+  const helperPath = wordpressLibHelperPath(fileName, options);
+  return { path: helperPath, module: require(helperPath), found: true, reason: '' };
+}
+
+module.exports = { loadWordPressHelperManifest, wordpressHelperPath, wordpressLibHelperPath, loadWordPressLibHelper };
+`);
+
+  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog, helperConsumer };
 }
 
 // --- path resolution -------------------------------------------------------
