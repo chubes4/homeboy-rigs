@@ -853,6 +853,24 @@ test('probeQuality delegates site block probing to the promoted block quality he
 // --- WordPress admin scale sweep ------------------------------------------
 
 test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds defaults', () => {
+  const calls = [];
+  const adminPageScenarios = {
+    normalizeWordPressAdminScaleSweepManifest(manifest, options) {
+      calls.push({ manifest, options });
+      return {
+        ...manifest,
+        pages: manifest.pages.map((page, index) => ({
+          ...page,
+          id: page.id || 'wp-admin-admin.php-page-datamachine-jobs',
+          metricId: page.id || `page_${index + 1}`,
+          ready: page.ready || { selector: '#wpbody-content, body.wp-admin' },
+          resources: { includeResourceSubstrings: DEFAULT_RESOURCE_INCLUDE },
+          interactions: Array.isArray(page.interactions) ? page.interactions : [],
+        })),
+      };
+    },
+    async loadWordPressAdminScaleSweepManifest() {},
+  };
   const manifest = normalizeWordPressAdminScaleSweepManifest({
     pages: [
       {
@@ -865,8 +883,10 @@ test('normalizeWordPressAdminScaleSweepManifest accepts page manifests and adds 
         interactions: [{ type: 'click', selector: '.jobs-row:first-child button' }],
       },
     ],
-  }, { pageProfiler: pageProfilerApi });
+  }, { adminPageScenarios, pageProfiler: pageProfilerApi });
 
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.pageProfiler, pageProfilerApi);
   assert.equal(manifest.pages.length, 2);
   assert.equal(manifest.pages[0].metricId, 'pipelines');
   assert.equal(manifest.pages[0].resources.includeResourceSubstrings.includes('/wp-json/'), true);
