@@ -22,6 +22,23 @@ The default `smoke` profile preserves the existing WP Codebox browser-probe
 defaults: local Playground origin, default Chromium context, and the rig's fixed
 `1366x900` viewport.
 
+Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-slow-4g` to keep
+the desktop browser context used by the synthetic ECE fixture while applying WP
+Codebox's deterministic `low-end-mobile-slow-4g` CPU/network throttle. This
+profile waits for `load` and then records the configured probe duration, rather
+than waiting for `networkidle`, because Stripe/product-page probes may keep
+third-party network activity alive long enough to make `networkidle` timeout.
+The disposable product fixture also provides the Woo settings package surface
+expected by the built Stripe assets on classic product pages, and the trace fails
+if Stripe bootstrap still emits page errors.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --setting woocommerce_stripe_ece_browser_profile=webperf-desktop-slow-4g \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-webperf.json
+```
+
 Set `woocommerce_stripe_ece_browser_profile=secure-browser` to run the same
 Stripe product-page scenario through generic secure/browser-visible upstream
 knobs:
@@ -100,6 +117,8 @@ The stable signals are structural:
 - JS event listener count.
 - DOM node count.
 - Long-task count and total duration.
+- WP Codebox web performance metrics when available: `browser_ttfb_ms`,
+  `browser_fcp_ms`, `browser_lcp_ms`, and `browser_nav_duration_ms`.
 - Real-wallet evidence classification: `ece_real_wallet_capable` and
   `ece_synthetic_only`.
 - Stripe Elements session status/error counts and visible-button outcome.
