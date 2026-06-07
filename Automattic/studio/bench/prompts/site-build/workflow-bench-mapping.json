@@ -1,0 +1,27 @@
+{
+  "schema": "homeboy-rigs/studio-site-build-workflow-bench-mapping/v1",
+  "source_corpus": "github.a8c.com/chubes4/studio-web/eval/workflow-bench/scenarios",
+  "description": "Maps Studio Web Workflow Bench canonical scenario IDs to legacy Homeboy Rigs site-build prompt variants. Studio Web owns scenario semantics; Homeboy Rigs only consumes IDs and executes existing variants.",
+  "scenarios": {
+    "local-restaurant-launch": {
+      "prompt_variant": "restaurant",
+      "category": "plain-site"
+    },
+    "saas-product-marketing": {
+      "prompt_variant": "saas",
+      "category": "plain-site"
+    },
+    "nonprofit-campaign": {
+      "prompt_variant": "nonprofit-campaign",
+      "category": "plain-site"
+    },
+    "commerce-lite-shop": {
+      "prompt_variant": "product-catalog",
+      "category": "store"
+    },
+    "reference-material-guided-site": {
+      "prompt_variant": "static-content-library",
+      "category": "static-markdown"
+    }
+  }
+}

@@ -49,6 +49,7 @@ import {
   prepareStudioRuntime,
   promptTemplatePath,
   promptVariantCatalog,
+  resolvedPromptVariant,
   runCli,
   runEval,
   siteBuildPrompt,
@@ -57,14 +58,19 @@ import {
   systemPromptFingerprint,
   validatePromptVariantCatalog,
   variant,
+  workflowBenchScenarioId,
+  workflowBenchScenarioMapping,
 } from './lib/site-build-runtime.mjs';
 
 export {
   availablePromptVariants,
   createStudioBenchRuntime,
   promptVariantCatalog,
+  resolvedPromptVariant,
   siteBuildPrompt,
   validatePromptVariantCatalog,
+  workflowBenchScenarioId,
+  workflowBenchScenarioMapping,
 } from './lib/site-build-runtime.mjs';
 
 import {
@@ -420,7 +426,8 @@ export default async function studioAgentSiteBuildBench() {
   await createFreshSite(sitePath);
   const siteCreateMs = Date.now() - siteCreateStarted;
 
-  const selectedPromptVariant = promptVariant();
+  const selectedPromptVariant = await resolvedPromptVariant();
+  const selectedWorkflowBenchScenarioId = workflowBenchScenarioId();
   const selectedPromptFile = String(await promptTemplatePath());
   const systemPrompt = await systemPromptFingerprint();
   const prompt = await siteBuildPrompt(sitePath);
@@ -479,6 +486,7 @@ export default async function studioAgentSiteBuildBench() {
         homeboy_invocation_id: runtime.invocationId,
         homeboy_invocation_port_range: runtime.portBase !== null ? `${runtime.portBase}-${runtime.portMax}` : '',
         prompt_variant: selectedPromptVariant,
+        workflow_bench_scenario_id: selectedWorkflowBenchScenarioId,
         prompt_file: selectedPromptFile,
         prompt_category: PROMPT_CATEGORY,
         model,
@@ -663,6 +671,7 @@ export default async function studioAgentSiteBuildBench() {
       homeboy_invocation_id: runtime.invocationId,
       homeboy_invocation_port_range: runtime.portBase !== null ? `${runtime.portBase}-${runtime.portMax}` : '',
       prompt_variant: selectedPromptVariant,
+      workflow_bench_scenario_id: selectedWorkflowBenchScenarioId,
       prompt_file: selectedPromptFile,
       prompt_category: PROMPT_CATEGORY,
       model: model || 'default',

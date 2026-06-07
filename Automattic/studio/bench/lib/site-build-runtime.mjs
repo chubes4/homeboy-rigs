@@ -18,6 +18,7 @@ const DEFAULT_STUDIO_PORT = 8881;
 const INVOCATION_NAMESPACE = 'studio-agent-site-build';
 const PROMPT_VARIANT_SETTING = 'studio_site_build_prompt_variant';
 const PROMPT_FILE_SETTING = 'studio_site_build_prompt_file';
+const WORKFLOW_BENCH_SCENARIO_SETTING = 'studio_workflow_bench_scenario_id';
 const MODEL_SETTING = 'studio_agent_model';
 const DEFAULT_PROMPT_VARIANT = 'studio-code';
 const SYSTEM_PROMPT_FILES = ['apps/cli/ai/system-prompt.ts'];
@@ -161,6 +162,10 @@ function promptVariant() {
   return setting(PROMPT_VARIANT_SETTING) || DEFAULT_PROMPT_VARIANT;
 }
 
+export function workflowBenchScenarioId() {
+  return setting(WORKFLOW_BENCH_SCENARIO_SETTING);
+}
+
 export async function availablePromptVariants() {
   return validatePromptVariantCatalog();
 }
@@ -200,6 +205,30 @@ export function promptVariantCatalog(files) {
   return variants;
 }
 
+export async function workflowBenchScenarioMapping() {
+  const mappingPath = new URL('../prompts/site-build/workflow-bench-mapping.json', import.meta.url);
+  const mapping = JSON.parse(await readFile(mappingPath, 'utf8'));
+  return mapping.scenarios && typeof mapping.scenarios === 'object' ? mapping.scenarios : {};
+}
+
+export async function resolvedPromptVariant() {
+  const scenarioId = workflowBenchScenarioId();
+  if (!scenarioId) {
+    return promptVariant();
+  }
+
+  const mapping = await workflowBenchScenarioMapping();
+  const mappedVariant = mapping[scenarioId]?.prompt_variant;
+  if (typeof mappedVariant === 'string' && mappedVariant) {
+    return mappedVariant;
+  }
+
+  const scenarioIds = Object.keys(mapping).sort();
+  throw new Error(
+    `Unknown ${WORKFLOW_BENCH_SCENARIO_SETTING}: ${scenarioId}. Available scenario IDs: ${scenarioIds.join(', ')}.`
+  );
+}
+
 async function promptFiles(directoryUrl, prefix = '') {
   const entries = await readdir(directoryUrl, { withFileTypes: true });
   const files = [];
@@ -222,7 +251,7 @@ export async function promptTemplatePath() {
     return explicitPromptFile;
   }
 
-  const variantName = promptVariant();
+  const variantName = await resolvedPromptVariant();
   if (!/^[a-z0-9][a-z0-9-]*$/.test(variantName)) {
     throw new Error(`Invalid ${PROMPT_VARIANT_SETTING}: ${variantName}`);
   }
@@ -245,7 +274,7 @@ export async function siteBuildPrompt(sitePath) {
     const variants = await availablePromptVariants().catch(() => []);
     const hint = variants.length ? ` Available variants: ${variants.join(', ')}.` : '';
     throw new Error(
-      `Failed to read Studio site-build prompt for variant "${promptVariant()}" from ${String(promptPath)}.${hint} ${
+      `Failed to read Studio site-build prompt for variant "${await resolvedPromptVariant()}" from ${String(promptPath)}.${hint} ${
         error instanceof Error ? error.message : String(error)
       }`
     );

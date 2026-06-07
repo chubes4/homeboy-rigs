@@ -154,19 +154,21 @@ homeboy rig up studio-agent-claude-ssi
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench
 ```
 
-The site-build workload accepts a runtime namespace for parallel prompt-variant runs. The prompt variant still controls benchmark semantics; `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
+The site-build workload accepts a runtime namespace for parallel prompt-variant runs. Prefer selecting canonical Studio Web Workflow Bench scenarios with `studio_workflow_bench_scenario_id`; Homeboy Rigs maps those scenario IDs to existing local prompt variants without owning the scenario prompts or corpus semantics. The legacy `studio_site_build_prompt_variant` setting remains available for local Rigs-only experiments. `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
 
 ```bash
-HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=restaurant \
+HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=local-restaurant-launch \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
-HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=saas \
+HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=saas-product-marketing \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
 homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
 wait
 ```
+
+The compatibility manifest is `Automattic/studio/bench/prompts/site-build/workflow-bench-mapping.json`. It stores only scenario ID to prompt-variant mappings, so Studio Web remains the source of truth for Workflow Bench scenario prompts, categories, proof surfaces, success gates, and matrix selection.
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 

@@ -17,6 +17,7 @@ const {
   importerTimingMetrics,
   normalizeImportReport,
   promptVariantCatalog,
+  resolvedPromptVariant,
   restoreMissingSourceStaticFiles,
   semanticTargetMetric,
   siteBuildPrompt,
@@ -25,6 +26,8 @@ const {
   VISUAL_PIXEL_DIFF_THRESHOLD,
   visualEditorParityFailureDetails,
   visualEditorParityMetrics,
+  workflowBenchScenarioId,
+  workflowBenchScenarioMapping,
 } = await import('./studio-agent-site-build.bench.mjs');
 
 const { collectLatestGeneratedTheme } = await import('./lib/design-gates.mjs');
@@ -102,6 +105,42 @@ test('site-build prompt catalog derives variant IDs from markdown basenames', ()
     restaurant: 'plain-site/restaurant.md',
     'static-content-library': 'static-markdown/static-content-library.md',
   });
+});
+
+test('site-build prompt variant can resolve from Workflow Bench scenario ID', async () => {
+  await withEnv(
+    {
+      HOMEBOY_SETTINGS_JSON: JSON.stringify({ studio_workflow_bench_scenario_id: 'local-restaurant-launch' }),
+    },
+    async () => {
+      assert.equal(workflowBenchScenarioId(), 'local-restaurant-launch');
+      assert.equal(await resolvedPromptVariant(), 'restaurant');
+    }
+  );
+});
+
+test('site-build prompt variant rejects unknown Workflow Bench scenario IDs', async () => {
+  await withEnv(
+    {
+      HOMEBOY_SETTINGS_JSON: JSON.stringify({ studio_workflow_bench_scenario_id: 'unknown-scenario' }),
+    },
+    async () => {
+      await assert.rejects(
+        () => resolvedPromptVariant(),
+        /Unknown studio_workflow_bench_scenario_id: unknown-scenario.*local-restaurant-launch/
+      );
+    }
+  );
+});
+
+test('Workflow Bench scenario mappings point to existing prompt variants', async () => {
+  const variants = new Set(await availablePromptVariants());
+  const mapping = await workflowBenchScenarioMapping();
+
+  assert.ok(Object.keys(mapping).includes('local-restaurant-launch'));
+  for (const [scenarioId, entry] of Object.entries(mapping)) {
+    assert.ok(variants.has(entry.prompt_variant), `${scenarioId} maps to missing variant ${entry.prompt_variant}`);
+  }
 });
 
 test('site-build prompt catalog fails clearly for duplicate basename-derived IDs', () => {
