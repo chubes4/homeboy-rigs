@@ -4,6 +4,15 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 
+const WORDPRESS_LIB_HELPER_KEYS = new Map([
+  ['block-quality.js', 'blockQuality'],
+  ['editor-canvas-probes.js', 'editorCanvasProbes'],
+  ['fixture-setup.js', 'fixtureSetup'],
+  ['request-profiler.js', 'requestProfiler'],
+  ['timing-correlator.js', 'timingCorrelator'],
+  ['wordpress-bootstrap-timeline.js', 'bootstrapTimeline'],
+]);
+
 export function loadWordPressHelperManifest(options = {}) {
   const manifestPath = options.manifestPath || process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST;
   if (!manifestPath || !existsSync(manifestPath)) {
@@ -34,6 +43,11 @@ export function wordpressLibHelperPath(fileName, options = {}) {
   }
 
   const { manifest } = loadWordPressHelperManifest(options);
+  const helperKey = options.helperKey || WORDPRESS_LIB_HELPER_KEYS.get(fileName);
+  if (helperKey && manifest?.helpers?.[helperKey]) {
+    return manifest.helpers[helperKey];
+  }
+
   return manifest?.extensionRoot ? path.join(manifest.extensionRoot, 'lib', fileName) : '';
 }
 
