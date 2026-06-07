@@ -8,7 +8,6 @@ process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 
 const {
   agentSuccessGate,
-  availablePromptVariants,
   compareSemanticFingerprints,
   createStudioBenchRuntime,
   hiddenEditorContentDiagnostics,
@@ -16,8 +15,6 @@ const {
   importerBlockQualityMetrics,
   importerTimingMetrics,
   normalizeImportReport,
-  promptVariantCatalog,
-  resolvedPromptVariant,
   restoreMissingSourceStaticFiles,
   semanticTargetMetric,
   siteBuildPrompt,
@@ -26,8 +23,9 @@ const {
   VISUAL_PIXEL_DIFF_THRESHOLD,
   visualEditorParityFailureDetails,
   visualEditorParityMetrics,
+  workflowBenchScenario,
   workflowBenchScenarioId,
-  workflowBenchScenarioMapping,
+  workflowBenchScenarios,
 } = await import('./studio-agent-site-build.bench.mjs');
 
 const { collectLatestGeneratedTheme } = await import('./lib/design-gates.mjs');
@@ -91,83 +89,99 @@ async function withEnv(values, callback) {
   }
 }
 
-test('site-build prompt variants are discovered from prompt files', async () => {
-  const variants = await availablePromptVariants();
+async function createWorkflowBenchFixture() {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'studio-web-workflow-bench-'));
+  const scenariosDir = path.join(tempDir, 'eval/workflow-bench/scenarios');
+  const corporaDir = path.join(tempDir, 'eval/workflow-bench/corpora');
+  await mkdir(scenariosDir, { recursive: true });
+  await mkdir(corporaDir, { recursive: true });
+  await writeFile(
+    path.join(scenariosDir, 'local-business-landing.json'),
+    JSON.stringify(
+      {
+        schema: 'workflow-bench/scenario/v1',
+        id: 'local-business-landing',
+        version: 1,
+        title: 'Local business landing',
+        category: 'local-business',
+        task: { type: 'create', prompt: 'Build a local business site in active benchmark site.' },
+        inputs: [],
+        expected_outputs: [{ id: 'site', kind: 'website', description: 'Generated site.' }],
+        proof_surfaces: [{ id: 'output-artifacts', kind: 'artifact', required: true, description: 'Output.' }],
+        success_gates: [
+          { id: 'content', kind: 'content', severity: 'required', description: 'Content is present.', evidence: ['output-artifacts'] },
+        ],
+      },
+      null,
+      2
+    ) + '\n'
+  );
+  await writeFile(
+    path.join(corporaDir, 'homeboy-rigs-site-build.json'),
+    JSON.stringify(
+      {
+        schema: 'workflow-bench/scenario-corpus/v1',
+        id: 'homeboy-rigs-site-build',
+        version: 1,
+        scenarios: [
+          {
+            id: 'homeboy-plain-site-restaurant',
+            label: 'Restaurant one-page site',
+            category: 'plain-site',
+            tags: ['homeboy-rigs', 'site-build'],
+            matrix_suitability: ['full'],
+            task_type: 'create',
+            prompt: 'Build Ember & Rye in active benchmark site.',
+            proof_surfaces: ['output-artifacts'],
+            success_gates: ['Restaurant content is present.'],
+          },
+        ],
+      },
+      null,
+      2
+    ) + '\n'
+  );
+  return tempDir;
+}
 
-  assert.ok(variants.includes('restaurant'));
-  assert.ok(variants.includes('studio-code'));
-  assert.ok(variants.includes('static-content-library'));
-  assert.deepEqual(await validatePromptVariantCatalog(), variants);
-});
+test('site-build prompt resolves from canonical Workflow Bench scenarios', async () => {
+  const tempDir = await createWorkflowBenchFixture();
 
-test('site-build prompt catalog derives variant IDs from markdown basenames', () => {
-  assert.deepEqual(promptVariantCatalog(['plain-site/restaurant.md', 'static-markdown/static-content-library.md']), {
-    restaurant: 'plain-site/restaurant.md',
-    'static-content-library': 'static-markdown/static-content-library.md',
-  });
-});
-
-test('site-build prompt variant can resolve from Workflow Bench scenario ID', async () => {
   await withEnv(
     {
-      HOMEBOY_SETTINGS_JSON: JSON.stringify({ studio_workflow_bench_scenario_id: 'local-restaurant-launch' }),
+      STUDIO_WEB_WORKFLOW_BENCH_ROOT: tempDir,
+      HOMEBOY_SETTINGS_JSON: JSON.stringify({ studio_workflow_bench_scenario_id: 'homeboy-plain-site-restaurant' }),
     },
     async () => {
-      assert.equal(workflowBenchScenarioId(), 'local-restaurant-launch');
-      assert.equal(await resolvedPromptVariant(), 'restaurant');
+      const scenarios = await workflowBenchScenarios();
+
+      assert.equal(scenarios.length, 2);
+      assert.equal(workflowBenchScenarioId(), 'homeboy-plain-site-restaurant');
+      assert.equal((await workflowBenchScenario()).title, 'Restaurant one-page site');
+      assert.equal(await siteBuildPrompt('/tmp/example-site'), 'Build Ember & Rye in /tmp/example-site.');
     }
   );
+
+  await rm(tempDir, { recursive: true, force: true });
 });
 
-test('site-build prompt variant rejects unknown Workflow Bench scenario IDs', async () => {
+test('site-build rejects unknown Workflow Bench scenario IDs', async () => {
+  const tempDir = await createWorkflowBenchFixture();
+
   await withEnv(
     {
+      STUDIO_WEB_WORKFLOW_BENCH_ROOT: tempDir,
       HOMEBOY_SETTINGS_JSON: JSON.stringify({ studio_workflow_bench_scenario_id: 'unknown-scenario' }),
     },
     async () => {
       await assert.rejects(
-        () => resolvedPromptVariant(),
-        /Unknown studio_workflow_bench_scenario_id: unknown-scenario.*local-restaurant-launch/
+        () => workflowBenchScenario(),
+        /Unknown studio_workflow_bench_scenario_id: unknown-scenario.*homeboy-plain-site-restaurant/
       );
     }
   );
-});
 
-test('Workflow Bench scenario mappings point to existing prompt variants', async () => {
-  const variants = new Set(await availablePromptVariants());
-  const mapping = await workflowBenchScenarioMapping();
-
-  assert.ok(Object.keys(mapping).includes('local-restaurant-launch'));
-  for (const [scenarioId, entry] of Object.entries(mapping)) {
-    assert.ok(variants.has(entry.prompt_variant), `${scenarioId} maps to missing variant ${entry.prompt_variant}`);
-  }
-});
-
-test('site-build prompt catalog fails clearly for duplicate basename-derived IDs', () => {
-  assert.throws(
-    () => promptVariantCatalog(['plain-site/restaurant.md', 'store/restaurant.md']),
-    /duplicate basename-derived variant IDs.*restaurant.*plain-site\/restaurant\.md.*store\/restaurant\.md/
-  );
-});
-
-test('site-build prompt file override bypasses discovered variants', async () => {
-  const previousSettings = process.env.HOMEBOY_SETTINGS_JSON;
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'studio-site-build-prompt-'));
-  const promptFile = path.join(tempDir, 'custom.md');
-
-  try {
-    await writeFile(promptFile, 'Build {{sitePath}} from ${sitePath}\n');
-    process.env.HOMEBOY_SETTINGS_JSON = JSON.stringify({ studio_site_build_prompt_file: promptFile });
-
-    assert.equal(await siteBuildPrompt('/tmp/example-site'), 'Build /tmp/example-site from /tmp/example-site');
-  } finally {
-    if (previousSettings === undefined) {
-      delete process.env.HOMEBOY_SETTINGS_JSON;
-    } else {
-      process.env.HOMEBOY_SETTINGS_JSON = previousSettings;
-    }
-    await rm(tempDir, { recursive: true, force: true });
-  }
+  await rm(tempDir, { recursive: true, force: true });
 });
 
 test('bench runtime falls back to shared-state artifacts without invocation helper', async () => {
