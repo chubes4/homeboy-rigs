@@ -1,0 +1,69 @@
+{
+  "id": "gutenberg-pattern-preview-assets",
+  "description": "Gutenberg pattern preview asset fan-out rig for reproducing WordPress/gutenberg#68979 and the request-spike symptoms discussed in WordPress/gutenberg#71547.",
+  "components": {
+    "gutenberg": {
+      "path": "~/Developer/gutenberg",
+      "branch": "trunk"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "gutenberg-pattern-preview-assets:${env.HOMEBOY_SETTINGS_GUTENBERG_PATTERN_ASSETS_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.gutenberg.path}"
+    ]
+  },
+  "trace": {
+    "default_component": "gutenberg"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/pattern-preview-assets.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-waterfall",
+        "trace_phase_presets": {
+          "browser-waterfall": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "probe:browser.probe.ready",
+            "metrics:pattern-assets.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": [
+      "pattern-preview-assets"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "command",
+        "label": "Gutenberg checkout exists",
+        "command": "test -f \"$HOME/Developer/gutenberg/gutenberg.php\" || { printf '%s\n' 'Missing Gutenberg checkout: expected ~/Developer/gutenberg/gutenberg.php.'; exit 1; }"
+      },
+      {
+        "kind": "command",
+        "label": "WP Codebox CLI exists",
+        "command": "if [ -n \"${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\" ]; then test -f \"${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\" || { printf '%s\n' \"Configured WP Codebox CLI not found: ${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\"; exit 1; }; else test -f \"$HOME/Developer/wp-codebox/packages/cli/dist/index.js\" || command -v wp-codebox >/dev/null 2>&1 || { printf '%s\n' 'Missing WP Codebox CLI. Expected ~/Developer/wp-codebox/packages/cli/dist/index.js, wp-codebox on PATH, or HOMEBOY_SETTINGS_WP_CODEBOX_BIN.'; exit 1; }; fi"
+      }
+    ],
+    "down": []
+  }
+}
