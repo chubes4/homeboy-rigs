@@ -112,9 +112,7 @@ async function writeFakeWordPressManifest() {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-wordpress-manifest-'));
   const extensionRoot = path.join(tempDir, 'wordpress');
   const libDir = path.join(extensionRoot, 'lib');
-  const benchLibDir = path.join(extensionRoot, 'scripts', 'bench', 'lib');
   await import('node:fs/promises').then(({ mkdir }) => mkdir(libDir, { recursive: true }));
-  await import('node:fs/promises').then(({ mkdir }) => mkdir(benchLibDir, { recursive: true }));
   const requestProfiler = path.join(libDir, 'request-profiler.js');
   const timingCorrelator = path.join(libDir, 'timing-correlator.js');
   const bootstrapTimeline = path.join(libDir, 'wordpress-bootstrap-timeline.js');
@@ -123,7 +121,6 @@ async function writeFakeWordPressManifest() {
   const blockQuality = path.join(libDir, 'block-quality.js');
   const fixtureSetup = path.join(libDir, 'fixture-setup.js');
   const fixtureSetupRestoreLog = path.join(tempDir, 'fixture-restore.json');
-  const blockThemeQualityProbe = path.join(benchLibDir, 'block-theme-quality-probe.php');
   const manifestPath = path.join(libDir, 'helper-manifest.js');
 
   await writeFile(requestProfiler, "module.exports = { installWordPressRequestProfiler() {} };\n");
@@ -132,8 +129,9 @@ async function writeFakeWordPressManifest() {
   await writeFile(adminPageScenarios, "module.exports = { normalizeWordPressAdminPageScenarioInput: (spec) => spec, profileWordPressAdminPageScenario: async () => ({ status: 200 }) };\n");
   await writeFile(blockQuality, `
 module.exports = {
+  wordpressBlockQualityProbeCode: (options) => 'fake site probe for ' + JSON.stringify(options),
   wordpressPostBlockQualityProbeCode: (postId) => 'fake probe for ' + postId,
-  parseWordPressBlockQualityProbeOutput: () => ({ fallback_count: 2, core_html_without_fallback: 3, stored_content_hash: 'abc' }),
+  parseWordPressBlockQualityProbeOutput: () => ({ fallback_count: 2, core_html_without_fallback: 3, target_pages_seen: 1, target_posts_with_blocks: 1, stored_content_hash: 'abc' }),
 };
 `);
   await writeFile(fixtureSetup, `
@@ -154,7 +152,6 @@ module.exports = {
   },
 };
 `);
-  await writeFile(blockThemeQualityProbe, "<?php // fake block theme quality probe\n");
   await writeFile(bootstrapTimeline, `
 module.exports = {
   instrumentIndexPhp(source) {
@@ -207,7 +204,7 @@ module.exports = {
 };
 `);
 
-  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog, blockThemeQualityProbe };
+  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog };
 }
 
 // --- path resolution -------------------------------------------------------
@@ -786,13 +783,12 @@ test('probePageQuality delegates post-scoped block probing to the WordPress help
   }
 });
 
-test('probeQuality delegates site block probing to the promoted block theme helper', async () => {
+test('probeQuality delegates site block probing to the promoted block quality helper', async () => {
   const fixture = await writeFakeWordPressManifest();
   try {
     await withEnvAsync(
       {
         HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath,
-        HOMEBOY_WORDPRESS_BLOCK_THEME_QUALITY_PROBE: undefined,
       },
       async () => {
         const calls = [];
@@ -800,24 +796,20 @@ test('probeQuality delegates site block probing to the promoted block theme help
           runCli: async (args) => {
             calls.push(args);
             return {
-              stdout: JSON.stringify({
-                target_pages_seen: 1,
-                target_posts_with_blocks: 1,
-                bfb_fallback_count: 0,
-                core_html_without_bfb_fallback: 0,
-              }),
+              stdout: JSON.stringify({ ignored: true }),
             };
           },
         });
 
         assert.equal(calls.length, 1);
         assert.deepEqual(calls[0].slice(0, 5), ['wp', '--path', '/tmp/site', '--php-version', '8.3']);
-        const encodedPath = /base64_decode\( '([^']+)'/.exec(calls[0].at(-1))?.[1] || '';
-        assert.equal(Buffer.from(encodedPath, 'base64').toString(), fixture.blockThemeQualityProbe);
-        assert.match(calls[0].at(-1), /homeboy_wordpress_collect_block_theme_quality/);
+        assert.match(calls[0].at(-1), /fake site probe/);
+        assert.match(calls[0].at(-1), /studio_bfb_unsupported_fallback_count/);
         assert.match(calls[0].at(-1), /Studio Code/);
         assert.equal(quality.target_pages_seen, 1);
         assert.equal(quality.target_posts_with_blocks, 1);
+        assert.equal(quality.bfb_fallback_count, 2);
+        assert.equal(quality.core_html_without_bfb_fallback, 3);
       }
     );
   } finally {
