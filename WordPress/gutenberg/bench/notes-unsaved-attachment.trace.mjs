@@ -179,7 +179,8 @@ function homeboy_gutenberg_notes_fixture_state() {
 		)
 	);
 
-	$live_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-live-create', 'Homeboy Notes Live Create' );
+	$live_post_id       = homeboy_gutenberg_notes_create_post( 'homeboy-notes-live-create', 'Homeboy Notes Live Create' );
+	$dirty_live_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-dirty-live-create', 'Homeboy Notes Dirty Live Create' );
 
 	$state = array(
 		'orphan' => array(
@@ -199,6 +200,11 @@ function homeboy_gutenberg_notes_fixture_state() {
 		),
 		'live-create' => array(
 			'post_id' => $live_post_id,
+			'note_id' => 0,
+			'expected_orphan' => false,
+		),
+		'dirty-live-create' => array(
+			'post_id' => $dirty_live_post_id,
 			'note_id' => 0,
 			'expected_orphan' => false,
 		),
@@ -367,6 +373,7 @@ const collectLiveCreateCase = async (caseId) => {
 	if (!item) {
 		throw new Error('Missing fixture case ' + caseId);
 	}
+	const dirtyText = 'Homeboy dirty edit that must stay unsaved.';
 	await waitForEditorReady(caseId);
 	try {
 		if (window.wp.data.select('core/preferences')?.get('core/edit-post', 'welcomeGuide')) {
@@ -380,6 +387,10 @@ const collectLiveCreateCase = async (caseId) => {
 	} catch (error) {}
 	await sleep(500);
 	const block = await waitFor(() => window.wp.data.select('core/block-editor').getBlocks()[0], 'first block for ' + caseId);
+	if (caseId === 'dirty-live-create') {
+		window.wp.data.dispatch('core/block-editor').updateBlockAttributes(block.clientId, { content: dirtyText });
+		await waitFor(() => window.wp.data.select('core/editor').isEditedPostDirty?.(), 'dirty editor state before note create');
+	}
 	window.wp.data.dispatch('core/block-editor').selectBlock(block.clientId);
 	const blockElement = document.querySelector('[data-block="' + block.clientId + '"]');
 	blockElement?.scrollIntoView({ block: 'center' });
@@ -419,19 +430,23 @@ const collectLiveCreateCase = async (caseId) => {
 	} catch (error) {}
 	let persistedContent = await getPostContent(item.post_id);
 	let persistedHasNoteId = contentHasNoteId(persistedContent, noteId);
+	let persistedHasDirtyText = persistedContent.includes(dirtyText);
 	try {
 		persistedHasNoteId = await waitFor(async () => {
 			persistedContent = await getPostContent(item.post_id);
+			persistedHasDirtyText = persistedContent.includes(dirtyText);
 			return contentHasNoteId(persistedContent, noteId);
 		}, 'persisted post_content noteId after live note create');
 	} catch (error) {}
 	const collected = await collectBlockAttachment(caseId, { ...item, note_id: noteId }, noteId);
+	const dirtyCasePassed = caseId !== 'dirty-live-create' || !persistedHasDirtyText;
 	return {
 		...collected,
 		blockHasPersistedNoteId: persistedHasNoteId,
 		logicalOrphan: !persistedHasNoteId,
-		passed: persistedHasNoteId,
+		passed: persistedHasNoteId && dirtyCasePassed,
 		saveSettled,
+		persistedHasDirtyText,
 		persistedContentSample: persistedContent.slice(0, 500),
 	};
 };
@@ -440,7 +455,7 @@ const collectCase = async (caseId) => {
 	if (!item) {
 		throw new Error('Missing fixture case ' + caseId);
 	}
-	if (caseId === 'live-create') {
+	if (caseId === 'live-create' || caseId === 'dirty-live-create') {
 		return collectLiveCreateCase(caseId);
 	}
 	return collectBlockAttachment(caseId, item, Number(item.note_id));

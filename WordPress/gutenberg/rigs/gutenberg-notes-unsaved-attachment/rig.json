@@ -76,6 +76,12 @@
       "settings": {
         "gutenberg_notes_case": "live-create"
       }
+    },
+    "dirty-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "dirty-live-create"
+      }
     }
   },
   "pipeline": {
