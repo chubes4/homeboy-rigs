@@ -186,6 +186,17 @@ return function (): array {
 		'updated_variations'       => 0,
 		'variable_product_syncs'   => 0,
 		'lookup_table_queries'     => 0,
+		'added_post_meta'          => 0,
+		'updated_post_meta'        => 0,
+		'deleted_post_meta'        => 0,
+		'save_post_product'        => 0,
+		'save_post_product_variation' => 0,
+		'clean_post_cache'         => 0,
+	);
+	$meta_hook_counts = array(
+		'added'   => array(),
+		'updated' => array(),
+		'deleted' => array(),
 	);
 	$active_query_profile = null;
 	$profile_query        = static function ( string $query ) use ( &$active_query_profile, $wpdb ): void {
@@ -306,6 +317,36 @@ return function (): array {
 	add_action( 'woocommerce_new_product_variation', static function () use ( &$counters ): void { ++$counters['new_variations']; } );
 	add_action( 'woocommerce_update_product_variation', static function () use ( &$counters ): void { ++$counters['updated_variations']; } );
 	add_action( 'woocommerce_variable_product_sync', static function () use ( &$counters ): void { ++$counters['variable_product_syncs']; } );
+	add_action(
+		'added_post_meta',
+		static function ( $meta_id, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts ): void {
+			++$counters['added_post_meta'];
+			$meta_hook_counts['added'][ $meta_key ] = ( $meta_hook_counts['added'][ $meta_key ] ?? 0 ) + 1;
+		},
+		10,
+		3
+	);
+	add_action(
+		'updated_post_meta',
+		static function ( $meta_id, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts ): void {
+			++$counters['updated_post_meta'];
+			$meta_hook_counts['updated'][ $meta_key ] = ( $meta_hook_counts['updated'][ $meta_key ] ?? 0 ) + 1;
+		},
+		10,
+		3
+	);
+	add_action(
+		'deleted_post_meta',
+		static function ( $meta_ids, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts ): void {
+			$counters['deleted_post_meta'] += is_array( $meta_ids ) ? count( $meta_ids ) : 1;
+			$meta_hook_counts['deleted'][ $meta_key ] = ( $meta_hook_counts['deleted'][ $meta_key ] ?? 0 ) + ( is_array( $meta_ids ) ? count( $meta_ids ) : 1 );
+		},
+		10,
+		3
+	);
+	add_action( 'save_post_product', static function () use ( &$counters ): void { ++$counters['save_post_product']; } );
+	add_action( 'save_post_product_variation', static function () use ( &$counters ): void { ++$counters['save_post_product_variation']; } );
+	add_action( 'clean_post_cache', static function () use ( &$counters ): void { ++$counters['clean_post_cache']; } );
 	$count_pending_actions = static function (): int {
 		if ( ! function_exists( 'as_get_scheduled_actions' ) || ! class_exists( 'ActionScheduler_Store' ) ) {
 			return 0;
@@ -538,6 +579,11 @@ return function (): array {
 		'variation_create' => $variation_create_result,
 		'variation_update' => $variation_update_result,
 	);
+	foreach ( $meta_hook_counts as &$meta_hook_group ) {
+		arsort( $meta_hook_group );
+		$meta_hook_group = array_slice( $meta_hook_group, 0, 40, true );
+	}
+	unset( $meta_hook_group );
 	foreach ( $rows as &$row ) {
 		unset( $row['data'] );
 	}
@@ -669,6 +715,16 @@ return function (): array {
 			)
 		),
 		'variation_create_profile_parent_transient_option_queries' => $count_profile_keys( $variation_create_result, 'option_names', $parent_transient_option_names ),
+		'variation_create_hook_added_post_meta' => (int) $variation_create_result['counter_delta']['added_post_meta'],
+		'variation_create_hook_updated_post_meta' => (int) $variation_create_result['counter_delta']['updated_post_meta'],
+		'variation_create_hook_deleted_post_meta' => (int) $variation_create_result['counter_delta']['deleted_post_meta'],
+		'variation_create_hook_save_post_product_variation' => (int) $variation_create_result['counter_delta']['save_post_product_variation'],
+		'variation_create_hook_clean_post_cache' => (int) $variation_create_result['counter_delta']['clean_post_cache'],
+		'variation_update_hook_added_post_meta' => (int) $variation_update_result['counter_delta']['added_post_meta'],
+		'variation_update_hook_updated_post_meta' => (int) $variation_update_result['counter_delta']['updated_post_meta'],
+		'variation_update_hook_deleted_post_meta' => (int) $variation_update_result['counter_delta']['deleted_post_meta'],
+		'variation_update_hook_save_post_product_variation' => (int) $variation_update_result['counter_delta']['save_post_product_variation'],
+		'variation_update_hook_clean_post_cache' => (int) $variation_update_result['counter_delta']['clean_post_cache'],
 		'side_effect_simple_create_response_errors' => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ),
 		'side_effect_simple_update_response_errors' => $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ),
 		'side_effect_variation_create_response_errors' => $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ),
@@ -718,6 +774,7 @@ return function (): array {
 					'metrics'               => $summary,
 					'side_effects'          => array(
 						'invariant_failures' => $invariant_failures,
+						'meta_hook_counts'   => $meta_hook_counts,
 						'row_counts_before'  => $row_counts_before,
 						'row_counts_after'   => $row_counts_after,
 						'row_count_deltas'   => $row_count_deltas,
