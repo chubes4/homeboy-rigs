@@ -1,0 +1,102 @@
+{
+  "id": "gutenberg-notes-unsaved-attachment",
+  "description": "Gutenberg Block Notes unsaved attachment repro rig for WordPress/gutenberg#72717.",
+  "components": {
+    "gutenberg": {
+      "path": "~/Developer/gutenberg",
+      "branch": "trunk"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "gutenberg-notes-unsaved-attachment:${env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.gutenberg.path}"
+    ]
+  },
+  "trace": {
+    "default_component": "gutenberg"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/notes-unsaved-attachment.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-notes-repro",
+        "trace_phase_presets": {
+          "browser-notes-repro": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "probe:browser.probe.ready",
+            "metrics:notes-unsaved-attachment.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "orphan"
+      }
+    },
+    "orphan": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "orphan"
+      }
+    },
+    "saved-anchor": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "saved-anchor"
+      }
+    },
+    "autosave-anchor": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "autosave-anchor"
+      }
+    },
+    "live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "live-create"
+      }
+    },
+    "dirty-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "dirty-live-create"
+      }
+    }
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "command",
+        "label": "Gutenberg checkout exists",
+        "command": "test -f \"$HOME/Developer/gutenberg/gutenberg.php\" || { printf '%s\n' 'Missing Gutenberg checkout: expected ~/Developer/gutenberg/gutenberg.php.'; exit 1; }"
+      },
+      {
+        "kind": "command",
+        "label": "WP Codebox CLI exists",
+        "command": "if [ -n \"${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\" ]; then test -f \"${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\" || { printf '%s\n' \"Configured WP Codebox CLI not found: ${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\"; exit 1; }; else test -f \"$HOME/Developer/wp-codebox/packages/cli/dist/index.js\" || command -v wp-codebox >/dev/null 2>&1 || { printf '%s\n' 'Missing WP Codebox CLI. Expected ~/Developer/wp-codebox/packages/cli/dist/index.js, wp-codebox on PATH, or HOMEBOY_SETTINGS_WP_CODEBOX_BIN.'; exit 1; }; fi"
+      }
+    ],
+    "down": []
+  }
+}
