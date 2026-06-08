@@ -143,8 +143,14 @@ return function (): array {
 
 	$checkout = WC()->checkout();
 	$before   = microtime( true );
-	$order_id_1 = $checkout->create_order( $data );
-	$order_id_2 = $checkout->create_order( $data );
+	$unexpected_output = '';
+	ob_start();
+	try {
+		$order_id_1 = $checkout->create_order( $data );
+		$order_id_2 = $checkout->create_order( $data );
+	} finally {
+		$unexpected_output = (string) ob_get_clean();
+	}
 	$elapsed_ms = ( microtime( true ) - $before ) * 1000;
 
 	if ( is_wp_error( $order_id_1 ) ) {
@@ -157,7 +163,11 @@ return function (): array {
 	$order_ids = array_map( 'absint', array( $order_id_1, $order_id_2 ) );
 	$orders    = array_filter( array_map( 'wc_get_order', $order_ids ) );
 	$unique_order_ids = array_values( array_unique( $order_ids ) );
+	$unique_orders    = array_filter( array_map( 'wc_get_order', $unique_order_ids ) );
+	$main_order       = wc_get_order( $order_ids[0] );
 	$duplicate_created = count( $unique_order_ids ) > 1 ? 1 : 0;
+	$main_order_item_count = $main_order instanceof WC_Order ? count( $main_order->get_items() ) : 0;
+	$main_order_total      = $main_order instanceof WC_Order ? (float) $main_order->get_total() : 0;
 
 	$artifact = array(
 		'run_id'             => $run_id,
@@ -169,6 +179,7 @@ return function (): array {
 		'order_ids'          => $order_ids,
 		'unique_order_ids'   => $unique_order_ids,
 		'duplicate_created'  => (bool) $duplicate_created,
+		'unexpected_output'  => $unexpected_output,
 		'orders'             => array_map(
 			static function ( WC_Order $order ): array {
 				return array(
@@ -189,9 +200,23 @@ return function (): array {
 		'order_create_attempts'      => 2,
 		'unique_order_count'         => count( $unique_order_ids ),
 		'duplicate_order_count'      => max( 0, count( $unique_order_ids ) - 1 ),
+		'second_attempt_reused_first_order' => $order_ids[0] === $order_ids[1] ? 1 : 0,
+		'main_order_succeeded'       => $main_order instanceof WC_Order ? 1 : 0,
+		'main_order_item_count'      => $main_order_item_count,
+		'main_order_total'           => $main_order_total,
+		'unexpected_output_detected' => '' === $unexpected_output ? 0 : 1,
+		'unexpected_output_bytes'    => strlen( $unexpected_output ),
 		'elapsed_ms'                 => $elapsed_ms,
 		'cart_items'                 => WC()->cart->get_cart_contents_count(),
 		'cart_total'                 => (float) WC()->cart->get_total( 'edit' ),
+		'unique_same_cart_hash_order_count' => count(
+			array_filter(
+				$unique_orders,
+				static function ( WC_Order $order ) use ( $cart_hash ): bool {
+					return $order->get_cart_hash() === $cart_hash;
+				}
+			)
+		),
 		'same_cart_hash_order_count' => count(
 			array_filter(
 				$orders,
