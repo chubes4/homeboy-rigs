@@ -14,7 +14,11 @@
             "WC_SHIPPING_CACHE_PACKAGES": "8",
             "WC_SHIPPING_CACHE_WARM_RUNS": "5",
             "WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS": "3",
-            "WC_SHIPPING_CACHE_REHASH_RUNS": "3"
+            "WC_SHIPPING_CACHE_REHASH_RUNS": "3",
+            "WC_REST_BATCH_IMPORT_ITEMS": "25",
+            "WC_REST_BATCH_IMPORT_ATTRIBUTES": "3",
+            "WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE": "8",
+            "WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS": "0"
           }
         }
       }
@@ -37,7 +41,8 @@
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
-      { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" }
+      { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
+      { "path": "${package.root}/bench/rest-product-batch-import.php" }
     ]
   },
   "bench_profiles": {
@@ -45,13 +50,15 @@
       "checkout-concurrent-create-order",
       "checkout-shipping-cache",
       "layered-nav-count-cache",
-      "layered-nav-catalog-crawl"
+      "layered-nav-catalog-crawl",
+      "rest-product-batch-import"
     ],
     "hot": [
       "checkout-concurrent-create-order",
       "checkout-shipping-cache",
       "layered-nav-count-cache",
-      "layered-nav-catalog-crawl"
+      "layered-nav-catalog-crawl",
+      "rest-product-batch-import"
     ]
   },
   "pipeline": {
