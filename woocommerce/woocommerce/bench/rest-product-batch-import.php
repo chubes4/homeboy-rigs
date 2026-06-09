@@ -278,6 +278,42 @@ return function (): array {
 		}
 		$active_query_profile['categories'][ $category ] = ( $active_query_profile['categories'][ $category ] ?? 0 ) + 1;
 
+		if ( 'action_scheduler' === $category ) {
+			$table_key = str_replace( $wpdb->prefix, '', $tables[0] ?? '' );
+			$active_query_profile['details'][ 'action_scheduler_' . $operation . '_' . $table_key ] = ( $active_query_profile['details'][ 'action_scheduler_' . $operation . '_' . $table_key ] ?? 0 ) + 1;
+			if ( preg_match( '/SELECT\s+a\.action_id\s+FROM\s+`?' . preg_quote( $wpdb->prefix, '/' ) . 'actionscheduler_actions`?\s+a\s+WHERE.*\ba\.hook\s*=\s*/i', $query ) ) {
+				$active_query_profile['details']['action_scheduler_duplicate_check'] = ( $active_query_profile['details']['action_scheduler_duplicate_check'] ?? 0 ) + 1;
+			}
+		} elseif ( 'term_lookup' === $category ) {
+			if ( false !== strpos( $query, $wpdb->term_relationships ) ) {
+				$active_query_profile['details']['term_relationship_join'] = ( $active_query_profile['details']['term_relationship_join'] ?? 0 ) + 1;
+			} elseif ( false !== strpos( $query, 't.slug IN' ) ) {
+				$active_query_profile['details']['term_slug_lookup'] = ( $active_query_profile['details']['term_slug_lookup'] ?? 0 ) + 1;
+			} elseif ( false !== strpos( $query, 't.name IN' ) ) {
+				$active_query_profile['details']['term_name_lookup'] = ( $active_query_profile['details']['term_name_lookup'] ?? 0 ) + 1;
+			} else {
+				$active_query_profile['details']['term_other_lookup'] = ( $active_query_profile['details']['term_other_lookup'] ?? 0 ) + 1;
+			}
+		} elseif ( 'slug_lookup' === $category ) {
+			if ( preg_match( '/SELECT\s+post_name\s+FROM\s+`?' . preg_quote( $wpdb->posts, '/' ) . '`?/i', $query ) ) {
+				$active_query_profile['details']['slug_post_name_collision_check'] = ( $active_query_profile['details']['slug_post_name_collision_check'] ?? 0 ) + 1;
+			} elseif ( false !== strpos( $query, 'p.post_title' ) && false !== strpos( $query, 'p.post_content' ) ) {
+				$active_query_profile['details']['slug_duplicate_post_lookup'] = ( $active_query_profile['details']['slug_duplicate_post_lookup'] ?? 0 ) + 1;
+			} elseif ( false !== strpos( $query, 'wp_posts.post_name' ) ) {
+				$active_query_profile['details']['slug_post_lookup'] = ( $active_query_profile['details']['slug_post_lookup'] ?? 0 ) + 1;
+			} else {
+				$active_query_profile['details']['slug_other_lookup'] = ( $active_query_profile['details']['slug_other_lookup'] ?? 0 ) + 1;
+			}
+		} elseif ( 'meta_read' === $category ) {
+			if ( preg_match( '/SELECT\s+post_id,\s*meta_key,\s*meta_value\s+FROM\s+`?' . preg_quote( $wpdb->postmeta, '/' ) . '`?/i', $query ) ) {
+				$active_query_profile['details']['meta_bulk_read'] = ( $active_query_profile['details']['meta_bulk_read'] ?? 0 ) + 1;
+			} elseif ( preg_match( '/SELECT\s+meta_key\s+FROM\s+`?' . preg_quote( $wpdb->postmeta, '/' ) . '`?/i', $query ) ) {
+				$active_query_profile['details']['meta_key_scan'] = ( $active_query_profile['details']['meta_key_scan'] ?? 0 ) + 1;
+			} else {
+				$active_query_profile['details']['meta_other_read'] = ( $active_query_profile['details']['meta_other_read'] ?? 0 ) + 1;
+			}
+		}
+
 		$signature = preg_replace( '/\s+/', ' ', trim( $query ) );
 		$signature = preg_replace( '/\b\d+\b/', '?', $signature );
 		$signature = preg_replace( "/'[^']*'/", '?', $signature );
@@ -371,6 +407,7 @@ return function (): array {
 			'tables'           => array(),
 			'operation_tables' => array(),
 			'categories'       => array(),
+			'details'          => array(),
 			'option_names'     => array(),
 			'meta_keys'        => array(),
 			'meta_key_operations' => array(),
@@ -411,6 +448,7 @@ return function (): array {
 		arsort( $query_profile['tables'] );
 		arsort( $query_profile['operation_tables'] );
 		arsort( $query_profile['categories'] );
+		arsort( $query_profile['details'] );
 		arsort( $query_profile['option_names'] );
 		arsort( $query_profile['meta_keys'] );
 		arsort( $query_profile['meta_key_operations'] );
@@ -418,6 +456,7 @@ return function (): array {
 		$query_profile['tables']           = array_slice( $query_profile['tables'], 0, 20, true );
 		$query_profile['operation_tables'] = array_slice( $query_profile['operation_tables'], 0, 30, true );
 		$query_profile['categories']       = array_slice( $query_profile['categories'], 0, 30, true );
+		$query_profile['details']          = array_slice( $query_profile['details'], 0, 60, true );
 		$query_profile['option_names']     = array_slice( $query_profile['option_names'], 0, 30, true );
 		$query_profile['meta_keys']        = array_slice( $query_profile['meta_keys'], 0, 30, true );
 		$query_profile['meta_key_operations'] = array_slice( $query_profile['meta_key_operations'], 0, 40, true );
@@ -726,7 +765,20 @@ return function (): array {
 		'variation_create_profile_slug_lookup_queries' => $profile_value( $variation_create_result, 'categories', 'slug_lookup' ),
 		'variation_create_profile_sku_lookup_queries' => $profile_value( $variation_create_result, 'categories', 'sku_lookup' ),
 		'variation_create_profile_action_scheduler_queries' => $profile_value( $variation_create_result, 'categories', 'action_scheduler' ),
+		'variation_create_profile_action_scheduler_select_actions_queries' => $profile_value( $variation_create_result, 'details', 'action_scheduler_select_actionscheduler_actions' ),
+		'variation_create_profile_action_scheduler_select_groups_queries' => $profile_value( $variation_create_result, 'details', 'action_scheduler_select_actionscheduler_groups' ),
+		'variation_create_profile_action_scheduler_insert_actions_queries' => $profile_value( $variation_create_result, 'details', 'action_scheduler_insert_actionscheduler_actions' ),
+		'variation_create_profile_action_scheduler_insert_logs_queries' => $profile_value( $variation_create_result, 'details', 'action_scheduler_insert_actionscheduler_logs' ),
+		'variation_create_profile_action_scheduler_duplicate_check_queries' => $profile_value( $variation_create_result, 'details', 'action_scheduler_duplicate_check' ),
 		'variation_create_profile_lookup_table_queries' => $profile_value( $variation_create_result, 'categories', 'lookup_table' ),
+		'variation_create_profile_term_relationship_join_queries' => $profile_value( $variation_create_result, 'details', 'term_relationship_join' ),
+		'variation_create_profile_term_slug_lookup_queries' => $profile_value( $variation_create_result, 'details', 'term_slug_lookup' ),
+		'variation_create_profile_term_name_lookup_queries' => $profile_value( $variation_create_result, 'details', 'term_name_lookup' ),
+		'variation_create_profile_slug_post_name_collision_check_queries' => $profile_value( $variation_create_result, 'details', 'slug_post_name_collision_check' ),
+		'variation_create_profile_slug_duplicate_post_lookup_queries' => $profile_value( $variation_create_result, 'details', 'slug_duplicate_post_lookup' ),
+		'variation_create_profile_slug_post_lookup_queries' => $profile_value( $variation_create_result, 'details', 'slug_post_lookup' ),
+		'variation_create_profile_meta_bulk_read_queries' => $profile_value( $variation_create_result, 'details', 'meta_bulk_read' ),
+		'variation_create_profile_meta_key_scan_queries' => $profile_value( $variation_create_result, 'details', 'meta_key_scan' ),
 		'variation_create_profile_select_options_queries' => $profile_value( $variation_create_result, 'operation_tables', 'select:options' ),
 		'variation_create_profile_select_postmeta_queries' => $profile_value( $variation_create_result, 'operation_tables', 'select:postmeta' ),
 		'variation_create_profile_insert_postmeta_queries' => $profile_value( $variation_create_result, 'operation_tables', 'insert:postmeta' ),
