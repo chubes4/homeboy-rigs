@@ -1,14 +1,15 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { spawn } from 'node:child_process';
 
-import { STUDIO_PATH } from './studio-bench.mjs';
+import { STUDIO_PATH, expandHome, setting } from './studio-bench.mjs';
 import { loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
 export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
-const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
-const VISUAL_PIXELMATCH_THRESHOLD = 0.1;
+const VISUAL_COMPARE_THRESHOLD = 0.1;
+const VISUAL_COMPARE_EXPLAIN_SELECTOR_LIMIT = 20;
 function loadFidelityComparisonHelper() {
   const { module } = loadWordPressLibHelper('fidelity-comparison.js');
   if (!module) {
@@ -33,11 +34,13 @@ function visualProbeGroups(target) {
   return loadFidelityComparisonHelper().visualProbeGroups(target);
 }
 
-export async function loadVisualSurface(page, url) {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
-  await page.waitForTimeout(300);
+function wpCodeboxCliPath() {
+  return expandHome(
+    setting('studio_wp_codebox_cli_path') ||
+      process.env.HOMEBOY_WP_CODEBOX_CLI ||
+      process.env.WP_CODEBOX_CLI_PATH ||
+      ''
+  );
 }
 
 function loadEditorCanvasProbes() {
@@ -57,10 +60,6 @@ async function captureEditorScreenshot(page, url, screenshotPath) {
   });
 }
 
-async function evaluateVisualSurface(page, groups) {
-  return loadEditorCanvasProbes().summarizeVisibleSelectors(page, groups).then((summary) => summary.groups);
-}
-
 function visualSurfaceTotals(groups) {
   return loadFidelityComparisonHelper().visualSurfaceTotals(groups);
 }
@@ -69,118 +68,8 @@ function visualSelectorComparisonDetails(result) {
   return loadFidelityComparisonHelper().visualSelectorComparisonDetails(result);
 }
 
-async function captureSelectorScreenshot(page, selector, screenshotPath) {
-  try {
-    const locator = page.locator(selector).first();
-    if ((await locator.count()) === 0) {
-      return '';
-    }
-    await locator.screenshot({ path: screenshotPath, timeout: 5_000 });
-    return screenshotPath;
-  } catch {
-    return '';
-  }
-}
-
 async function comparePngScreenshots(sourcePath, targetPath, diffPath) {
   return loadFidelityComparisonHelper().comparePngScreenshots(sourcePath, targetPath, diffPath);
-}
-
-async function captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug) {
-  if (!mismatches.length) {
-    return;
-  }
-
-  const screenshotsDir = path.join(visualDir, 'mismatch-screenshots');
-  const urls = {
-    source_static: result.surfaces.source_static?.url || '',
-    wordpress_frontend: result.surfaces.wordpress_frontend?.url || '',
-  };
-  const pages = {};
-
-  try {
-    await mkdir(screenshotsDir, { recursive: true });
-    for (const [surface, url] of Object.entries(urls)) {
-      if (!url) {
-        continue;
-      }
-      const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
-      await loadVisualSurface(page, url);
-      pages[surface] = page;
-    }
-
-    for (const [index, mismatch] of mismatches.slice(0, VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT).entries()) {
-      const screenshotSlug = safeSlug(
-        `${targetSlug}-${index + 1}-${mismatch.group}-${mismatch.selector}`,
-        `mismatch-${index + 1}`
-      );
-      for (const [surface, page] of Object.entries(pages)) {
-        const screenshotPath = path.join(screenshotsDir, `${screenshotSlug}-${surface}.png`);
-        const capturedPath = await captureSelectorScreenshot(page, mismatch.selector, screenshotPath);
-        if (capturedPath) {
-          mismatch.screenshots[surface] = capturedPath;
-        }
-      }
-    }
-  } catch (error) {
-    result.diagnostic_warnings = [
-      ...(result.diagnostic_warnings || []),
-      `mismatch screenshots: ${error instanceof Error ? error.message : String(error)}`,
-    ];
-  } finally {
-    await Promise.all(Object.values(pages).map((page) => page.close().catch(() => {})));
-  }
-}
-
-function loadPixelDiffDependencies() {
-  const playwrightCorePath = path.join(STUDIO_PATH, 'node_modules/playwright-core');
-  const pixelmatch = requireFromBench(path.join(playwrightCorePath, 'lib/third_party/pixelmatch'));
-  const { PNG } = requireFromBench(path.join(playwrightCorePath, 'lib/utilsBundle'));
-  return { pixelmatch, PNG };
-}
-
-function padPngToSize(image, width, height, PNG) {
-  if (image.width === width && image.height === height) {
-    return image;
-  }
-
-  const padded = new PNG({ width, height });
-  padded.data.fill(255);
-  for (let y = 0; y < image.height; y++) {
-    for (let x = 0; x < image.width; x++) {
-      const sourceOffset = (y * image.width + x) * 4;
-      const targetOffset = (y * width + x) * 4;
-      image.data.copy(padded.data, targetOffset, sourceOffset, sourceOffset + 4);
-    }
-  }
-  return padded;
-}
-
-async function compareVisualScreenshots(sourcePath, frontendPath, diffPath) {
-  if (!sourcePath || !frontendPath) {
-    return { pixel_diff_ratio: 0, pixel_diff_pixel_count: 0, pixel_count: 0, diff_artifact: '' };
-  }
-
-  const { pixelmatch, PNG } = loadPixelDiffDependencies();
-  const source = PNG.sync.read(await readFile(sourcePath));
-  const frontend = PNG.sync.read(await readFile(frontendPath));
-  const width = Math.max(source.width, frontend.width);
-  const height = Math.max(source.height, frontend.height);
-  const sourcePixelCount = source.width * source.height;
-  const sourcePadded = padPngToSize(source, width, height, PNG);
-  const frontendPadded = padPngToSize(frontend, width, height, PNG);
-  const diff = new PNG({ width, height });
-  const pixelDiffCount = pixelmatch(sourcePadded.data, frontendPadded.data, diff.data, width, height, {
-    threshold: VISUAL_PIXELMATCH_THRESHOLD,
-  });
-
-  await writeFile(diffPath, PNG.sync.write(diff));
-  return {
-    pixel_diff_ratio: sourcePixelCount > 0 ? pixelDiffCount / sourcePixelCount : 0,
-    pixel_diff_pixel_count: pixelDiffCount,
-    pixel_count: sourcePixelCount,
-    diff_artifact: diffPath,
-  };
 }
 
 function buildVisualDiagnostics(results, artifactPath) {
@@ -189,6 +78,163 @@ function buildVisualDiagnostics(results, artifactPath) {
 
 function visualParity(sourceGroups, frontendGroups) {
   return loadFidelityComparisonHelper().visualParity(sourceGroups, frontendGroups);
+}
+
+function explainSelectors(groups) {
+  const selectors = [];
+  const seen = new Set();
+  for (const group of groups) {
+    for (const selector of group.selectors || []) {
+      if (!seen.has(selector)) {
+        seen.add(selector);
+        selectors.push(selector);
+      }
+    }
+  }
+  return selectors.slice(0, VISUAL_COMPARE_EXPLAIN_SELECTOR_LIMIT);
+}
+
+async function runWpCodeboxRecipe(recipePath) {
+  const cliPath = wpCodeboxCliPath();
+  if (!cliPath) {
+    throw new Error('Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.');
+  }
+
+  const useNode = /\.(?:cjs|mjs|js|ts)$/.test(cliPath);
+  const command = useNode ? process.execPath : cliPath;
+  const args = useNode ? [cliPath, 'recipe-run', '--recipe', recipePath, '--json'] : ['recipe-run', '--recipe', recipePath, '--json'];
+
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    const child = spawn(command, args, { cwd: path.dirname(recipePath), stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`WP Codebox visual compare exited with ${code}; stdout=${stdout.slice(-1000)}; stderr=${stderr.slice(-1000)}`));
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stdout);
+        if (parsed?.success === false) {
+          reject(new Error(parsed?.error?.message || 'WP Codebox visual compare failed.'));
+          return;
+        }
+        resolve(parsed);
+      } catch (error) {
+        reject(new Error(`WP Codebox visual compare returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`));
+      }
+    });
+  });
+}
+
+async function runWpCodeboxVisualCompare(target, visualDir, targetSlug, importReport, sitePath, groups) {
+  const sourceUrl = surfaceUrl(target, 'source_static', importReport.reportPath, sitePath);
+  const candidateUrl = surfaceUrl(target, 'wordpress_frontend', importReport.reportPath, sitePath);
+  if (!sourceUrl || !candidateUrl) {
+    throw new Error('Missing source_static or wordpress_frontend render URL.');
+  }
+
+  const artifactRoot = path.join(visualDir, `${targetSlug}-codebox-artifacts`);
+  const recipePath = path.join(visualDir, `${targetSlug}-visual-compare.recipe.json`);
+  const args = [
+    `source-url=${sourceUrl}`,
+    `candidate-url=${candidateUrl}`,
+    'source-label=source_static',
+    'candidate-label=wordpress_frontend',
+    `viewport=${VISUAL_VIEWPORT.width}x${VISUAL_VIEWPORT.height}`,
+    'full-page=true',
+    'wait-for=load',
+    `threshold=${VISUAL_COMPARE_THRESHOLD}`,
+    'max-explanation-candidates=20',
+    ...explainSelectors(groups).map((selector) => `explain-selector=${selector}`),
+  ];
+  const recipe = {
+    schema: 'wp-codebox/workspace-recipe/v1',
+    workflow: {
+      steps: [{ command: 'wordpress.visual-compare', args }],
+    },
+    artifacts: { directory: artifactRoot },
+  };
+  await mkdir(visualDir, { recursive: true });
+  await writeFile(recipePath, `${JSON.stringify(recipe, null, 2)}\n`);
+
+  const output = await runWpCodeboxRecipe(recipePath);
+  const artifactDirectory = output?.artifacts?.directory || artifactRoot;
+  const summaryPath = path.join(artifactDirectory, 'files', 'browser', 'visual-compare', 'visual-diff.json');
+  const summary = JSON.parse(await readFile(summaryPath, 'utf8'));
+  const explanationRef = summary.files?.visualExplanation || '';
+  const explanation = explanationRef
+    ? JSON.parse(await readFile(path.join(artifactDirectory, explanationRef), 'utf8'))
+    : null;
+
+  return { artifactDirectory, summaryPath, summary, explanation, sourceUrl, candidateUrl };
+}
+
+function visualSelectorProbe(selector, side, explanation) {
+  const focused = (explanation?.selectors || []).find((item) => item.selector === selector)?.[side];
+  const missing = (explanation?.missingSelectors || []).find((item) => item.selector === selector);
+  const matched = Number(focused?.matched ?? (missing ? 0 : 0));
+  const captured = Number(focused?.captured ?? 0);
+  return {
+    selector,
+    count: matched,
+    visible_count: matched > 0 ? 1 : 0,
+    nonzero_bounding_box_count: captured > 0 ? 1 : 0,
+    first_match: null,
+    error: focused?.error || missing?.[`${side}Error`] || '',
+  };
+}
+
+function groupsFromVisualExplanation(groups, side, explanation) {
+  return groups.map((group) => {
+    const selectors = (group.selectors || []).map((selector) => visualSelectorProbe(selector, side, explanation));
+    return {
+      name: group.name,
+      selectors,
+      selector_count: selectors.length,
+      missing_selector_count: selectors.filter((selector) => selector.count === 0).length,
+      errored_selector_count: selectors.filter((selector) => selector.error).length,
+      matched_selector_count: selectors.filter((selector) => selector.count > 0).length,
+      visible_selector_count: selectors.filter((selector) => selector.visible_count > 0).length,
+      nonzero_bounding_box_selector_count: selectors.filter((selector) => selector.nonzero_bounding_box_count > 0).length,
+    };
+  });
+}
+
+function visualCompareSurface(compare, side, groups) {
+  const label = side === 'source' ? 'source_static' : 'wordpress_frontend';
+  const files = compare.summary.files || {};
+  const screenshot = side === 'source' ? files.sourceScreenshot : files.candidateScreenshot;
+  const probes = groupsFromVisualExplanation(groups, side, compare.explanation);
+  return {
+    url: side === 'source' ? compare.sourceUrl : compare.candidateUrl,
+    screenshot: screenshot ? path.join(compare.artifactDirectory, screenshot) : '',
+    probes,
+    totals: visualSurfaceTotals(probes),
+    visual_compare_artifact: compare.summaryPath,
+    visual_explanation_artifact: files.visualExplanation ? path.join(compare.artifactDirectory, files.visualExplanation) : '',
+  };
+}
+
+function visualComparePixelDiff(compare) {
+  const files = compare.summary.files || {};
+  const comparison = compare.summary.comparison || {};
+  return {
+    pixel_diff_ratio: Number(comparison.mismatchRatio || 0),
+    pixel_diff_pixel_count: Number(comparison.mismatchPixels || 0),
+    pixel_count: Number(comparison.totalPixels || 0),
+    diff_artifact: files.diffScreenshot ? path.join(compare.artifactDirectory, files.diffScreenshot) : '',
+    visual_diff_artifact: compare.summaryPath,
+    visual_explanation_artifact: files.visualExplanation ? path.join(compare.artifactDirectory, files.visualExplanation) : '',
+    status: compare.summary.status || '',
+  };
 }
 
 async function emptyVisualComparison(artifactDir, error = '') {
@@ -235,6 +281,12 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
   if (!targets.length) {
     return emptyVisualComparison(artifactDir, importReport?.error || 'No visual fidelity comparison targets found.');
   }
+  if (!wpCodeboxCliPath()) {
+    return emptyVisualComparison(
+      artifactDir,
+      'Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.'
+    );
+  }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
   const { chromium } = requireFromBench(playwrightPackage);
@@ -263,31 +315,16 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
         errors: [],
       };
 
-      for (const surface of ['source_static', 'wordpress_frontend']) {
-        const url = surfaceUrl(target, surface, importReport.reportPath, sitePath);
-        const screenshotPath = path.join(visualDir, `${targetSlug}-${surface}.png`);
-        const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
-
-        try {
-          if (!url) {
-            throw new Error(`Missing ${surface} render URL.`);
-          }
-          await loadVisualSurface(page, url);
-          const probeGroups = await evaluateVisualSurface(page, groups);
-          await page.screenshot({ path: screenshotPath, fullPage: true });
-          result.surfaces[surface] = {
-            url,
-            screenshot: screenshotPath,
-            probes: probeGroups,
-            totals: visualSurfaceTotals(probeGroups),
-          };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          result.errors.push(`${surface}: ${message}`);
-          result.surfaces[surface] = { url, screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
-        } finally {
-          await page.close();
-        }
+      let visualCompare = null;
+      try {
+        visualCompare = await runWpCodeboxVisualCompare(target, visualDir, targetSlug, importReport, sitePath, groups);
+        result.surfaces.source_static = visualCompareSurface(visualCompare, 'source', groups);
+        result.surfaces.wordpress_frontend = visualCompareSurface(visualCompare, 'candidate', groups);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push(`wordpress.visual-compare: ${message}`);
+        result.surfaces.source_static = { url: '', screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
+        result.surfaces.wordpress_frontend = { url: '', screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
       }
 
       const editorUrl = surfaceUrl(target, 'wordpress_editor', importReport.reportPath, sitePath);
@@ -337,36 +374,25 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
           path.join(visualDir, `${targetSlug}-wordpress_editor-vs-wordpress_frontend-diff.png`)
         );
       }
-      if (sourceScreenshot && frontendScreenshot) {
-        result.pixel_diffs.source_vs_frontend_diagnostic = await comparePngScreenshots(
-          sourceScreenshot,
-          frontendScreenshot,
-          path.join(visualDir, `${targetSlug}-source_static-vs-wordpress_frontend-diagnostic-diff.png`)
-        );
+      result.pixel_diff = visualCompare
+        ? visualComparePixelDiff(visualCompare)
+        : { pixel_diff_ratio: 0, pixel_diff_pixel_count: 0, pixel_count: 0, diff_artifact: '' };
+      if (visualCompare) {
+        const comparison = visualCompare.summary.comparison || {};
+        result.pixel_diffs.source_vs_frontend_diagnostic = {
+          diff_path: result.pixel_diff?.diff_artifact || '',
+          height: 0,
+          mismatched_pixels: Number(comparison.mismatchPixels || 0),
+          pixel_count: Number(comparison.totalPixels || 0),
+          ratio: Number(comparison.mismatchRatio || 0),
+          width: 0,
+        };
       }
 
       result.parity = visualParity(
         result.surfaces.source_static?.probes || [],
         result.surfaces.wordpress_frontend?.probes || []
       );
-      const pixelDiffPath = path.join(visualDir, `${targetSlug}-pixel-diff.png`);
-      try {
-        result.pixel_diff = await compareVisualScreenshots(
-          result.surfaces.source_static?.screenshot || '',
-          result.surfaces.wordpress_frontend?.screenshot || '',
-          pixelDiffPath
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        result.errors.push(`pixel_diff: ${message}`);
-        result.pixel_diff = {
-          pixel_diff_ratio: 0,
-          pixel_diff_pixel_count: 0,
-          pixel_count: 0,
-          diff_artifact: '',
-          error: message,
-        };
-      }
       const { mismatches, optionalProbeAbsences } = visualSelectorComparisonDetails(result);
       result.diagnostics = {
         mismatch_count: mismatches.length,
@@ -375,7 +401,6 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
         mismatches,
         optional_probe_absences: optionalProbeAbsences,
       };
-      await captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug);
       results.push(result);
     }
   } catch (error) {
