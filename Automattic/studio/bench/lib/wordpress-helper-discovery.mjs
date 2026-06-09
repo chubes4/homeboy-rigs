@@ -8,6 +8,7 @@ const WORDPRESS_HELPER_CONSUMER_FILENAME = 'wordpress-helper-consumer.js';
 const WORDPRESS_LIB_HELPER_KEYS = new Map([
   ['block-quality.js', 'blockQuality'],
   ['editor-canvas-probes.js', 'editorCanvasProbes'],
+  ['fidelity-comparison.js', 'fidelityComparison'],
   ['fixture-setup.js', 'fixtureSetup'],
   ['materialized-site-quality.js', 'materializedSiteQuality'],
   ['request-profiler.js', 'requestProfiler'],
