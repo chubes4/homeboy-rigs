@@ -66,51 +66,51 @@
       {
         "kind": "command",
         "label": "WooCommerce runner checkout exists",
-        "command": "test -f \"$HOME/Developer/woocommerce/plugins/woocommerce/woocommerce.php\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce/woocommerce.php. Clone WooCommerce at ~/Developer/woocommerce or provision this path through Homeboy Lab offload before running woocommerce-performance. Core offload trackers: Extra-Chill/homeboy#3474, Extra-Chill/homeboy#3475, Extra-Chill/homeboy#3476.'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir/woocommerce.php (default ~/Developer/woocommerce/plugins/woocommerce/woocommerce.php). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path before running woocommerce-performance.\"; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce cart class exists",
-        "command": "test -f \"$HOME/Developer/woocommerce/plugins/woocommerce/includes/class-wc-cart.php\" || { printf '%s\\n' 'Missing WooCommerce cart class: expected ~/Developer/woocommerce/plugins/woocommerce/includes/class-wc-cart.php. Verify the runner checkout is the WooCommerce monorepo plugin directory, not an empty or partial clone.'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/includes/class-wc-cart.php\" || { printf '%s\\n' \"Missing WooCommerce cart class: expected $woocommerce_dir/includes/class-wc-cart.php (default ~/Developer/woocommerce/plugins/woocommerce/includes/class-wc-cart.php). Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone.\"; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce shipping class exists",
-        "command": "test -f \"$HOME/Developer/woocommerce/plugins/woocommerce/includes/class-wc-shipping.php\" || { printf '%s\\n' 'Missing WooCommerce shipping class: expected ~/Developer/woocommerce/plugins/woocommerce/includes/class-wc-shipping.php. Verify the runner checkout is the WooCommerce monorepo plugin directory, not an empty or partial clone.'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/includes/class-wc-shipping.php\" || { printf '%s\\n' \"Missing WooCommerce shipping class: expected $woocommerce_dir/includes/class-wc-shipping.php (default ~/Developer/woocommerce/plugins/woocommerce/includes/class-wc-shipping.php). Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone.\"; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; test -d \"$woocommerce_dir\" || { printf '%s\\n' 'Cannot check WooCommerce Composer dependencies because ~/Developer/woocommerce/plugins/woocommerce is missing. Provision the runner checkout first.'; exit 1; }; test -f \"$woocommerce_dir/vendor/autoload_packages.php\" || command -v composer >/dev/null 2>&1 || { printf '%s\\n' 'Missing WooCommerce Composer dependencies: vendor/autoload_packages.php is absent and composer is not available. Install Composer on the runner, then run: homeboy rig up woocommerce-performance'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -d \"$woocommerce_dir\" || { printf '%s\\n' \"Cannot check WooCommerce Composer dependencies because $woocommerce_dir is missing (default ~/Developer/woocommerce/plugins/woocommerce). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path.\"; exit 1; }; test -f \"$woocommerce_dir/vendor/autoload_packages.php\" || command -v composer >/dev/null 2>&1 || { printf '%s\\n' 'Missing WooCommerce Composer dependencies: vendor/autoload_packages.php is absent and composer is not available. Install Composer on the runner, then run: homeboy rig up woocommerce-performance'; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce generated feature config exists or can be prepared",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; test -d \"$woocommerce_dir\" || { printf '%s\\n' 'Cannot check WooCommerce generated feature config because ~/Developer/woocommerce/plugins/woocommerce is missing. Provision the runner checkout first.'; exit 1; }; test -f \"$woocommerce_dir/includes/react-admin/feature-config.php\" || { test -f \"$woocommerce_dir/bin/generate-feature-config.php\" && command -v php >/dev/null 2>&1; } || { printf '%s\\n' 'Missing WooCommerce generated feature config: includes/react-admin/feature-config.php is absent. Ensure PHP is available, then run: homeboy rig up woocommerce-performance'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -d \"$woocommerce_dir\" || { printf '%s\\n' \"Cannot check WooCommerce generated feature config because $woocommerce_dir is missing (default ~/Developer/woocommerce/plugins/woocommerce). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path.\"; exit 1; }; test -f \"$woocommerce_dir/includes/react-admin/feature-config.php\" || { test -f \"$woocommerce_dir/bin/generate-feature-config.php\" && command -v php >/dev/null 2>&1; } || { printf '%s\\n' 'Missing WooCommerce generated feature config: includes/react-admin/feature-config.php is absent. Ensure PHP is available, then run: homeboy rig up woocommerce-performance'; exit 1; }"
       }
     ],
     "up": [
       {
         "kind": "command",
         "label": "Prepare WooCommerce Composer dependencies when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before rig up.'; exit 1; }; if [ -f vendor/autoload_packages.php ]; then printf '%s\\n' 'WooCommerce Composer dependencies already prepared.'; else XDEBUG_MODE=off composer install --no-interaction --no-progress; fi"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; cd \"$woocommerce_dir\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir before rig up (default ~/Developer/woocommerce/plugins/woocommerce). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path.\"; exit 1; }; if [ -f vendor/autoload_packages.php ]; then printf '%s\\n' 'WooCommerce Composer dependencies already prepared.'; else XDEBUG_MODE=off composer install --no-interaction --no-progress; fi"
       },
       {
         "kind": "command",
         "label": "Generate WooCommerce feature config when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before rig up.'; exit 1; }; if [ -f includes/react-admin/feature-config.php ]; then printf '%s\\n' 'WooCommerce feature config already generated.'; else php bin/generate-feature-config.php; fi"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; cd \"$woocommerce_dir\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir before rig up (default ~/Developer/woocommerce/plugins/woocommerce). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path.\"; exit 1; }; if [ -f includes/react-admin/feature-config.php ]; then printf '%s\\n' 'WooCommerce feature config already generated.'; else php bin/generate-feature-config.php; fi"
       }
     ],
     "bench_prepare": [
       {
         "kind": "command",
         "label": "Prepare WooCommerce Composer dependencies when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before bench_prepare.'; exit 1; }; if [ -f vendor/autoload_packages.php ]; then printf '%s\\n' 'WooCommerce Composer dependencies already prepared.'; else XDEBUG_MODE=off composer install --no-interaction --no-progress; fi"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; cd \"$woocommerce_dir\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir before bench_prepare (default ~/Developer/woocommerce/plugins/woocommerce). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path.\"; exit 1; }; if [ -f vendor/autoload_packages.php ]; then printf '%s\\n' 'WooCommerce Composer dependencies already prepared.'; else XDEBUG_MODE=off composer install --no-interaction --no-progress; fi"
       },
       {
         "kind": "command",
         "label": "Generate WooCommerce feature config when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before bench_prepare.'; exit 1; }; if [ -f includes/react-admin/feature-config.php ]; then printf '%s\\n' 'WooCommerce feature config already generated.'; else php bin/generate-feature-config.php; fi"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; cd \"$woocommerce_dir\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir before bench_prepare (default ~/Developer/woocommerce/plugins/woocommerce). Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path.\"; exit 1; }; if [ -f includes/react-admin/feature-config.php ]; then printf '%s\\n' 'WooCommerce feature config already generated.'; else php bin/generate-feature-config.php; fi"
       }
     ],
     "down": []
