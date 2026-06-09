@@ -32,25 +32,23 @@ Install a package subpath with Homeboy's rig package lifecycle:
 homeboy rig install --all https://github.com/chubes4/homeboy-rigs.git//Automattic/studio
 ```
 
-Stack specs currently need to be copied into `~/.config/homeboy/stacks/` until stack package installation lands:
-
-```bash
-mkdir -p ~/.config/homeboy/stacks
-cp Automattic/studio/stacks/*.json ~/.config/homeboy/stacks/
-cp WordPress/wordpress-playground/stacks/*.json ~/.config/homeboy/stacks/
-```
+Homeboy installs sibling `stacks/*.json` specs from the selected package subpath together with the rig specs. Re-run the same install command after pulling this repo to refresh both rigs and stacks.
 
 ## Lint
 
-Run the repo-local package lint before opening rig package PRs:
+Run Homeboy's package checks through the installed rig before opening rig package PRs:
+
+```bash
+homeboy rig check studio-combined
+```
+
+`homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a PHP-specific syntax pass for PHP bench workloads:
 
 ```bash
 node scripts/lint-rig-packages.mjs
 ```
 
-The lint path scans for unresolved conflict markers, validates JSON specs, and
-runs `php -l` against PHP bench workloads when PHP is available. GitHub Actions
-runs the same script with PHP installed.
+GitHub Actions runs the PHP syntax pass with PHP installed.
 
 ## Automattic/studio
 
