@@ -342,6 +342,7 @@ return function (): array {
 		'postmeta'                => $count_table_rows( $wpdb->postmeta ),
 		'term_relationships'      => $count_table_rows( $wpdb->term_relationships ),
 		'wc_product_meta_lookup'  => $count_table_rows( $wpdb->prefix . 'wc_product_meta_lookup' ),
+		'wc_product_attributes_lookup' => $count_table_rows( $wpdb->prefix . 'wc_product_attributes_lookup' ),
 		'actionscheduler_actions' => $count_table_rows( $wpdb->prefix . 'actionscheduler_actions' ),
 		'actionscheduler_logs'    => $count_table_rows( $wpdb->prefix . 'actionscheduler_logs' ),
 	);
@@ -555,6 +556,69 @@ return function (): array {
 		$found_ids     = $wpdb->get_col( $wpdb->prepare( "SELECT product_id FROM {$wpdb->prefix}wc_product_meta_lookup WHERE product_id IN ($placeholders)", $product_ids ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return count( $product_ids ) - count( array_unique( array_map( 'intval', $found_ids ) ) );
 	};
+	$attribute_lookup_action_hook  = 'woocommerce_run_product_attribute_lookup_update_callback';
+	$attribute_lookup_action_group = 'woocommerce-db-updates';
+	$get_pending_attribute_lookup_actions = static function () use ( $wpdb, $table_exists, $attribute_lookup_action_hook, $attribute_lookup_action_group ): array {
+		$actions_table = $wpdb->prefix . 'actionscheduler_actions';
+		$groups_table  = $wpdb->prefix . 'actionscheduler_groups';
+		if ( ! class_exists( 'ActionScheduler_Store' ) || ! $table_exists( $actions_table ) || ! $table_exists( $groups_table ) ) {
+			return array();
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT a.action_id, a.args, a.extended_args, a.status FROM {$actions_table} a INNER JOIN {$groups_table} g ON a.group_id = g.group_id WHERE a.hook = %s AND g.slug = %s AND a.status = %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$attribute_lookup_action_hook,
+				$attribute_lookup_action_group,
+				ActionScheduler_Store::STATUS_PENDING
+			),
+			ARRAY_A
+		);
+
+		foreach ( $rows as &$row ) {
+			$args        = json_decode( (string) ( $row['extended_args'] ?: $row['args'] ), true );
+			$row['args'] = is_array( $args ) ? array_values( $args ) : array();
+		}
+		unset( $row );
+
+		return $rows;
+	};
+	$count_pending_attribute_lookup_actions = static function ( array $actions, array $product_ids, int $action ): int {
+		$product_ids = array_map( 'intval', $product_ids );
+		$count       = 0;
+		foreach ( $actions as $scheduled_action ) {
+			$args = $scheduled_action['args'] ?? array();
+			if ( in_array( (int) ( $args[0] ?? 0 ), $product_ids, true ) && (int) ( $args[1] ?? 0 ) === $action ) {
+				++$count;
+			}
+		}
+		return $count;
+	};
+	$count_duplicate_attribute_lookup_actions = static function ( array $actions ): int {
+		$seen       = array();
+		$duplicates = 0;
+		foreach ( $actions as $scheduled_action ) {
+			$key = wp_json_encode( $scheduled_action['args'] ?? array() );
+			if ( isset( $seen[ $key ] ) ) {
+				++$duplicates;
+			}
+			$seen[ $key ] = true;
+		}
+		return $duplicates;
+	};
+	$filter_attribute_lookup_actions = static function ( array $actions, array $product_ids, array $action_types ): array {
+		$product_ids  = array_map( 'intval', $product_ids );
+		$action_types = array_map( 'intval', $action_types );
+		return array_values(
+			array_filter(
+				$actions,
+				static function ( array $scheduled_action ) use ( $product_ids, $action_types ): bool {
+					$args = $scheduled_action['args'] ?? array();
+					return in_array( (int) ( $args[0] ?? 0 ), $product_ids, true ) && in_array( (int) ( $args[1] ?? 0 ), $action_types, true );
+				}
+			)
+		);
+	};
 	$count_postmeta_key_rows = static function ( array $product_ids, array $meta_keys ) use ( $wpdb ): array {
 		$product_ids = array_values( array_filter( array_map( 'absint', $product_ids ) ) );
 		$meta_keys   = array_values( array_unique( array_filter( array_map( 'strval', $meta_keys ) ) ) );
@@ -583,6 +647,8 @@ return function (): array {
 	$variation_products = array_filter( array_map( 'wc_get_product', array_map( 'intval', $variation_ids ) ) );
 	$simple_products    = array_filter( array_map( 'wc_get_product', array_map( 'intval', $simple_ids ) ) );
 	$parent_after       = wc_get_product( $parent_id );
+	$active_plugins    = array_values( array_map( 'strval', (array) get_option( 'active_plugins', array() ) ) );
+	sort( $active_plugins );
 	$expected_variation_prices = array();
 	$expected_variation_stock  = array();
 	foreach ( $variation_ids as $index => $variation_id ) {
@@ -610,6 +676,61 @@ return function (): array {
 		$variation_meta_key_missing_counts[ $meta_key ] = max( 0, count( $variation_ids ) - (int) ( $variation_meta_key_rows[ $meta_key ] ?? 0 ) );
 	}
 	$variation_required_meta_missing_total = array_sum( $variation_meta_key_missing_counts );
+	$expected_attribute_lookup_rows        = array();
+	foreach ( $variation_ids as $index => $variation_id ) {
+		foreach ( $attribute_taxonomies as $attribute_index => $attribute_taxonomy ) {
+			$term = $attribute_taxonomy['terms'][ ( $index + $attribute_index ) % count( $attribute_taxonomy['terms'] ) ];
+			$expected_attribute_lookup_rows[] = array(
+				'product_id'              => (int) $variation_id,
+				'product_or_parent_id'    => (int) $parent_id,
+				'taxonomy'                => $attribute_taxonomy['taxonomy'],
+				'term_id'                 => (int) $term['id'],
+				'is_variation_attribute'  => 1,
+				'in_stock'                => 1,
+			);
+		}
+	}
+	$pending_attribute_lookup_actions = $get_pending_attribute_lookup_actions();
+	$variation_attribute_lookup_actions = $filter_attribute_lookup_actions( $pending_attribute_lookup_actions, $variation_ids, array( 1, 2 ) );
+	$attribute_lookup_variation_insert_actions = $count_pending_attribute_lookup_actions( $variation_attribute_lookup_actions, $variation_ids, 1 );
+	$attribute_lookup_variation_stock_actions  = $count_pending_attribute_lookup_actions( $variation_attribute_lookup_actions, $variation_ids, 2 );
+	$attribute_lookup_duplicate_actions        = $count_duplicate_attribute_lookup_actions( $variation_attribute_lookup_actions );
+	$attribute_lookup_callbacks_executed       = 0;
+	foreach ( $variation_attribute_lookup_actions as $scheduled_action ) {
+		$args = $scheduled_action['args'] ?? array();
+		if ( 2 === count( $args ) ) {
+			do_action( $attribute_lookup_action_hook, (int) $args[0], (int) $args[1] );
+			++$attribute_lookup_callbacks_executed;
+		}
+	}
+	$pending_attribute_lookup_actions_after_callbacks = $get_pending_attribute_lookup_actions();
+	$attribute_lookup_table = $wpdb->prefix . 'wc_product_attributes_lookup';
+	$attribute_lookup_missing_rows = 0;
+	foreach ( $expected_attribute_lookup_rows as $row ) {
+		if ( ! $table_exists( $attribute_lookup_table ) ) {
+			++$attribute_lookup_missing_rows;
+			continue;
+		}
+		$found = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$attribute_lookup_table} WHERE product_id = %d AND product_or_parent_id = %d AND taxonomy = %s AND term_id = %d AND is_variation_attribute = %d AND in_stock = %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$row['product_id'],
+				$row['product_or_parent_id'],
+				$row['taxonomy'],
+				$row['term_id'],
+				$row['is_variation_attribute'],
+				$row['in_stock']
+			)
+		);
+		if ( 0 === $found ) {
+			++$attribute_lookup_missing_rows;
+		}
+	}
+	$attribute_lookup_variation_rows = 0;
+	if ( $table_exists( $attribute_lookup_table ) && ! empty( $variation_ids ) ) {
+		$placeholders = implode( ',', array_fill( 0, count( $variation_ids ), '%d' ) );
+		$attribute_lookup_variation_rows = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$attribute_lookup_table} WHERE product_id IN ($placeholders)", array_map( 'intval', $variation_ids ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	}
 	foreach ( $variation_products as $variation_product ) {
 		$variation_id = $variation_product->get_id();
 		if ( (string) $variation_product->get_regular_price() !== (string) ( $expected_variation_prices[ $variation_id ] ?? '' ) ) {
@@ -632,6 +753,7 @@ return function (): array {
 		'postmeta'                => $count_table_rows( $wpdb->postmeta ),
 		'term_relationships'      => $count_table_rows( $wpdb->term_relationships ),
 		'wc_product_meta_lookup'  => $count_table_rows( $wpdb->prefix . 'wc_product_meta_lookup' ),
+		'wc_product_attributes_lookup' => $count_table_rows( $wpdb->prefix . 'wc_product_attributes_lookup' ),
 		'actionscheduler_actions' => $count_table_rows( $wpdb->prefix . 'actionscheduler_actions' ),
 		'actionscheduler_logs'    => $count_table_rows( $wpdb->prefix . 'actionscheduler_logs' ),
 	);
@@ -667,6 +789,7 @@ return function (): array {
 	$record_invariant( 'variation_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $variation_products ) ) );
 	$record_invariant( 'simple_lookup_rows_exist', 0 === $count_missing_lookup_rows( $simple_ids ) );
 	$record_invariant( 'variation_lookup_rows_exist', 0 === $count_missing_lookup_rows( $variation_ids ) );
+	$record_invariant( 'variation_attribute_lookup_rows_exist_after_callbacks', 0 === $attribute_lookup_missing_rows, array( 'missing_rows' => $attribute_lookup_missing_rows, 'expected_rows' => count( $expected_attribute_lookup_rows ), 'actual_variation_rows' => $attribute_lookup_variation_rows ) );
 
 	$rows = array(
 		'simple_create'    => $simple_create_result,
@@ -742,6 +865,7 @@ return function (): array {
 		'terms_per_attribute'                  => $terms_per_attr,
 		'catalog_seed_products'                => $catalog_products,
 		'catalog_seed_ms'                      => $catalog_seed_ms,
+		'side_effect_active_plugin_count'      => count( $active_plugins ),
 		'simple_create_ms'                     => (float) $simple_create_result['elapsed_ms'],
 		'simple_update_ms'                     => (float) $simple_update_result['elapsed_ms'],
 		'variation_create_ms'                  => (float) $variation_create_result['elapsed_ms'],
@@ -852,6 +976,16 @@ return function (): array {
 		'side_effect_variation_manage_stock_meta_rows' => (int) ( $variation_meta_key_rows['_manage_stock'] ?? 0 ),
 		'side_effect_variation_stock_meta_rows' => (int) ( $variation_meta_key_rows['_stock'] ?? 0 ),
 		'side_effect_variation_stock_status_meta_rows' => (int) ( $variation_meta_key_rows['_stock_status'] ?? 0 ),
+		'side_effect_attribute_lookup_expected_rows' => count( $expected_attribute_lookup_rows ),
+		'side_effect_attribute_lookup_variation_rows_after_callbacks' => $attribute_lookup_variation_rows,
+		'side_effect_attribute_lookup_missing_rows_after_callbacks' => $attribute_lookup_missing_rows,
+		'side_effect_attribute_lookup_pending_actions' => count( $pending_attribute_lookup_actions ),
+		'side_effect_attribute_lookup_variation_pending_actions' => count( $variation_attribute_lookup_actions ),
+		'side_effect_attribute_lookup_pending_actions_after_callbacks' => count( $pending_attribute_lookup_actions_after_callbacks ),
+		'side_effect_attribute_lookup_variation_insert_actions' => $attribute_lookup_variation_insert_actions,
+		'side_effect_attribute_lookup_variation_stock_actions' => $attribute_lookup_variation_stock_actions,
+		'side_effect_attribute_lookup_duplicate_actions' => $attribute_lookup_duplicate_actions,
+		'side_effect_attribute_lookup_callbacks_executed' => $attribute_lookup_callbacks_executed,
 		'side_effect_simple_create_response_errors' => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ),
 		'side_effect_simple_update_response_errors' => $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ),
 		'side_effect_variation_create_response_errors' => $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ),
@@ -877,6 +1011,7 @@ return function (): array {
 		'side_effect_postmeta_row_delta' => (int) ( $row_count_deltas['postmeta'] ?? 0 ),
 		'side_effect_term_relationships_row_delta' => (int) ( $row_count_deltas['term_relationships'] ?? 0 ),
 		'side_effect_lookup_table_row_delta' => (int) ( $row_count_deltas['wc_product_meta_lookup'] ?? 0 ),
+		'side_effect_attribute_lookup_table_row_delta' => (int) ( $row_count_deltas['wc_product_attributes_lookup'] ?? 0 ),
 		'side_effect_actionscheduler_actions_row_delta' => (int) ( $row_count_deltas['actionscheduler_actions'] ?? 0 ),
 		'side_effect_actionscheduler_logs_row_delta' => (int) ( $row_count_deltas['actionscheduler_logs'] ?? 0 ),
 	);
@@ -896,15 +1031,20 @@ return function (): array {
 					'parent_product_id'     => $parent_id,
 					'simple_product_ids'    => array_map( 'intval', $simple_ids ),
 					'variation_ids'         => array_map( 'intval', $variation_ids ),
+					'active_plugins'        => $active_plugins,
 					'attribute_taxonomies'  => $attribute_taxonomies,
 					'rows'                  => $rows,
 					'metrics'               => $summary,
 					'side_effects'          => array(
-						'invariant_failures' => $invariant_failures,
-						'meta_hook_counts'   => $meta_hook_counts,
-						'row_counts_before'  => $row_counts_before,
-						'row_counts_after'   => $row_counts_after,
-						'row_count_deltas'   => $row_count_deltas,
+						'invariant_failures'                          => $invariant_failures,
+						'meta_hook_counts'                            => $meta_hook_counts,
+						'row_counts_before'                           => $row_counts_before,
+						'row_counts_after'                            => $row_counts_after,
+						'row_count_deltas'                            => $row_count_deltas,
+						'attribute_lookup_actions'                    => $pending_attribute_lookup_actions,
+						'variation_attribute_lookup_actions'          => $variation_attribute_lookup_actions,
+						'attribute_lookup_actions_after_callbacks'    => $pending_attribute_lookup_actions_after_callbacks,
+						'expected_attribute_lookup_rows'              => $expected_attribute_lookup_rows,
 					),
 				),
 				JSON_PRETTY_PRINT
