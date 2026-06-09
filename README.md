@@ -100,7 +100,30 @@ homeboy bench --rig studio-many-sites-memory-scroll \
   --shared-state /tmp/studio-many-sites
 ```
 
-Useful settings include `many_sites_count`, `many_sites_icon_kb`, `many_sites_running_mode` (`all-stopped`, `half-running`, or `all-running`), `many_sites_runtime` (`playground` or `native-php`), `many_sites_install=0`, and `many_sites_package=0`.
+Useful settings include `many_sites_count`, `many_sites_icon_kb`, `many_sites_running_mode` (`all-stopped`, `half-running`, or `all-running`), `many_sites_runtime` (`playground` or `native-php`), `many_sites_install=0`, `many_sites_package=0`, and `many_sites_memory_sample_interval_ms`.
+
+This rig intentionally incubates memory attribution before promoting anything upstream: the workload writes a `memory_timeline` artifact with phase markers for install, package, and Playwright execution plus process-tree RSS samples grouped by command. The Studio Playwright harness still owns app-specific phase metrics such as launch, bottom-scroll, and stress-scroll RSS; the rig-level timeline helps decide whether future generic process-memory helpers belong in Homeboy Extensions.
+
+Suggested comparison matrix for a suspected many-sites regression:
+
+```bash
+# Fast runtime-only default proof after the app has already been packaged.
+homeboy bench --rig studio-many-sites-memory-scroll \
+  --scenario studio-many-sites-memory-scroll \
+  --setting many_sites_install=0 \
+  --setting many_sites_package=0 \
+  --iterations 1 \
+  --shared-state /tmp/studio-many-sites
+
+# Heavier running-site metadata control without actually starting 1000 servers.
+homeboy bench --rig studio-many-sites-memory-scroll \
+  --scenario studio-many-sites-memory-scroll \
+  --setting many_sites_running_mode=half-running \
+  --setting many_sites_install=0 \
+  --setting many_sites_package=0 \
+  --iterations 1 \
+  --shared-state /tmp/studio-many-sites
+```
 
 `studio-site-editor-preload-diagnostics` injects a focused set of Site Editor REST preloads into a fresh Studio site's `site-editor.php`, loads the Site Editor once, and reports whether watched routes were satisfied from preload/cache or still reached the network. The artifact includes the page profiler's `restWaterfall.preloadDiagnostics` rows so remaining network requests are classified by likely cause, such as `_locale` query mismatches, fetch-all `per_page` rewrites, duplicate/single-use cache consumption, or no matching preload. Set `HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXACT_VISIBLE=1` to add exact visible `_locale=user` route variants alongside the default probe preloads.
 
