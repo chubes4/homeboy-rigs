@@ -362,8 +362,9 @@ return function (): array {
 	};
 	$pending_action_count_before = $count_pending_actions();
 
-	$dispatch_batch = static function ( string $route, array $payload ) use ( $wpdb, &$counters, &$active_query_profile ): array {
+	$dispatch_batch = static function ( string $route, array $payload ) use ( $wpdb, &$counters, &$meta_hook_counts, &$active_query_profile ): array {
 		$counter_before       = $counters;
+		$meta_hook_before     = $meta_hook_counts;
 		$query_before         = (int) $wpdb->num_queries;
 		$active_query_profile = array(
 			'operations'       => array_fill_keys( array( 'select', 'insert', 'update', 'delete', 'replace', 'other' ), 0 ),
@@ -394,6 +395,18 @@ return function (): array {
 		foreach ( $counters as $key => $value ) {
 			$counter_delta[ $key ] = (int) $value - (int) ( $counter_before[ $key ] ?? 0 );
 		}
+		$meta_hook_delta = array();
+		foreach ( $meta_hook_counts as $operation => $meta_keys ) {
+			$meta_hook_delta[ $operation ] = array();
+			foreach ( $meta_keys as $meta_key => $count ) {
+				$delta = (int) $count - (int) ( $meta_hook_before[ $operation ][ $meta_key ] ?? 0 );
+				if ( 0 !== $delta ) {
+					$meta_hook_delta[ $operation ][ $meta_key ] = $delta;
+				}
+			}
+			arsort( $meta_hook_delta[ $operation ] );
+			$meta_hook_delta[ $operation ] = array_slice( $meta_hook_delta[ $operation ], 0, 40, true );
+		}
 
 		arsort( $query_profile['tables'] );
 		arsort( $query_profile['operation_tables'] );
@@ -416,6 +429,7 @@ return function (): array {
 			'elapsed_ms'    => $elapsed,
 			'query_count'   => (int) $wpdb->num_queries - $query_before,
 			'counter_delta' => $counter_delta,
+			'meta_hook_delta' => $meta_hook_delta,
 			'query_profile' => $query_profile,
 			'data'          => $data,
 		);
@@ -502,6 +516,30 @@ return function (): array {
 		$found_ids     = $wpdb->get_col( $wpdb->prepare( "SELECT product_id FROM {$wpdb->prefix}wc_product_meta_lookup WHERE product_id IN ($placeholders)", $product_ids ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return count( $product_ids ) - count( array_unique( array_map( 'intval', $found_ids ) ) );
 	};
+	$count_postmeta_key_rows = static function ( array $product_ids, array $meta_keys ) use ( $wpdb ): array {
+		$product_ids = array_values( array_filter( array_map( 'absint', $product_ids ) ) );
+		$meta_keys   = array_values( array_unique( array_filter( array_map( 'strval', $meta_keys ) ) ) );
+		$counts      = array_fill_keys( $meta_keys, 0 );
+		if ( empty( $product_ids ) || empty( $meta_keys ) ) {
+			return $counts;
+		}
+
+		$product_placeholders = implode( ',', array_fill( 0, count( $product_ids ), '%d' ) );
+		$meta_placeholders    = implode( ',', array_fill( 0, count( $meta_keys ), '%s' ) );
+		$rows                 = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT meta_key, COUNT(*) AS row_count FROM {$wpdb->postmeta} WHERE post_id IN ($product_placeholders) AND meta_key IN ($meta_placeholders) GROUP BY meta_key", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				array_merge( $product_ids, $meta_keys )
+			),
+			ARRAY_A
+		);
+
+		foreach ( $rows as $row ) {
+			$counts[ (string) $row['meta_key'] ] = (int) $row['row_count'];
+		}
+
+		return $counts;
+	};
 
 	$variation_products = array_filter( array_map( 'wc_get_product', array_map( 'intval', $variation_ids ) ) );
 	$simple_products    = array_filter( array_map( 'wc_get_product', array_map( 'intval', $simple_ids ) ) );
@@ -516,6 +554,23 @@ return function (): array {
 	$variation_stock_mismatches = 0;
 	$variation_parent_mismatches = 0;
 	$variation_attribute_empty_count = 0;
+	$variation_required_meta_keys = array(
+		'_sku',
+		'_regular_price',
+		'_price',
+		'_manage_stock',
+		'_stock',
+		'_stock_status',
+	);
+	foreach ( $attribute_taxonomies as $attribute_taxonomy ) {
+		$variation_required_meta_keys[] = 'attribute_' . $attribute_taxonomy['taxonomy'];
+	}
+	$variation_meta_key_rows = $count_postmeta_key_rows( $variation_ids, $variation_required_meta_keys );
+	$variation_meta_key_missing_counts = array();
+	foreach ( $variation_required_meta_keys as $meta_key ) {
+		$variation_meta_key_missing_counts[ $meta_key ] = max( 0, count( $variation_ids ) - (int) ( $variation_meta_key_rows[ $meta_key ] ?? 0 ) );
+	}
+	$variation_required_meta_missing_total = array_sum( $variation_meta_key_missing_counts );
 	foreach ( $variation_products as $variation_product ) {
 		$variation_id = $variation_product->get_id();
 		if ( (string) $variation_product->get_regular_price() !== (string) ( $expected_variation_prices[ $variation_id ] ?? '' ) ) {
@@ -568,6 +623,7 @@ return function (): array {
 	$record_invariant( 'variation_prices_match_update_payload', 0 === $variation_price_mismatches, array( 'mismatches' => $variation_price_mismatches ) );
 	$record_invariant( 'variation_stock_matches_update_payload', 0 === $variation_stock_mismatches, array( 'mismatches' => $variation_stock_mismatches ) );
 	$record_invariant( 'variation_attributes_are_present', 0 === $variation_attribute_empty_count, array( 'empty_attribute_count' => $variation_attribute_empty_count ) );
+	$record_invariant( 'variation_required_postmeta_rows_exist', 0 === $variation_required_meta_missing_total, array( 'missing_counts' => $variation_meta_key_missing_counts ) );
 	$record_invariant( 'simple_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $simple_products ) ) );
 	$record_invariant( 'variation_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $variation_products ) ) );
 	$record_invariant( 'simple_lookup_rows_exist', 0 === $count_missing_lookup_rows( $simple_ids ) );
@@ -635,6 +691,9 @@ return function (): array {
 			},
 			$meta_keys
 		);
+	};
+	$meta_hook_value = static function ( array $row, string $operation, string $meta_key ): int {
+		return (int) ( $row['meta_hook_delta'][ $operation ][ $meta_key ] ?? 0 );
 	};
 
 	$summary = array(
@@ -718,13 +777,29 @@ return function (): array {
 		'variation_create_hook_added_post_meta' => (int) $variation_create_result['counter_delta']['added_post_meta'],
 		'variation_create_hook_updated_post_meta' => (int) $variation_create_result['counter_delta']['updated_post_meta'],
 		'variation_create_hook_deleted_post_meta' => (int) $variation_create_result['counter_delta']['deleted_post_meta'],
+		'variation_create_hook_added_sku_meta' => $meta_hook_value( $variation_create_result, 'added', '_sku' ),
+		'variation_create_hook_added_regular_price_meta' => $meta_hook_value( $variation_create_result, 'added', '_regular_price' ),
+		'variation_create_hook_added_price_meta' => $meta_hook_value( $variation_create_result, 'added', '_price' ),
+		'variation_create_hook_added_manage_stock_meta' => $meta_hook_value( $variation_create_result, 'added', '_manage_stock' ),
+		'variation_create_hook_added_stock_meta' => $meta_hook_value( $variation_create_result, 'added', '_stock' ),
+		'variation_create_hook_added_stock_status_meta' => $meta_hook_value( $variation_create_result, 'added', '_stock_status' ),
 		'variation_create_hook_save_post_product_variation' => (int) $variation_create_result['counter_delta']['save_post_product_variation'],
 		'variation_create_hook_clean_post_cache' => (int) $variation_create_result['counter_delta']['clean_post_cache'],
 		'variation_update_hook_added_post_meta' => (int) $variation_update_result['counter_delta']['added_post_meta'],
 		'variation_update_hook_updated_post_meta' => (int) $variation_update_result['counter_delta']['updated_post_meta'],
 		'variation_update_hook_deleted_post_meta' => (int) $variation_update_result['counter_delta']['deleted_post_meta'],
+		'variation_update_hook_updated_regular_price_meta' => $meta_hook_value( $variation_update_result, 'updated', '_regular_price' ),
+		'variation_update_hook_updated_price_meta' => $meta_hook_value( $variation_update_result, 'updated', '_price' ),
+		'variation_update_hook_updated_stock_meta' => $meta_hook_value( $variation_update_result, 'updated', '_stock' ),
 		'variation_update_hook_save_post_product_variation' => (int) $variation_update_result['counter_delta']['save_post_product_variation'],
 		'variation_update_hook_clean_post_cache' => (int) $variation_update_result['counter_delta']['clean_post_cache'],
+		'side_effect_variation_required_meta_missing_total' => $variation_required_meta_missing_total,
+		'side_effect_variation_sku_meta_rows' => (int) ( $variation_meta_key_rows['_sku'] ?? 0 ),
+		'side_effect_variation_regular_price_meta_rows' => (int) ( $variation_meta_key_rows['_regular_price'] ?? 0 ),
+		'side_effect_variation_price_meta_rows' => (int) ( $variation_meta_key_rows['_price'] ?? 0 ),
+		'side_effect_variation_manage_stock_meta_rows' => (int) ( $variation_meta_key_rows['_manage_stock'] ?? 0 ),
+		'side_effect_variation_stock_meta_rows' => (int) ( $variation_meta_key_rows['_stock'] ?? 0 ),
+		'side_effect_variation_stock_status_meta_rows' => (int) ( $variation_meta_key_rows['_stock_status'] ?? 0 ),
 		'side_effect_simple_create_response_errors' => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ),
 		'side_effect_simple_update_response_errors' => $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ),
 		'side_effect_variation_create_response_errors' => $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ),
