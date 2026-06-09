@@ -14,7 +14,9 @@ const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join( tmpdir(), 'gutenberg-notes-unsaved-attachment-artifacts' );
 const wpCodeboxBin = process.env.HOMEBOY_WP_CODEBOX_BIN || process.env.HOMEBOY_SETTINGS_WP_CODEBOX_BIN || path.join( process.env.HOME || '', 'Developer/wp-codebox/packages/cli/dist/index.js' );
 const wpVersion = process.env.HOMEBOY_GUTENBERG_NOTES_WP_VERSION || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_WP_VERSION || '7.0';
-const targetCase = process.env.HOMEBOY_GUTENBERG_NOTES_CASE || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_CASE || 'orphan';
+const knownCases = new Set( [ 'orphan', 'saved-anchor', 'autosave-anchor', 'live-create', 'dirty-live-create', 'matrix' ] );
+const profileCase = process.env.HOMEBOY_TRACE_PROFILE || process.env.HOMEBOY_PROFILE || '';
+const targetCase = process.env.HOMEBOY_GUTENBERG_NOTES_CASE || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_CASE || ( knownCases.has( profileCase ) ? profileCase : 'orphan' );
 const probeDuration = process.env.HOMEBOY_GUTENBERG_NOTES_PROBE_DURATION || '12s';
 const viewport = process.env.HOMEBOY_GUTENBERG_NOTES_VIEWPORT || '1366x900';
 const readinessTimeoutMs = Number.parseInt( process.env.HOMEBOY_GUTENBERG_NOTES_READINESS_TIMEOUT_MS || '20000', 10 );
@@ -91,6 +93,8 @@ async function writeFixturePlugin() {
 add_action(
 	'init',
 	function () {
+		update_option( 'wp_collaboration_enabled', '1' );
+
 		$supports        = get_all_post_type_supports( 'post' );
 		$editor_supports = array( 'notes' => true );
 		if ( is_array( $supports['editor'] ) && isset( $supports['editor'][0] ) && is_array( $supports['editor'][0] ) ) {
@@ -275,6 +279,22 @@ const targetCase = ${ JSON.stringify( targetCase ) };
 const stateResponse = await fetch('/wp-json/homeboy-gutenberg-notes/v1/state', { credentials: 'include' });
 const fixtureState = await stateResponse.json();
 const currentCase = new URL(location.href).searchParams.get('homeboy_notes_case') || targetCase;
+const observedRequests = [];
+const originalFetch = window.fetch.bind(window);
+window.fetch = async (input, init = {}) => {
+	const request = input instanceof Request ? input : null;
+	const url = request ? request.url : String(input);
+	const method = (init.method || request?.method || 'GET').toUpperCase();
+	const body = typeof init.body === 'string' ? init.body.slice(0, 500) : '';
+	try {
+		const response = await originalFetch(input, init);
+		observedRequests.push({ url, method, status: response.status, body });
+		return response;
+	} catch (error) {
+		observedRequests.push({ url, method, status: 0, body, error: String(error) });
+		throw error;
+	}
+};
 const waitFor = async (predicate, label) => {
 	const deadline = performance.now() + readinessTimeoutMs;
 	while (performance.now() < deadline) {
@@ -304,10 +324,15 @@ const setFieldValue = (field, value) => {
 	field.dispatchEvent(new Event('change', { bubbles: true }));
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
-const getBlockNoteIds = () => flattenBlocks(window.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
+const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
 	const noteId = block?.attributes?.metadata?.noteId;
 	return Array.isArray(noteId) ? noteId : noteId ? [noteId] : [];
 }).map((value) => Number(value)).filter((value) => Number.isFinite(value));
+const getFirstBlockContent = (targetWindow = window) => {
+	const block = targetWindow.wp.data.select('core/block-editor').getBlocks()[0];
+	const content = block?.attributes?.content;
+	return typeof content === 'string' ? content : content?.toString?.() || '';
+};
 const getPostContent = async (postId) => {
 	if (window.wp?.apiFetch) {
 		const post = await window.wp.apiFetch({ path: '/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit' });
@@ -328,6 +353,38 @@ const waitForEditorReady = async (label) => {
 	await waitFor(() => document.body && document.body.classList.contains('block-editor-page'), 'editor shell for ' + label);
 	await waitFor(() => document.body.textContent.includes('Homeboy note anchor target'), 'editor content for ' + label);
 	await waitFor(() => window.wp?.data?.select('core/block-editor')?.getBlocks, 'block editor data store for ' + label);
+};
+const waitForFrameEditorReady = async (frameWindow, frameDocument, label) => {
+	await waitFor(() => frameDocument.body && frameDocument.body.classList.contains('block-editor-page'), 'iframe editor shell for ' + label);
+	await waitFor(() => frameWindow.wp?.data?.select('core/block-editor')?.getBlocks?.()[0], 'iframe block editor data store for ' + label);
+};
+const collectReloadedEditorState = async (caseId, postId, noteId, dirtyText) => {
+	const iframe = document.createElement('iframe');
+	iframe.style.position = 'fixed';
+	iframe.style.left = '-10000px';
+	iframe.style.top = '0';
+	iframe.style.width = '1200px';
+	iframe.style.height = '800px';
+	document.body.appendChild(iframe);
+	iframe.src = '/wp-admin/post.php?post=' + encodeURIComponent(postId) + '&action=edit&homeboy_notes_case=' + encodeURIComponent(caseId) + '&homeboy_reload_probe=1';
+	await new Promise((resolve, reject) => {
+		const timeout = setTimeout(() => reject(new Error('Timed out loading iframe editor for ' + caseId)), readinessTimeoutMs);
+		iframe.addEventListener('load', () => {
+			clearTimeout(timeout);
+			resolve();
+		}, { once: true });
+	});
+	const frameWindow = iframe.contentWindow;
+	const frameDocument = iframe.contentDocument;
+	await waitForFrameEditorReady(frameWindow, frameDocument, caseId);
+	const reloadedBlockNoteIds = getBlockNoteIds(frameWindow);
+	const reloadedFirstBlockContent = getFirstBlockContent(frameWindow);
+	return {
+		reloadedBlockNoteIds,
+		reloadedHasNoteId: reloadedBlockNoteIds.includes(Number(noteId)),
+		reloadedFirstBlockContent,
+		reloadedHasDirtyText: reloadedFirstBlockContent.includes(dirtyText) || (frameDocument.body.textContent || '').includes(dirtyText),
+	};
 };
 const collectBlockAttachment = async (caseId, item, noteId) => {
 	await waitForEditorReady(caseId);
@@ -431,6 +488,10 @@ const collectLiveCreateCase = async (caseId) => {
 	let persistedContent = await getPostContent(item.post_id);
 	let persistedHasNoteId = contentHasNoteId(persistedContent, noteId);
 	let persistedHasDirtyText = persistedContent.includes(dirtyText);
+	let repairSaveObserved = false;
+	try {
+		repairSaveObserved = await waitFor(() => observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.status >= 200 && request.status < 300 && request.body.includes('_crdt_document') && request.body.includes('metadata')), 'repair entity save after live note create');
+	} catch (error) {}
 	try {
 		persistedHasNoteId = await waitFor(async () => {
 			persistedContent = await getPostContent(item.post_id);
@@ -438,16 +499,20 @@ const collectLiveCreateCase = async (caseId) => {
 			return contentHasNoteId(persistedContent, noteId);
 		}, 'persisted post_content noteId after live note create');
 	} catch (error) {}
+	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, dirtyText);
 	const collected = await collectBlockAttachment(caseId, { ...item, note_id: noteId }, noteId);
-	const dirtyCasePassed = caseId !== 'dirty-live-create' || !persistedHasDirtyText;
+	const dirtyCasePassed = caseId !== 'dirty-live-create' || (!persistedHasDirtyText && !reloaded.reloadedHasDirtyText);
 	return {
 		...collected,
+		...reloaded,
+		repairSaveObserved,
 		blockHasPersistedNoteId: persistedHasNoteId,
-		logicalOrphan: !persistedHasNoteId,
-		passed: persistedHasNoteId && dirtyCasePassed,
+		logicalOrphan: !reloaded.reloadedHasNoteId,
+		passed: reloaded.reloadedHasNoteId && repairSaveObserved && dirtyCasePassed,
 		saveSettled,
 		persistedHasDirtyText,
 		persistedContentSample: persistedContent.slice(0, 500),
+		observedRequests: observedRequests.filter((request) => request.url.includes('/wp-sync/v1/save') || request.url.includes('/wp-json/wp/v2/posts/')).slice(-20),
 	};
 };
 const collectCase = async (caseId) => {
@@ -553,6 +618,7 @@ try {
 		autosave_notice_seen: caseResults.some( ( item ) => item.caseId === 'autosave-anchor' && item.hasAutosaveNotice === true ),
 		page_error_count: pageErrors.length,
 		network_response_count: network.filter( ( entry ) => entry.type === 'response' ).length,
+		sync_save_response_count: network.filter( ( entry ) => entry.type === 'response' && JSON.stringify( entry ).includes( '/wp-sync/v1/save' ) ).length,
 		cases: caseResults,
 	};
 
@@ -599,6 +665,16 @@ try {
 				id: 'autosave-anchor-attached',
 				status: targetCase !== 'matrix' && targetCase !== 'autosave-anchor' ? 'pass' : metrics.autosave_anchor_attached ? 'pass' : 'fail',
 				message: `Autosave content metadata.noteId attached note to block=${ metrics.autosave_anchor_attached }; autosave notice seen=${ metrics.autosave_notice_seen }.`
+			},
+			{
+				id: 'live-create-used-repair-save',
+				status: targetCase !== 'matrix' && targetCase !== 'live-create' && targetCase !== 'dirty-live-create' ? 'pass' : caseResults.every( ( item ) => ! [ 'live-create', 'dirty-live-create' ].includes( item.caseId ) || item.repairSaveObserved ) ? 'pass' : 'fail',
+				message: `Live note creation saved repaired content with _crdt_document=${ caseResults.filter( ( item ) => [ 'live-create', 'dirty-live-create' ].includes( item.caseId ) ).every( ( item ) => item.repairSaveObserved ) }; network sync save responses=${ metrics.sync_save_response_count }.`
+			},
+			{
+				id: 'dirty-live-create-did-not-restore-dirty-text',
+				status: targetCase !== 'matrix' && targetCase !== 'dirty-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'dirty-live-create' || ( item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ) ) ? 'pass' : 'fail',
+				message: `Dirty live-create kept unrelated dirty text out of post_content and reloaded editor state=${ caseResults.filter( ( item ) => item.caseId === 'dirty-live-create' ).every( ( item ) => item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ) }.`
 			},
 			{
 				id: 'page-errors-recorded',
