@@ -1,6 +1,6 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 
 import {
   STUDIO_PATH,
@@ -14,6 +14,87 @@ import {
 
 const RUNNING_MODES = new Set(['all-stopped', 'half-running', 'all-running']);
 const RUNTIMES = new Set(['playground', 'native-php']);
+
+function processRows() {
+  if (process.platform === 'win32') {
+    return [];
+  }
+
+  try {
+    return execFileSync('ps', ['-axo', 'pid=,ppid=,rss=,comm='], { encoding: 'utf8' })
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.+)$/);
+        if (!match) {
+          return null;
+        }
+        return {
+          pid: Number.parseInt(match[1], 10),
+          ppid: Number.parseInt(match[2], 10),
+          rssKb: Number.parseInt(match[3], 10),
+          command: match[4],
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function summarizeProcessTree(rootPid) {
+  const rows = processRows();
+  if (!rows.length) {
+    return { process_count: 0, total_rss_mb: 0, groups: {} };
+  }
+
+  const children = new Map();
+  for (const row of rows) {
+    const list = children.get(row.ppid) || [];
+    list.push(row.pid);
+    children.set(row.ppid, list);
+  }
+
+  const seen = new Set([rootPid]);
+  const queue = [rootPid];
+  while (queue.length) {
+    const pid = queue.shift();
+    for (const childPid of children.get(pid) || []) {
+      if (!seen.has(childPid)) {
+        seen.add(childPid);
+        queue.push(childPid);
+      }
+    }
+  }
+
+  const groups = {};
+  let totalRssKb = 0;
+  for (const row of rows) {
+    if (!seen.has(row.pid)) {
+      continue;
+    }
+    totalRssKb += row.rssKb;
+    const command = path.basename(row.command).toLowerCase();
+    const group = command.includes('electron') || command.includes('studio') ? 'electron' : command || 'unknown';
+    groups[group] = (groups[group] || 0) + row.rssKb;
+  }
+
+  return {
+    process_count: seen.size,
+    total_rss_mb: Math.round(totalRssKb / 1024),
+    groups: Object.fromEntries(
+      Object.entries(groups)
+        .sort(([, a], [, b]) => b - a)
+        .map(([group, rssKb]) => [group, Math.round(rssKb / 1024)])
+    ),
+  };
+}
+
+function peakRss(samples, phase) {
+  return samples
+    .filter((sample) => !phase || sample.phase === phase)
+    .reduce((peak, sample) => Math.max(peak, sample.total_rss_mb || 0), 0);
+}
 
 function boolSetting(name, defaultValue) {
   const value = String(setting(name) || '').trim().toLowerCase();
@@ -47,6 +128,23 @@ function runCommand(command, args, options = {}) {
       env: { ...process.env, ...(options.env || {}) },
     });
 
+    const sampleMemory = () => {
+      if (!options.memorySamples || !options.memoryLabel) {
+        return;
+      }
+      options.memorySamples.push({
+        elapsed_ms: Date.now() - options.startedAt,
+        phase: options.memoryLabel,
+        root_pid: child.pid,
+        ...summarizeProcessTree(child.pid),
+      });
+    };
+
+    sampleMemory();
+    const memoryTimer = options.memorySamples
+      ? setInterval(sampleMemory, intSetting('many_sites_memory_sample_interval_ms', 1000))
+      : undefined;
+
     const timer = options.timeoutMs
       ? setTimeout(() => {
           if (settled) {
@@ -54,6 +152,9 @@ function runCommand(command, args, options = {}) {
           }
           settled = true;
           child.kill('SIGKILL');
+          if (memoryTimer) {
+            clearInterval(memoryTimer);
+          }
           reject(
             new Error(
               `${command} ${args.join(' ')} timed out after ${options.timeoutMs}ms; stdout=${redact(stdout).slice(
@@ -74,6 +175,9 @@ function runCommand(command, args, options = {}) {
       if (timer) {
         clearTimeout(timer);
       }
+      if (memoryTimer) {
+        clearInterval(memoryTimer);
+      }
       reject(error);
     });
     child.on('close', (code) => {
@@ -83,6 +187,10 @@ function runCommand(command, args, options = {}) {
       settled = true;
       if (timer) {
         clearTimeout(timer);
+      }
+      sampleMemory();
+      if (memoryTimer) {
+        clearInterval(memoryTimer);
       }
       resolve({ code, stdout, stderr, elapsedMs: Date.now() - started });
     });
@@ -124,16 +232,24 @@ export default async function studioManySitesMemoryScrollBench() {
   const artifactDir = path.join(studioArtifactDir('studio-many-sites-memory-scroll-artifacts'), runId);
   const resultFile = path.join(artifactDir, 'many-sites.results.json');
   const rawResultFile = path.join(artifactDir, `result-${runId}.json`);
+  const memoryTimelineFile = path.join(artifactDir, `memory-timeline-${runId}.json`);
   await mkdir(artifactDir, { recursive: true });
 
   await assertManySitesHarnessExists();
 
   const started = Date.now();
+  const memorySamples = [];
+  const phaseEvents = [{ phase: 'start', elapsed_ms: 0 }];
   let installResult = null;
   if (shouldInstall) {
+    phaseEvents.push({ phase: 'before_install', elapsed_ms: Date.now() - started });
     installResult = await runCommand('npm', ['install'], {
       timeoutMs: intSetting('many_sites_install_timeout_ms', 1200000),
+      memoryLabel: 'install',
+      memorySamples,
+      startedAt: started,
     });
+    phaseEvents.push({ phase: 'after_install', elapsed_ms: Date.now() - started });
     if (installResult.code !== 0) {
       await writeFile(
         rawResultFile,
@@ -145,9 +261,14 @@ export default async function studioManySitesMemoryScrollBench() {
 
   let packageResult = null;
   if (shouldPackage) {
+    phaseEvents.push({ phase: 'before_package', elapsed_ms: Date.now() - started });
     packageResult = await runCommand('npm', ['run', 'package'], {
       timeoutMs: intSetting('many_sites_package_timeout_ms', 1200000),
+      memoryLabel: 'package',
+      memorySamples,
+      startedAt: started,
     });
+    phaseEvents.push({ phase: 'after_package', elapsed_ms: Date.now() - started });
     if (packageResult.code !== 0) {
       await writeFile(
         rawResultFile,
@@ -157,11 +278,15 @@ export default async function studioManySitesMemoryScrollBench() {
     }
   }
 
+  phaseEvents.push({ phase: 'before_playwright_test', elapsed_ms: Date.now() - started });
   const testResult = await runCommand(
     'npx',
     ['playwright', 'test', '--config=./tools/metrics/playwright.metrics.config.ts', 'tools/metrics/tests/many-sites.test.ts'],
     {
       timeoutMs: intSetting('many_sites_test_timeout_ms', 600000),
+      memoryLabel: 'playwright_test',
+      memorySamples,
+      startedAt: started,
       env: {
         ARTIFACTS_PATH: artifactDir,
         RESULTS_ID: 'many-sites',
@@ -173,9 +298,31 @@ export default async function studioManySitesMemoryScrollBench() {
       },
     }
   );
+  phaseEvents.push({ phase: 'after_playwright_test', elapsed_ms: Date.now() - started });
   const totalElapsedMs = Date.now() - started;
   const results = await readJsonIfPresent(resultFile);
   const passed = testResult.code === 0 && Boolean(results);
+
+  await writeFile(
+    memoryTimelineFile,
+    JSON.stringify(
+      {
+        variant: currentVariant,
+        studioPath: STUDIO_PATH,
+        matrix: {
+          site_count: siteCount,
+          icon_size_kb: iconSizeKb,
+          running_mode: runningMode,
+          runtime,
+        },
+        sample_interval_ms: intSetting('many_sites_memory_sample_interval_ms', 1000),
+        phases: phaseEvents,
+        samples: memorySamples,
+      },
+      null,
+      2
+    )
+  );
 
   await writeFile(
     rawResultFile,
@@ -194,6 +341,14 @@ export default async function studioManySitesMemoryScrollBench() {
           package_ms: metric(packageResult?.elapsedMs),
           test_ms: metric(testResult.elapsedMs),
           total_elapsed_ms: totalElapsedMs,
+        },
+        memory_timeline: {
+          file: memoryTimelineFile,
+          peak_install_rss_mb: peakRss(memorySamples, 'install'),
+          peak_package_rss_mb: peakRss(memorySamples, 'package'),
+          peak_playwright_test_rss_mb: peakRss(memorySamples, 'playwright_test'),
+          peak_total_rss_mb: peakRss(memorySamples),
+          sample_count: memorySamples.length,
         },
         commands: {
           install: installResult ? safeResult(installResult) : null,
@@ -229,9 +384,14 @@ export default async function studioManySitesMemoryScrollBench() {
       package_ms: metric(packageResult?.elapsedMs),
       test_ms: metric(testResult.elapsedMs),
       total_elapsed_ms: totalElapsedMs,
+      peak_install_rss_mb: peakRss(memorySamples, 'install'),
+      peak_package_rss_mb: peakRss(memorySamples, 'package'),
+      peak_playwright_test_rss_mb: peakRss(memorySamples, 'playwright_test'),
+      peak_workload_rss_mb: peakRss(memorySamples),
     },
     artifacts: {
       raw_result: rawResultFile,
+      memory_timeline: memoryTimelineFile,
       metrics_result: resultFile,
       screenshot_top: path.join(artifactDir, 'many-sites-top.png'),
       screenshot_bottom: path.join(artifactDir, 'many-sites-bottom.png'),
