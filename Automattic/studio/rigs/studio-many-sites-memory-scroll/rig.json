@@ -12,7 +12,8 @@
             "many_sites_count": "1000",
             "many_sites_icon_kb": "64",
             "many_sites_running_mode": "all-stopped",
-            "many_sites_runtime": "playground"
+            "many_sites_runtime": "playground",
+            "many_sites_memory_sample_interval_ms": "1000"
           }
         }
       }
