@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
@@ -27,6 +27,7 @@ const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
 const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
 const traceHelperDir = process.env.HOMEBOY_TRACE_HELPER_DIR;
+const fixtureBootstrapPath = fileURLToPath(new URL('./fixture-bootstrap.php', import.meta.url));
 
 if (!componentPath) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
@@ -37,12 +38,14 @@ if (!resultsFile) {
 if (!traceHelperDir) {
   throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
 }
-if (!existsSync(path.join(componentPath, 'tests/benchmarks/fixture-bootstrap.php'))) {
-  throw new Error('Missing tests/benchmarks/fixture-bootstrap.php in the Stripe checkout. Run against woocommerce-gateway-stripe#5522 or later.');
+if (!existsSync(fixtureBootstrapPath)) {
+  throw new Error(`Missing rig-owned Stripe fixture bootstrap at ${fixtureBootstrapPath}`);
 }
 if (!existsSync(path.join(woocommercePath, 'woocommerce.php'))) {
   throw new Error(`Missing WooCommerce dependency plugin at ${woocommercePath}. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory.`);
 }
+
+const fixtureBootstrapSource = (await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '');
 
 process.env.HOMEBOY_TRACE_ARTIFACT_DIR ||= artifactDir;
 const { createTraceReporter } = await import(pathToFileURL(path.join(traceHelperDir, 'timeline.mjs')).href);
@@ -179,12 +182,12 @@ try {
   await writeFile(
     setupFile,
     `<?php
-require_once WP_PLUGIN_DIR . '/woocommerce-gateway-stripe/tests/benchmarks/fixture-bootstrap.php';
+${fixtureBootstrapSource}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
 $accepted_payment_methods = json_decode( '${JSON.stringify(csvToJsonArray(acceptedPaymentMethods))}', true );
 
-$state = WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap(
+$state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap(
 	array(
 		'ece_locations'            => $ece_locations,
 		'accepted_payment_methods' => $accepted_payment_methods,
