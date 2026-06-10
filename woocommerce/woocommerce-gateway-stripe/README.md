@@ -51,6 +51,14 @@ Primary metrics:
 - `stripe_load_console_message_count`
 - `stripe_load_page_error_count`
 
+The browser probe also uses WP Codebox assertions so invalid runs fail after
+artifacts are written instead of becoming ambiguous evidence. All profiles assert
+that the product-page ECE container exists, at least one document request was
+observed, browser resources were measured, and no page errors occurred. Web
+performance profiles additionally assert that promoted timing metrics such as
+`browser_nav_duration_ms`, `browser_ttfb_ms`, `browser_fcp_ms`, and
+`browser_lcp_ms` are present.
+
 Secondary noisy metrics:
 
 - `browser_dom_content_loaded_ms`
@@ -131,6 +139,23 @@ homeboy trace \
   --output /tmp/wc-stripe-ece-product-page.json \
   woocommerce-gateway-stripe ece-product-page-waterfall
 ```
+
+For reviewer-facing performance evidence, prefer the deterministic WP Codebox
+slow-4G profile and interleaved baseline/candidate runs:
+
+```bash
+homeboy trace \
+  --rig woocommerce-stripe-ece-product-page \
+  --profile webperf-desktop-slow-4g \
+  --repeat 5 \
+  --schedule interleaved \
+  --output /tmp/wc-stripe-ece-product-page-webperf.json \
+  woocommerce-gateway-stripe ece-product-page-waterfall
+```
+
+Use request-count, Stripe Elements session count, page-error count, and promoted
+`browser_*` medians as the stable comparison signals. Treat absolute timing
+numbers as secondary unless repeated interleaved runs show a clear median shift.
 
 Useful settings:
 

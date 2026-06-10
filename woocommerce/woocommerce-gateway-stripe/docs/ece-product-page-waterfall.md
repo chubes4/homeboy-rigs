@@ -154,6 +154,9 @@ The stable signals are structural:
   `browser_layout_shift_count`, `ece_render_final_container_height`,
   `ece_render_final_wallets_link_height`, and metadata-level layout-shift source
   rectangles for the ECE container/sentinel path.
+- WP Codebox browser assertions for structural validity: ECE container presence,
+  document request count, measured browser resources, page-error absence, and
+  promoted timing metric presence on web performance profiles.
 
 ## Secondary Signals
 
@@ -161,6 +164,10 @@ The stable signals are structural:
 treated as secondary until a larger interleaved matrix proves stable medians.
 The local workload includes WordPress setup, WP Codebox runtime scheduling,
 browser scheduling, and third-party Stripe network variance.
+
+For performance claims, use `--profile webperf-desktop-slow-4g` with repeated
+interleaved baseline/candidate runs so WP Codebox applies the same deterministic
+Chromium CPU/network throttle before navigation on both sides.
 
 ## Render Timing Instrumentation
 

@@ -514,6 +514,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
             ...profileOptions.browserProbeArgs,
+            ...profileOptions.browserProbeAssertions,
             'capture=console,errors,html,network,performance,memory,screenshot',
             `pre-page-script=${prePageScript}`,
             `script=${browserProbeScript}`,

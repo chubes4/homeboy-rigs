@@ -12,6 +12,21 @@ const DESKTOP_BROWSER_PROBE_ARGS = [
   'touch=0',
 ];
 
+const STRUCTURAL_BROWSER_ASSERTIONS = [
+  'assert=no-page-errors',
+  'assert=exists:#wc-stripe-express-checkout-element',
+  'assert=request-count-by-type:document>=1',
+  'assert=metric:browser_resource_count>=1',
+];
+
+const WEBPERF_BROWSER_ASSERTIONS = [
+  ...STRUCTURAL_BROWSER_ASSERTIONS,
+  'assert=metric:browser_nav_duration_ms>=0',
+  'assert=metric:browser_ttfb_ms>=0',
+  'assert=metric:browser_fcp_ms>=0',
+  'assert=metric:browser_lcp_ms>=0',
+];
+
 const PROFILE_METADATA = {
   [DEFAULT_PROFILE]: {
     label: 'Smoke',
@@ -116,6 +131,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       runtimePreview: null,
       recipeRunArgs: [],
       browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
+      browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
       waitFor: 'load',
     };
   }
@@ -137,6 +153,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
         ...DESKTOP_BROWSER_PROBE_ARGS,
         'throttle=low-end-mobile-slow-4g',
       ],
+      browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
       waitFor: 'load',
     };
   }
@@ -155,6 +172,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       runtimePreview: null,
       recipeRunArgs: [],
       browserProbeArgs: [],
+      browserProbeAssertions: STRUCTURAL_BROWSER_ASSERTIONS,
       waitFor: null,
     };
   }
@@ -190,6 +208,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       ...(publicUrl ? ['--preview-public-url', publicUrl] : []),
     ],
     browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
+    browserProbeAssertions: STRUCTURAL_BROWSER_ASSERTIONS,
     waitFor: null,
   };
 }

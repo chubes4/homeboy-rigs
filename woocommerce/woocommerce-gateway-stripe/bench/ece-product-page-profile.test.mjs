@@ -20,6 +20,8 @@ test('default smoke profile preserves browser probe defaults', () => {
   assert.equal(options.runtimePreview, null);
   assert.deepEqual(options.recipeRunArgs, []);
   assert.deepEqual(options.browserProbeArgs, []);
+  assert.ok(options.browserProbeAssertions.includes('assert=no-page-errors'));
+  assert.ok(options.browserProbeAssertions.includes('assert=exists:#wc-stripe-express-checkout-element'));
   assert.equal(options.waitFor, null);
 });
 
@@ -57,6 +59,7 @@ test('secure-browser profile uses generic preview and browser profile args', () 
     assert.ok(options.browserProbeArgs.includes('browser=chromium'));
     assert.ok(options.browserProbeArgs.includes('device=Desktop Chrome'));
     assert.ok(options.browserProbeArgs.includes('locale=en-US'));
+    assert.ok(options.browserProbeAssertions.includes('assert=no-page-errors'));
     assert.equal(options.waitFor, null);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
@@ -85,6 +88,8 @@ test('webperf desktop load profile uses load wait without synthetic throttle', (
   assert.ok(options.browserProbeArgs.includes('touch=0'));
   assert.ok(!options.browserProbeArgs.some((arg) => arg.startsWith('throttle=')));
   assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
+  assert.ok(options.browserProbeAssertions.includes('assert=metric:browser_lcp_ms>=0'));
+  assert.ok(options.browserProbeAssertions.includes('assert=metric:browser_nav_duration_ms>=0'));
 });
 
 test('webperf desktop slow 4g profile keeps desktop context while applying Codebox throttle', () => {
@@ -103,6 +108,8 @@ test('webperf desktop slow 4g profile keeps desktop context while applying Codeb
   assert.ok(options.browserProbeArgs.includes('touch=0'));
   assert.ok(options.browserProbeArgs.includes('throttle=low-end-mobile-slow-4g'));
   assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
+  assert.ok(options.browserProbeAssertions.includes('assert=metric:browser_lcp_ms>=0'));
+  assert.ok(options.browserProbeAssertions.includes('assert=metric:browser_ttfb_ms>=0'));
 });
 
 test('rig manifest exposes the ECE webperf profile matrix', () => {
@@ -217,6 +224,7 @@ test('real-wallet profile carries real-wallet evidence settings without leaking 
       'https://ece-wallet.example.test',
     ]);
     assert.ok(!options.recipeRunArgs.join(' ').includes('sk_test_real_fixture'));
+    assert.ok(options.browserProbeAssertions.includes('assert=no-page-errors'));
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
