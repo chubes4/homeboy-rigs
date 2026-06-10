@@ -14,7 +14,7 @@ const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join( tmpdir(), 'gutenberg-notes-unsaved-attachment-artifacts' );
 const wpCodeboxBin = process.env.HOMEBOY_WP_CODEBOX_BIN || process.env.HOMEBOY_SETTINGS_WP_CODEBOX_BIN || path.join( process.env.HOME || '', 'Developer/wp-codebox/packages/cli/dist/index.js' );
 const wpVersion = process.env.HOMEBOY_GUTENBERG_NOTES_WP_VERSION || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_WP_VERSION || '7.0';
-const knownCases = new Set( [ 'orphan', 'saved-anchor', 'autosave-anchor', 'live-create', 'dirty-live-create', 'matrix' ] );
+const knownCases = new Set( [ 'orphan', 'saved-anchor', 'autosave-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'matrix' ] );
 const profileCase = process.env.HOMEBOY_TRACE_PROFILE || process.env.HOMEBOY_PROFILE || '';
 const targetCase = process.env.HOMEBOY_GUTENBERG_NOTES_CASE || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_CASE || ( knownCases.has( profileCase ) ? profileCase : 'orphan' );
 const probeDuration = process.env.HOMEBOY_GUTENBERG_NOTES_PROBE_DURATION || '12s';
@@ -109,6 +109,14 @@ function homeboy_gutenberg_notes_content( $note_id = 0 ) {
 	return '<!-- wp:paragraph' . $metadata . ' --><p>Homeboy note anchor target.</p><!-- /wp:paragraph -->';
 }
 
+function homeboy_gutenberg_notes_two_paragraph_content() {
+	return '<!-- wp:paragraph --><p>Homeboy note anchor target.</p><!-- /wp:paragraph -->' . "\n\n" . '<!-- wp:paragraph --><p>Homeboy sibling text that must stay saved.</p><!-- /wp:paragraph -->';
+}
+
+function homeboy_gutenberg_notes_nested_content() {
+	return '<!-- wp:group --><div class="wp-block-group"><!-- wp:paragraph --><p>Homeboy note anchor target.</p><!-- /wp:paragraph --></div><!-- /wp:group -->';
+}
+
 function homeboy_gutenberg_notes_create_note( $post_id, $content ) {
 	$existing = get_comments(
 		array(
@@ -153,6 +161,24 @@ function homeboy_gutenberg_notes_create_post( $slug, $title ) {
 	);
 }
 
+function homeboy_gutenberg_notes_create_post_with_content( $slug, $title, $content ) {
+	$existing = get_page_by_path( $slug, OBJECT, 'post' );
+	if ( $existing ) {
+		return (int) $existing->ID;
+	}
+
+	return (int) wp_insert_post(
+		array(
+			'post_type'    => 'post',
+			'post_status'  => 'draft',
+			'post_title'   => $title,
+			'post_name'    => $slug,
+			'post_content' => $content,
+			'post_author'  => 1,
+		)
+	);
+}
+
 function homeboy_gutenberg_notes_fixture_state() {
 	if ( get_option( 'homeboy_gutenberg_notes_fixture_state' ) ) {
 		return get_option( 'homeboy_gutenberg_notes_fixture_state' );
@@ -183,8 +209,12 @@ function homeboy_gutenberg_notes_fixture_state() {
 		)
 	);
 
-	$live_post_id       = homeboy_gutenberg_notes_create_post( 'homeboy-notes-live-create', 'Homeboy Notes Live Create' );
-	$dirty_live_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-dirty-live-create', 'Homeboy Notes Dirty Live Create' );
+	$live_post_id          = homeboy_gutenberg_notes_create_post( 'homeboy-notes-live-create', 'Homeboy Notes Live Create' );
+	$dirty_live_post_id    = homeboy_gutenberg_notes_create_post( 'homeboy-notes-dirty-live-create', 'Homeboy Notes Dirty Live Create' );
+	$dirty_sibling_post_id = homeboy_gutenberg_notes_create_post_with_content( 'homeboy-notes-dirty-sibling-live-create', 'Homeboy Notes Dirty Sibling Live Create', homeboy_gutenberg_notes_two_paragraph_content() );
+	$dirty_structural_post_id = homeboy_gutenberg_notes_create_post_with_content( 'homeboy-notes-dirty-structural-live-create', 'Homeboy Notes Dirty Structural Live Create', homeboy_gutenberg_notes_two_paragraph_content() );
+	$nested_live_post_id   = homeboy_gutenberg_notes_create_post_with_content( 'homeboy-notes-nested-live-create', 'Homeboy Notes Nested Live Create', homeboy_gutenberg_notes_nested_content() );
+	$double_live_post_id   = homeboy_gutenberg_notes_create_post( 'homeboy-notes-double-live-create', 'Homeboy Notes Double Live Create' );
 
 	$state = array(
 		'orphan' => array(
@@ -209,6 +239,26 @@ function homeboy_gutenberg_notes_fixture_state() {
 		),
 		'dirty-live-create' => array(
 			'post_id' => $dirty_live_post_id,
+			'note_id' => 0,
+			'expected_orphan' => false,
+		),
+		'dirty-sibling-live-create' => array(
+			'post_id' => $dirty_sibling_post_id,
+			'note_id' => 0,
+			'expected_orphan' => false,
+		),
+		'dirty-structural-live-create' => array(
+			'post_id' => $dirty_structural_post_id,
+			'note_id' => 0,
+			'expected_orphan' => false,
+		),
+		'nested-live-create' => array(
+			'post_id' => $nested_live_post_id,
+			'note_id' => 0,
+			'expected_orphan' => false,
+		),
+		'double-live-create' => array(
+			'post_id' => $double_live_post_id,
 			'note_id' => 0,
 			'expected_orphan' => false,
 		),
@@ -324,14 +374,37 @@ const setFieldValue = (field, value) => {
 	field.dispatchEvent(new Event('change', { bubbles: true }));
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
+const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
 const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
 	const noteId = block?.attributes?.metadata?.noteId;
 	return Array.isArray(noteId) ? noteId : noteId ? [noteId] : [];
 }).map((value) => Number(value)).filter((value) => Number.isFinite(value));
-const getFirstBlockContent = (targetWindow = window) => {
-	const block = targetWindow.wp.data.select('core/block-editor').getBlocks()[0];
+const getBlocksWithNoteId = (noteId, targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).filter((block) => {
+	const ids = block?.attributes?.metadata?.noteId;
+	const noteIds = Array.isArray(ids) ? ids : ids ? [ids] : [];
+	return noteIds.map((value) => Number(value)).includes(Number(noteId));
+});
+const getBlockText = (block) => {
 	const content = block?.attributes?.content;
 	return typeof content === 'string' ? content : content?.toString?.() || '';
+};
+const getAllBlockText = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).map(getBlockText).join('\\n');
+const getTargetBlock = (caseId, targetWindow = window) => {
+	const blocks = targetWindow.wp.data.select('core/block-editor').getBlocks();
+	if (caseId === 'nested-live-create') {
+		return flattenBlocks(blocks).find((block) => getBlockText(block).includes('Homeboy note anchor target'));
+	}
+	if (caseId === 'dirty-structural-live-create') {
+		return flattenBlocks(blocks).find((block) => getBlockText(block).includes('Homeboy note anchor target'));
+	}
+	return blocks[0];
+};
+const getDirtyBlock = (caseId, targetWindow = window) => {
+	const blocks = targetWindow.wp.data.select('core/block-editor').getBlocks();
+	if (caseId === 'dirty-sibling-live-create') {
+		return blocks[1];
+	}
+	return getTargetBlock(caseId, targetWindow);
 };
 const getPostContent = async (postId) => {
 	if (window.wp?.apiFetch) {
@@ -378,12 +451,15 @@ const collectReloadedEditorState = async (caseId, postId, noteId, dirtyText) => 
 	const frameDocument = iframe.contentDocument;
 	await waitForFrameEditorReady(frameWindow, frameDocument, caseId);
 	const reloadedBlockNoteIds = getBlockNoteIds(frameWindow);
-	const reloadedFirstBlockContent = getFirstBlockContent(frameWindow);
+	const reloadedNoteBlockTexts = getBlocksWithNoteId(noteId, frameWindow).map(getBlockText);
+	const reloadedBlockText = getAllBlockText(frameWindow);
 	return {
 		reloadedBlockNoteIds,
 		reloadedHasNoteId: reloadedBlockNoteIds.includes(Number(noteId)),
-		reloadedFirstBlockContent,
-		reloadedHasDirtyText: reloadedFirstBlockContent.includes(dirtyText) || (frameDocument.body.textContent || '').includes(dirtyText),
+		reloadedNoteBlockTexts,
+		reloadedNoteTargetsAnchor: reloadedNoteBlockTexts.some((text) => text.includes('Homeboy note anchor target')),
+		reloadedBlockText,
+		reloadedHasDirtyText: reloadedBlockText.includes(dirtyText) || (frameDocument.body.textContent || '').includes(dirtyText),
 	};
 };
 const collectBlockAttachment = async (caseId, item, noteId) => {
@@ -425,6 +501,42 @@ const collectBlockAttachment = async (caseId, item, noteId) => {
 		passed: item.expected_orphan ? logicalOrphan : blockHasNoteId,
 	};
 };
+const openAddNoteField = async (block) => {
+	window.wp.data.dispatch('core/block-editor').selectBlock(block.clientId);
+	const blockElement = document.querySelector('[data-block="' + block.clientId + '"]');
+	blockElement?.scrollIntoView({ block: 'center' });
+	blockElement?.focus();
+	blockElement?.click();
+	await sleep(250);
+	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
+		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
+	}
+		await sleep(500);
+		const findNewNoteField = () => Array.from(document.querySelectorAll('textarea, input[type="text"]')).find(isVisible);
+		const hasNewNoteSubmit = () => !!findButtonByText('Add note');
+		if (!findNewNoteField() || !hasNewNoteSubmit()) {
+			const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
+			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
+			if (!optionsButton) {
+			throw new Error('Could not find block toolbar options button; toolbar buttons=' + toolbarButtons.map((button) => button.getAttribute('aria-label') || button.textContent || '').join(', '));
+		}
+		optionsButton.click();
+		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'Add note menu item');
+		addNoteMenuItem.click();
+	}
+	return waitFor(findNewNoteField, 'new note textarea');
+};
+const createNoteOnBlock = async (block, text) => {
+	const beforeIds = new Set(getBlockNoteIds());
+	const textarea = await openAddNoteField(block);
+	textarea.focus();
+	setFieldValue(textarea, text);
+	await sleep(250);
+	const addButton = await waitFor(() => findButtonByText('Add note'), 'Add note button');
+	addButton.click();
+	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
+	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
+};
 const collectLiveCreateCase = async (caseId) => {
 	const item = fixtureState[caseId];
 	if (!item) {
@@ -443,40 +555,23 @@ const collectLiveCreateCase = async (caseId) => {
 		}
 	} catch (error) {}
 	await sleep(500);
-	const block = await waitFor(() => window.wp.data.select('core/block-editor').getBlocks()[0], 'first block for ' + caseId);
-	if (caseId === 'dirty-live-create') {
-		window.wp.data.dispatch('core/block-editor').updateBlockAttributes(block.clientId, { content: dirtyText });
+	const block = await waitFor(() => getTargetBlock(caseId), 'target block for ' + caseId);
+	if (caseId === 'dirty-live-create' || caseId === 'dirty-sibling-live-create') {
+		const dirtyBlock = await waitFor(() => getDirtyBlock(caseId), 'dirty block for ' + caseId);
+		window.wp.data.dispatch('core/block-editor').updateBlockAttributes(dirtyBlock.clientId, { content: dirtyText });
 		await waitFor(() => window.wp.data.select('core/editor').isEditedPostDirty?.(), 'dirty editor state before note create');
 	}
-	window.wp.data.dispatch('core/block-editor').selectBlock(block.clientId);
-	const blockElement = document.querySelector('[data-block="' + block.clientId + '"]');
-	blockElement?.scrollIntoView({ block: 'center' });
-	blockElement?.focus();
-	blockElement?.click();
-	await sleep(250);
-	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
-		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
+	if (caseId === 'dirty-structural-live-create') {
+		const insertedBlock = window.wp.blocks.createBlock('core/paragraph', { content: dirtyText });
+		window.wp.data.dispatch('core/block-editor').insertBlock(insertedBlock, 0);
+		await waitFor(() => window.wp.data.select('core/editor').isEditedPostDirty?.(), 'dirty structural editor state before note create');
 	}
-	await sleep(500);
-	const findNewNoteField = () => Array.from(document.querySelectorAll('textarea, input[type="text"]')).find(isVisible);
-	if (!findNewNoteField()) {
-		const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
-		const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
-		if (!optionsButton) {
-			throw new Error('Could not find block toolbar options button; toolbar buttons=' + toolbarButtons.map((button) => button.getAttribute('aria-label') || button.textContent || '').join(', '));
-		}
-		optionsButton.click();
-		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'Add note menu item');
-		addNoteMenuItem.click();
+	const noteIds = [];
+	noteIds.push(await createNoteOnBlock(block, 'Homeboy live note'));
+	if (caseId === 'double-live-create') {
+		noteIds.push(await createNoteOnBlock(block, 'Homeboy second live note'));
 	}
-	const textarea = await waitFor(findNewNoteField, 'new note textarea');
-	textarea.focus();
-	setFieldValue(textarea, 'Homeboy live note');
-	await sleep(250);
-	const addButton = await waitFor(() => findButtonByText('Add note'), 'Add note button');
-	addButton.click();
-	await waitFor(() => document.body.textContent.includes('Homeboy live note'), 'created live note thread');
-	const noteId = await waitFor(() => getBlockNoteIds().at(-1), 'live note id in edited block metadata');
+	const noteId = noteIds.at(-1);
 	let saveSettled = false;
 	try {
 		await waitFor(() => {
@@ -487,7 +582,9 @@ const collectLiveCreateCase = async (caseId) => {
 	} catch (error) {}
 	let persistedContent = await getPostContent(item.post_id);
 	let persistedHasNoteId = contentHasNoteId(persistedContent, noteId);
+	let persistedHasAllNoteIds = noteIds.every((id) => contentHasNoteId(persistedContent, id));
 	let persistedHasDirtyText = persistedContent.includes(dirtyText);
+	let persistedHasOriginalSiblingText = persistedContent.includes('Homeboy sibling text that must stay saved.');
 	let repairSaveObserved = false;
 	try {
 		repairSaveObserved = await waitFor(() => observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.status >= 200 && request.status < 300 && request.body.includes('_crdt_document') && request.body.includes('metadata')), 'repair entity save after live note create');
@@ -495,22 +592,32 @@ const collectLiveCreateCase = async (caseId) => {
 	try {
 		persistedHasNoteId = await waitFor(async () => {
 			persistedContent = await getPostContent(item.post_id);
+			persistedHasNoteId = contentHasNoteId(persistedContent, noteId);
 			persistedHasDirtyText = persistedContent.includes(dirtyText);
-			return contentHasNoteId(persistedContent, noteId);
+			persistedHasOriginalSiblingText = persistedContent.includes('Homeboy sibling text that must stay saved.');
+			persistedHasAllNoteIds = noteIds.every((id) => contentHasNoteId(persistedContent, id));
+			return persistedHasAllNoteIds;
 		}, 'persisted post_content noteId after live note create');
 	} catch (error) {}
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, dirtyText);
 	const collected = await collectBlockAttachment(caseId, { ...item, note_id: noteId }, noteId);
-	const dirtyCasePassed = caseId !== 'dirty-live-create' || (!persistedHasDirtyText && !reloaded.reloadedHasDirtyText);
+	const reloadedHasAllNoteIds = noteIds.every((id) => reloaded.reloadedBlockNoteIds.includes(Number(id)));
+	const dirtyCasePassed = ![ 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create' ].includes(caseId) || (!persistedHasDirtyText && !reloaded.reloadedHasDirtyText);
+	const siblingCasePassed = ![ 'dirty-sibling-live-create', 'dirty-structural-live-create' ].includes(caseId) || persistedHasOriginalSiblingText;
+	const targetCasePassed = caseId !== 'dirty-structural-live-create' || reloaded.reloadedNoteTargetsAnchor;
 	return {
 		...collected,
 		...reloaded,
+		noteIds,
 		repairSaveObserved,
 		blockHasPersistedNoteId: persistedHasNoteId,
+		persistedHasAllNoteIds,
+		reloadedHasAllNoteIds,
 		logicalOrphan: !reloaded.reloadedHasNoteId,
-		passed: reloaded.reloadedHasNoteId && repairSaveObserved && dirtyCasePassed,
+		passed: reloaded.reloadedHasNoteId && reloadedHasAllNoteIds && persistedHasAllNoteIds && repairSaveObserved && dirtyCasePassed && siblingCasePassed && targetCasePassed,
 		saveSettled,
 		persistedHasDirtyText,
+		persistedHasOriginalSiblingText,
 		persistedContentSample: persistedContent.slice(0, 500),
 		observedRequests: observedRequests.filter((request) => request.url.includes('/wp-sync/v1/save') || request.url.includes('/wp-json/wp/v2/posts/')).slice(-20),
 	};
@@ -520,7 +627,7 @@ const collectCase = async (caseId) => {
 	if (!item) {
 		throw new Error('Missing fixture case ' + caseId);
 	}
-	if (caseId === 'live-create' || caseId === 'dirty-live-create') {
+	if (liveCreateCases.includes(caseId)) {
 		return collectLiveCreateCase(caseId);
 	}
 	return collectBlockAttachment(caseId, item, Number(item.note_id));
@@ -616,6 +723,10 @@ try {
 		saved_anchor_attached: caseResults.some( ( item ) => item.caseId === 'saved-anchor' && item.blockHasNoteId === true ),
 		autosave_anchor_attached: caseResults.some( ( item ) => item.caseId === 'autosave-anchor' && item.blockHasNoteId === true ),
 		autosave_notice_seen: caseResults.some( ( item ) => item.caseId === 'autosave-anchor' && item.hasAutosaveNotice === true ),
+		nested_live_create_attached: caseResults.some( ( item ) => item.caseId === 'nested-live-create' && item.reloadedHasNoteId === true ),
+		dirty_sibling_preserved: caseResults.some( ( item ) => item.caseId === 'dirty-sibling-live-create' && item.persistedHasOriginalSiblingText === true && item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ),
+		dirty_structural_targets_anchor: caseResults.some( ( item ) => item.caseId === 'dirty-structural-live-create' && item.reloadedNoteTargetsAnchor === true && item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ),
+		double_live_create_attached: caseResults.some( ( item ) => item.caseId === 'double-live-create' && item.persistedHasAllNoteIds === true && item.reloadedHasAllNoteIds === true ),
 		page_error_count: pageErrors.length,
 		network_response_count: network.filter( ( entry ) => entry.type === 'response' ).length,
 		sync_save_response_count: network.filter( ( entry ) => entry.type === 'response' && JSON.stringify( entry ).includes( '/wp-sync/v1/save' ) ).length,
@@ -668,13 +779,33 @@ try {
 			},
 			{
 				id: 'live-create-used-repair-save',
-				status: targetCase !== 'matrix' && targetCase !== 'live-create' && targetCase !== 'dirty-live-create' ? 'pass' : caseResults.every( ( item ) => ! [ 'live-create', 'dirty-live-create' ].includes( item.caseId ) || item.repairSaveObserved ) ? 'pass' : 'fail',
-				message: `Live note creation saved repaired content with _crdt_document=${ caseResults.filter( ( item ) => [ 'live-create', 'dirty-live-create' ].includes( item.caseId ) ).every( ( item ) => item.repairSaveObserved ) }; network sync save responses=${ metrics.sync_save_response_count }.`
+				status: targetCase !== 'matrix' && ! [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ].includes( targetCase ) ? 'pass' : caseResults.every( ( item ) => ! [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ].includes( item.caseId ) || item.repairSaveObserved ) ? 'pass' : 'fail',
+				message: `Live note creation saved repaired content with _crdt_document=${ caseResults.filter( ( item ) => [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ].includes( item.caseId ) ).every( ( item ) => item.repairSaveObserved ) }; network sync save responses=${ metrics.sync_save_response_count }.`
 			},
 			{
 				id: 'dirty-live-create-did-not-restore-dirty-text',
-				status: targetCase !== 'matrix' && targetCase !== 'dirty-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'dirty-live-create' || ( item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ) ) ? 'pass' : 'fail',
-				message: `Dirty live-create kept unrelated dirty text out of post_content and reloaded editor state=${ caseResults.filter( ( item ) => item.caseId === 'dirty-live-create' ).every( ( item ) => item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ) }.`
+				status: targetCase !== 'matrix' && ! [ 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create' ].includes( targetCase ) ? 'pass' : caseResults.every( ( item ) => ! [ 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create' ].includes( item.caseId ) || ( item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ) ) ? 'pass' : 'fail',
+				message: `Dirty live-create kept unrelated dirty text out of post_content and reloaded editor state=${ caseResults.filter( ( item ) => [ 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create' ].includes( item.caseId ) ).every( ( item ) => item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ) }.`
+			},
+			{
+				id: 'dirty-sibling-live-create-preserved-sibling',
+				status: targetCase !== 'matrix' && targetCase !== 'dirty-sibling-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'dirty-sibling-live-create' || item.persistedHasOriginalSiblingText === true ) ? 'pass' : 'fail',
+				message: `Dirty sibling live-create preserved saved sibling content=${ caseResults.filter( ( item ) => item.caseId === 'dirty-sibling-live-create' ).every( ( item ) => item.persistedHasOriginalSiblingText === true ) }.`
+			},
+			{
+				id: 'dirty-structural-live-create-targeted-anchor',
+				status: targetCase !== 'matrix' && targetCase !== 'dirty-structural-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'dirty-structural-live-create' || item.reloadedNoteTargetsAnchor === true ) ? 'pass' : 'fail',
+				message: `Dirty structural live-create attached note to intended anchor block=${ caseResults.filter( ( item ) => item.caseId === 'dirty-structural-live-create' ).every( ( item ) => item.reloadedNoteTargetsAnchor === true ) }.`
+			},
+			{
+				id: 'nested-live-create-attached-after-reload',
+				status: targetCase !== 'matrix' && targetCase !== 'nested-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'nested-live-create' || item.reloadedHasNoteId === true ) ? 'pass' : 'fail',
+				message: `Nested live-create note remained attached after reload=${ caseResults.filter( ( item ) => item.caseId === 'nested-live-create' ).every( ( item ) => item.reloadedHasNoteId === true ) }.`
+			},
+			{
+				id: 'double-live-create-preserved-all-notes',
+				status: targetCase !== 'matrix' && targetCase !== 'double-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'double-live-create' || ( item.persistedHasAllNoteIds === true && item.reloadedHasAllNoteIds === true ) ) ? 'pass' : 'fail',
+				message: `Double live-create persisted and reloaded all note IDs=${ caseResults.filter( ( item ) => item.caseId === 'double-live-create' ).every( ( item ) => item.persistedHasAllNoteIds === true && item.reloadedHasAllNoteIds === true ) }.`
 			},
 			{
 				id: 'page-errors-recorded',
