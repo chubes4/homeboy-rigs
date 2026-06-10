@@ -82,6 +82,30 @@
       "settings": {
         "gutenberg_notes_case": "dirty-live-create"
       }
+    },
+    "dirty-sibling-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "dirty-sibling-live-create"
+      }
+    },
+    "dirty-structural-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "dirty-structural-live-create"
+      }
+    },
+    "nested-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "nested-live-create"
+      }
+    },
+    "double-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "double-live-create"
+      }
     }
   },
   "pipeline": {
