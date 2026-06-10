@@ -82,6 +82,18 @@
       "settings": {
         "gutenberg_notes_case": "dirty-live-create"
       }
+    },
+    "dirty-sibling-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "dirty-sibling-live-create"
+      }
+    },
+    "nested-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "nested-live-create"
+      }
     }
   },
   "pipeline": {
