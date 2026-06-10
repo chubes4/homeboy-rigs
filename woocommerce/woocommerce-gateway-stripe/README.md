@@ -10,7 +10,7 @@ Express Checkout Element page-load fan-out in WooCommerce Stripe.
 ## What It Measures
 
 The `ece-product-page-waterfall` trace creates a disposable WP Codebox WordPress
-runtime, mounts WooCommerce and WooCommerce Stripe, uses Stripe's benchmark
+runtime, mounts WooCommerce and WooCommerce Stripe, uses this rig's benchmark
 fixture to create a purchasable product with product-page ECE enabled, opens the
 product page in a browser probe, and records waterfall metrics.
 
@@ -58,8 +58,8 @@ Secondary noisy metrics:
 
 ## Prerequisites
 
-The Stripe checkout must include `tests/benchmarks/fixture-bootstrap.php`, which
-is added by https://github.com/woocommerce/woocommerce-gateway-stripe/pull/5522.
+The rig owns its benchmark fixture at `bench/fixture-bootstrap.php`; the target
+Stripe checkout does not need benchmark fixture files.
 
 For `homeboy rig check`, use `HOMEBOY_WC_STRIPE_COMPONENT_PATH` when the target
 Stripe checkout is a worktree instead of `~/Developer/woocommerce-gateway-stripe`:
@@ -142,7 +142,7 @@ Useful settings:
 ## Real Wallet Profile
 
 The default `smoke`, `hot`, and interaction profiles remain synthetic lifecycle
-evidence. They intentionally keep working with the Stripe benchmark fixture's
+evidence. They intentionally keep working with the rig benchmark fixture's
 placeholder keys so network, DOM, and CLS-style render timing can be collected
 without real Stripe credentials.
 

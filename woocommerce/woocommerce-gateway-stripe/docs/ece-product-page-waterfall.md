@@ -8,7 +8,7 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
 
 1. Start a disposable WP Codebox WordPress runtime.
 2. Activate WooCommerce and WooCommerce Stripe.
-3. Run `tests/benchmarks/fixture-bootstrap.php` from the Stripe checkout.
+3. Run this rig's `bench/fixture-bootstrap.php` in the disposable runtime.
 4. Configure Stripe test/ECE settings with product-page ECE enabled.
 5. Create a simple purchasable product.
 6. Open the product page in a browser probe.
