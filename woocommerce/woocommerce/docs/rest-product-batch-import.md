@@ -13,9 +13,13 @@ existing performance counters:
 - `reentrant_save_post_product_create_fanout`: installs a `save_post_product`
   listener that re-saves the product during create, matching common extension
   fanout behavior.
+- `reentrant_save_post_product_variation_create_fanout`: installs a
+  `save_post_product_variation` listener that re-saves each variation during
+  create, covering variation-specific extension fanout behavior.
 - `duplicate_meta_and_readback_correctness`: scans created simple products and
-  variations for duplicate postmeta rows, then verifies simple product stock
-  values read back from WooCommerce match the REST update payload.
+  variations for duplicate postmeta rows, then verifies simple product and
+  variation stock values read back from WooCommerce match the REST update
+  payload.
 - `shared_product_and_variation_data_store_reuse`: forces product and variation datastore
   loading through shared instances using WooCommerce datastore filters, so
   create-state leaks across nested saves are visible.
@@ -26,12 +30,14 @@ These scenarios are labeled in the JSON artifact under
 - `scenario_reentrant_save_post_product`
 - `scenario_shared_product_data_store`
 - `side_effect_reentrant_save_post_product_count`
+- `side_effect_reentrant_save_post_product_variation_count`
 - `side_effect_shared_product_data_store_loads`
 - `side_effect_shared_variation_data_store_loads`
 - `side_effect_simple_duplicate_meta_row_count`
 - `side_effect_variation_duplicate_meta_row_count`
 - `side_effect_simple_manage_stock_readback_mismatches`
 - `side_effect_simple_stock_readback_mismatches`
+- `side_effect_variation_manage_stock_readback_mismatches`
 
 The run fails its side-effect invariant count when duplicate meta rows, shadowed
 stock readback, or missing shared datastore reuse are observed.
