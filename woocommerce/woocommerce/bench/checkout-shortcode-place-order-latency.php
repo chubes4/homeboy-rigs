@@ -23,8 +23,20 @@ return function (): array {
 	if ( ! function_exists( 'wc_load_cart' ) ) {
 		throw new RuntimeException( 'WooCommerce cart loader is not available.' );
 	}
+	if ( ! did_action( 'woocommerce_init' ) && method_exists( WC(), 'init' ) ) {
+		WC()->init();
+	}
+	if ( ! did_action( 'woocommerce_after_register_taxonomy' ) && class_exists( 'WC_Post_Types' ) ) {
+		WC_Post_Types::register_taxonomies();
+	}
+	if ( ! did_action( 'woocommerce_after_register_post_type' ) && class_exists( 'WC_Post_Types' ) ) {
+		WC_Post_Types::register_post_types();
+	}
 	if ( ! did_action( 'before_woocommerce_init' ) ) {
 		do_action( 'before_woocommerce_init' );
+	}
+	if ( ! WC()->product_factory && class_exists( 'WC_Product_Factory' ) ) {
+		WC()->product_factory = new WC_Product_Factory();
 	}
 	if ( ! WC()->countries && class_exists( 'WC_Countries' ) ) {
 		WC()->countries = new WC_Countries();
