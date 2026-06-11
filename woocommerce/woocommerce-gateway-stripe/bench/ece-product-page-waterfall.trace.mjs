@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
+import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -68,6 +69,7 @@ const outputFile = path.join(artifactDir, 'wp-codebox-output.json');
 const codeboxArtifacts = path.join(artifactDir, 'wp-codebox-artifacts');
 const metricsPath = path.join(artifactDir, 'ece-waterfall-metrics.json');
 const metadataPath = path.join(artifactDir, 'ece-waterfall-metadata.json');
+const fixtureHealthPath = path.join(artifactDir, 'ece-fixture-health.json');
 
 function event(source, name, data = {}) {
   return trace.mark(name, data, source);
@@ -95,6 +97,43 @@ async function readJsonl(pathname) {
     .split('\n')
     .filter(Boolean)
     .map((line) => JSON.parse(line));
+}
+
+async function findBrowserHtmlPath(directory) {
+  if (!directory || !existsSync(directory)) {
+    return '';
+  }
+
+  const entries = await readdir(directory, { withFileTypes: true });
+  for (const entry of entries) {
+    const pathname = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      const nested = await findBrowserHtmlPath(pathname);
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+
+    if (/\.html?$/i.test(entry.name)) {
+      return pathname;
+    }
+  }
+
+  return '';
+}
+
+async function readTextIfSmall(pathname, maxBytes = 1024 * 1024 * 5) {
+  if (!pathname || !existsSync(pathname)) {
+    return '';
+  }
+
+  const fileStat = await stat(pathname);
+  if (fileStat.size > maxBytes) {
+    return '';
+  }
+
+  return readFile(pathname, 'utf8');
 }
 
 function relativeTimingMs(cdpMetrics, metricName) {
@@ -494,6 +533,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     });
     return {
       title: document.title,
+      locationHref: window.location.href,
       scenario: ${JSON.stringify(scenario.id)},
       interaction: ${JSON.stringify(scenario.interaction)},
       interactionEvents,
@@ -505,6 +545,15 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       iframes: document.querySelectorAll('iframe').length,
       finalSnapshot,
       stripeAvailability,
+      fixtureHealth: {
+        hasCartForm: !!document.querySelector('form.cart'),
+        hasSummary: !!document.querySelector('.summary'),
+        hasAddToCartButton: !!document.querySelector('form.cart button[type="submit"], form.cart .single_add_to_cart_button'),
+        hasStripeParams: typeof window.wc_stripe_express_checkout_params === 'object' && window.wc_stripe_express_checkout_params !== null,
+        productTitle: document.querySelector('h1.product_title, .product_title, h1')?.textContent?.trim() || '',
+        productTitleMatches: /stripe benchmark product/i.test(document.querySelector('h1.product_title, .product_title, h1')?.textContent || ''),
+        hasBelowFoldLayout: !!document.querySelector('#homeboy-ece-below-fold-layout'),
+      },
       renderProbe: probe,
     };
   `;
@@ -537,6 +586,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
             ...profileOptions.browserProbeArgs,
+            ...profileOptions.browserProbeAssertions,
             'capture=console,errors,html,network,performance,memory,screenshot',
             `pre-page-script=${prePageScript}`,
             `script=${browserProbeScript}`,
@@ -565,6 +615,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const performancePath = browserDir ? path.join(browserDir, 'performance.json') : '';
   const consolePath = browserDir ? path.join(browserDir, 'console.jsonl') : '';
   const errorsPath = browserDir ? path.join(browserDir, 'errors.jsonl') : '';
+  const htmlPath = await findBrowserHtmlPath(browserDir);
   const network = await readJsonl(networkPath);
   const consoleMessages = await readJsonl(consolePath);
   const pageErrors = await readJsonl(errorsPath);
@@ -576,6 +627,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const googleUrls = urls.filter((url) => /(^|\.)google\.com|(^|\.)gstatic\.com|googleapis\.com/.test(url));
   const iframeResponses = responses.filter((entry) => (entry.resourceType || entry.request?.resourceType) === 'iframe');
   const summary = await readJsonAsync(summaryPath);
+  const html = await readTextIfSmall(htmlPath);
   const performanceSummary = await readJsonAsync(performancePath);
   const browserMetrics = summary?.summary?.metrics ?? {};
   const cdpMetrics = performanceSummary?.final?.cdpMetrics ?? {};
@@ -604,6 +656,19 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const stripeLoadPageErrors = stripeLoadMessages(pageErrors);
   const finalVisibleButtonCount = scriptResult?.finalSnapshot?.ece_visible_button_count ?? renderLatest.visible_button_count ?? 0;
   const eceRenderedVisibleButton = finalVisibleButtonCount > 0 || peakSampleValue(renderSamples, 'visible_button_count') > 0;
+  const fixtureHealth = evaluateEceFixtureHealth({
+    html,
+    htmlPath,
+    summaryPath,
+    consolePath,
+    errorsPath,
+    summary,
+    consoleMessages,
+    pageErrors,
+    scriptResult,
+    scenario,
+    profileOptions,
+  });
 
   event('browser', 'probe.ready', {
     total_responses: responses.length,
@@ -682,7 +747,12 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_render_final_wallets_link_height: numberOrNull(renderLatest.ece_wallets_link_height),
     ece_interaction_event_count: interactionEvents.length,
     ece_interaction_succeeded: interactionSucceeded,
+    ece_fixture_health_passed: fixtureHealth.ok,
+    ece_fixture_health_failure_count: fixtureHealth.failures.length,
   };
+
+  await writeFile(fixtureHealthPath, `${JSON.stringify(fixtureHealth, null, 2)}\n`);
+  trace.artifact({ label: 'Fixture health', path: fixtureHealthPath });
 
   await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
   trace.artifact({ label: 'Waterfall metrics', path: metricsPath });
@@ -729,6 +799,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         google_urls_sample: googleUrls.slice(0, 20),
         console_messages_sample: consoleMessages.slice(0, 20),
         page_errors_sample: pageErrors.slice(0, 20),
+        fixture_health: fixtureHealth,
         browser_script_result: scriptResult,
         pass_conditions: {
           network_path_exists: existsSync(networkPath),
@@ -756,13 +827,20 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         : true;
   const stripeLoadPass = stripeLoadPageErrors.length === 0;
   const browserProbeCompleted = responses.length > 0 && existsSync(networkPath) && existsSync(performancePath);
-  const pass = browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
+  const pass = fixtureHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
   const summaryText = pass
     ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
-    : stripeLoadPass
+    : !fixtureHealth.ok
+      ? fixtureHealthSummary(fixtureHealth)
+      : stripeLoadPass
       ? 'Browser waterfall capture did not observe Stripe network responses.'
       : `Browser waterfall capture recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`;
 
+  trace.assertion({
+    id: 'fixture-health',
+    status: fixtureHealth.ok ? 'pass' : 'fail',
+    message: fixtureHealthSummary(fixtureHealth),
+  });
   trace.assertion({
     id: 'stripe-network-observed',
     status: stripeUrls.length > 0 ? 'pass' : 'fail',
@@ -809,6 +887,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   trace.artifact({ label: 'WP Codebox output', path: outputFile });
   if (summaryPath && existsSync(summaryPath)) {
     trace.artifact({ label: 'Browser summary', path: summaryPath });
+  }
+  if (htmlPath && existsSync(htmlPath)) {
+    trace.artifact({ label: 'Captured HTML', path: htmlPath });
   }
   if (networkPath && existsSync(networkPath)) {
     trace.artifact({ label: 'Browser network log', path: networkPath });
