@@ -18,6 +18,8 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/issues/32055
 - https://github.com/woocommerce/woocommerce/issues/26569
 - https://github.com/woocommerce/woocommerce/issues/17355
+- https://github.com/chubes4/homeboy-rigs/issues/224
+- https://wordpress.org/support/topic/wp_query-get_posts-slow-query-on-dashboard/
 
 ## Install
 
@@ -74,6 +76,7 @@ php bin/generate-feature-config.php
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
+homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
@@ -102,6 +105,12 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   across many unique layered-nav count query hashes to measure growth of the
   single `wc_layered_nav_counts_*` taxonomy transient reported in WooCommerce
   issue #17355.
+- `admin-dashboard-physical-products-query` seeds configurable simple products
+  and product categories with deterministic `_virtual` metadata, sets the
+  WooCommerce onboarding state, exercises
+  `Shipping::has_physical_products()` plus the dashboard setup-widget PHP path,
+  and records whether the reported physical-products SQL appears on the tested
+  WooCommerce branch.
 - `layered-nav-catalog-crawl` uses real `filter_*` request combinations and
   renders the layered-nav widget list path for each request shape, measuring
   the same transient growth through a crawler/catalog-traffic-shaped path.
@@ -124,6 +133,10 @@ The first slice reports:
 - `final_transient_entry_count`, `max_transient_entry_count`,
   `final_serialized_value_bytes`, and `cache_exceeded_limit` for layered-nav
   count cache growth.
+- `direct_has_physical_products_ms`, `dashboard_setup_widget_ms`,
+  `matching_query_elapsed_ms`, `matching_query_count`, `total_query_count`,
+  seeded product/term counts, physical/virtual split, onboarding state, and
+  WooCommerce version for the admin dashboard physical-products path.
 
 See `docs/checkout-shipping-cache.md` for workload details and current TODOs.
 

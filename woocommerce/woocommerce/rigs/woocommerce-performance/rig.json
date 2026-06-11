@@ -22,7 +22,10 @@
             "WC_SHORTCODE_CHECKOUT_PRODUCTS": "150",
             "WC_SHORTCODE_CHECKOUT_VARIATIONS": "125",
             "WC_SHORTCODE_CHECKOUT_HISTORICAL_ORDERS": "25",
-            "WC_SHORTCODE_CHECKOUT_PAYMENT_METHODS": "cod,homeboy_synthetic"
+            "WC_SHORTCODE_CHECKOUT_PAYMENT_METHODS": "cod,homeboy_synthetic",
+            "WC_ADMIN_DASHBOARD_PRODUCTS": "500",
+            "WC_ADMIN_DASHBOARD_TERMS": "20",
+            "WC_ADMIN_DASHBOARD_PHYSICAL_PERCENT": "100"
           }
         }
       }
@@ -45,6 +48,7 @@
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
       { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
+      { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
       { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
       { "path": "${package.root}/bench/rest-product-batch-import.php" }
@@ -55,6 +59,7 @@
       "checkout-concurrent-create-order",
       "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "rest-product-batch-import"
@@ -63,6 +68,7 @@
       "checkout-concurrent-create-order",
       "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "rest-product-batch-import"

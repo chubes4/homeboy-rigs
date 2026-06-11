@@ -282,9 +282,9 @@ homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-
 
 ## woocommerce/woocommerce
 
-`rigs/woocommerce-performance/rig.json` runs WooCommerce checkout/shipping cache
-performance workloads against a local WooCommerce monorepo checkout mounted into
-the WP Codebox WordPress bench runtime.
+`rigs/woocommerce-performance/rig.json` runs WooCommerce checkout, shipping,
+catalog, and admin-dashboard performance workloads against a local WooCommerce
+monorepo checkout mounted into the WP Codebox WordPress bench runtime.
 
 ```bash
 homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
@@ -292,6 +292,7 @@ homeboy rig check woocommerce-performance
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
+homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products
 ```
 
 The runner must provide `~/Developer/woocommerce/plugins/woocommerce`. The rig
