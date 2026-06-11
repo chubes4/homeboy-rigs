@@ -291,13 +291,17 @@ homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/wo
 homeboy rig check woocommerce-performance
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
+homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products
 ```
 
 The runner must provide `~/Developer/woocommerce/plugins/woocommerce`. The rig
 check reports missing checkout, Composer dependency, and generated feature-config
 prerequisites with targeted messages. Use `homeboy rig up` for the safe dependency
-prep path before benchmarking.
+prep path before benchmarking. `checkout-shortcode-place-order-latency` covers
+the shortcode `[woocommerce_checkout]` place-order path from
+https://github.com/chubes4/homeboy-rigs/issues/223 and writes raw JSON under
+`HOMEBOY_BENCH_SHARED_STATE`.
 
 ## woocommerce/woocommerce-gateway-stripe
 
