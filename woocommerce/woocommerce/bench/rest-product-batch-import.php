@@ -353,9 +353,11 @@ return function (): array {
 	);
 	add_filter( 'query', $query_counter );
 
-	$reentrant_save_post_product_count = 0;
-	$reentrant_save_post_product_ids   = array();
-	$reentrant_save_post_product       = static function ( int $post_id ) use ( &$reentrant_save_post_product_count, &$reentrant_save_post_product_ids ): void {
+	$reentrant_save_post_product_count   = 0;
+	$reentrant_save_post_product_ids     = array();
+	$reentrant_save_post_variation_count = 0;
+	$reentrant_save_post_variation_ids   = array();
+	$reentrant_save_post_product         = static function ( int $post_id ) use ( &$reentrant_save_post_product_count, &$reentrant_save_post_product_ids ): void {
 		static $running = false;
 
 		if ( $running || wp_is_post_revision( $post_id ) ) {
@@ -375,7 +377,28 @@ return function (): array {
 			$running = false;
 		}
 	};
+	$reentrant_save_post_variation       = static function ( int $post_id ) use ( &$reentrant_save_post_variation_count, &$reentrant_save_post_variation_ids ): void {
+		static $running = false;
+
+		if ( $running || wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+
+		try {
+			$running = true;
+			$variation = wc_get_product( $post_id );
+			if ( $variation instanceof WC_Product_Variation ) {
+				$variation->update_meta_data( '_homeboy_reentrant_save_post_variation_synced', 'yes' );
+				$variation->save();
+				++$reentrant_save_post_variation_count;
+				$reentrant_save_post_variation_ids[] = (int) $post_id;
+			}
+		} finally {
+			$running = false;
+		}
+	};
 	add_action( 'save_post_product', $reentrant_save_post_product, 10, 1 );
+	add_action( 'save_post_product_variation', $reentrant_save_post_variation, 10, 1 );
 
 	$shared_product_data_store            = null;
 	$shared_variation_data_store          = null;
@@ -585,6 +608,7 @@ return function (): array {
 	remove_filter( 'query', $query_counter );
 	remove_filter( 'woocommerce_rest_check_permissions', $allow_product_rest_writes, 10 );
 	remove_action( 'save_post_product', $reentrant_save_post_product, 10 );
+	remove_action( 'save_post_product_variation', $reentrant_save_post_variation, 10 );
 	remove_filter( 'woocommerce_product_data_store', $shared_product_data_store_filter );
 	remove_filter( 'woocommerce_product-variation_data_store', $shared_variation_data_store_filter );
 
@@ -736,13 +760,14 @@ return function (): array {
 		$expected_variation_prices[ (int) $variation_id ] = (string) ( 40 + $index );
 		$expected_variation_stock[ (int) $variation_id ]  = 40 + $index;
 	}
-	$variation_price_mismatches = 0;
-	$variation_stock_mismatches = 0;
-	$variation_parent_mismatches = 0;
-	$variation_attribute_empty_count = 0;
-	$simple_manage_stock_mismatches = 0;
-	$simple_stock_mismatches        = 0;
-	$simple_ids_int = array_map( 'intval', $simple_ids );
+	$variation_price_mismatches        = 0;
+	$variation_stock_mismatches        = 0;
+	$variation_manage_stock_mismatches = 0;
+	$variation_parent_mismatches       = 0;
+	$variation_attribute_empty_count   = 0;
+	$simple_manage_stock_mismatches    = 0;
+	$simple_stock_mismatches           = 0;
+	$simple_ids_int                    = array_map( 'intval', $simple_ids );
 	foreach ( $simple_products as $simple_product ) {
 		$simple_id    = $simple_product->get_id();
 		$simple_index = array_search( $simple_id, $simple_ids_int, true );
@@ -835,6 +860,9 @@ return function (): array {
 		if ( (int) $variation_product->get_stock_quantity() !== (int) ( $expected_variation_stock[ $variation_id ] ?? -1 ) ) {
 			++$variation_stock_mismatches;
 		}
+		if ( true !== $variation_product->get_manage_stock() ) {
+			++$variation_manage_stock_mismatches;
+		}
 		if ( (int) $variation_product->get_parent_id() !== (int) $parent_id ) {
 			++$variation_parent_mismatches;
 		}
@@ -879,6 +907,7 @@ return function (): array {
 	$record_invariant( 'variation_parent_ids_match', 0 === $variation_parent_mismatches, array( 'mismatches' => $variation_parent_mismatches ) );
 	$record_invariant( 'variation_prices_match_update_payload', 0 === $variation_price_mismatches, array( 'mismatches' => $variation_price_mismatches ) );
 	$record_invariant( 'variation_stock_matches_update_payload', 0 === $variation_stock_mismatches, array( 'mismatches' => $variation_stock_mismatches ) );
+	$record_invariant( 'variation_manage_stock_readback_matches_payload_after_reentrant_save', 0 === $variation_manage_stock_mismatches, array( 'mismatches' => $variation_manage_stock_mismatches ) );
 	$record_invariant( 'simple_manage_stock_readback_matches_payload_after_reentrant_save', 0 === $simple_manage_stock_mismatches, array( 'mismatches' => $simple_manage_stock_mismatches ) );
 	$record_invariant( 'simple_stock_readback_matches_payload_after_reentrant_save', 0 === $simple_stock_mismatches, array( 'mismatches' => $simple_stock_mismatches ) );
 	$record_invariant( 'simple_create_has_no_duplicate_meta_rows_after_reentrant_save', empty( $simple_duplicate_meta_rows ), array( 'duplicates' => array_slice( $simple_duplicate_meta_rows, 0, 20 ) ) );
@@ -1100,12 +1129,15 @@ return function (): array {
 		'side_effect_variation_loaded_count' => count( $variation_products ),
 		'side_effect_reentrant_save_post_product_count' => $reentrant_save_post_product_count,
 		'side_effect_reentrant_save_post_product_unique_count' => count( array_unique( $reentrant_save_post_product_ids ) ),
+		'side_effect_reentrant_save_post_product_variation_count' => $reentrant_save_post_variation_count,
+		'side_effect_reentrant_save_post_product_variation_unique_count' => count( array_unique( $reentrant_save_post_variation_ids ) ),
 		'side_effect_shared_product_data_store_loads' => $shared_product_data_store_loads,
 		'side_effect_shared_variation_data_store_loads' => $shared_variation_data_store_loads,
 		'side_effect_simple_duplicate_meta_row_count' => count( $simple_duplicate_meta_rows ),
 		'side_effect_variation_duplicate_meta_row_count' => count( $variation_duplicate_meta_rows ),
 		'side_effect_simple_manage_stock_readback_mismatches' => $simple_manage_stock_mismatches,
 		'side_effect_simple_stock_readback_mismatches' => $simple_stock_mismatches,
+		'side_effect_variation_manage_stock_readback_mismatches' => $variation_manage_stock_mismatches,
 		'side_effect_parent_child_count' => $parent_after ? count( $parent_after->get_children() ) : 0,
 		'side_effect_variation_parent_mismatches' => $variation_parent_mismatches,
 		'side_effect_variation_price_mismatches' => $variation_price_mismatches,
@@ -1151,10 +1183,12 @@ return function (): array {
 						'invariant_failures'                          => $invariant_failures,
 						'scenario_labels'                             => array(
 							'reentrant_save_post_product_create_fanout',
+							'reentrant_save_post_product_variation_create_fanout',
 							'duplicate_meta_and_readback_correctness',
 							'shared_product_and_variation_data_store_reuse',
 						),
 						'reentrant_save_post_product_ids'              => array_values( array_unique( $reentrant_save_post_product_ids ) ),
+						'reentrant_save_post_product_variation_ids'    => array_values( array_unique( $reentrant_save_post_variation_ids ) ),
 						'simple_duplicate_meta_rows'                   => $simple_duplicate_meta_rows,
 						'variation_duplicate_meta_rows'                => $variation_duplicate_meta_rows,
 						'meta_hook_counts'                            => $meta_hook_counts,
