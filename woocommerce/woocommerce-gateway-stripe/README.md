@@ -176,6 +176,18 @@ Real-wallet evidence records:
 - Browser wallet capability flags such as Payment Request and Apple Pay support.
 - Whether a visible ECE button rendered by the end of the probe.
 
+## Fixture Health
+
+Before treating waterfall metrics as reviewer-facing evidence, the rig writes an
+`ece-fixture-health.json` artifact and fails the trace when the benchmark product
+page is structurally invalid. The health gate checks that the benchmark product
+resolved, `form.cart` rendered as the selected product-page insertion point,
+`wc_stripe_express_checkout_params` is present, the ECE mount exists, captured
+HTML is not a tiny `fetch failed` page, fatal/parse-error markers are absent,
+and Woo add-to-cart/template warnings did not break rendering. Failures include
+pointers to the browser summary, captured HTML, console, and page-error artifacts
+so reviewers can inspect the broken fixture directly.
+
 ## Interpretation
 
 Use request-count and browser-object metrics as the primary signal. The browser
@@ -191,9 +203,11 @@ surfaces to appear after the browser starts loading the product page.
 The metadata artifact records requested and effective browser context, including
 requested viewport, effective viewport, browser profile, preview settings, final
 URL, user agent, and whether the page ran in `window.isSecureContext`. Treat the
-default local HTTP/headless profile as request/lifecycle evidence only. It can
-show Stripe requests, ECE containers, iframes, buttons, console output, and page
-errors, but it is not wallet-eligibility proof. Use the `secure-browser` profile
-for secure-context browser plumbing checks, and use the `real-wallet` profile
-with Stripe test keys plus an HTTPS public preview URL when collecting
-real-wallet-capable evidence.
+default local HTTP/headless profile as synthetic layout proof: it can show Stripe
+requests, ECE containers, iframes, buttons, console output, page errors, and
+deterministic CLS behavior, but it is not wallet-eligibility proof. Structural
+ECE proof means the fixture-health gate passed and the product page actually
+rendered the ECE insertion point, params, and mount needed for those metrics to
+be meaningful. Use the `secure-browser` profile for secure-context browser
+plumbing checks, and use the `real-wallet` profile with Stripe test keys plus an
+HTTPS public preview URL when collecting real-wallet-capable evidence.

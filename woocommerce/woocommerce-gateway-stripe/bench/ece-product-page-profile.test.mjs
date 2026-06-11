@@ -4,6 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 
@@ -263,4 +264,66 @@ test('ECE simulated CLS scripts track root and grouped ECE containers', () => {
   assert.ok(!unreservedScript.includes("].join('\n');"));
   assert.doesNotMatch(unreservedScript, /min-height: 48px/);
   assert.match(reservedScript, /min-height: 48px/);
+});
+
+test('fixture health passes for a structurally valid ECE product page', () => {
+  const health = evaluateEceFixtureHealth({
+    html: '<html><body><h1 class="product_title">Stripe Benchmark Product</h1><form class="cart"><div id="wc-stripe-express-checkout-element"></div></form></body></html>',
+    htmlPath: '/tmp/browser/page.html',
+    summaryPath: '/tmp/browser/summary.json',
+    scriptResult: {
+      title: 'Stripe Benchmark Product',
+      locationHref: 'https://example.test/stripe-benchmark-product/',
+      eceContainer: true,
+      fixtureHealth: {
+        hasCartForm: true,
+        hasSummary: true,
+        hasStripeParams: true,
+        productTitleMatches: true,
+      },
+    },
+    summary: { summary: { finalUrl: 'https://example.test/stripe-benchmark-product/' } },
+  });
+
+  assert.equal(health.ok, true);
+  assert.deepEqual(health.failures, []);
+});
+
+test('fixture health fails loudly with artifact pointers for invalid product pages', () => {
+  const health = evaluateEceFixtureHealth({
+    html: 'fetch failed\nFatal error: broken fixture',
+    htmlPath: '/tmp/browser/page.html',
+    summaryPath: '/tmp/browser/summary.json',
+    consolePath: '/tmp/browser/console.jsonl',
+    errorsPath: '/tmp/browser/errors.jsonl',
+    pageErrors: [{ text: 'PHP Warning: add-to-cart template missing' }],
+    scriptResult: {
+      title: 'Error',
+      locationHref: 'https://example.test/?post_type=product&name=stripe-benchmark-product',
+      eceContainer: false,
+      fixtureHealth: {
+        hasCartForm: false,
+        hasStripeParams: false,
+        productTitleMatches: false,
+      },
+    },
+  });
+
+  assert.equal(health.ok, false);
+  assert.ok(health.failures.some((failure) => /benchmark product/.test(failure)));
+  assert.ok(health.failures.some((failure) => /tiny fetch-failed page/.test(failure)));
+  assert.ok(health.failures.some((failure) => /fatal\/parse\/critical-error/.test(failure)));
+  assert.ok(health.failures.some((failure) => /add-to-cart\/template warnings/.test(failure)));
+  assert.ok(health.failures.some((failure) => /form\.cart/.test(failure)));
+  assert.ok(health.failures.some((failure) => /ECE mount/.test(failure)));
+  assert.ok(health.failures.some((failure) => /Stripe Express Checkout params/.test(failure)));
+  assert.ok(fixtureHealthSummary(health).includes('Captured HTML: /tmp/browser/page.html'));
+});
+
+test('waterfall recipe passes structural assertions to browser-probe', () => {
+  const tracePath = path.join(__dirname, 'ece-product-page-waterfall.trace.mjs');
+  const traceSource = readFileSync(tracePath, 'utf8');
+
+  assert.match(traceSource, /\.\.\.profileOptions\.browserProbeAssertions/);
+  assert.match(traceSource, /id: 'fixture-health'/);
 });
