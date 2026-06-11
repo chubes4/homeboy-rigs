@@ -252,6 +252,7 @@ if ( ! class_exists( 'Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 
 			$product->set_name( $name );
+			$product->set_slug( $sku );
 			$product->set_regular_price( $price );
 			$product->set_price( $price );
 			$product->set_manage_stock( false );
@@ -288,11 +289,12 @@ if ( ! class_exists( 'Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 
 			$country_locations = array_map(
-				static function ( string $code ): array {
-					return [
-						'code' => $code,
-						'type' => 'country',
-					];
+				static function ( string $code ): stdClass {
+					$location       = new stdClass();
+					$location->code = $code;
+					$location->type = 'country';
+
+					return $location;
 				},
 				array_keys( WC()->countries->get_countries() )
 			);
