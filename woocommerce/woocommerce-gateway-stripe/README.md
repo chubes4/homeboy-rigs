@@ -176,6 +176,55 @@ Real-wallet evidence records:
 - Browser wallet capability flags such as Payment Request and Apple Pay support.
 - Whether a visible ECE button rendered by the end of the probe.
 
+## Canonical Real-Wallet Compare
+
+Use the package wrapper when collecting PR evidence for real-wallet product-page
+ECE behavior. It fails before traces run unless the candidate ref/path, Stripe
+keys, preview port, and HTTPS public preview URL are present, then runs both the
+load-only waterfall and scroll-to-ECE target compares with canonical defaults.
+
+```bash
+export STRIPE_PUBLISHABLE_KEY=pk_test_...
+export STRIPE_SECRET_KEY=sk_test_...
+
+woocommerce/woocommerce-gateway-stripe/tools/real-wallet-ece-compare.sh \
+  --candidate your-branch-or-worktree \
+  --preview-port 49800 \
+  --public-url https://your-public-preview.example
+```
+
+Defaults:
+
+- Baseline: `origin/develop`
+- Profile: `real-wallet`
+- Repeat: `5`
+- Schedule: `interleaved`
+- Evidence mode: `--canonical`
+- Output directory: `woocommerce/woocommerce-gateway-stripe/.homeboy/evidence/woo-stripe-ece-real-wallet-<timestamp>/`
+
+The wrapper writes:
+
+- `README.md` with baseline/candidate/profile/preview settings.
+- `ece-product-page-waterfall.compare.json` and `.compare.log`.
+- `ece-product-page-scroll-to-ece.compare.json` and `.compare.log`.
+
+Reviewer evidence fields to inspect in each compare artifact:
+
+- Stripe responses: `stripe_response_count`,
+  `stripe_elements_session_response_count`, `stripe_elements_session_status`,
+  and `stripe_elements_session_error_count`.
+- ECE mounted/rendered state: `ece_render_container_seen_ms`,
+  `ece_render_first_child_ms`, `ece_render_first_iframe_ms`,
+  `ece_render_first_visible_iframe_ms`, `ece_render_first_visible_button_ms`,
+  and `ece_rendered_visible_button`.
+- Child/iframe/button counts: `ece_render_peak_child_count`,
+  `ece_render_peak_iframe_count`, and
+  `ece_render_peak_visible_iframe_count`.
+- Layout stability: `browser_cls`, `browser_layout_shift_count`, and any
+  layout-shift source rectangles preserved in metadata.
+- Browser artifacts: screenshots, final HTML, and metadata links copied by
+  Homeboy/WP Codebox into the trace artifact bundle.
+
 ## Interpretation
 
 Use request-count and browser-object metrics as the primary signal. The browser
