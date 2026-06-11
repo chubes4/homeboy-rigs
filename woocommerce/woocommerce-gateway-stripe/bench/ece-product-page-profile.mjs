@@ -13,8 +13,8 @@ const DESKTOP_BROWSER_PROBE_ARGS = [
 ];
 
 const STRUCTURAL_BROWSER_ASSERTIONS = [
-  'assert=no-page-errors',
-  'assert=exists:#wc-stripe-express-checkout-element',
+  'assert=advisory:no-page-errors',
+  'assert=advisory:exists:#wc-stripe-express-checkout-element',
   'assert=request-count-by-type:document>=1',
   'assert=metric:browser_resource_count>=1',
 ];

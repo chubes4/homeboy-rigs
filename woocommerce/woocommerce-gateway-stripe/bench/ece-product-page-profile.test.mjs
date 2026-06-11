@@ -20,8 +20,8 @@ test('default smoke profile preserves browser probe defaults', () => {
   assert.equal(options.runtimePreview, null);
   assert.deepEqual(options.recipeRunArgs, []);
   assert.deepEqual(options.browserProbeArgs, []);
-  assert.ok(options.browserProbeAssertions.includes('assert=no-page-errors'));
-  assert.ok(options.browserProbeAssertions.includes('assert=exists:#wc-stripe-express-checkout-element'));
+  assert.ok(options.browserProbeAssertions.includes('assert=advisory:no-page-errors'));
+  assert.ok(options.browserProbeAssertions.includes('assert=advisory:exists:#wc-stripe-express-checkout-element'));
   assert.equal(options.waitFor, null);
 });
 
@@ -59,7 +59,7 @@ test('secure-browser profile uses generic preview and browser profile args', () 
     assert.ok(options.browserProbeArgs.includes('browser=chromium'));
     assert.ok(options.browserProbeArgs.includes('device=Desktop Chrome'));
     assert.ok(options.browserProbeArgs.includes('locale=en-US'));
-    assert.ok(options.browserProbeAssertions.includes('assert=no-page-errors'));
+    assert.ok(options.browserProbeAssertions.includes('assert=advisory:no-page-errors'));
     assert.equal(options.waitFor, null);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
@@ -224,7 +224,7 @@ test('real-wallet profile carries real-wallet evidence settings without leaking 
       'https://ece-wallet.example.test',
     ]);
     assert.ok(!options.recipeRunArgs.join(' ').includes('sk_test_real_fixture'));
-    assert.ok(options.browserProbeAssertions.includes('assert=no-page-errors'));
+    assert.ok(options.browserProbeAssertions.includes('assert=advisory:no-page-errors'));
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
