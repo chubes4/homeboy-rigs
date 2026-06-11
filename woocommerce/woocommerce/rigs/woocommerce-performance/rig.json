@@ -18,7 +18,10 @@
             "WC_REST_BATCH_IMPORT_ITEMS": "25",
             "WC_REST_BATCH_IMPORT_ATTRIBUTES": "3",
             "WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE": "8",
-            "WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS": "0"
+            "WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS": "0",
+            "WC_ADMIN_DASHBOARD_PRODUCTS": "500",
+            "WC_ADMIN_DASHBOARD_TERMS": "20",
+            "WC_ADMIN_DASHBOARD_PHYSICAL_PERCENT": "100"
           }
         }
       }
@@ -40,6 +43,7 @@
     "wordpress": [
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
+      { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
       { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
       { "path": "${package.root}/bench/rest-product-batch-import.php" }
@@ -49,6 +53,7 @@
     "smoke": [
       "checkout-concurrent-create-order",
       "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "rest-product-batch-import"
@@ -56,6 +61,7 @@
     "hot": [
       "checkout-concurrent-create-order",
       "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "rest-product-batch-import"
