@@ -131,6 +131,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       runtimePreview: null,
       recipeRunArgs: [],
       browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
+      browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
       waitFor: 'load',
     };
   }
@@ -152,6 +153,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
         ...DESKTOP_BROWSER_PROBE_ARGS,
         'throttle=low-end-mobile-slow-4g',
       ],
+      browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
       waitFor: 'load',
     };
   }
@@ -170,6 +172,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       runtimePreview: null,
       recipeRunArgs: [],
       browserProbeArgs: [],
+      browserProbeAssertions: STRUCTURAL_BROWSER_ASSERTIONS,
       waitFor: null,
     };
   }
@@ -205,6 +208,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       ...(publicUrl ? ['--preview-public-url', publicUrl] : []),
     ],
     browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
+    browserProbeAssertions: STRUCTURAL_BROWSER_ASSERTIONS,
     waitFor: null,
   };
 }
