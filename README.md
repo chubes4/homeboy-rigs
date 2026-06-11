@@ -11,6 +11,7 @@ A **rig** is a declarative spec for a reproducible local dev environment: compon
   rigs/<id>/rig.json
   stacks/    # homeboy stack specs
   bench/     # portable bench workloads used by those rigs
+shared/      # reusable rig helper patterns that are not tied to one owner/repo
 ```
 
 Examples:
@@ -23,6 +24,12 @@ WordPress/wordpress-playground/stacks/playground-combined.json
 ```
 
 This keeps bench workloads beside the rig that uses them and makes ownership obvious when this repo becomes a shared rig package.
+
+Reusable helper patterns live under `shared/`. The first shared web performance
+pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
+mark feature-not-needed and feature-needed phases, count feature/third-party
+requests before and after the trigger, and emit assertions proving no early
+initialization plus post-trigger success.
 
 ## Install
 
