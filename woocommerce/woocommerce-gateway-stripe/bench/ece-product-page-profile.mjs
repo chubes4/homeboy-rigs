@@ -12,6 +12,21 @@ const DESKTOP_BROWSER_PROBE_ARGS = [
   'touch=0',
 ];
 
+const STRUCTURAL_BROWSER_ASSERTIONS = [
+  'assert=advisory:no-page-errors',
+  'assert=advisory:exists:#wc-stripe-express-checkout-element',
+  'assert=request-count-by-type:document>=1',
+  'assert=metric:browser_resource_count>=1',
+];
+
+const WEBPERF_BROWSER_ASSERTIONS = [
+  ...STRUCTURAL_BROWSER_ASSERTIONS,
+  'assert=metric:browser_nav_duration_ms>=0',
+  'assert=metric:browser_ttfb_ms>=0',
+  'assert=metric:browser_fcp_ms>=0',
+  'assert=metric:browser_lcp_ms>=0',
+];
+
 const PROFILE_METADATA = {
   [DEFAULT_PROFILE]: {
     label: 'Smoke',

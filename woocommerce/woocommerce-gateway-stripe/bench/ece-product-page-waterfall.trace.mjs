@@ -45,7 +45,9 @@ if (!existsSync(path.join(woocommercePath, 'woocommerce.php'))) {
   throw new Error(`Missing WooCommerce dependency plugin at ${woocommercePath}. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory.`);
 }
 
-const fixtureBootstrapSource = (await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '');
+const fixtureBootstrapSource = (await readFile(fixtureBootstrapPath, 'utf8'))
+  .replace(/^<\?php\s*/, '')
+  .replace(/^\s*declare\(strict_types=1\);\s*/m, '');
 
 process.env.HOMEBOY_TRACE_ARTIFACT_DIR ||= artifactDir;
 const { createTraceReporter } = await import(pathToFileURL(path.join(traceHelperDir, 'timeline.mjs')).href);
@@ -113,6 +115,25 @@ function wpCodeboxCommand() {
   return { command: wpCodeboxBin, args: [] };
 }
 
+async function prepareStripePlugin(pathname) {
+  const autoloadPath = path.join(pathname, 'vendor/autoload.php');
+  if (existsSync(autoloadPath)) {
+    event('fixture', 'stripe_plugin.prepare.skipped', { reason: 'autoload_exists' });
+    return;
+  }
+
+  if (!existsSync(path.join(pathname, 'composer.json'))) {
+    throw new Error(`Missing Composer metadata in Stripe plugin checkout at ${pathname}; cannot prepare autoloader for WP Codebox activation.`);
+  }
+
+  event('fixture', 'stripe_plugin.prepare.start', { path: pathname });
+  await execFileAsync('composer', ['install', '--no-interaction', '--no-progress', '--no-dev', '--classmap-authoritative'], {
+    cwd: pathname,
+    maxBuffer: 1024 * 1024 * 20,
+  });
+  event('fixture', 'stripe_plugin.prepare.done', { path: pathname });
+}
+
 function numberOrNull(value) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
 }
@@ -178,6 +199,8 @@ try {
     real_wallet_capable: profileOptions.realWalletCapable,
     synthetic_only: profileOptions.syntheticOnly,
   });
+
+  await prepareStripePlugin(componentPath);
 
   await writeFile(
     setupFile,
@@ -498,7 +521,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       },
     },
     inputs: {
-      extraPlugins: [
+      extra_plugins: [
         { source: woocommercePath, slug: 'woocommerce', activate: true },
         { source: componentPath, slug: 'woocommerce-gateway-stripe', pluginFile: 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php', activate: true },
       ],
@@ -509,7 +532,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         {
           command: 'wordpress.browser-probe',
           args: [
-            'url=/?product=stripe-benchmark-product',
+            'url=/?post_type=product&name=stripe-benchmark-product',
             `wait-for=${profileOptions.waitFor || scenario.waitFor || 'networkidle'}`,
             `duration=${probeDuration}`,
             `viewport=${viewport}`,
@@ -707,6 +730,12 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         console_messages_sample: consoleMessages.slice(0, 20),
         page_errors_sample: pageErrors.slice(0, 20),
         browser_script_result: scriptResult,
+        pass_conditions: {
+          network_path_exists: existsSync(networkPath),
+          performance_path_exists: existsSync(performancePath),
+          response_count: responses.length,
+          stripe_response_count: stripeUrls.length,
+        },
         interaction_events: interactionEvents,
         render_probe_events: Array.isArray(renderProbe.events) ? renderProbe.events.slice(0, 100) : [],
         layout_shift_sources: layoutShiftSourceDetails.slice(0, 50),
@@ -726,7 +755,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         ? typeof metrics.browser_cls === 'number' && metrics.browser_cls <= 0.01 && eceRenderedVisibleButton
         : true;
   const stripeLoadPass = stripeLoadPageErrors.length === 0;
-  const pass = output.success === true && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
+  const browserProbeCompleted = responses.length > 0 && existsSync(networkPath) && existsSync(performancePath);
+  const pass = browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
   const summaryText = pass
     ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
     : stripeLoadPass
