@@ -43,9 +43,20 @@ return function (): array {
 	if ( ! in_array( $term_mode, $allowed_term_modes, true ) ) {
 		$term_mode = 'existing';
 	}
+	$image_mode       = strtolower( (string) ( getenv( 'WC_REST_BATCH_IMPORT_IMAGE_MODE' ) ?: 'none' ) );
+	if ( ! in_array( $image_mode, array( 'none', 'existing_attachment', 'remote' ), true ) ) {
+		throw new RuntimeException( 'Unsupported WC_REST_BATCH_IMPORT_IMAGE_MODE. Expected none, existing_attachment, or remote.' );
+	}
+	$image_count        = 'none' === $image_mode ? 0 : max( 1, min( 5, (int) ( getenv( 'WC_REST_BATCH_IMPORT_IMAGES_PER_PRODUCT' ) ?: 1 ) ) );
+	$gallery_count      = 'none' === $image_mode ? 0 : max( 0, min( 4, (int) ( getenv( 'WC_REST_BATCH_IMPORT_GALLERY_IMAGES_PER_PRODUCT' ) ?: 0 ) ) );
+	$remote_image_base  = rtrim( (string) ( getenv( 'WC_REST_BATCH_IMPORT_REMOTE_IMAGE_BASE' ) ?: '' ), '?' );
+	if ( 'remote' === $image_mode && '' === $remote_image_base ) {
+		throw new RuntimeException( 'Remote image import mode requires WC_REST_BATCH_IMPORT_REMOTE_IMAGE_BASE to point at a deterministic image endpoint.' );
+	}
 	$run_id           = 'woocommerce-rest-batch-import-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
 	$issues           = array(
 		'https://github.com/woocommerce/woocommerce/issues/26029',
+		'https://github.com/chubes4/homeboy-rigs/issues/247',
 		'https://github.com/chubes4/homeboy-rigs/issues/248',
 		'https://github.com/chubes4/homeboy-rigs/issues/227',
 		'https://github.com/chubes4/homeboy-rigs/issues/228',
@@ -93,6 +104,73 @@ return function (): array {
 		rest_get_server();
 		Automattic\WooCommerce\RestApi\Server::instance()->register_rest_routes();
 	}
+
+	$media_attachment_ids = array();
+	if ( 'existing_attachment' === $image_mode ) {
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$total_attachment_fixtures = max( 1, $image_count + $gallery_count );
+		$upload_dir                = wp_upload_dir();
+		if ( ! empty( $upload_dir['error'] ) ) {
+			throw new RuntimeException( 'Failed to prepare upload directory for REST image fixtures: ' . $upload_dir['error'] );
+		}
+
+		$png_bytes = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', true );
+		if ( false === $png_bytes ) {
+			throw new RuntimeException( 'Failed to decode deterministic image fixture.' );
+		}
+
+		for ( $fixture_index = 1; $fixture_index <= $total_attachment_fixtures; $fixture_index++ ) {
+			$file_path = trailingslashit( $upload_dir['path'] ) . 'homeboy-rest-import-' . $run_id . '-' . $fixture_index . '.png';
+			file_put_contents( $file_path, $png_bytes );
+
+			$attachment_id = wp_insert_attachment(
+				array(
+					'post_mime_type' => 'image/png',
+					'post_title'     => 'Homeboy REST Import Image ' . $fixture_index . ' ' . $run_id,
+					'post_status'    => 'inherit',
+				),
+				$file_path
+			);
+			if ( is_wp_error( $attachment_id ) ) {
+				throw new RuntimeException( 'Failed to create deterministic image attachment: ' . $attachment_id->get_error_message() );
+			}
+
+			$metadata = wp_generate_attachment_metadata( (int) $attachment_id, $file_path );
+			wp_update_attachment_metadata( (int) $attachment_id, $metadata );
+			$media_attachment_ids[] = (int) $attachment_id;
+		}
+	}
+
+	$build_image_payloads = static function ( int $item_index ) use ( $image_mode, $image_count, $gallery_count, $media_attachment_ids, $remote_image_base, $run_id ): array {
+		if ( 'none' === $image_mode ) {
+			return array();
+		}
+
+		$payloads = array();
+		$total    = max( 1, $image_count + $gallery_count );
+		for ( $image_index = 0; $image_index < $total; $image_index++ ) {
+			if ( 'existing_attachment' === $image_mode ) {
+				$attachment_id = (int) ( $media_attachment_ids[ $image_index % count( $media_attachment_ids ) ] ?? 0 );
+				if ( $attachment_id ) {
+					$payloads[] = array( 'id' => $attachment_id );
+				}
+			} elseif ( 'remote' === $image_mode ) {
+				$payloads[] = array(
+					'src'  => add_query_arg(
+						array(
+							'homeboy_run'   => $run_id,
+							'product_index' => $item_index,
+							'image_index'   => $image_index,
+						),
+						$remote_image_base
+					),
+					'name' => 'Homeboy REST Import Remote Image ' . $item_index . '-' . $image_index,
+				);
+			}
+		}
+
+		return $payloads;
+	};
 
 	$attribute_taxonomies = array();
 	for ( $attribute_index = 1; $attribute_index <= $attribute_count; $attribute_index++ ) {
@@ -306,6 +384,20 @@ return function (): array {
 		'deleted' => array(),
 	);
 	$active_query_profile = null;
+	$active_http_profile  = null;
+	$profile_http_request = static function ( $response, string $context, string $class, array $parsed_args, string $url ) use ( &$active_http_profile ): void {
+		if ( null === $active_http_profile ) {
+			return;
+		}
+
+		++$active_http_profile['request_count'];
+		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
+		if ( '' === $host ) {
+			$host = 'unknown';
+		}
+		$active_http_profile['hosts'][ $host ] = ( $active_http_profile['hosts'][ $host ] ?? 0 ) + 1;
+	};
+	add_action( 'http_api_debug', $profile_http_request, 10, 5 );
 	$profile_query        = static function ( string $query ) use ( &$active_query_profile, $wpdb ): void {
 		if ( null === $active_query_profile ) {
 			return;
@@ -444,9 +536,14 @@ return function (): array {
 		}
 		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE {$where}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	};
+	$count_attachment_meta_rows = static function () use ( $wpdb ): int {
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->postmeta} pm INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE p.post_type = 'attachment'" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	};
 	$row_counts_before = array(
 		'products_posts'          => $count_table_rows( $wpdb->posts, "post_type IN ('product','product_variation')" ),
+		'attachment_posts'        => $count_table_rows( $wpdb->posts, "post_type = 'attachment'" ),
 		'postmeta'                => $count_table_rows( $wpdb->postmeta ),
+		'attachment_postmeta'     => $count_attachment_meta_rows(),
 		'term_relationships'      => $count_table_rows( $wpdb->term_relationships ),
 		'wc_product_meta_lookup'  => $count_table_rows( $wpdb->prefix . 'wc_product_meta_lookup' ),
 		'wc_product_attributes_lookup' => $count_table_rows( $wpdb->prefix . 'wc_product_attributes_lookup' ),
@@ -630,7 +727,7 @@ return function (): array {
 	};
 	$pending_action_count_before = $count_pending_actions();
 
-	$dispatch_batch = static function ( string $route, array $payload ) use ( $wpdb, &$counters, &$meta_hook_counts, &$active_query_profile ): array {
+	$dispatch_batch = static function ( string $route, array $payload ) use ( $wpdb, &$counters, &$meta_hook_counts, &$active_query_profile, &$active_http_profile ): array {
 		$counter_before       = $counters;
 		$meta_hook_before     = $meta_hook_counts;
 		$query_before         = (int) $wpdb->num_queries;
@@ -645,6 +742,10 @@ return function (): array {
 			'meta_key_operations' => array(),
 			'signatures'       => array(),
 		);
+		$active_http_profile  = array(
+			'request_count' => 0,
+			'hosts'         => array(),
+		);
 		$request              = new WP_REST_Request( 'POST', $route );
 		$request->set_header( 'Content-Type', 'application/json' );
 		$request->set_body_params( $payload );
@@ -652,7 +753,9 @@ return function (): array {
 		$response = rest_get_server()->dispatch( $request );
 		$elapsed  = ( microtime( true ) - $started ) * 1000;
 		$query_profile = $active_query_profile;
+		$http_profile  = $active_http_profile;
 		$active_query_profile = null;
+		$active_http_profile  = null;
 		$data     = $response->get_data();
 		$status   = (int) $response->get_status();
 
@@ -685,6 +788,7 @@ return function (): array {
 		arsort( $query_profile['meta_keys'] );
 		arsort( $query_profile['meta_key_operations'] );
 		arsort( $query_profile['signatures'] );
+		arsort( $http_profile['hosts'] );
 		$query_profile['tables']           = array_slice( $query_profile['tables'], 0, 20, true );
 		$query_profile['operation_tables'] = array_slice( $query_profile['operation_tables'], 0, 30, true );
 		$query_profile['categories']       = array_slice( $query_profile['categories'], 0, 30, true );
@@ -693,6 +797,7 @@ return function (): array {
 		$query_profile['meta_keys']        = array_slice( $query_profile['meta_keys'], 0, 30, true );
 		$query_profile['meta_key_operations'] = array_slice( $query_profile['meta_key_operations'], 0, 40, true );
 		$query_profile['signatures']       = array_slice( $query_profile['signatures'], 0, 20, true );
+		$http_profile['hosts']            = array_slice( $http_profile['hosts'], 0, 10, true );
 
 		return array(
 			'route'         => $route,
@@ -702,13 +807,14 @@ return function (): array {
 			'counter_delta' => $counter_delta,
 			'meta_hook_delta' => $meta_hook_delta,
 			'query_profile' => $query_profile,
+			'http_profile'  => $http_profile,
 			'data'          => $data,
 		);
 	};
 
 	$simple_create = array();
 	for ( $i = 0; $i < $batch_size; $i++ ) {
-		$simple_create[] = array(
+		$product_payload = array(
 			'name'          => $name_for( 'simple', $i ),
 			'type'          => 'simple',
 			'slug'          => $slug_for( 'simple', $i ),
@@ -718,17 +824,27 @@ return function (): array {
 			'stock_quantity' => 10 + $i,
 			'categories'    => $terms_for( $i ),
 		);
+		$product_images = $build_image_payloads( $i + 1 );
+		if ( ! empty( $product_images ) ) {
+			$product_payload['images'] = $product_images;
+		}
+		$simple_create[] = $product_payload;
 	}
 	$simple_create_result = $dispatch_batch( '/wc/v3/products/batch', array( 'create' => $simple_create ) );
 	$simple_ids           = wp_list_pluck( (array) ( $simple_create_result['data']['create'] ?? array() ), 'id' );
 
 	$simple_update = array();
 	foreach ( $simple_ids as $index => $product_id ) {
-		$simple_update[] = array(
+		$product_payload = array(
 			'id'            => (int) $product_id,
 			'regular_price' => (string) ( 20 + $index ),
 			'stock_quantity' => 20 + $index,
 		);
+		$product_images = $build_image_payloads( $index + 1 );
+		if ( ! empty( $product_images ) ) {
+			$product_payload['images'] = $product_images;
+		}
+		$simple_update[] = $product_payload;
 	}
 	$simple_update_result = $dispatch_batch( '/wc/v3/products/batch', array( 'update' => $simple_update ) );
 
@@ -742,13 +858,18 @@ return function (): array {
 				'option' => $term['name'],
 			);
 		}
-		$variation_create[] = array(
+		$variation_payload = array(
 			'regular_price' => (string) ( 30 + $i ),
 			'sku'           => $sku_for( 'variation', $i ),
 			'manage_stock'  => true,
 			'stock_quantity' => 30 + $i,
 			'attributes'    => $variation_attributes,
 		);
+		$variation_images = $build_image_payloads( $i + 1 );
+		if ( ! empty( $variation_images ) ) {
+			$variation_payload['image'] = $variation_images[0];
+		}
+		$variation_create[] = $variation_payload;
 	}
 	$variation_route          = '/wc/v3/products/' . $parent_id . '/variations/batch';
 	$variation_create_result = $dispatch_batch( $variation_route, array( 'create' => $variation_create ) );
@@ -756,11 +877,16 @@ return function (): array {
 
 	$variation_update = array();
 	foreach ( $variation_ids as $index => $variation_id ) {
-		$variation_update[] = array(
+		$variation_payload = array(
 			'id'            => (int) $variation_id,
 			'regular_price' => (string) ( 40 + $index ),
 			'stock_quantity' => 40 + $index,
 		);
+		$variation_images = $build_image_payloads( $index + 1 );
+		if ( ! empty( $variation_images ) ) {
+			$variation_payload['image'] = $variation_images[0];
+		}
+		$variation_update[] = $variation_payload;
 	}
 	$variation_update_result = $dispatch_batch( $variation_route, array( 'update' => $variation_update ) );
 
@@ -802,6 +928,7 @@ return function (): array {
 	$retry_internal_meta_row_delta        = $retry_internal_meta_rows_after - $retry_internal_meta_rows_before;
 
 	remove_filter( 'query', $query_counter );
+	remove_action( 'http_api_debug', $profile_http_request, 10 );
 	remove_filter( 'woocommerce_rest_check_permissions', $allow_product_rest_writes, 10 );
 	remove_action( 'save_post_product', $reentrant_save_post_product, 10 );
 	remove_action( 'save_post_product_variation', $reentrant_save_post_variation, 10 );
@@ -1017,19 +1144,55 @@ return function (): array {
 	$expected_simple_regular_price = array();
 	$expected_simple_price         = array();
 	$expected_simple_stock         = array();
+	$expected_simple_image_ids     = array();
+	$expected_simple_gallery_ids   = array();
+	$get_response_product_images   = static function ( array $items ): array {
+		$images_by_product = array();
+		foreach ( $items as $item ) {
+			if ( empty( $item['id'] ) || empty( $item['images'] ) || ! is_array( $item['images'] ) ) {
+				continue;
+			}
+			$images_by_product[ (int) $item['id'] ] = array_values(
+				array_filter(
+					array_map(
+						static fn( $image ) => (int) ( is_array( $image ) ? ( $image['id'] ?? 0 ) : 0 ),
+						$item['images']
+					)
+				)
+			);
+		}
+		return $images_by_product;
+	};
+	$get_response_variation_images = static function ( array $items ): array {
+		$images_by_variation = array();
+		foreach ( $items as $item ) {
+			if ( empty( $item['id'] ) || empty( $item['image'] ) || ! is_array( $item['image'] ) ) {
+				continue;
+			}
+			$images_by_variation[ (int) $item['id'] ] = (int) ( $item['image']['id'] ?? 0 );
+		}
+		return $images_by_variation;
+	};
+	$response_simple_images        = $get_response_product_images( (array) ( $simple_update_result['data']['update'] ?? array() ) );
+	$response_variation_images     = $get_response_variation_images( (array) ( $variation_update_result['data']['update'] ?? array() ) );
 	foreach ( $simple_ids as $index => $simple_id ) {
 		$expected_simple_skus[ (int) $simple_id ]          = $sku_for( 'simple', $index );
 		$expected_simple_regular_price[ (int) $simple_id ] = (string) ( 20 + $index );
 		$expected_simple_price[ (int) $simple_id ]         = (string) ( 20 + $index );
 		$expected_simple_stock[ (int) $simple_id ]         = (string) ( 20 + $index );
+		$expected_image_ids                                = $response_simple_images[ (int) $simple_id ] ?? array();
+		$expected_simple_image_ids[ (int) $simple_id ]     = (int) ( $expected_image_ids[0] ?? 0 );
+		$expected_simple_gallery_ids[ (int) $simple_id ]   = array_values( array_slice( array_map( 'intval', $expected_image_ids ), 1 ) );
 	}
 	$expected_variation_prices = array();
 	$expected_variation_stock  = array();
 	$expected_variation_skus   = array();
+	$expected_variation_image_ids = array();
 	foreach ( $variation_ids as $index => $variation_id ) {
 		$expected_variation_prices[ (int) $variation_id ] = (string) ( 40 + $index );
 		$expected_variation_stock[ (int) $variation_id ]  = 40 + $index;
 		$expected_variation_skus[ (int) $variation_id ]   = $sku_for( 'variation', $index );
+		$expected_variation_image_ids[ (int) $variation_id ] = (int) ( $response_variation_images[ (int) $variation_id ] ?? 0 );
 	}
 	$variation_price_mismatches        = 0;
 	$variation_stock_mismatches        = 0;
@@ -1042,8 +1205,11 @@ return function (): array {
 	$simple_regular_price_mismatches = 0;
 	$simple_price_mismatches        = 0;
 	$simple_stock_status_mismatches = 0;
+	$simple_image_readback_mismatches = 0;
+	$simple_gallery_readback_mismatches = 0;
 	$variation_sku_readback_mismatches = 0;
 	$variation_stock_status_mismatches = 0;
+	$variation_image_readback_mismatches = 0;
 	$simple_ids_int                    = array_map( 'intval', $simple_ids );
 	foreach ( $simple_products as $simple_product ) {
 		$simple_id    = $simple_product->get_id();
@@ -1065,6 +1231,18 @@ return function (): array {
 		}
 		if ( 'instock' !== (string) $simple_product->get_stock_status() ) {
 			++$simple_stock_status_mismatches;
+		}
+		if ( 'none' !== $image_mode ) {
+			if ( (int) $simple_product->get_image_id() !== (int) ( $expected_simple_image_ids[ $simple_id ] ?? 0 ) ) {
+				++$simple_image_readback_mismatches;
+			}
+			$expected_gallery_ids = array_map( 'intval', $expected_simple_gallery_ids[ $simple_id ] ?? array() );
+			$actual_gallery_ids   = array_map( 'intval', $simple_product->get_gallery_image_ids() );
+			sort( $expected_gallery_ids );
+			sort( $actual_gallery_ids );
+			if ( $expected_gallery_ids !== $actual_gallery_ids ) {
+				++$simple_gallery_readback_mismatches;
+			}
 		}
 	}
 	$simple_duplicate_meta_rows    = $get_duplicate_postmeta_rows( $simple_ids );
@@ -1175,6 +1353,9 @@ return function (): array {
 		if ( (int) $variation_product->get_parent_id() !== (int) $parent_id ) {
 			++$variation_parent_mismatches;
 		}
+		if ( 'none' !== $image_mode && (int) $variation_product->get_image_id() !== (int) ( $expected_variation_image_ids[ $variation_id ] ?? 0 ) ) {
+			++$variation_image_readback_mismatches;
+		}
 		if ( empty( array_filter( $variation_product->get_attributes() ) ) ) {
 			++$variation_attribute_empty_count;
 		}
@@ -1203,7 +1384,9 @@ return function (): array {
 	$pending_action_count_after = $count_pending_actions();
 	$row_counts_after = array(
 		'products_posts'          => $count_table_rows( $wpdb->posts, "post_type IN ('product','product_variation')" ),
+		'attachment_posts'        => $count_table_rows( $wpdb->posts, "post_type = 'attachment'" ),
 		'postmeta'                => $count_table_rows( $wpdb->postmeta ),
+		'attachment_postmeta'     => $count_attachment_meta_rows(),
 		'term_relationships'      => $count_table_rows( $wpdb->term_relationships ),
 		'wc_product_meta_lookup'  => $count_table_rows( $wpdb->prefix . 'wc_product_meta_lookup' ),
 		'wc_product_attributes_lookup' => $count_table_rows( $wpdb->prefix . 'wc_product_attributes_lookup' ),
@@ -1243,6 +1426,9 @@ return function (): array {
 	$record_invariant( 'variation_sku_readback_matches_payload', 0 === $variation_sku_readback_mismatches, array( 'mismatches' => $variation_sku_readback_mismatches ) );
 	$record_invariant( 'simple_sku_lookup_resolves_created_product', 0 === $simple_sku_lookup_mismatches, array( 'mismatches' => $simple_sku_lookup_mismatches ) );
 	$record_invariant( 'variation_sku_lookup_resolves_created_variation', 0 === $variation_sku_lookup_mismatches, array( 'mismatches' => $variation_sku_lookup_mismatches ) );
+	$record_invariant( 'simple_product_image_readback_matches_rest_response', 'none' === $image_mode || 0 === $simple_image_readback_mismatches, array( 'mismatches' => $simple_image_readback_mismatches, 'mode' => $image_mode ) );
+	$record_invariant( 'simple_product_gallery_readback_matches_rest_response', 'none' === $image_mode || 0 === $simple_gallery_readback_mismatches, array( 'mismatches' => $simple_gallery_readback_mismatches, 'mode' => $image_mode ) );
+	$record_invariant( 'variation_image_readback_matches_rest_response', 'none' === $image_mode || 0 === $variation_image_readback_mismatches, array( 'mismatches' => $variation_image_readback_mismatches, 'mode' => $image_mode ) );
 	$record_invariant( 'simple_manage_stock_readback_matches_payload_after_reentrant_save', 0 === $simple_manage_stock_mismatches, array( 'mismatches' => $simple_manage_stock_mismatches ) );
 	$record_invariant( 'simple_stock_readback_matches_payload_after_reentrant_save', 0 === $simple_stock_mismatches, array( 'mismatches' => $simple_stock_mismatches ) );
 	$record_invariant( 'simple_stock_status_readback_matches_payload_after_reentrant_save', 0 === $simple_stock_status_mismatches, array( 'mismatches' => $simple_stock_status_mismatches ) );
@@ -1361,6 +1547,15 @@ return function (): array {
 	$meta_hook_value = static function ( array $row, string $operation, string $meta_key ): int {
 		return (int) ( $row['meta_hook_delta'][ $operation ][ $meta_key ] ?? 0 );
 	};
+	$http_request_count = static function ( array $row ): int {
+		return (int) ( $row['http_profile']['request_count'] ?? 0 );
+	};
+	$simple_product_count    = max( 1, count( $simple_ids ) );
+	$variation_product_count = max( 1, count( $variation_ids ) );
+	$media_rest_error_count  = $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) )
+		+ $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) )
+		+ $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) )
+		+ $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) );
 
 	$summary = array(
 		'success_rate'                         => 1,
@@ -1371,6 +1566,29 @@ return function (): array {
 		'catalog_seed_variations_per_product'  => $catalog_variations_per_product,
 		'catalog_seed_variations'              => $catalog_seed_variations,
 		'catalog_seed_ms'                      => $catalog_seed_ms,
+		'media_image_mode'                     => $image_mode,
+		'media_images_per_product'             => $image_count,
+		'media_gallery_images_per_product'     => $gallery_count,
+		'media_fixture_attachment_count'       => count( $media_attachment_ids ),
+		'media_simple_create_ms_per_product'   => (float) $simple_create_result['elapsed_ms'] / $simple_product_count,
+		'media_simple_update_ms_per_product'   => (float) $simple_update_result['elapsed_ms'] / $simple_product_count,
+		'media_variation_create_ms_per_product' => (float) $variation_create_result['elapsed_ms'] / $variation_product_count,
+		'media_variation_update_ms_per_product' => (float) $variation_update_result['elapsed_ms'] / $variation_product_count,
+		'media_simple_create_queries_per_product' => (float) $simple_create_result['query_count'] / $simple_product_count,
+		'media_simple_update_queries_per_product' => (float) $simple_update_result['query_count'] / $simple_product_count,
+		'media_variation_create_queries_per_product' => (float) $variation_create_result['query_count'] / $variation_product_count,
+		'media_variation_update_queries_per_product' => (float) $variation_update_result['query_count'] / $variation_product_count,
+		'media_http_request_count'             => $http_request_count( $simple_create_result ) + $http_request_count( $simple_update_result ) + $http_request_count( $variation_create_result ) + $http_request_count( $variation_update_result ),
+		'media_simple_create_http_requests'    => $http_request_count( $simple_create_result ),
+		'media_simple_update_http_requests'    => $http_request_count( $simple_update_result ),
+		'media_variation_create_http_requests' => $http_request_count( $variation_create_result ),
+		'media_variation_update_http_requests' => $http_request_count( $variation_update_result ),
+		'media_rest_error_count'               => $media_rest_error_count,
+		'media_attachment_row_delta'           => (int) ( $row_count_deltas['attachment_posts'] ?? 0 ),
+		'media_attachment_meta_row_delta'      => (int) ( $row_count_deltas['attachment_postmeta'] ?? 0 ),
+		'media_simple_image_readback_mismatches' => $simple_image_readback_mismatches,
+		'media_simple_gallery_readback_mismatches' => $simple_gallery_readback_mismatches,
+		'media_variation_image_readback_mismatches' => $variation_image_readback_mismatches,
 		'side_effect_active_plugin_count'      => count( $active_plugins ),
 		'scenario_catalog_lookup_pressure'     => 1,
 		'scenario_catalog_variation_density'   => $catalog_variations_per_product > 0 ? 1 : 0,
@@ -1589,7 +1807,9 @@ return function (): array {
 		'side_effect_pending_action_count_delta' => $pending_action_count_after - $pending_action_count_before,
 		'side_effect_invariant_failure_count' => count( $invariant_failures ),
 		'side_effect_products_posts_row_delta' => (int) ( $row_count_deltas['products_posts'] ?? 0 ),
+		'side_effect_attachment_posts_row_delta' => (int) ( $row_count_deltas['attachment_posts'] ?? 0 ),
 		'side_effect_postmeta_row_delta' => (int) ( $row_count_deltas['postmeta'] ?? 0 ),
+		'side_effect_attachment_postmeta_row_delta' => (int) ( $row_count_deltas['attachment_postmeta'] ?? 0 ),
 		'side_effect_term_relationships_row_delta' => (int) ( $row_count_deltas['term_relationships'] ?? 0 ),
 		'side_effect_lookup_table_row_delta' => (int) ( $row_count_deltas['wc_product_meta_lookup'] ?? 0 ),
 		'side_effect_attribute_lookup_table_row_delta' => (int) ( $row_count_deltas['wc_product_attributes_lookup'] ?? 0 ),
@@ -1625,6 +1845,11 @@ return function (): array {
 					'metrics'               => $summary,
 					'side_effects'          => array(
 						'invariant_failures'                          => $invariant_failures,
+						'media_image_mode'                             => $image_mode,
+						'media_fixture_attachment_ids'                 => $media_attachment_ids,
+						'expected_simple_image_ids'                    => $expected_simple_image_ids,
+						'expected_simple_gallery_ids'                  => $expected_simple_gallery_ids,
+						'expected_variation_image_ids'                 => $expected_variation_image_ids,
 						'scenario_labels'                             => array(
 							'catalog_size_lookup_pressure',
 							'catalog_variation_density_pressure',
@@ -1639,6 +1864,7 @@ return function (): array {
 							'third_party_internal_meta_hook_adjacent_writes',
 							'variation_parent_sync_under_reentrant_save',
 							'duplicate_sku_retry_guardrail',
+							'opt_in_media_image_readback_guardrail',
 						),
 						'reentrant_save_post_product_ids'              => array_values( array_unique( $reentrant_save_post_product_ids ) ),
 						'reentrant_save_post_product_variation_ids'    => array_values( array_unique( $reentrant_save_post_variation_ids ) ),
@@ -1672,6 +1898,7 @@ return function (): array {
 			'issues'       => $issues,
 			'route'        => '/wc/v3/products/batch',
 			'variation_route' => $variation_route,
+			'image_mode'   => $image_mode,
 			'scenario'     => array(
 				'catalog_products'               => $catalog_products,
 				'catalog_variations_per_product' => $catalog_variations_per_product,

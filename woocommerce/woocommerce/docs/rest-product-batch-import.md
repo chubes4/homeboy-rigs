@@ -50,6 +50,10 @@ existing performance counters:
 - `duplicate_sku_retry_guardrail`: replays a one-item create with an existing
   stable SKU and asserts it returns the expected create error without
   multiplying internal meta rows on the original product.
+- `opt_in_media_image_readback_guardrail`: when
+  `WC_REST_BATCH_IMPORT_IMAGE_MODE` is set to `existing_attachment` or `remote`,
+  sends image payloads through the product and variation REST batch routes,
+  then verifies product image, gallery image, and variation image readback.
 
 These scenarios are labeled in the JSON artifact under
 `side_effects.scenario_labels` and exposed as metrics including:
@@ -111,6 +115,43 @@ These scenarios are labeled in the JSON artifact under
 - `side_effect_simple_stock_readback_mismatches`
 - `side_effect_variation_manage_stock_readback_mismatches`
 
+Media/image import cost scenarios are opt-in. The default rig environment sets
+`WC_REST_BATCH_IMPORT_IMAGE_MODE=none`, keeping the no-image path as the hot
+deterministic DB/write-path control. Supported modes:
+
+- `none`: no image payloads. This is the smoke/hot default.
+- `existing_attachment`: creates deterministic local attachment fixtures before
+  timing, then sends existing attachment IDs in REST image payloads. This covers
+  product-image association/readback cost without network variability.
+- `remote`: sends `src` URLs in REST image payloads. This requires
+  `WC_REST_BATCH_IMPORT_REMOTE_IMAGE_BASE` to point at a deterministic image
+  endpoint and is intentionally excluded from default hot profiles.
+
+Image/media metrics are reported separately from the generic write-path metrics:
+
+- `media_image_mode`
+- `media_images_per_product`
+- `media_gallery_images_per_product`
+- `media_simple_create_ms_per_product`
+- `media_simple_update_ms_per_product`
+- `media_variation_create_ms_per_product`
+- `media_variation_update_ms_per_product`
+- `media_simple_create_queries_per_product`
+- `media_simple_update_queries_per_product`
+- `media_variation_create_queries_per_product`
+- `media_variation_update_queries_per_product`
+- `media_attachment_row_delta`
+- `media_attachment_meta_row_delta`
+- `media_http_request_count`
+- `media_simple_create_http_requests`
+- `media_simple_update_http_requests`
+- `media_variation_create_http_requests`
+- `media_variation_update_http_requests`
+- `media_rest_error_count`
+- `media_simple_image_readback_mismatches`
+- `media_simple_gallery_readback_mismatches`
+- `media_variation_image_readback_mismatches`
+
 The run fails its side-effect invariant count when duplicate internal meta rows,
 stale SKU/stock/price readback, missing SKU lookup rows, missing nested plugin
 meta writes, broken variation parent sync, retry row multiplication, or missing
@@ -141,6 +182,16 @@ homeboy bench --rig woocommerce-performance \
   --iterations 1 \
   --shared-state /tmp/woocommerce-rest-product-batch-import-smoke \
   --setting-json 'bench_env={"WC_REST_BATCH_IMPORT_ITEMS":"2","WC_REST_BATCH_IMPORT_ATTRIBUTES":"1","WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE":"2","WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS":"0"}'
+```
+
+Small deterministic media smoke:
+
+```sh
+homeboy bench --rig woocommerce-performance \
+  --scenario rest-product-batch-import \
+  --iterations 1 \
+  --shared-state /tmp/woocommerce-rest-product-batch-import-media-smoke \
+  --setting-json 'bench_env={"WC_REST_BATCH_IMPORT_ITEMS":"2","WC_REST_BATCH_IMPORT_ATTRIBUTES":"1","WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE":"2","WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS":"0","WC_REST_BATCH_IMPORT_IMAGE_MODE":"existing_attachment","WC_REST_BATCH_IMPORT_IMAGES_PER_PRODUCT":"1","WC_REST_BATCH_IMPORT_GALLERY_IMAGES_PER_PRODUCT":"1"}'
 ```
 
 Catalog lookup pressure smoke:
