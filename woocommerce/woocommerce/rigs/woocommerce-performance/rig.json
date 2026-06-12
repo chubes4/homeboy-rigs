@@ -45,6 +45,7 @@
   },
   "bench_workloads": {
     "wordpress": [
+      { "path": "${package.root}/bench/cart-session-overwrite-race.php" },
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
       { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
@@ -56,6 +57,7 @@
   },
   "bench_profiles": {
     "smoke": [
+      "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
       "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
@@ -65,6 +67,7 @@
       "rest-product-batch-import"
     ],
     "hot": [
+      "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
       "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
