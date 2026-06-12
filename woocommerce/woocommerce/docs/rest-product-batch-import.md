@@ -23,24 +23,64 @@ existing performance counters:
 - `shared_product_and_variation_data_store_reuse`: forces product and variation datastore
   loading through shared instances using WooCommerce datastore filters, so
   create-state leaks across nested saves are visible.
+- `preexisting_internal_meta_before_create_save_completes`: seeds stale
+  `_stock`, `_manage_stock`, `_stock_status`, `_regular_price`, `_price`, and
+  `_sku` rows from an early `save_post_product` hook, then verifies WooCommerce
+  overwrites them to the canonical REST payload values without duplicate rows.
+- `third_party_internal_meta_hook_adjacent_writes`: reacts to
+  `added_post_meta` and `updated_post_meta` for Woo internal keys by writing
+  adjacent plugin-owned meta, covering nested meta writes without a full product
+  re-save.
+- `variation_parent_sync_under_reentrant_save`: checks parent child lists,
+  direct `post_parent` rows, child manage-stock/stock/status readback, and
+  variation internal meta values after the parent/variation save cascade.
+- `duplicate_sku_retry_guardrail`: replays a one-item create with an existing
+  stable SKU and asserts it returns the expected create error without
+  multiplying internal meta rows on the original product.
 
 These scenarios are labeled in the JSON artifact under
 `side_effects.scenario_labels` and exposed as metrics including:
 
 - `scenario_reentrant_save_post_product`
 - `scenario_shared_product_data_store`
+- `scenario_preexisting_internal_meta`
+- `scenario_third_party_meta_hooks`
+- `scenario_variation_parent_sync_guardrail`
+- `scenario_duplicate_sku_retry`
 - `side_effect_reentrant_save_post_product_count`
 - `side_effect_reentrant_save_post_product_variation_count`
 - `side_effect_shared_product_data_store_loads`
 - `side_effect_shared_variation_data_store_loads`
+- `side_effect_preexisting_internal_meta_writes`
+- `side_effect_third_party_adjacent_meta_writes`
 - `side_effect_simple_duplicate_meta_row_count`
 - `side_effect_variation_duplicate_meta_row_count`
+- `side_effect_simple_internal_duplicate_meta_row_count`
+- `side_effect_variation_internal_duplicate_meta_row_count`
+- `side_effect_simple_internal_meta_value_mismatches`
+- `side_effect_variation_internal_meta_value_mismatches`
+- `side_effect_simple_sku_lookup_mismatches`
+- `side_effect_variation_sku_lookup_mismatches`
+- `side_effect_parent_missing_child_count`
+- `side_effect_variation_post_parent_mismatches`
+- `side_effect_duplicate_sku_retry_response_errors`
+- `side_effect_duplicate_sku_retry_internal_meta_row_delta`
 - `side_effect_simple_manage_stock_readback_mismatches`
 - `side_effect_simple_stock_readback_mismatches`
 - `side_effect_variation_manage_stock_readback_mismatches`
 
-The run fails its side-effect invariant count when duplicate meta rows, shadowed
-stock readback, or missing shared datastore reuse are observed.
+The run fails its side-effect invariant count when duplicate internal meta rows,
+stale SKU/stock/price readback, missing SKU lookup rows, missing nested plugin
+meta writes, broken variation parent sync, retry row multiplication, or missing
+shared datastore reuse are observed.
+
+This coverage exists to guard the WooCommerce REST batch import fast path before
+fixing [WooCommerce PR #65595](https://github.com/woocommerce/woocommerce/pull/65595).
+Related tracking context: [homeboy-rigs #227](https://github.com/chubes4/homeboy-rigs/issues/227),
+[homeboy-rigs #228](https://github.com/chubes4/homeboy-rigs/issues/228),
+[homeboy-rigs #229](https://github.com/chubes4/homeboy-rigs/issues/229), and
+[Homeboy Extensions #1266](https://github.com/Extra-Chill/homeboy-extensions/issues/1266)
+for the runner/workload infrastructure context.
 
 ## Commands
 
