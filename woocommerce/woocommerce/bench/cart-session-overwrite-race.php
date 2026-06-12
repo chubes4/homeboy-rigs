@@ -128,6 +128,16 @@ return function (): array {
 		return array_key_exists( $key, $session ) ? maybe_unserialize( $session[ $key ] ) : null;
 	};
 
+	$seed_session = static function ( array $values ) use ( $wpdb, $session_table, $customer_id, $make_request_session ): array {
+		$wpdb->delete( $session_table, array( 'session_key' => $customer_id ) );
+		$session = $make_request_session();
+		foreach ( $values as $key => $value ) {
+			$session->set( $key, $value );
+		}
+		$session->save_data();
+		return $values;
+	};
+
 	$summarize_guardrails = static function ( array $before, array $after ) use ( $guardrail_session_domains, $get_session_value ): array {
 		$summary = array();
 		foreach ( $guardrail_session_domains as $domain => $definition ) {
@@ -241,6 +251,91 @@ return function (): array {
 	$guardrail_keys_lost              = array_values( array_diff( $guardrail_keys_present_after_add, $guardrail_keys_after_stale_save ) );
 	$guardrail_all_domains_clobbered  = count( $guardrail_keys_present_after_add ) > 0 && count( $guardrail_keys_present_after_add ) === count( $guardrail_keys_lost );
 
+	$delete_seed = $seed_session(
+		array(
+			'homeboy_delete_target'        => 'delete-me',
+			'homeboy_delete_baseline'      => 'delete-baseline',
+			'homeboy_delete_concurrent'    => 'before-current-write',
+		)
+	);
+	$stale_delete_session   = $make_request_session();
+	$current_delete_session = $make_request_session();
+	$current_delete_session->set( 'homeboy_delete_concurrent', 'current-write-survived' );
+	$current_delete_session->set( 'homeboy_delete_current_only', 'current-only-survived' );
+	$current_delete_session->save_data();
+	$stale_delete_session->__unset( 'homeboy_delete_target' );
+	$stale_delete_session->save_data();
+	$after_stale_delete = $get_persisted_session();
+
+	$update_seed = $seed_session(
+		array(
+			'homeboy_update_target'        => 'before-stale-update',
+			'homeboy_update_baseline'      => 'update-baseline',
+			'homeboy_update_concurrent'    => 'before-current-write',
+		)
+	);
+	$stale_update_session   = $make_request_session();
+	$current_update_session = $make_request_session();
+	$current_update_session->set( 'homeboy_update_concurrent', 'current-write-survived' );
+	$current_update_session->set( 'homeboy_update_current_only', 'current-only-survived' );
+	$current_update_session->save_data();
+	$stale_update_session->set( 'homeboy_update_target', 'stale-update-applied' );
+	$stale_update_session->save_data();
+	$after_stale_update = $get_persisted_session();
+
+	$same_key_seed = $seed_session(
+		array(
+			'homeboy_same_key_target'     => 'before-conflict',
+			'homeboy_same_key_baseline'   => 'same-key-baseline',
+			'homeboy_same_key_concurrent' => 'before-current-write',
+		)
+	);
+	$stale_same_key_session   = $make_request_session();
+	$current_same_key_session = $make_request_session();
+	$current_same_key_session->set( 'homeboy_same_key_target', 'current-conflict-write' );
+	$current_same_key_session->set( 'homeboy_same_key_concurrent', 'current-write-survived' );
+	$current_same_key_session->set( 'homeboy_same_key_current_only', 'current-only-survived' );
+	$current_same_key_session->save_data();
+	$stale_same_key_session->set( 'homeboy_same_key_target', 'stale-conflict-wins' );
+	$stale_same_key_session->save_data();
+	$after_stale_same_key = $get_persisted_session();
+
+	$merge_guardrails = array(
+		'delete'   => array(
+			'seed'                         => $delete_seed,
+			'after'                        => $after_stale_delete,
+			'target_removed'               => ! array_key_exists( 'homeboy_delete_target', $after_stale_delete ),
+			'baseline_preserved'           => 'delete-baseline' === $get_session_value( $after_stale_delete, 'homeboy_delete_baseline' ),
+			'concurrent_update_preserved'  => 'current-write-survived' === $get_session_value( $after_stale_delete, 'homeboy_delete_concurrent' ),
+			'concurrent_insert_preserved'  => 'current-only-survived' === $get_session_value( $after_stale_delete, 'homeboy_delete_current_only' ),
+		),
+		'update'   => array(
+			'seed'                         => $update_seed,
+			'after'                        => $after_stale_update,
+			'target_updated'               => 'stale-update-applied' === $get_session_value( $after_stale_update, 'homeboy_update_target' ),
+			'baseline_preserved'           => 'update-baseline' === $get_session_value( $after_stale_update, 'homeboy_update_baseline' ),
+			'concurrent_update_preserved'  => 'current-write-survived' === $get_session_value( $after_stale_update, 'homeboy_update_concurrent' ),
+			'concurrent_insert_preserved'  => 'current-only-survived' === $get_session_value( $after_stale_update, 'homeboy_update_current_only' ),
+		),
+		'same_key' => array(
+			'seed'                         => $same_key_seed,
+			'after'                        => $after_stale_same_key,
+			'last_writer_wins'             => 'stale-conflict-wins' === $get_session_value( $after_stale_same_key, 'homeboy_same_key_target' ),
+			'baseline_preserved'           => 'same-key-baseline' === $get_session_value( $after_stale_same_key, 'homeboy_same_key_baseline' ),
+			'concurrent_update_preserved'  => 'current-write-survived' === $get_session_value( $after_stale_same_key, 'homeboy_same_key_concurrent' ),
+			'concurrent_insert_preserved'  => 'current-only-survived' === $get_session_value( $after_stale_same_key, 'homeboy_same_key_current_only' ),
+		),
+	);
+	$merge_guardrail_all_passed = true;
+	foreach ( $merge_guardrails as $phase_summary ) {
+		foreach ( $phase_summary as $key => $value ) {
+			if ( 'seed' === $key || 'after' === $key ) {
+				continue;
+			}
+			$merge_guardrail_all_passed = $merge_guardrail_all_passed && (bool) $value;
+		}
+	}
+
 	$artifact = array(
 		'run_id'                       => $run_id,
 		'issues'                       => $issues,
@@ -256,6 +351,7 @@ return function (): array {
 		'notices_after_stale_save'     => $notices_after_stale_save,
 		'guardrail_domains_after_add'        => $guardrails_after_add,
 		'guardrail_domains_after_stale_save' => $guardrails_after_stale_save,
+		'merge_guardrails'             => $merge_guardrails,
 		'overwrite_reproduced'         => $overwrite_reproduced,
 	);
 
@@ -271,6 +367,19 @@ return function (): array {
 		'guardrail_domain_count_after_stale_save'         => count( $guardrail_keys_after_stale_save ),
 		'guardrail_domain_count_lost_after_stale_save' => count( $guardrail_keys_lost ),
 		'guardrail_all_domains_clobbered'              => $guardrail_all_domains_clobbered ? 1 : 0,
+		'merge_guardrail_all_passed'                   => $merge_guardrail_all_passed ? 1 : 0,
+		'merge_guardrail_delete_target_removed'        => $merge_guardrails['delete']['target_removed'] ? 1 : 0,
+		'merge_guardrail_delete_baseline_preserved'    => $merge_guardrails['delete']['baseline_preserved'] ? 1 : 0,
+		'merge_guardrail_delete_concurrent_update_preserved' => $merge_guardrails['delete']['concurrent_update_preserved'] ? 1 : 0,
+		'merge_guardrail_delete_concurrent_insert_preserved' => $merge_guardrails['delete']['concurrent_insert_preserved'] ? 1 : 0,
+		'merge_guardrail_update_target_updated'        => $merge_guardrails['update']['target_updated'] ? 1 : 0,
+		'merge_guardrail_update_baseline_preserved'    => $merge_guardrails['update']['baseline_preserved'] ? 1 : 0,
+		'merge_guardrail_update_concurrent_update_preserved' => $merge_guardrails['update']['concurrent_update_preserved'] ? 1 : 0,
+		'merge_guardrail_update_concurrent_insert_preserved' => $merge_guardrails['update']['concurrent_insert_preserved'] ? 1 : 0,
+		'merge_guardrail_same_key_last_writer_wins'    => $merge_guardrails['same_key']['last_writer_wins'] ? 1 : 0,
+		'merge_guardrail_same_key_baseline_preserved'  => $merge_guardrails['same_key']['baseline_preserved'] ? 1 : 0,
+		'merge_guardrail_same_key_concurrent_update_preserved' => $merge_guardrails['same_key']['concurrent_update_preserved'] ? 1 : 0,
+		'merge_guardrail_same_key_concurrent_insert_preserved' => $merge_guardrails['same_key']['concurrent_insert_preserved'] ? 1 : 0,
 	);
 
 	foreach ( $guardrails_after_stale_save as $domain => $domain_summary ) {
