@@ -50,6 +50,7 @@ if ( ! class_exists( 'Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			$args = array_merge( self::DEFAULT_ARGS, self::env_args(), $args );
 
 			self::assert_runtime_loaded();
+			self::ensure_classic_woocommerce_theme();
 			self::ensure_woocommerce_install_state();
 			self::ensure_store_settings( (string) $args['currency'] );
 
@@ -177,6 +178,44 @@ if ( ! class_exists( 'Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 
 			if ( function_exists( 'wc_update_product_lookup_tables_is_running' ) && ! wc_update_product_lookup_tables_is_running() ) {
 				delete_transient( 'wc_product_loop' );
+			}
+		}
+
+		/**
+		 * Force a tiny classic theme so product pages render Woo's form.cart template.
+		 *
+		 * @return void
+		 */
+		private static function ensure_classic_woocommerce_theme(): void {
+			$theme_slug = 'homeboy-stripe-ece-classic';
+			$theme_dir  = WP_CONTENT_DIR . '/themes/' . $theme_slug;
+
+			if ( ! is_dir( $theme_dir ) && ! wp_mkdir_p( $theme_dir ) ) {
+				throw new RuntimeException( 'Benchmark fixture setup failed: could not create classic WooCommerce theme directory.' );
+			}
+
+			file_put_contents(
+				$theme_dir . '/style.css',
+				"/*\nTheme Name: Homeboy Stripe ECE Classic\nVersion: 1.0.0\n*/\n"
+			);
+
+			file_put_contents(
+				$theme_dir . '/functions.php',
+				"<?php\nadd_action( 'after_setup_theme', static function () {\n\tadd_theme_support( 'woocommerce' );\n} );\n"
+			);
+
+			file_put_contents(
+				$theme_dir . '/index.php',
+				"<?php\nget_header();\nif ( have_posts() ) {\n\twhile ( have_posts() ) {\n\t\tthe_post();\n\t\tthe_content();\n\t}\n}\nget_footer();\n"
+			);
+
+			file_put_contents(
+				$theme_dir . '/single-product.php',
+				"<?php\nget_header();\nif ( function_exists( 'woocommerce_content' ) ) {\n\twoocommerce_content();\n}\nget_footer();\n"
+			);
+
+			if ( get_stylesheet() !== $theme_slug ) {
+				switch_theme( 'homeboy-stripe-ece-classic' );
 			}
 		}
 
