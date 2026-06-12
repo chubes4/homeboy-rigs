@@ -23,16 +23,27 @@ return function (): array {
 
 	global $wpdb;
 
-	$batch_size       = max( 1, min( 100, (int) ( getenv( 'WC_REST_BATCH_IMPORT_ITEMS' ) ?: 25 ) ) );
-	$attribute_count  = max( 1, min( 10, (int) ( getenv( 'WC_REST_BATCH_IMPORT_ATTRIBUTES' ) ?: 3 ) ) );
-	$terms_per_attr   = max( 2, min( 25, (int) ( getenv( 'WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE' ) ?: 8 ) ) );
-	$catalog_products = max( 0, min( 5000, (int) ( getenv( 'WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS' ) ?: 0 ) ) );
+	$env_int = static function ( string $name, int $default ): int {
+		$value = getenv( $name );
+		return false === $value || '' === $value ? $default : (int) $value;
+	};
+	$batch_size       = max( 1, min( 100, $env_int( 'WC_REST_BATCH_IMPORT_ITEMS', 25 ) ) );
+	$attribute_count  = max( 0, min( 10, $env_int( 'WC_REST_BATCH_IMPORT_ATTRIBUTES', 3 ) ) );
+	$terms_per_attr   = max( 1, min( 50, $env_int( 'WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE', 8 ) ) );
+	$catalog_products = max( 0, min( 10000, $env_int( 'WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS', 0 ) ) );
+	$focus_phase      = (string) ( getenv( 'WC_REST_BATCH_IMPORT_FOCUS_PHASE' ) ?: 'variation_create' );
+	$valid_focus_phases = array( 'simple_create', 'simple_update', 'variation_create', 'variation_update' );
+	if ( ! in_array( $focus_phase, $valid_focus_phases, true ) ) {
+		throw new RuntimeException( 'Invalid WC_REST_BATCH_IMPORT_FOCUS_PHASE: ' . $focus_phase );
+	}
 	$run_id           = 'woocommerce-rest-batch-import-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
 	$issues           = array(
 		'https://github.com/woocommerce/woocommerce/issues/26029',
 		'https://github.com/chubes4/homeboy-rigs/issues/227',
 		'https://github.com/chubes4/homeboy-rigs/issues/228',
 		'https://github.com/chubes4/homeboy-rigs/issues/229',
+		'https://github.com/chubes4/homeboy-rigs/issues/246',
+		'https://github.com/Extra-Chill/homeboy-extensions/issues/1298',
 	);
 
 	update_option( 'woocommerce_currency', 'USD' );
@@ -604,9 +615,18 @@ return function (): array {
 		);
 	};
 
+	$product_attribute_payload = array();
+	foreach ( $attribute_taxonomies as $attribute_taxonomy ) {
+		$product_attribute_payload[] = array(
+			'id'      => $attribute_taxonomy['id'],
+			'visible' => true,
+			'options' => wp_list_pluck( $attribute_taxonomy['terms'], 'name' ),
+		);
+	}
+
 	$simple_create = array();
 	for ( $i = 0; $i < $batch_size; $i++ ) {
-		$simple_create[] = array(
+		$simple_product = array(
 			'name'          => 'Homeboy REST Simple Product ' . $run_id . ' #' . ( $i + 1 ),
 			'type'          => 'simple',
 			'sku'           => 'homeboy-rest-simple-' . $run_id . '-' . ( $i + 1 ),
@@ -614,6 +634,10 @@ return function (): array {
 			'manage_stock'  => true,
 			'stock_quantity' => 10 + $i,
 		);
+		if ( ! empty( $product_attribute_payload ) ) {
+			$simple_product['attributes'] = $product_attribute_payload;
+		}
+		$simple_create[] = $simple_product;
 	}
 	$simple_create_result = $dispatch_batch( '/wc/v3/products/batch', array( 'create' => $simple_create ) );
 	$simple_ids           = wp_list_pluck( (array) ( $simple_create_result['data']['create'] ?? array() ), 'id' );
@@ -1178,6 +1202,20 @@ return function (): array {
 		}
 		return $total;
 	};
+	$phase_results = array(
+		'simple_create'    => $simple_create_result,
+		'simple_update'    => $simple_update_result,
+		'variation_create' => $variation_create_result,
+		'variation_update' => $variation_update_result,
+	);
+	$phase_item_counts = array(
+		'simple_create'    => max( 1, count( $simple_ids ) ),
+		'simple_update'    => max( 1, count( $simple_update ) ),
+		'variation_create' => max( 1, count( $variation_ids ) ),
+		'variation_update' => max( 1, count( $variation_update ) ),
+	);
+	$focused_result = $phase_results[ $focus_phase ];
+	$focused_count  = $phase_item_counts[ $focus_phase ];
 	$variation_create_count = max( 1, (int) $variation_create_result['counter_delta']['new_variations'] );
 	$variation_core_meta_keys = array(
 		'_variation_description',
@@ -1219,6 +1257,35 @@ return function (): array {
 		'terms_per_attribute'                  => $terms_per_attr,
 		'catalog_seed_products'                => $catalog_products,
 		'catalog_seed_ms'                      => $catalog_seed_ms,
+		'matrix_focus_phase'                   => array_search( $focus_phase, $valid_focus_phases, true ) + 1,
+		'focused_phase_ms'                     => (float) $focused_result['elapsed_ms'],
+		'focused_phase_ms_per_item'            => (float) $focused_result['elapsed_ms'] / $focused_count,
+		'focused_phase_queries'                => (int) $focused_result['query_count'],
+		'focused_phase_queries_per_item'       => (float) $focused_result['query_count'] / $focused_count,
+		'focused_phase_transient_clears'       => (int) $focused_result['counter_delta']['product_transient_clears'],
+		'focused_phase_transient_clears_per_item' => (float) $focused_result['counter_delta']['product_transient_clears'] / $focused_count,
+		'focused_phase_profile_meta_exists_queries' => $profile_value( $focused_result, 'categories', 'meta_exists' ),
+		'focused_phase_profile_meta_read_queries' => $profile_value( $focused_result, 'categories', 'meta_read' ),
+		'focused_phase_profile_meta_insert_queries' => $profile_value( $focused_result, 'categories', 'meta_insert' ),
+		'focused_phase_profile_meta_update_queries' => $profile_value( $focused_result, 'categories', 'meta_update' ),
+		'focused_phase_profile_term_lookup_queries' => $profile_value( $focused_result, 'categories', 'term_lookup' ),
+		'focused_phase_profile_slug_lookup_queries' => $profile_value( $focused_result, 'categories', 'slug_lookup' ),
+		'focused_phase_profile_sku_lookup_queries' => $profile_value( $focused_result, 'categories', 'sku_lookup' ),
+		'focused_phase_profile_transient_option_queries' => $profile_value( $focused_result, 'categories', 'transient_option' ),
+		'focused_phase_profile_lookup_table_queries' => $profile_value( $focused_result, 'categories', 'lookup_table' ),
+		'focused_phase_profile_action_scheduler_queries' => $profile_value( $focused_result, 'categories', 'action_scheduler' ),
+		'focused_phase_hook_added_post_meta'    => (int) $focused_result['counter_delta']['added_post_meta'],
+		'focused_phase_hook_updated_post_meta'  => (int) $focused_result['counter_delta']['updated_post_meta'],
+		'focused_phase_hook_deleted_post_meta'  => (int) $focused_result['counter_delta']['deleted_post_meta'],
+		'focused_phase_hook_save_post_product'  => (int) $focused_result['counter_delta']['save_post_product'],
+		'focused_phase_hook_save_post_product_variation' => (int) $focused_result['counter_delta']['save_post_product_variation'],
+		'focused_phase_hook_clean_post_cache'   => (int) $focused_result['counter_delta']['clean_post_cache'],
+		'simple_create_ms_per_item'             => (float) $simple_create_result['elapsed_ms'] / $phase_item_counts['simple_create'],
+		'simple_update_ms_per_item'             => (float) $simple_update_result['elapsed_ms'] / $phase_item_counts['simple_update'],
+		'variation_create_ms_per_item'          => (float) $variation_create_result['elapsed_ms'] / $phase_item_counts['variation_create'],
+		'variation_update_ms_per_item'          => (float) $variation_update_result['elapsed_ms'] / $phase_item_counts['variation_update'],
+		'simple_create_queries_per_item'        => (float) $simple_create_result['query_count'] / $phase_item_counts['simple_create'],
+		'simple_update_queries_per_item'        => (float) $simple_update_result['query_count'] / $phase_item_counts['simple_update'],
 		'side_effect_active_plugin_count'      => count( $active_plugins ),
 		'scenario_reentrant_save_post_product' => 1,
 		'scenario_shared_product_data_store'   => 1,
@@ -1424,6 +1491,13 @@ return function (): array {
 				array(
 					'run_id'                => $run_id,
 					'issues'                => $issues,
+					'settings'              => array(
+						'WC_REST_BATCH_IMPORT_ITEMS' => (string) $batch_size,
+						'WC_REST_BATCH_IMPORT_ATTRIBUTES' => (string) $attribute_count,
+						'WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE' => (string) $terms_per_attr,
+						'WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS' => (string) $catalog_products,
+						'WC_REST_BATCH_IMPORT_FOCUS_PHASE' => $focus_phase,
+					),
 					'parent_product_id'     => $parent_id,
 					'simple_product_ids'    => array_map( 'intval', $simple_ids ),
 					'variation_ids'         => array_map( 'intval', $variation_ids ),
@@ -1472,6 +1546,7 @@ return function (): array {
 		'metadata'  => array(
 			'runner'       => 'wp-codebox',
 			'workload'     => 'rest-product-batch-import',
+			'focus_phase'  => $focus_phase,
 			'issues'       => $issues,
 			'route'        => '/wc/v3/products/batch',
 			'variation_route' => $variation_route,

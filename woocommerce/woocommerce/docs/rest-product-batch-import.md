@@ -5,6 +5,65 @@ and variation create/update performance. It exercises `/wc/v3/products/batch`
 and `/wc/v3/products/{product_id}/variations/batch` through the WP Codebox
 WordPress bench runtime.
 
+## Matrix Shape
+
+The workload is matrix-ready through Homeboy core's existing settings matrix
+primitive. Use dotted `bench_env.*` axes so each cell receives a typed
+`bench_env` object without adding rig-specific runner behavior.
+
+Supported axes:
+
+- `bench_env.WC_REST_BATCH_IMPORT_FOCUS_PHASE`: `simple_create`,
+  `simple_update`, `variation_create`, or `variation_update`.
+- `bench_env.WC_REST_BATCH_IMPORT_ITEMS`: batch size, clamped to `1..100`.
+- `bench_env.WC_REST_BATCH_IMPORT_ATTRIBUTES`: attributes per product/parent,
+  clamped to `0..10`.
+- `bench_env.WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE`: terms per attribute,
+  clamped to `1..50`.
+- `bench_env.WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS`: pre-existing catalog seed
+  size, clamped to `0..10000`.
+
+Each cell still executes all four REST phases so guardrails remain comparable,
+then promotes the selected `WC_REST_BATCH_IMPORT_FOCUS_PHASE` into generic
+`focused_phase_*` metrics for matrix ranking. The raw artifact records the exact
+cell settings, per-phase rows, scenario labels, side-effect guardrails, hook
+counters, query buckets, and REST status/error data.
+
+Small matrix smoke:
+
+```sh
+homeboy bench matrix \
+  --rig woocommerce-performance \
+  --scenario rest-product-batch-import \
+  --iterations 1 \
+  --shared-state /tmp/woocommerce-rest-product-batch-import-matrix-smoke \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_FOCUS_PHASE=simple_create,variation_create \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_ITEMS=1,5 \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_ATTRIBUTES=0,2 \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE=1,2 \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS=0
+```
+
+Hot slow-path discovery matrix:
+
+```sh
+homeboy bench matrix \
+  --rig woocommerce-performance \
+  --scenario rest-product-batch-import \
+  --iterations 1 \
+  --shared-state /tmp/woocommerce-rest-product-batch-import-matrix-hot \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_FOCUS_PHASE=simple_create,simple_update,variation_create,variation_update \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_ITEMS=5,25,100 \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_ATTRIBUTES=0,2,5 \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE=1,10,50 \
+  --setting-matrix bench_env.WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS=0,1000,10000
+```
+
+Rank cells from the matrix JSON by `focused_phase_queries_per_item` or
+`focused_phase_ms_per_item`. Reusable ranking/report helpers belong in
+[Homeboy Extensions #1298](https://github.com/Extra-Chill/homeboy-extensions/issues/1298);
+the WooCommerce rig emits the structured artifacts needed by that reporter now.
+
 ## Regression Guardrails
 
 The workload now always runs these correctness scenarios while collecting the
@@ -98,7 +157,7 @@ homeboy bench --rig woocommerce-performance \
   --scenario rest-product-batch-import \
   --iterations 1 \
   --shared-state /tmp/woocommerce-rest-product-batch-import-smoke \
-  --setting-json 'bench_env={"WC_REST_BATCH_IMPORT_ITEMS":"2","WC_REST_BATCH_IMPORT_ATTRIBUTES":"1","WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE":"2","WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS":"0"}'
+  --setting-json 'bench_env={"WC_REST_BATCH_IMPORT_ITEMS":"2","WC_REST_BATCH_IMPORT_ATTRIBUTES":"1","WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE":"2","WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS":"0","WC_REST_BATCH_IMPORT_FOCUS_PHASE":"variation_create"}'
 ```
 
 Reviewer-scale evidence should use the offloaded Homeboy/bench path instead of
