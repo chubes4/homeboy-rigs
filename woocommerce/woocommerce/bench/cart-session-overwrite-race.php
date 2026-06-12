@@ -36,6 +36,7 @@ return function (): array {
 	update_option( 'woocommerce_currency', 'USD' );
 	update_option( 'woocommerce_prices_include_tax', 'no' );
 	update_option( 'woocommerce_calc_taxes', 'no' );
+	update_option( 'woocommerce_enable_coupons', 'yes' );
 
 	$product = new WC_Product_Simple();
 	$product->set_name( 'Homeboy Cart Session Race Product ' . $run_id );
@@ -48,6 +49,14 @@ return function (): array {
 	$product->set_manage_stock( false );
 	$product->set_stock_status( 'instock' );
 	$product->save();
+
+	$coupon_code = 'homeboy-cart-race-' . strtolower( wp_generate_password( 6, false ) );
+	$coupon      = new WC_Coupon();
+	$coupon->set_code( $coupon_code );
+	$coupon->set_discount_type( 'fixed_cart' );
+	$coupon->set_amount( '5.00' );
+	$coupon->set_individual_use( false );
+	$coupon->save();
 
 	$session_probe = new WC_Session_Handler();
 	$cookie_name   = ( new ReflectionProperty( WC_Session_Handler::class, '_cookie' ) )->getValue( $session_probe );
@@ -80,19 +89,123 @@ return function (): array {
 		return $row ? (array) maybe_unserialize( $row ) : array();
 	};
 
+	$guardrail_session_domains = array(
+		'applied_coupons'         => array(
+			'label' => 'Applied coupons',
+			'key'   => 'applied_coupons',
+		),
+		'chosen_shipping_methods' => array(
+			'label' => 'Chosen shipping methods',
+			'key'   => 'chosen_shipping_methods',
+		),
+		'shipping_for_package_0'  => array(
+			'label' => 'Shipping package rates',
+			'key'   => 'shipping_for_package_0',
+		),
+		'removed_cart_contents'   => array(
+			'label' => 'Removed cart contents',
+			'key'   => 'removed_cart_contents',
+		),
+		'order_awaiting_payment'  => array(
+			'label' => 'Order awaiting payment',
+			'key'   => 'order_awaiting_payment',
+		),
+		'store_api_draft_order'   => array(
+			'label' => 'Store API draft order',
+			'key'   => 'store_api_draft_order',
+		),
+		'customer'                => array(
+			'label' => 'Customer session metadata',
+			'key'   => 'customer',
+		),
+		'homeboy_custom_metadata' => array(
+			'label' => 'Custom session metadata',
+			'key'   => 'homeboy_custom_metadata',
+		),
+	);
+
+	$get_session_value = static function ( array $session, string $key ) {
+		return array_key_exists( $key, $session ) ? maybe_unserialize( $session[ $key ] ) : null;
+	};
+
+	$summarize_guardrails = static function ( array $before, array $after ) use ( $guardrail_session_domains, $get_session_value ): array {
+		$summary = array();
+		foreach ( $guardrail_session_domains as $domain => $definition ) {
+			$key           = $definition['key'];
+			$before_exists = array_key_exists( $key, $before );
+			$after_exists  = array_key_exists( $key, $after );
+			$summary[ $domain ] = array(
+				'label'         => $definition['label'],
+				'key'           => $key,
+				'before_exists' => $before_exists,
+				'after_exists'  => $after_exists,
+				'lost'          => $before_exists && ! $after_exists,
+				'before_value'  => $get_session_value( $before, $key ),
+				'after_value'   => $get_session_value( $after, $key ),
+			);
+		}
+
+		return $summary;
+	};
+
 	$add_to_cart_session = $make_request_session();
 	$cart_page_session   = $make_request_session();
 
 	WC()->session = $add_to_cart_session;
 	WC()->cart    = new WC_Cart();
-	WC()->cart->add_to_cart( $product->get_id(), 1 );
+	$cart_item_key = WC()->cart->add_to_cart( $product->get_id(), 1 );
+	WC()->cart->apply_coupon( $coupon_code );
 	WC()->cart->calculate_totals();
 	$cart_session = new WC_Cart_Session( WC()->cart );
 	$cart_session->set_session();
+	WC()->session->set( 'chosen_shipping_methods', array( 'flat_rate:homeboy' ) );
+	WC()->session->set(
+		'shipping_for_package_0',
+		array(
+			'package_hash' => md5( $run_id . ':package-0' ),
+			'rates'        => array(
+				'flat_rate:homeboy' => array(
+					'id'    => 'flat_rate:homeboy',
+					'label' => 'Homeboy deterministic flat rate',
+					'cost'  => '7.50',
+				),
+			),
+		)
+	);
+	WC()->session->set(
+		'removed_cart_contents',
+		array(
+			'homeboy_removed_' . $run_id => array(
+				'product_id' => $product->get_id(),
+				'quantity'   => 1,
+				'line_total' => '19.99',
+			),
+		)
+	);
+	WC()->session->set( 'order_awaiting_payment', 424242 );
+	WC()->session->set( 'store_api_draft_order', 242424 );
+	WC()->session->set(
+		'customer',
+		array(
+			'email'      => 'homeboy-cart-race@example.test',
+			'first_name' => 'Homeboy',
+			'last_name'  => 'Session Race',
+			'country'    => 'US',
+			'state'      => 'CA',
+		)
+	);
+	WC()->session->set(
+		'homeboy_custom_metadata',
+		array(
+			'run_id'        => $run_id,
+			'cart_item_key' => $cart_item_key,
+		)
+	);
 	$add_to_cart_session->save_data();
 
 	$after_add_to_cart = $get_persisted_session();
 	$cart_after_add    = isset( $after_add_to_cart['cart'] ) ? maybe_unserialize( $after_add_to_cart['cart'] ) : array();
+	$guardrails_after_add = $summarize_guardrails( $after_add_to_cart, $after_add_to_cart );
 
 	WC()->session = $cart_page_session;
 	WC()->cart    = new WC_Cart();
@@ -112,10 +225,21 @@ return function (): array {
 	$after_stale_cart_page_save = $get_persisted_session();
 	$cart_after_stale_save      = isset( $after_stale_cart_page_save['cart'] ) ? maybe_unserialize( $after_stale_cart_page_save['cart'] ) : array();
 	$notices_after_stale_save   = isset( $after_stale_cart_page_save['wc_notices'] ) ? maybe_unserialize( $after_stale_cart_page_save['wc_notices'] ) : array();
+	$guardrails_after_stale_save = $summarize_guardrails( $after_add_to_cart, $after_stale_cart_page_save );
 
 	$cart_item_count_after_add        = is_array( $cart_after_add ) ? count( $cart_after_add ) : 0;
 	$cart_item_count_after_stale_save = is_array( $cart_after_stale_save ) ? count( $cart_after_stale_save ) : 0;
 	$overwrite_reproduced             = $cart_item_count_after_add > 0 && 0 === $cart_item_count_after_stale_save && ! empty( $notices_after_stale_save );
+	$guardrail_expected_keys          = array_map(
+		static function ( array $definition ): string {
+			return $definition['key'];
+		},
+		$guardrail_session_domains
+	);
+	$guardrail_keys_present_after_add = array_values( array_intersect( $guardrail_expected_keys, array_keys( $after_add_to_cart ) ) );
+	$guardrail_keys_after_stale_save  = array_values( array_intersect( $guardrail_expected_keys, array_keys( $after_stale_cart_page_save ) ) );
+	$guardrail_keys_lost              = array_values( array_diff( $guardrail_keys_present_after_add, $guardrail_keys_after_stale_save ) );
+	$guardrail_all_domains_clobbered  = count( $guardrail_keys_present_after_add ) > 0 && count( $guardrail_keys_present_after_add ) === count( $guardrail_keys_lost );
 
 	$artifact = array(
 		'run_id'                       => $run_id,
@@ -123,11 +247,15 @@ return function (): array {
 		'customer_id'                  => $customer_id,
 		'cookie_name'                  => $cookie_name,
 		'product_id'                   => $product->get_id(),
+		'coupon_id'                    => $coupon->get_id(),
+		'coupon_code'                  => $coupon_code,
 		'after_add_to_cart_keys'       => array_keys( $after_add_to_cart ),
 		'after_stale_save_keys'        => array_keys( $after_stale_cart_page_save ),
 		'cart_after_add'               => $cart_after_add,
 		'cart_after_stale_save'        => $cart_after_stale_save,
 		'notices_after_stale_save'     => $notices_after_stale_save,
+		'guardrail_domains_after_add'        => $guardrails_after_add,
+		'guardrail_domains_after_stale_save' => $guardrails_after_stale_save,
 		'overwrite_reproduced'         => $overwrite_reproduced,
 	);
 
@@ -139,7 +267,18 @@ return function (): array {
 		'wc_notices_present_after_stale_save'    => empty( $notices_after_stale_save ) ? 0 : 1,
 		'persisted_key_count_after_add_to_cart'  => count( $after_add_to_cart ),
 		'persisted_key_count_after_stale_save'   => count( $after_stale_cart_page_save ),
+		'guardrail_domain_count_after_add_to_cart'        => count( $guardrail_keys_present_after_add ),
+		'guardrail_domain_count_after_stale_save'         => count( $guardrail_keys_after_stale_save ),
+		'guardrail_domain_count_lost_after_stale_save' => count( $guardrail_keys_lost ),
+		'guardrail_all_domains_clobbered'              => $guardrail_all_domains_clobbered ? 1 : 0,
 	);
+
+	foreach ( $guardrails_after_stale_save as $domain => $domain_summary ) {
+		$metric_key = preg_replace( '/[^a-z0-9_]+/', '_', strtolower( $domain ) );
+		$summary[ $metric_key . '_present_after_add_to_cart' ] = $domain_summary['before_exists'] ? 1 : 0;
+		$summary[ $metric_key . '_present_after_stale_save' ]  = $domain_summary['after_exists'] ? 1 : 0;
+		$summary[ $metric_key . '_lost_after_stale_save' ]     = $domain_summary['lost'] ? 1 : 0;
+	}
 
 	$artifact_path = '';
 	$shared_state  = getenv( 'HOMEBOY_BENCH_SHARED_STATE' );
