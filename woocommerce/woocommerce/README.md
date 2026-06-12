@@ -24,6 +24,7 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/pull/65588
 - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
 - https://github.com/chubes4/homeboy-rigs/issues/253
+- https://github.com/chubes4/homeboy-rigs/issues/255
 
 ## Install
 
@@ -79,6 +80,7 @@ php bin/generate-feature-config.php
 ```bash
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state /tmp/woocommerce-concurrent-checkout
+homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state /tmp/woocommerce-gateway-matrix
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
@@ -101,6 +103,17 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   pending/failed retries, completed-order safety, changed-cart retries,
   `template_redirect` cart clearing after paid extension-created orders, and
   legacy coupon independence.
+- `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
+  idempotency repro across core BACS, Cheque, and COD gateway controls plus
+  opportunistic real-plugin profiles for WooCommerce Stripe Gateway,
+  WooCommerce PayPal Payments, and WooPayments when those plugin entrypoints are
+  mounted in the WP Codebox runtime. It captures plugin activation/version
+  details without secrets and links evidence to WooCommerce issue #62659,
+  WooCommerce PR #65588, Jorge's PR review, and Homeboy Rigs issue #255.
+  Limit the matrix during focused smokes with
+  `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
+  report explicit skip details when their entrypoint is unavailable or activation
+  fails, so the core controls remain runnable without gateway secrets.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed
@@ -136,6 +149,10 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 
 The first slice reports:
 
+- Gateway matrix counts for `order_awaiting_payment` writes/branches, duplicate
+  checkout attempts, duplicate order counts, payment success/failure/cancel
+  cart/session state, unexpected cart clearing, redirect presence, and
+  order-received URL timing.
 - `cold_shipping_ms`, `warm_shipping_p50_ms`, `warm_shipping_p95_ms`, and
   `warm_to_cold_ratio`.
 - `duplicate_reproduced`, `public_create_order_sets_order_awaiting_payment`,
