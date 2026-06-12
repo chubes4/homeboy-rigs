@@ -4,6 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
@@ -289,6 +290,61 @@ test('fixture health passes for a structurally valid ECE product page', () => {
   assert.deepEqual(health.failures, []);
 });
 
+test('real-wallet asset health fails on critical Woo Stripe asset failures and missing ECE startup', () => {
+  const health = evaluateEceRealWalletAssetHealth({
+    profileOptions: { realWalletCapable: true },
+    networkEntries: [
+      {
+        type: 'response',
+        url: 'https://example.test/wp-content/plugins/woocommerce-gateway-stripe/build/express-checkout.js?ver=10.8.0',
+        status: 502,
+      },
+      {
+        type: 'requestfailed',
+        url: 'https://example.test/wp-content/plugins/woocommerce/assets/client/blocks/wc-blocks.css?ver=1',
+        errorText: 'net::ERR_ABORTED',
+      },
+    ],
+    metrics: {
+      stripe_elements_session_response_count: 0,
+      ece_render_peak_child_count: 0,
+      ece_render_peak_iframe_count: 0,
+      ece_render_peak_visible_button_count: 0,
+    },
+  });
+
+  assert.equal(health.ok, false);
+  assert.equal(health.details.failed_asset_count, 2);
+  assert.ok(health.failures.some((failure) => /Critical Woo\/ECE frontend assets failed/.test(failure)));
+  assert.ok(health.failures.some((failure) => /Stripe Elements session/.test(failure)));
+  assert.ok(health.failures.some((failure) => /never observed ECE children/.test(failure)));
+  assert.match(realWalletAssetHealthSummary(health), /asset health failed/);
+});
+
+test('real-wallet asset health is profile-scoped and passes when assets and ECE startup are healthy', () => {
+  assert.equal(evaluateEceRealWalletAssetHealth({ profileOptions: { realWalletCapable: false } }).ok, true);
+
+  const health = evaluateEceRealWalletAssetHealth({
+    profileOptions: { realWalletCapable: true },
+    networkEntries: [
+      {
+        type: 'response',
+        url: 'https://example.test/wp-content/plugins/woocommerce-gateway-stripe/build/express-checkout.js?ver=10.8.0',
+        status: 200,
+      },
+    ],
+    metrics: {
+      stripe_elements_session_response_count: 1,
+      ece_render_peak_child_count: 1,
+      ece_render_peak_iframe_count: 1,
+      ece_render_peak_visible_button_count: 0,
+    },
+  });
+
+  assert.equal(health.ok, true);
+  assert.equal(health.details.failed_asset_count, 0);
+});
+
 test('fixture health fails loudly with artifact pointers for invalid product pages', () => {
   const health = evaluateEceFixtureHealth({
     html: 'fetch failed\nFatal error: broken fixture',
@@ -326,4 +382,14 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
 
   assert.match(traceSource, /\.\.\.profileOptions\.browserProbeAssertions/);
   assert.match(traceSource, /id: 'fixture-health'/);
+  assert.match(traceSource, /id: 'real-wallet-asset-health'/);
+});
+
+test('fixture bootstrap forces a tiny Woo-compatible classic theme', () => {
+  const fixtureBootstrapPath = path.join(__dirname, 'fixture-bootstrap.php');
+  const fixtureBootstrapSource = readFileSync(fixtureBootstrapPath, 'utf8');
+
+  assert.match(fixtureBootstrapSource, /ensure_classic_woocommerce_theme/);
+  assert.match(fixtureBootstrapSource, /add_theme_support\( 'woocommerce' \)/);
+  assert.match(fixtureBootstrapSource, /switch_theme\( 'homeboy-stripe-ece-classic' \)/);
 });

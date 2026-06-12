@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
@@ -70,6 +71,7 @@ const codeboxArtifacts = path.join(artifactDir, 'wp-codebox-artifacts');
 const metricsPath = path.join(artifactDir, 'ece-waterfall-metrics.json');
 const metadataPath = path.join(artifactDir, 'ece-waterfall-metadata.json');
 const fixtureHealthPath = path.join(artifactDir, 'ece-fixture-health.json');
+const realWalletAssetHealthPath = path.join(artifactDir, 'ece-real-wallet-asset-health.json');
 
 function event(source, name, data = {}) {
   return trace.mark(name, data, source);
@@ -750,9 +752,18 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_fixture_health_passed: fixtureHealth.ok,
     ece_fixture_health_failure_count: fixtureHealth.failures.length,
   };
+  const realWalletAssetHealth = evaluateEceRealWalletAssetHealth({
+    networkEntries: network,
+    metrics,
+    profileOptions,
+  });
+  metrics.ece_real_wallet_asset_health_passed = realWalletAssetHealth.ok;
+  metrics.ece_real_wallet_asset_health_failure_count = realWalletAssetHealth.failures.length;
 
   await writeFile(fixtureHealthPath, `${JSON.stringify(fixtureHealth, null, 2)}\n`);
   trace.artifact({ label: 'Fixture health', path: fixtureHealthPath });
+  await writeFile(realWalletAssetHealthPath, `${JSON.stringify(realWalletAssetHealth, null, 2)}\n`);
+  trace.artifact({ label: 'Real-wallet asset health', path: realWalletAssetHealthPath });
 
   await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
   trace.artifact({ label: 'Waterfall metrics', path: metricsPath });
@@ -800,6 +811,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         console_messages_sample: consoleMessages.slice(0, 20),
         page_errors_sample: pageErrors.slice(0, 20),
         fixture_health: fixtureHealth,
+        real_wallet_asset_health: realWalletAssetHealth,
         browser_script_result: scriptResult,
         pass_conditions: {
           network_path_exists: existsSync(networkPath),
@@ -827,11 +839,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         : true;
   const stripeLoadPass = stripeLoadPageErrors.length === 0;
   const browserProbeCompleted = responses.length > 0 && existsSync(networkPath) && existsSync(performancePath);
-  const pass = fixtureHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
+  const pass = fixtureHealth.ok && realWalletAssetHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
   const summaryText = pass
     ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
     : !fixtureHealth.ok
       ? fixtureHealthSummary(fixtureHealth)
+      : !realWalletAssetHealth.ok
+      ? realWalletAssetHealthSummary(realWalletAssetHealth)
       : stripeLoadPass
       ? 'Browser waterfall capture did not observe Stripe network responses.'
       : `Browser waterfall capture recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`;
@@ -860,6 +874,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     id: 'stripe-load-errors',
     status: stripeLoadPass ? 'pass' : 'fail',
     message: `Recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`,
+  });
+  trace.assertion({
+    id: 'real-wallet-asset-health',
+    status: realWalletAssetHealth.ok ? 'pass' : 'fail',
+    message: realWalletAssetHealthSummary(realWalletAssetHealth),
   });
   trace.assertion({
     id: 'scenario-interaction',
