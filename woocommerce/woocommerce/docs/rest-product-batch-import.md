@@ -2,8 +2,26 @@
 
 `rest-product-batch-import` is the WooCommerce REST batch workload for product
 and variation create/update performance. It exercises `/wc/v3/products/batch`
-and `/wc/v3/products/{product_id}/variations/batch` through the WP Codebox
-WordPress bench runtime.
+for simple product create/update and variable parent create/update, then
+exercises `/wc/v3/products/{product_id}/variations/batch` for variation
+create/update through the WP Codebox WordPress bench runtime.
+
+## Product Batch Metrics
+
+The `/wc/v3/products/batch` product phases are reported separately from the
+variation phases so product write costs are not inferred from variation-heavy
+metrics:
+
+- `simple_create_*`
+- `simple_update_*`
+- `variable_parent_create_*`
+- `variable_parent_update_*`
+
+Each product phase exposes total queries, queries per product, query buckets for
+postmeta, terms, SKU/slug lookup, transient options, lookup tables, Action
+Scheduler, post reads/writes, and product hook counters including
+`added_post_meta`, `updated_post_meta`, `deleted_post_meta`,
+`save_post_product`, and `clean_post_cache`.
 
 ## Regression Guardrails
 
@@ -50,6 +68,9 @@ existing performance counters:
 - `duplicate_sku_retry_guardrail`: replays a one-item create with an existing
   stable SKU and asserts it returns the expected create error without
   multiplying internal meta rows on the original product.
+- `variable_parent_product_batch_create_update`: creates and updates the
+  variable parent through `/wc/v3/products/batch` before variation work, then
+  checks the parent loaded as a variable product with expected attributes.
 - `opt_in_media_image_readback_guardrail`: when
   `WC_REST_BATCH_IMPORT_IMAGE_MODE` is set to `existing_attachment` or `remote`,
   sends image payloads through the product and variation REST batch routes,
@@ -89,6 +110,12 @@ These scenarios are labeled in the JSON artifact under
 - `scenario_third_party_meta_hooks`
 - `scenario_variation_parent_sync_guardrail`
 - `scenario_duplicate_sku_retry`
+- `variable_parent_create_queries_per_product`
+- `variable_parent_update_queries_per_product`
+- `simple_create_queries_per_product`
+- `simple_update_queries_per_product`
+- `variable_parent_create_hook_save_post_product`
+- `variable_parent_update_hook_save_post_product`
 - `side_effect_reentrant_save_post_product_count`
 - `side_effect_reentrant_save_post_product_variation_count`
 - `side_effect_shared_product_data_store_loads`
@@ -114,6 +141,9 @@ These scenarios are labeled in the JSON artifact under
 - `side_effect_simple_manage_stock_readback_mismatches`
 - `side_effect_simple_stock_readback_mismatches`
 - `side_effect_variation_manage_stock_readback_mismatches`
+- `side_effect_variable_parent_create_response_errors`
+- `side_effect_variable_parent_update_response_errors`
+- `side_effect_variable_parent_attribute_missing_count`
 
 Media/image import cost scenarios are opt-in. The default rig environment sets
 `WC_REST_BATCH_IMPORT_IMAGE_MODE=none`, keeping the no-image path as the hot
