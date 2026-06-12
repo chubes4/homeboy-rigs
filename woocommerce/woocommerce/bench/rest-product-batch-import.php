@@ -27,6 +27,22 @@ return function (): array {
 	$attribute_count  = max( 1, min( 10, (int) ( getenv( 'WC_REST_BATCH_IMPORT_ATTRIBUTES' ) ?: 3 ) ) );
 	$terms_per_attr   = max( 2, min( 25, (int) ( getenv( 'WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE' ) ?: 8 ) ) );
 	$catalog_products = max( 0, min( 5000, (int) ( getenv( 'WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS' ) ?: 0 ) ) );
+	$catalog_variations_per_product = max( 0, min( 100, (int) ( getenv( 'WC_REST_BATCH_IMPORT_CATALOG_VARIATIONS_PER_PRODUCT' ) ?: 0 ) ) );
+	$sku_shape        = (string) ( getenv( 'WC_REST_BATCH_IMPORT_SKU_SHAPE' ) ?: 'unique' );
+	$slug_title_shape = (string) ( getenv( 'WC_REST_BATCH_IMPORT_SLUG_TITLE_SHAPE' ) ?: 'unique' );
+	$term_mode        = (string) ( getenv( 'WC_REST_BATCH_IMPORT_TERM_MODE' ) ?: 'existing' );
+	$allowed_sku_shapes = array( 'unique', 'prefix', 'catalog_duplicate_retry' );
+	$allowed_slug_title_shapes = array( 'unique', 'prefix', 'collision' );
+	$allowed_term_modes = array( 'existing', 'new', 'mixed' );
+	if ( ! in_array( $sku_shape, $allowed_sku_shapes, true ) ) {
+		$sku_shape = 'unique';
+	}
+	if ( ! in_array( $slug_title_shape, $allowed_slug_title_shapes, true ) ) {
+		$slug_title_shape = 'unique';
+	}
+	if ( ! in_array( $term_mode, $allowed_term_modes, true ) ) {
+		$term_mode = 'existing';
+	}
 	$image_mode       = strtolower( (string) ( getenv( 'WC_REST_BATCH_IMPORT_IMAGE_MODE' ) ?: 'none' ) );
 	if ( ! in_array( $image_mode, array( 'none', 'existing_attachment', 'remote' ), true ) ) {
 		throw new RuntimeException( 'Unsupported WC_REST_BATCH_IMPORT_IMAGE_MODE. Expected none, existing_attachment, or remote.' );
@@ -41,6 +57,7 @@ return function (): array {
 	$issues           = array(
 		'https://github.com/woocommerce/woocommerce/issues/26029',
 		'https://github.com/chubes4/homeboy-rigs/issues/247',
+		'https://github.com/chubes4/homeboy-rigs/issues/248',
 		'https://github.com/chubes4/homeboy-rigs/issues/227',
 		'https://github.com/chubes4/homeboy-rigs/issues/228',
 		'https://github.com/chubes4/homeboy-rigs/issues/229',
@@ -223,10 +240,80 @@ return function (): array {
 	if ( class_exists( 'WC_Post_types' ) ) {
 		WC_Post_types::register_taxonomies();
 	}
+	$product_term_pool = array();
+	for ( $term_index = 1; $term_index <= max( 2, min( 10, $terms_per_attr ) ); $term_index++ ) {
+		$term = wp_insert_term(
+			'Homeboy Existing Catalog Term ' . $term_index . ' ' . $run_id,
+			'product_cat',
+			array( 'slug' => 'homeboy-existing-catalog-term-' . $term_index . '-' . $run_id )
+		);
+		if ( is_wp_error( $term ) ) {
+			throw new RuntimeException( 'Failed to create product category pressure term: ' . $term->get_error_message() );
+		}
+		$product_term_pool[] = array(
+			'id'   => (int) $term['term_id'],
+			'name' => 'Homeboy Existing Catalog Term ' . $term_index . ' ' . $run_id,
+		);
+	}
+	$make_product_attributes = static function () use ( $attribute_taxonomies ): array {
+		$product_attributes = array();
+		foreach ( $attribute_taxonomies as $attribute_taxonomy ) {
+			$product_attribute = new WC_Product_Attribute();
+			$product_attribute->set_id( $attribute_taxonomy['id'] );
+			$product_attribute->set_name( $attribute_taxonomy['taxonomy'] );
+			$product_attribute->set_options( wp_list_pluck( $attribute_taxonomy['terms'], 'id' ) );
+			$product_attribute->set_visible( true );
+			$product_attribute->set_variation( true );
+			$product_attributes[] = $product_attribute;
+		}
+		return $product_attributes;
+	};
+	$sku_for = static function ( string $phase, int $index ) use ( $run_id, $sku_shape ): string {
+		if ( 'prefix' === $sku_shape ) {
+			return 'hb-prefix-heavy-' . $phase . '-' . $run_id . '-' . str_pad( (string) ( $index + 1 ), 6, '0', STR_PAD_LEFT );
+		}
+		return 'homeboy-rest-' . $phase . '-' . $run_id . '-' . ( $index + 1 );
+	};
+	$name_for = static function ( string $type, int $index ) use ( $run_id, $slug_title_shape ): string {
+		if ( 'collision' === $slug_title_shape ) {
+			return 'Homeboy REST Collision Product ' . $run_id;
+		}
+		if ( 'prefix' === $slug_title_shape ) {
+			return 'Homeboy REST Shared Prefix Product ' . $run_id . ' ' . str_pad( (string) ( $index + 1 ), 6, '0', STR_PAD_LEFT );
+		}
+		return 'Homeboy REST ' . ucfirst( $type ) . ' Product ' . $run_id . ' #' . ( $index + 1 );
+	};
+	$slug_for = static function ( string $type, int $index ) use ( $run_id, $slug_title_shape ): string {
+		if ( 'collision' === $slug_title_shape ) {
+			return 'homeboy-rest-collision-' . $run_id;
+		}
+		if ( 'prefix' === $slug_title_shape ) {
+			return 'homeboy-rest-shared-prefix-' . $run_id . '-' . str_pad( (string) ( $index + 1 ), 6, '0', STR_PAD_LEFT );
+		}
+		return 'homeboy-rest-' . $type . '-' . $run_id . '-' . ( $index + 1 );
+	};
+	$terms_for = static function ( int $index ) use ( $product_term_pool, $term_mode, $run_id ): array {
+		if ( 'new' === $term_mode || ( 'mixed' === $term_mode && 1 === $index % 2 ) ) {
+			return array(
+				array(
+					'name' => 'Homeboy New REST Term ' . $run_id . ' #' . ( $index + 1 ),
+				),
+			);
+		}
+
+		$term = $product_term_pool[ $index % count( $product_term_pool ) ];
+		return array(
+			array(
+				'id' => (int) $term['id'],
+			),
+		);
+	};
 
 	$catalog_seed_started = microtime( true );
+	$catalog_seed_variations = 0;
+	$catalog_seed_skus       = array();
 	for ( $i = 0; $i < $catalog_products; $i++ ) {
-		$product = new WC_Product_Simple();
+		$product = $catalog_variations_per_product > 0 ? new WC_Product_Variable() : new WC_Product_Simple();
 		$product->set_name( 'Homeboy Existing Catalog Product ' . $run_id . ' #' . ( $i + 1 ) );
 		$product->set_slug( 'homeboy-existing-catalog-' . $run_id . '-' . ( $i + 1 ) );
 		$product->set_status( 'publish' );
@@ -236,7 +323,32 @@ return function (): array {
 		$product->set_manage_stock( true );
 		$product->set_stock_quantity( 10 );
 		$product->set_stock_status( 'instock' );
+		if ( $catalog_variations_per_product > 0 ) {
+			$product->set_attributes( $make_product_attributes() );
+		}
 		$product->save();
+		$catalog_seed_skus[] = $product->get_sku();
+		if ( $catalog_variations_per_product > 0 ) {
+			for ( $variation_index = 0; $variation_index < $catalog_variations_per_product; $variation_index++ ) {
+				$variation = new WC_Product_Variation();
+				$variation->set_parent_id( $product->get_id() );
+				$variation->set_status( 'publish' );
+				$variation->set_sku( 'homeboy-existing-catalog-' . $run_id . '-' . ( $i + 1 ) . '-variation-' . ( $variation_index + 1 ) );
+				$variation->set_regular_price( '10' );
+				$variation->set_price( '10' );
+				$variation->set_manage_stock( true );
+				$variation->set_stock_quantity( 10 );
+				$variation->set_stock_status( 'instock' );
+				$variation_attributes = array();
+				foreach ( $attribute_taxonomies as $attribute_index => $attribute_taxonomy ) {
+					$term = $attribute_taxonomy['terms'][ ( $variation_index + $attribute_index ) % count( $attribute_taxonomy['terms'] ) ];
+					$variation_attributes[ $attribute_taxonomy['taxonomy'] ] = $term['slug'];
+				}
+				$variation->set_attributes( $variation_attributes );
+				$variation->save();
+				++$catalog_seed_variations;
+			}
+		}
 	}
 	$catalog_seed_ms = ( microtime( true ) - $catalog_seed_started ) * 1000;
 
@@ -246,17 +358,7 @@ return function (): array {
 	$parent->set_status( 'publish' );
 	$parent->set_sku( 'homeboy-variable-parent-' . $run_id );
 
-	$product_attributes = array();
-	foreach ( $attribute_taxonomies as $attribute_taxonomy ) {
-		$product_attribute = new WC_Product_Attribute();
-		$product_attribute->set_id( $attribute_taxonomy['id'] );
-		$product_attribute->set_name( $attribute_taxonomy['taxonomy'] );
-		$product_attribute->set_options( wp_list_pluck( $attribute_taxonomy['terms'], 'id' ) );
-		$product_attribute->set_visible( true );
-		$product_attribute->set_variation( true );
-		$product_attributes[] = $product_attribute;
-	}
-	$parent->set_attributes( $product_attributes );
+	$parent->set_attributes( $make_product_attributes() );
 	$parent->save();
 	$parent_id = $parent->get_id();
 
@@ -713,12 +815,14 @@ return function (): array {
 	$simple_create = array();
 	for ( $i = 0; $i < $batch_size; $i++ ) {
 		$product_payload = array(
-			'name'          => 'Homeboy REST Simple Product ' . $run_id . ' #' . ( $i + 1 ),
+			'name'          => $name_for( 'simple', $i ),
 			'type'          => 'simple',
-			'sku'           => 'homeboy-rest-simple-' . $run_id . '-' . ( $i + 1 ),
+			'slug'          => $slug_for( 'simple', $i ),
+			'sku'           => $sku_for( 'simple', $i ),
 			'regular_price' => (string) ( 10 + $i ),
 			'manage_stock'  => true,
 			'stock_quantity' => 10 + $i,
+			'categories'    => $terms_for( $i ),
 		);
 		$product_images = $build_image_payloads( $i + 1 );
 		if ( ! empty( $product_images ) ) {
@@ -756,7 +860,7 @@ return function (): array {
 		}
 		$variation_payload = array(
 			'regular_price' => (string) ( 30 + $i ),
-			'sku'           => 'homeboy-rest-variation-' . $run_id . '-' . ( $i + 1 ),
+			'sku'           => $sku_for( 'variation', $i ),
 			'manage_stock'  => true,
 			'stock_quantity' => 30 + $i,
 			'attributes'    => $variation_attributes,
@@ -787,7 +891,11 @@ return function (): array {
 	$variation_update_result = $dispatch_batch( $variation_route, array( 'update' => $variation_update ) );
 
 	$retry_duplicate_sku_product_id       = (int) ( $simple_ids[0] ?? 0 );
-	$retry_duplicate_sku                  = $retry_duplicate_sku_product_id ? 'homeboy-rest-simple-' . $run_id . '-1' : '';
+	$retry_duplicate_sku                  = $retry_duplicate_sku_product_id ? $sku_for( 'simple', 0 ) : '';
+	if ( 'catalog_duplicate_retry' === $sku_shape && ! empty( $catalog_seed_skus ) ) {
+		$retry_duplicate_sku_product_id = (int) wc_get_product_id_by_sku( (string) $catalog_seed_skus[0] );
+		$retry_duplicate_sku            = (string) $catalog_seed_skus[0];
+	}
 	$count_retry_product_internal_rows    = static function () use ( $wpdb, &$retry_duplicate_sku_product_id, &$internal_guardrail_meta_keys ): int {
 		if ( ! $retry_duplicate_sku_product_id ) {
 			return 0;
@@ -1015,6 +1123,23 @@ return function (): array {
 	$parent_after       = wc_get_product( $parent_id );
 	$active_plugins    = array_values( array_map( 'strval', (array) get_option( 'active_plugins', array() ) ) );
 	sort( $active_plugins );
+	$count_string_duplicates = static function ( array $values ): int {
+		$values = array_values( array_filter( array_map( 'strval', $values ), static fn( string $value ): bool => '' !== $value ) );
+		return count( $values ) - count( array_unique( $values ) );
+	};
+	$requested_simple_slugs = array_map( static fn( array $payload ): string => (string) ( $payload['slug'] ?? '' ), $simple_create );
+	$actual_simple_slugs    = array_map( static fn( $product ): string => $product instanceof WC_Product ? (string) $product->get_slug() : '', $simple_products );
+	$requested_new_term_count = 0;
+	$requested_existing_term_count = 0;
+	foreach ( $simple_create as $payload ) {
+		foreach ( (array) ( $payload['categories'] ?? array() ) as $category ) {
+			if ( isset( $category['id'] ) ) {
+				++$requested_existing_term_count;
+			} else {
+				++$requested_new_term_count;
+			}
+		}
+	}
 	$expected_simple_skus          = array();
 	$expected_simple_regular_price = array();
 	$expected_simple_price         = array();
@@ -1051,7 +1176,7 @@ return function (): array {
 	$response_simple_images        = $get_response_product_images( (array) ( $simple_update_result['data']['update'] ?? array() ) );
 	$response_variation_images     = $get_response_variation_images( (array) ( $variation_update_result['data']['update'] ?? array() ) );
 	foreach ( $simple_ids as $index => $simple_id ) {
-		$expected_simple_skus[ (int) $simple_id ]          = 'homeboy-rest-simple-' . $run_id . '-' . ( $index + 1 );
+		$expected_simple_skus[ (int) $simple_id ]          = $sku_for( 'simple', $index );
 		$expected_simple_regular_price[ (int) $simple_id ] = (string) ( 20 + $index );
 		$expected_simple_price[ (int) $simple_id ]         = (string) ( 20 + $index );
 		$expected_simple_stock[ (int) $simple_id ]         = (string) ( 20 + $index );
@@ -1066,7 +1191,7 @@ return function (): array {
 	foreach ( $variation_ids as $index => $variation_id ) {
 		$expected_variation_prices[ (int) $variation_id ] = (string) ( 40 + $index );
 		$expected_variation_stock[ (int) $variation_id ]  = 40 + $index;
-		$expected_variation_skus[ (int) $variation_id ]   = 'homeboy-rest-variation-' . $run_id . '-' . ( $index + 1 );
+		$expected_variation_skus[ (int) $variation_id ]   = $sku_for( 'variation', $index );
 		$expected_variation_image_ids[ (int) $variation_id ] = (int) ( $response_variation_images[ (int) $variation_id ] ?? 0 );
 	}
 	$variation_price_mismatches        = 0;
@@ -1324,6 +1449,7 @@ return function (): array {
 	$record_invariant( 'variation_required_postmeta_rows_exist', 0 === $variation_required_meta_missing_total, array( 'missing_counts' => $variation_meta_key_missing_counts ) );
 	$record_invariant( 'simple_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $simple_products ) ) );
 	$record_invariant( 'variation_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $variation_products ) ) );
+	$record_invariant( 'simple_slugs_are_unique_after_collision_pressure', 0 === $count_string_duplicates( $actual_simple_slugs ), array( 'requested_duplicate_slugs' => $count_string_duplicates( $requested_simple_slugs ), 'actual_duplicate_slugs' => $count_string_duplicates( $actual_simple_slugs ) ) );
 	$record_invariant( 'duplicate_sku_retry_returns_one_create_error', 1 === $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ), array( 'errors' => $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ) ) );
 	$record_invariant( 'duplicate_sku_retry_does_not_multiply_internal_meta_rows', 0 === $retry_internal_meta_row_delta, array( 'before' => $retry_internal_meta_rows_before, 'after' => $retry_internal_meta_rows_after, 'delta' => $retry_internal_meta_row_delta ) );
 	$record_invariant( 'simple_lookup_rows_exist', 0 === $count_missing_lookup_rows( $simple_ids ) );
@@ -1350,6 +1476,22 @@ return function (): array {
 	$profile_value = static function ( array $row, string $section, string $key ): int {
 		return (int) ( $row['query_profile'][ $section ][ $key ] ?? 0 );
 	};
+	$profile_total = static function ( array $profile_rows, string $section, string $key ) use ( $profile_value ): int {
+		$total = 0;
+		foreach ( $profile_rows as $profile_row ) {
+			$total += $profile_value( $profile_row, $section, $key );
+		}
+		return $total;
+	};
+	$profile_total_keys = static function ( array $profile_rows, string $section, array $keys ) use ( $profile_value ): int {
+		$total = 0;
+		foreach ( $profile_rows as $profile_row ) {
+			foreach ( $keys as $key ) {
+				$total += $profile_value( $profile_row, $section, $key );
+			}
+		}
+		return $total;
+	};
 	$parent_transient_option_names = array(
 		'_transient_wc_product_children_' . $parent_id,
 		'_transient_wc_var_prices_' . $parent_id,
@@ -1365,6 +1507,14 @@ return function (): array {
 		return $total;
 	};
 	$variation_create_count = max( 1, (int) $variation_create_result['counter_delta']['new_variations'] );
+	$created_item_count     = max( 1, count( $simple_ids ) + count( $variation_ids ) );
+	$lookup_pressure_rows   = array(
+		$simple_create_result,
+		$simple_update_result,
+		$variation_create_result,
+		$variation_update_result,
+		$retry_duplicate_sku_result,
+	);
 	$variation_core_meta_keys = array(
 		'_variation_description',
 		'_sku',
@@ -1413,6 +1563,8 @@ return function (): array {
 		'attribute_count'                      => $attribute_count,
 		'terms_per_attribute'                  => $terms_per_attr,
 		'catalog_seed_products'                => $catalog_products,
+		'catalog_seed_variations_per_product'  => $catalog_variations_per_product,
+		'catalog_seed_variations'              => $catalog_seed_variations,
 		'catalog_seed_ms'                      => $catalog_seed_ms,
 		'media_image_mode'                     => $image_mode,
 		'media_images_per_product'             => $image_count,
@@ -1438,6 +1590,14 @@ return function (): array {
 		'media_simple_gallery_readback_mismatches' => $simple_gallery_readback_mismatches,
 		'media_variation_image_readback_mismatches' => $variation_image_readback_mismatches,
 		'side_effect_active_plugin_count'      => count( $active_plugins ),
+		'scenario_catalog_lookup_pressure'     => 1,
+		'scenario_catalog_variation_density'   => $catalog_variations_per_product > 0 ? 1 : 0,
+		'scenario_sku_shape_prefix'            => 'prefix' === $sku_shape ? 1 : 0,
+		'scenario_sku_shape_catalog_duplicate_retry' => 'catalog_duplicate_retry' === $sku_shape ? 1 : 0,
+		'scenario_slug_title_shape_prefix'     => 'prefix' === $slug_title_shape ? 1 : 0,
+		'scenario_slug_title_shape_collision'  => 'collision' === $slug_title_shape ? 1 : 0,
+		'scenario_term_mode_new'               => 'new' === $term_mode ? 1 : 0,
+		'scenario_term_mode_mixed'             => 'mixed' === $term_mode ? 1 : 0,
 		'scenario_reentrant_save_post_product' => 1,
 		'scenario_shared_product_data_store'   => 1,
 		'scenario_preexisting_internal_meta'   => 1,
@@ -1454,6 +1614,27 @@ return function (): array {
 		'variation_create_queries'             => (int) $variation_create_result['query_count'],
 		'variation_update_queries'             => (int) $variation_update_result['query_count'],
 		'duplicate_sku_retry_queries'          => (int) $retry_duplicate_sku_result['query_count'],
+		'lookup_pressure_sku_lookup_queries'   => $profile_total( $lookup_pressure_rows, 'categories', 'sku_lookup' ),
+		'lookup_pressure_slug_uniqueness_queries' => $profile_total( $lookup_pressure_rows, 'categories', 'slug_lookup' ),
+		'lookup_pressure_product_lookup_table_queries' => $profile_total( $lookup_pressure_rows, 'categories', 'lookup_table' ),
+		'lookup_pressure_term_relationship_queries' => $profile_total( $lookup_pressure_rows, 'categories', 'term_lookup' ),
+		'lookup_pressure_post_postmeta_queries' => $profile_total( $lookup_pressure_rows, 'categories', 'post_write_read' ) + $profile_total_keys( $lookup_pressure_rows, 'categories', array( 'meta_exists', 'meta_read', 'meta_insert', 'meta_update' ) ),
+		'lookup_pressure_postmeta_lookup_queries' => $profile_total_keys( $lookup_pressure_rows, 'categories', array( 'meta_exists', 'meta_read' ) ),
+		'lookup_pressure_rest_errors'          => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ) + $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) ) + $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ),
+		'lookup_pressure_sku_lookup_queries_per_created_item' => (float) $profile_total( $lookup_pressure_rows, 'categories', 'sku_lookup' ) / $created_item_count,
+		'lookup_pressure_slug_uniqueness_queries_per_created_item' => (float) $profile_total( $lookup_pressure_rows, 'categories', 'slug_lookup' ) / $created_item_count,
+		'lookup_pressure_term_queries_per_created_item' => (float) $profile_total( $lookup_pressure_rows, 'categories', 'term_lookup' ) / $created_item_count,
+		'simple_create_profile_sku_lookup_queries' => $profile_value( $simple_create_result, 'categories', 'sku_lookup' ),
+		'simple_create_profile_slug_lookup_queries' => $profile_value( $simple_create_result, 'categories', 'slug_lookup' ),
+		'simple_create_profile_lookup_table_queries' => $profile_value( $simple_create_result, 'categories', 'lookup_table' ),
+		'simple_create_profile_term_lookup_queries' => $profile_value( $simple_create_result, 'categories', 'term_lookup' ),
+		'simple_create_profile_select_posts_queries' => $profile_value( $simple_create_result, 'operation_tables', 'select:posts' ),
+		'simple_create_profile_select_postmeta_queries' => $profile_value( $simple_create_result, 'operation_tables', 'select:postmeta' ),
+		'simple_create_profile_insert_postmeta_queries' => $profile_value( $simple_create_result, 'operation_tables', 'insert:postmeta' ),
+		'simple_create_profile_slug_post_name_collision_check_queries' => $profile_value( $simple_create_result, 'details', 'slug_post_name_collision_check' ),
+		'simple_create_profile_term_relationship_join_queries' => $profile_value( $simple_create_result, 'details', 'term_relationship_join' ),
+		'simple_create_profile_term_slug_lookup_queries' => $profile_value( $simple_create_result, 'details', 'term_slug_lookup' ),
+		'simple_create_profile_term_name_lookup_queries' => $profile_value( $simple_create_result, 'details', 'term_name_lookup' ),
 		'variation_create_queries_per_item'    => (float) $variation_create_result['query_count'] / $variation_create_count,
 		'variation_create_transient_clears'    => (int) $variation_create_result['counter_delta']['product_transient_clears'],
 		'variation_update_transient_clears'    => (int) $variation_update_result['counter_delta']['product_transient_clears'],
@@ -1578,6 +1759,10 @@ return function (): array {
 		'side_effect_variation_created_count' => count( $variation_ids ),
 		'side_effect_simple_loaded_count' => count( $simple_products ),
 		'side_effect_variation_loaded_count' => count( $variation_products ),
+		'side_effect_requested_existing_term_count' => $requested_existing_term_count,
+		'side_effect_requested_new_term_count' => $requested_new_term_count,
+		'side_effect_requested_simple_slug_duplicates' => $count_string_duplicates( $requested_simple_slugs ),
+		'side_effect_actual_simple_slug_duplicates' => $count_string_duplicates( $actual_simple_slugs ),
 		'side_effect_preexisting_internal_meta_writes' => $preexisting_internal_meta_writes,
 		'side_effect_preexisting_internal_meta_products' => count( array_unique( $preexisting_internal_meta_post_ids ) ),
 		'side_effect_third_party_adjacent_meta_writes' => $third_party_adjacent_meta_writes,
@@ -1644,6 +1829,13 @@ return function (): array {
 				array(
 					'run_id'                => $run_id,
 					'issues'                => $issues,
+					'scenario'              => array(
+						'catalog_products'               => $catalog_products,
+						'catalog_variations_per_product' => $catalog_variations_per_product,
+						'sku_shape'                      => $sku_shape,
+						'slug_title_shape'               => $slug_title_shape,
+						'term_mode'                      => $term_mode,
+					),
 					'parent_product_id'     => $parent_id,
 					'simple_product_ids'    => array_map( 'intval', $simple_ids ),
 					'variation_ids'         => array_map( 'intval', $variation_ids ),
@@ -1659,6 +1851,11 @@ return function (): array {
 						'expected_simple_gallery_ids'                  => $expected_simple_gallery_ids,
 						'expected_variation_image_ids'                 => $expected_variation_image_ids,
 						'scenario_labels'                             => array(
+							'catalog_size_lookup_pressure',
+							'catalog_variation_density_pressure',
+							'sku_shape_lookup_pressure',
+							'slug_title_collision_pressure',
+							'existing_vs_new_term_pressure',
 							'reentrant_save_post_product_create_fanout',
 							'reentrant_save_post_product_variation_create_fanout',
 							'duplicate_meta_and_readback_correctness',
@@ -1702,6 +1899,13 @@ return function (): array {
 			'route'        => '/wc/v3/products/batch',
 			'variation_route' => $variation_route,
 			'image_mode'   => $image_mode,
+			'scenario'     => array(
+				'catalog_products'               => $catalog_products,
+				'catalog_variations_per_product' => $catalog_variations_per_product,
+				'sku_shape'                      => $sku_shape,
+				'slug_title_shape'               => $slug_title_shape,
+				'term_mode'                      => $term_mode,
+			),
 		),
 		'artifacts' => $artifact_path ? array( 'raw_result' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);
