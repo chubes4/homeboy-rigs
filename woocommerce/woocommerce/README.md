@@ -78,6 +78,7 @@ php bin/generate-feature-config.php
 
 ```bash
 homeboy rig up woocommerce-performance
+homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state /tmp/woocommerce-concurrent-checkout
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
@@ -111,6 +112,11 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   synthetic successful gateway while capturing checkout POST timing, order
   creation timing, query counts, Action Scheduler deltas, and raw JSON evidence
   for the slow place-order report in homeboy-rigs issue #223.
+- `checkout-concurrent-create-order` seeds one WooCommerce cart/session, then
+  fires simultaneous `/?wc-ajax=checkout` POSTs with the same session cookie to
+  distinguish true request races from sequential `create_order()` retry fixes.
+  It links evidence to WooCommerce issue #62659, PR #65588, Jorge's review, and
+  homeboy-rigs issue #254.
 - `layered-nav-count-cache` seeds a real WooCommerce product attribute, terms,
   and simple products, then exercises `Filterer::get_filtered_term_product_counts()`
   across many unique layered-nav count query hashes to measure growth of the
@@ -151,6 +157,12 @@ The first slice reports:
   slowest query summaries when `SAVEQUERIES` is available, Action Scheduler job
   deltas, order ID/payment method rows, HPOS mode, checkout renderer, and
   WooCommerce version for shortcode place-order latency.
+- `checkout_request_count`, `successful_response_count`, `unique_order_count`,
+  `duplicate_reproduced`, `cart_item_owner_order_count`,
+  `payment_attempt_count_observed`, `safe_losing_response_count`,
+  `cart_session_integrity_after_burst_iteration_count`, and
+  `repeated_iteration_stability` for true concurrent checkout duplicate-order
+  behavior.
 - `final_transient_entry_count`, `max_transient_entry_count`,
   `final_serialized_value_bytes`, and `cache_exceeded_limit` for layered-nav
   count cache growth.
@@ -160,6 +172,20 @@ The first slice reports:
   WooCommerce version for the admin dashboard physical-products path.
 
 See `docs/checkout-shipping-cache.md` for workload details and current TODOs.
+
+For baseline/candidate duplicate-checkout comparisons, run the focused profile
+against each WooCommerce checkout and keep the shared-state artifacts attached
+to the WooCommerce tracker or PR:
+
+```bash
+homeboy bench --rig woocommerce-performance --profile checkout-concurrent --iterations 1 --shared-state /tmp/wc-checkout-baseline
+homeboy bench --rig woocommerce-performance --profile checkout-concurrent --iterations 1 --shared-state /tmp/wc-checkout-candidate
+```
+
+Use `bench_env.WC_CONCURRENT_CHECKOUT_REQUESTS`,
+`bench_env.WC_CONCURRENT_CHECKOUT_ITERATIONS`, and
+`bench_env.WC_CONCURRENT_CHECKOUT_PAYMENT_MODE` to adjust burst width,
+repetition, and COD vs no-payment-needed checkout paths.
 
 ## Matrix Report
 

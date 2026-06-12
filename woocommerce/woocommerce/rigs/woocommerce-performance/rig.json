@@ -31,6 +31,9 @@
             "WC_SHORTCODE_CHECKOUT_VARIATIONS": "125",
             "WC_SHORTCODE_CHECKOUT_HISTORICAL_ORDERS": "25",
             "WC_SHORTCODE_CHECKOUT_PAYMENT_METHODS": "cod,homeboy_synthetic",
+            "WC_CONCURRENT_CHECKOUT_REQUESTS": "2",
+            "WC_CONCURRENT_CHECKOUT_ITERATIONS": "3",
+            "WC_CONCURRENT_CHECKOUT_PAYMENT_MODE": "cod",
             "WC_ADMIN_DASHBOARD_PRODUCTS": "500",
             "WC_ADMIN_DASHBOARD_TERMS": "20",
             "WC_ADMIN_DASHBOARD_PHYSICAL_PERCENT": "100"
@@ -83,6 +86,9 @@
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "rest-product-batch-import"
+    ],
+    "checkout-concurrent": [
+      "checkout-concurrent-create-order"
     ]
   },
   "pipeline": {
