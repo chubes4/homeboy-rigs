@@ -20,6 +20,10 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/issues/17355
 - https://github.com/chubes4/homeboy-rigs/issues/224
 - https://wordpress.org/support/topic/wp_query-get_posts-slow-query-on-dashboard/
+- https://github.com/woocommerce/woocommerce/issues/62659
+- https://github.com/woocommerce/woocommerce/pull/65588
+- https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
+- https://github.com/chubes4/homeboy-rigs/issues/253
 
 ## Install
 
@@ -89,6 +93,13 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 
 ## Current Workloads
 
+- `checkout-concurrent-create-order` calls public `WC_Checkout::create_order()`
+  twice against the same cart to report duplicate-order behavior, then records
+  deterministic guardrails for session/cart side effects: public create-order
+  `order_awaiting_payment` mutation, public create-order cart clearing,
+  pending/failed retries, completed-order safety, changed-cart retries,
+  `template_redirect` cart clearing after paid extension-created orders, and
+  legacy coupon independence.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed
@@ -121,6 +132,16 @@ The first slice reports:
 
 - `cold_shipping_ms`, `warm_shipping_p50_ms`, `warm_shipping_p95_ms`, and
   `warm_to_cold_ratio`.
+- `duplicate_reproduced`, `public_create_order_sets_order_awaiting_payment`,
+  `public_create_order_clears_cart`, `pending_retry_reuses_order`,
+  `failed_retry_reuses_order`, `completed_order_is_not_reused`,
+  `completed_order_status_is_preserved`,
+  `changed_cart_retry_creates_new_order`,
+  `template_redirect_clears_paid_completed_extension_order`,
+  `template_redirect_does_not_clear_without_payment_signal`,
+  `template_redirect_does_not_clear_pending_retry_order`,
+  `legacy_coupon_independence`, and `guardrail_failure_count` for the checkout
+  duplicate-order side-effect guardrails.
 - `total_churn_shipping_p50_ms`, `total_churn_to_warm_ratio`, and
   `total_churn_rate_calculation_calls` for package subtotal/total-only churn.
 - `rehash_shipping_p50_ms` and `rehash_to_warm_ratio` for address/hash changes.
