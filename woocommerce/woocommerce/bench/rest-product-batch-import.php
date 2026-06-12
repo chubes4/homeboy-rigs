@@ -706,7 +706,7 @@ return function (): array {
 	$count_response_errors = static function ( array $response_items ): int {
 		$errors = 0;
 		foreach ( $response_items as $item ) {
-			if ( is_array( $item ) && isset( $item['code'], $item['message'] ) ) {
+			if ( is_array( $item ) && ( isset( $item['code'], $item['message'] ) || isset( $item['error']['code'], $item['error']['message'] ) ) ) {
 				++$errors;
 			}
 		}
