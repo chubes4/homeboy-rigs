@@ -10,6 +10,7 @@
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
           "bench_env": {
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "core_bacs,core_cheque,core_cod,plugin_stripe,plugin_paypal_payments,plugin_woopayments",
             "WC_SHIPPING_CACHE_CART_ITEMS": "40",
             "WC_SHIPPING_CACHE_PACKAGES": "8",
             "WC_SHIPPING_CACHE_WARM_RUNS": "5",
@@ -58,6 +59,7 @@
     "wordpress": [
       { "path": "${package.root}/bench/cart-session-overwrite-race.php" },
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
+      { "path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php" },
       { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
       { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
@@ -70,6 +72,7 @@
     "smoke": [
       "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
+      "checkout-gateway-compatibility-matrix",
       "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
       "admin-dashboard-physical-products-query",
@@ -80,6 +83,7 @@
     "hot": [
       "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
+      "checkout-gateway-compatibility-matrix",
       "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
       "admin-dashboard-physical-products-query",
