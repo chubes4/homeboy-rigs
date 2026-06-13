@@ -73,24 +73,30 @@ return function (): array {
 		array(
 			'profile'        => 'core_bacs',
 			'gateway_id'     => 'bacs',
+			'expected_gateway_ids' => array( 'bacs' ),
 			'label'          => 'Direct bank transfer (BACS)',
 			'plugin'         => 'woocommerce-core',
+			'dependency_slug' => 'woocommerce-core',
 			'entrypoint'     => '',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
 			'profile'        => 'core_cheque',
 			'gateway_id'     => 'cheque',
+			'expected_gateway_ids' => array( 'cheque' ),
 			'label'          => 'Check payments',
 			'plugin'         => 'woocommerce-core',
+			'dependency_slug' => 'woocommerce-core',
 			'entrypoint'     => '',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
 			'profile'        => 'core_cod',
 			'gateway_id'     => 'cod',
+			'expected_gateway_ids' => array( 'cod' ),
 			'label'          => 'Cash on delivery',
 			'plugin'         => 'woocommerce-core',
+			'dependency_slug' => 'woocommerce-core',
 			'entrypoint'     => '',
 			'settings'       => array(
 				'enabled'            => 'yes',
@@ -101,12 +107,17 @@ return function (): array {
 		array(
 			'profile'        => 'plugin_stripe',
 			'gateway_id'     => 'stripe',
+			'expected_gateway_ids' => array( 'stripe' ),
 			'label'          => 'WooCommerce Stripe Gateway',
 			'plugin'         => 'woocommerce-gateway-stripe',
 			'dependency'     => 'woocommerce-gateway-stripe',
 			'entrypoint'     => 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH', 'HOMEBOY_WC_STRIPE_COMPONENT_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_PATH' ),
+			'blocked_by'     => array(
+				'https://github.com/chubes4/homeboy-rigs/issues/292',
+				'https://github.com/Extra-Chill/homeboy-extensions/issues/1336',
+			),
 			'settings'       => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
@@ -115,6 +126,7 @@ return function (): array {
 		array(
 			'profile'        => 'plugin_paypal_payments',
 			'gateway_id'     => 'ppcp-gateway',
+			'expected_gateway_ids' => array( 'ppcp-gateway' ),
 			'label'          => 'WooCommerce PayPal Payments',
 			'plugin'         => 'woocommerce-paypal-payments',
 			'dependency'     => 'woocommerce-paypal-payments',
@@ -126,6 +138,7 @@ return function (): array {
 		array(
 			'profile'        => 'plugin_woopayments',
 			'gateway_id'     => 'woocommerce_payments',
+			'expected_gateway_ids' => array( 'woocommerce_payments' ),
 			'label'          => 'WooPayments',
 			'plugin'         => 'woocommerce-payments',
 			'dependency'     => 'woocommerce-payments',
@@ -135,6 +148,64 @@ return function (): array {
 			'settings'       => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
+			),
+		),
+		array(
+			'profile'        => 'plugin_square',
+			'gateway_id'     => 'square_credit_card',
+			'expected_gateway_ids' => array( 'square_credit_card' ),
+			'label'          => 'WooCommerce Square',
+			'plugin'         => 'woocommerce-square',
+			'dependency'     => 'woocommerce-square',
+			'entrypoint'     => 'woocommerce-square/woocommerce-square.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PREPARED_PATH' ),
+			'settings'       => array(
+				'enabled'          => 'yes',
+				'environment'      => 'sandbox',
+				'create_customer'  => 'no',
+			),
+		),
+		array(
+			'profile'        => 'plugin_razorpay',
+			'gateway_id'     => 'razorpay',
+			'expected_gateway_ids' => array( 'razorpay' ),
+			'label'          => 'Razorpay for WooCommerce',
+			'plugin'         => 'razorpay',
+			'dependency'     => 'razorpay',
+			'entrypoint'     => 'razorpay/razorpay.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PREPARED_PATH' ),
+			'settings'       => array(
+				'enabled' => 'yes',
+			),
+		),
+		array(
+			'profile'        => 'plugin_mollie',
+			'gateway_id'     => 'mollie_wc_gateway_creditcard',
+			'expected_gateway_ids' => array( 'mollie_wc_gateway_creditcard', 'mollie_wc_gateway_ideal', 'mollie_wc_gateway_paypal' ),
+			'label'          => 'Mollie Payments for WooCommerce',
+			'plugin'         => 'mollie-payments-for-woocommerce',
+			'dependency'     => 'mollie-payments-for-woocommerce',
+			'entrypoint'     => 'mollie-payments-for-woocommerce/mollie-payments-for-woocommerce.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH' ),
+			'settings'       => array(
+				'enabled' => 'yes',
+			),
+		),
+		array(
+			'profile'        => 'plugin_klarna',
+			'gateway_id'     => 'klarna_payments',
+			'expected_gateway_ids' => array( 'klarna_payments', 'kco' ),
+			'label'          => 'Klarna for WooCommerce',
+			'plugin'         => 'klarna-payments-for-woocommerce',
+			'dependency'     => 'klarna-payments-for-woocommerce',
+			'entrypoint'     => 'klarna-payments-for-woocommerce/klarna-payments-for-woocommerce.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH' ),
+			'settings'       => array(
+				'enabled' => 'yes',
 			),
 		),
 	);
@@ -180,13 +251,23 @@ return function (): array {
 		$install         = array(
 			'plugin'                 => $profile['plugin'],
 			'dependency'             => $profile['dependency'] ?? $profile['plugin'],
+			'dependency_slug'        => $profile['dependency'] ?? $profile['plugin'],
 			'entrypoint'             => $profile['entrypoint'],
 			'entrypoint_path'        => $entrypoint_path,
+			'source_env'             => $profile['source_env'] ?? array(),
 			'source_path'            => $source_path,
 			'source_git_revision'    => $get_git_revision( $source_path ),
+			'prepared_env'           => $profile['prepared_env'] ?? array(),
 			'prepared_artifact_path' => $prepared_path,
+			'prepared_path'          => $prepared_path,
 			'mounted_plugin_dir'     => $mounted_dir,
+			'expected_gateway_ids'   => $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] ),
+			'registered_gateway_ids' => array(),
+			'blocked_by'             => $profile['blocked_by'] ?? array(),
 			'available'              => true,
+			'build_failed'           => false,
+			'skipped'                => false,
+			'blocked'                => false,
 			'activated'              => false,
 			'activation_status'      => $profile['entrypoint'] ? 'not_attempted' : 'core',
 			'version'                => null,
@@ -199,9 +280,11 @@ return function (): array {
 		if ( $profile['entrypoint'] ) {
 			if ( ! file_exists( $entrypoint_path ) ) {
 				$install['available'] = false;
+				$install['skipped']   = true;
 				if ( '' !== $prepared_path && ! file_exists( $prepared_path ) ) {
 					$install['status']               = 'build_failed';
 					$install['build_failure_reason'] = 'Prepared artifact path is configured but unavailable in the runtime.';
+					$install['build_failed']         = true;
 					$install['skip_reason']          = $install['build_failure_reason'];
 				} elseif ( '' === $source_path && '' === $prepared_path ) {
 					$install['status']      = 'not_configured';
@@ -212,6 +295,7 @@ return function (): array {
 				}
 				$install['status_reason']     = $install['skip_reason'];
 				$install['activation_status'] = 'skipped';
+				$install['blocked'] = ! empty( $install['blocked_by'] );
 				return $install;
 			}
 
@@ -223,6 +307,7 @@ return function (): array {
 				$result = activate_plugin( $profile['entrypoint'], '', false, true );
 				if ( is_wp_error( $result ) ) {
 					$install['available']         = false;
+					$install['skipped']           = true;
 					$install['activation_status'] = 'failed';
 					$install['status']            = 'activation_failed';
 					$install['skip_reason']       = 'Plugin activation failed: ' . $result->get_error_message();
@@ -253,9 +338,20 @@ return function (): array {
 			WC()->payment_gateways->init();
 		}
 
-		$gateways = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
+		$gateways              = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
+		$expected_gateway_ids  = $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] );
+		$registered_gateway_ids = array_values(
+			array_filter(
+				$expected_gateway_ids,
+				static function ( string $gateway_id ) use ( $gateways ): bool {
+					return isset( $gateways[ $gateway_id ] );
+				}
+			)
+		);
+		$install['registered_gateway_ids'] = $registered_gateway_ids;
 		if ( ! isset( $gateways[ $profile['gateway_id'] ] ) ) {
 			$install['available']     = false;
+			$install['skipped']       = true;
 			$install['status']        = 'gateway_missing';
 			$install['skip_reason']   = 'Gateway id is not registered after activation/configuration.';
 			$install['status_reason'] = $install['skip_reason'];
@@ -369,9 +465,17 @@ return function (): array {
 		$result                             = array(
 			'profile'        => $profile['profile'],
 			'gateway_id'     => $profile['gateway_id'],
+			'expected_gateway_ids' => $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] ),
 			'label'          => $profile['label'],
+			'dependency_slug' => $profile['dependency'] ?? $profile['plugin'],
 			'install'        => $install,
-			'skipped'        => ! $install['available'],
+			'status'         => $install['status'],
+			'status_reason'  => $install['status_reason'],
+			'available'      => (bool) $install['available'],
+			'build_failed'   => (bool) $install['build_failed'],
+			'skipped'        => (bool) $install['skipped'],
+			'blocked'        => (bool) $install['blocked'],
+			'blocked_by'     => $install['blocked_by'],
 			'skip_reason'    => $install['skip_reason'],
 		);
 
@@ -531,6 +635,22 @@ return function (): array {
 			}
 		)
 	);
+	$build_failed_count = count(
+		array_filter(
+			$results,
+			static function ( array $result ): bool {
+				return ! empty( $result['build_failed'] );
+			}
+		)
+	);
+	$blocked_count = count(
+		array_filter(
+			$results,
+			static function ( array $result ): bool {
+				return ! empty( $result['blocked'] );
+			}
+		)
+	);
 
 	$summary = array(
 		'success_rate'                       => 1,
@@ -538,6 +658,8 @@ return function (): array {
 		'gateway_profiles_available'         => $available_count,
 		'gateway_plugin_profiles_available'  => $plugin_available_count,
 		'gateway_profiles_skipped'           => count( $results ) - $available_count,
+		'gateway_profiles_build_failed'      => $build_failed_count,
+		'gateway_profiles_blocked'           => $blocked_count,
 		'duplicate_checkout_attempts'         => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['duplicate_checkout_attempts'] ?? 0 ), $results ) ),
 		'duplicate_order_count'               => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['duplicate_order_count'] ?? 0 ), $results ) ),
 		'order_awaiting_payment_writes'       => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['order_awaiting_payment_writes'] ?? 0 ), $results ) ),
@@ -567,7 +689,24 @@ return function (): array {
 			'runner'   => 'wp-codebox',
 			'workload' => 'checkout-gateway-compatibility-matrix',
 			'issues'   => $issues,
-			'profiles' => array_map( static fn ( array $result ): string => $result['profile'], $results ),
+			'profiles' => array_map(
+				static function ( array $result ): array {
+					return array(
+						'profile'              => $result['profile'],
+						'gateway_id'           => $result['gateway_id'],
+						'expected_gateway_ids' => $result['expected_gateway_ids'],
+						'dependency_slug'      => $result['dependency_slug'],
+						'status'               => $result['status'],
+						'status_reason'        => $result['status_reason'],
+						'available'            => $result['available'],
+						'build_failed'         => $result['build_failed'],
+						'skipped'              => $result['skipped'],
+						'blocked'              => $result['blocked'],
+						'blocked_by'           => $result['blocked_by'],
+					);
+				},
+				$results
+			),
 		),
 		'artifacts' => $artifact_path ? array( 'gateway_matrix' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);

@@ -62,12 +62,26 @@ function renderReport(data) {
 		lines.push(`| ${run.label} | ${run.woocommerce_ref} | \`${run.shared_state}\` | ${run.expected} |`);
 	}
 	lines.push('');
+	if (Array.isArray(data.gateway_profiles) && data.gateway_profiles.length > 0) {
+		lines.push('## Gateway Profiles');
+		lines.push('');
+		lines.push('| Profile | Dependency | Expected gateway IDs | Entrypoint | Status fields | Blockers |');
+		lines.push('|---|---|---|---|---|---|');
+		for (const profile of data.gateway_profiles) {
+			const expectedGatewayIds = Array.isArray(profile.expected_gateway_ids) ? profile.expected_gateway_ids.join(', ') : '';
+			const statusFields = profile.status_fields ? Object.entries(profile.status_fields).map(([key, value]) => `${key}=${value}`).join(', ') : '';
+			const blockers = Array.isArray(profile.blocked_by) && profile.blocked_by.length > 0 ? profile.blocked_by.join(', ') : '';
+			lines.push(`| ${profile.profile} | ${profile.dependency_slug} | ${expectedGatewayIds} | ${profile.entrypoint || 'WooCommerce core'} | ${statusFields} | ${blockers} |`);
+		}
+		lines.push('');
+	}
 	lines.push('## Evidence Matrix');
 	lines.push('');
 	lines.push('| Status | Scenario | Command | Old PR shape | Revised candidate |');
 	lines.push('|---|---|---|---|---|');
 	for (const scenario of data.scenarios) {
-		const status = scenario.status === 'blocked' ? `blocked by ${scenario.blocked_by.join(', ')}` : scenario.status;
+		const blockers = Array.isArray(scenario.blocked_by) ? scenario.blocked_by.join(', ') : '';
+		const status = scenario.status === 'blocked' ? `blocked by ${blockers}` : scenario.status;
 		lines.push(`| ${status} | ${scenario.label} | \`${scenario.command}\` | ${scenario.old_fix_expected} | ${scenario.candidate_expected} |`);
 	}
 	lines.push('');

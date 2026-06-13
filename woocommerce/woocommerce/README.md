@@ -43,12 +43,19 @@ The rig mounts the selected WooCommerce checkout into the disposable WP Codebox
 WordPress runtime. Pass `homeboy bench --path /absolute/path/to/plugins/woocommerce`
 when validating a specific WooCommerce worktree.
 
-The checkout gateway compatibility matrix treats WooCommerce Stripe Gateway as a
-first-class WordPress validation dependency when the selected bench run provides
-that dependency by slug:
+The checkout gateway compatibility matrix declares popular real gateway plugins
+as first-class profile metadata by slug:
 
 ```json
-"validation_dependencies": ["woocommerce-gateway-stripe"]
+[
+  "woocommerce-gateway-stripe",
+  "woocommerce-payments",
+  "woocommerce-paypal-payments",
+  "woocommerce-square",
+  "razorpay",
+  "mollie-payments-for-woocommerce",
+  "klarna-payments-for-woocommerce"
+]
 ```
 
 Homeboy Extensions is expected to resolve that dependency through the runner
@@ -62,22 +69,49 @@ same contract: configured dependency, source path when explicitly provided, git
 revision when visible, prepared artifact path when exported, mounted plugin
 directory, plugin version, activation status, and skip/build failure status.
 
-PayPal Payments and WooPayments stay optional. Mount them for focused coverage by
-adding them to `validation_dependencies` or by overriding `wp_codebox_extra_plugins`
-and the matching artifact path env values:
+Core gateway profiles stay independent of third-party plugin preparation. Run the
+core controls with:
 
 ```bash
 homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
-  --setting-json 'wp_codebox_extra_plugins=[{"source":"/path/to/woocommerce-paypal-payments","slug":"woocommerce-paypal-payments","pluginFile":"woocommerce-paypal-payments/woocommerce-paypal-payments.php","activate":false},{"source":"/path/to/woocommerce-payments","slug":"woocommerce-payments","pluginFile":"woocommerce-payments/woocommerce-payments.php","activate":false}]' \
-  --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH":"/path/to/woocommerce-paypal-payments","WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH":"/path/to/woocommerce-payments"}'
+  --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES":"core_bacs,core_cheque,core_cod"}'
 ```
+
+Mount gateway plugins for focused coverage by adding them to
+`validation_dependencies` once Homeboy Extensions supports the selected provider,
+or by overriding `wp_codebox_extra_plugins` and matching source/prepared artifact
+path env values:
+
+```bash
+homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
+  --setting-json 'wp_codebox_extra_plugins=[{"source":"/path/to/woocommerce-paypal-payments","slug":"woocommerce-paypal-payments","pluginFile":"woocommerce-paypal-payments/woocommerce-paypal-payments.php","activate":false}]' \
+  --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES":"plugin_paypal_payments","WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH":"/path/to/woocommerce-paypal-payments"}'
+```
+
+Profile-specific env keys use this shape:
+
+| Profile | Source path env | Prepared artifact env |
+|---|---|---|
+| `plugin_stripe` | `WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_PATH` |
+| `plugin_woopayments` | `WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PREPARED_PATH` |
+| `plugin_paypal_payments` | `WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PREPARED_PATH` |
+| `plugin_square` | `WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PREPARED_PATH` |
+| `plugin_razorpay` | `WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PREPARED_PATH` |
+| `plugin_mollie` | `WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH` |
+| `plugin_klarna` | `WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH` |
 
 Unavailable gateway plugin profiles skip explicitly as `not_configured` when no
 path is configured, `entrypoint_missing` when a configured path did not mount the
 expected plugin file, `build_failed` when a prepared artifact path is configured
 but unavailable, `activation_failed` when WordPress rejects activation, or
 `gateway_missing` when the plugin activates but does not register the expected
-gateway.
+gateway. Each profile row reports structured `available`, `build_failed`,
+`skipped`, and `blocked` fields.
+Gateway dependency-provider blockers are tracked in:
+
+- https://github.com/chubes4/homeboy-rigs/issues/292
+- https://github.com/Extra-Chill/homeboy-extensions/issues/1336
+
 Homeboy core Lab offload provisioning gaps are tracked in:
 
 - https://github.com/Extra-Chill/homeboy/issues/3474
@@ -146,15 +180,18 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 - `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
   first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,
-  WooCommerce PayPal Payments, and WooPayments when those plugin paths are
-  configured. It captures configured dependency/source/prepared paths, mounted
-  plugin directory, best-effort git revision, plugin version, and status details
-  without secrets, and links evidence to WooCommerce issue #62659, WooCommerce PR
-  #65588, Jorge's PR review, and Homeboy Rigs issue #255.
+  WooPayments, WooCommerce PayPal Payments, WooCommerce Square, Razorpay for
+  WooCommerce, Mollie Payments for WooCommerce, and Klarna for WooCommerce when
+  those plugin paths are configured. It captures configured dependency/source/
+  prepared paths, mounted plugin directory, expected and registered gateway IDs,
+  plugin version, and status details without secrets, and links evidence to
+  WooCommerce issue #62659, WooCommerce PR #65588, Jorge's PR review, and
+  Homeboy Rigs issue #255.
   Limit the matrix during focused smokes with
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
-  report explicit skip details when their entrypoint is unavailable or activation
-  fails, so the core controls remain runnable without gateway secrets.
+  report explicit `available`, `build_failed`, `skipped`, and `blocked` details
+  when their entrypoint is unavailable or activation fails, so the core controls
+  remain runnable without gateway secrets or third-party materialization.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed
@@ -285,10 +322,10 @@ node woocommerce/woocommerce/tools/checkout-pr-evidence-report.mjs
 
 The generated matrix is intentionally dependency-aware. It lists the old PR shape
 failure run, ready commands for public `create_order()` side effects, sequential
-retry, true concurrent checkout, and core gateway rows, and keeps no-payment,
-order-pay, identity, coupon lifecycle, hook sequencing, and real Stripe rows
-blocked until their prerequisite issues land. Real Stripe coverage is framed as a
-reusable gateway-plugin profile capability that should share the existing
+retry, true concurrent checkout, and core gateway rows, and keeps real plugin
+gateway rows blocked until their prerequisite dependency-provider work lands or
+returns structured build-failure artifacts. Real gateway coverage is framed as a
+reusable gateway-plugin profile capability. Stripe should share the existing
 `woocommerce-stripe-ece-product-page` WooCommerce + Stripe mounting abstractions,
 not duplicate checkout-specific setup. See
 `docs/checkout-pr-evidence-matrix.md` for the full recipe.
