@@ -7,6 +7,7 @@
  * - https://github.com/woocommerce/woocommerce/pull/65588
  * - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
  * - https://github.com/chubes4/homeboy-rigs/issues/255
+ * - https://github.com/chubes4/homeboy-rigs/issues/272
  */
 return function (): array {
 	if ( ! class_exists( 'WooCommerce' ) ) {
@@ -42,6 +43,7 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/pull/65588',
 		'https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929',
 		'https://github.com/chubes4/homeboy-rigs/issues/255',
+		'https://github.com/chubes4/homeboy-rigs/issues/272',
 	);
 
 	wp_set_current_user( 0 );
@@ -142,7 +144,19 @@ return function (): array {
 		),
 	);
 
+	$profile_sets  = array(
+		'core_only'               => array( 'core_bacs', 'core_cheque', 'core_cod' ),
+		'stripe'                  => array( 'core_bacs', 'core_cheque', 'core_cod', 'plugin_stripe' ),
+		'all_configured_gateways' => array( 'core_bacs', 'core_cheque', 'core_cod', 'plugin_stripe', 'plugin_paypal_payments', 'plugin_woopayments' ),
+	);
+	$profile_set   = getenv( 'WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET' ) ?: 'core_only';
 	$profile_filter = getenv( 'WC_CHECKOUT_GATEWAY_MATRIX_PROFILES' );
+	if ( ! $profile_filter && ! isset( $profile_sets[ $profile_set ] ) ) {
+		$profile_set = 'core_only';
+	}
+	if ( ! $profile_filter ) {
+		$profile_filter = implode( ',', $profile_sets[ $profile_set ] );
+	}
 	if ( $profile_filter ) {
 		$allowed  = array_filter( array_map( 'trim', explode( ',', $profile_filter ) ) );
 		$profiles = array_values(
@@ -548,6 +562,9 @@ return function (): array {
 	$artifact = array(
 		'run_id'   => $run_id,
 		'issues'   => $issues,
+		'selected_profile_set' => $profile_set,
+		'available_profile_sets' => array_keys( $profile_sets ),
+		'install_statuses' => array( 'available', 'not_configured', 'entrypoint_missing', 'activation_failed', 'build_failed' ),
 		'profiles' => $results,
 		'metrics'  => $summary,
 	);
@@ -567,6 +584,7 @@ return function (): array {
 			'runner'   => 'wp-codebox',
 			'workload' => 'checkout-gateway-compatibility-matrix',
 			'issues'   => $issues,
+			'profile_set' => $profile_set,
 			'profiles' => array_map( static fn ( array $result ): string => $result['profile'], $results ),
 		),
 		'artifacts' => $artifact_path ? array( 'gateway_matrix' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),

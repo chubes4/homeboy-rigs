@@ -39,12 +39,20 @@ The rig mounts the selected WooCommerce checkout into the disposable WP Codebox
 WordPress runtime. Pass `homeboy bench --path /absolute/path/to/plugins/woocommerce`
 when validating a specific WooCommerce worktree.
 
-The checkout gateway compatibility matrix declares WooCommerce Stripe Gateway as
-a first-class WordPress validation dependency by slug:
+The checkout gateway compatibility matrix defaults to the `core_only` profile
+set so BACS, Cheque, and COD controls can run even when real gateway plugin
+materialization is unavailable. Select the focused Stripe profile set when the
+runner can prepare WooCommerce Stripe Gateway:
 
-```json
-"validation_dependencies": ["woocommerce-gateway-stripe"]
+```bash
+homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
+  --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET":"stripe"}' \
+  --setting-json 'validation_dependencies=["woocommerce-gateway-stripe"]'
 ```
+
+Supported gateway matrix profile sets are `core_only`, `stripe`, and
+`all_configured_gateways`. `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES` remains the
+lowest-level escape hatch for comma-separated profile ids or gateway ids.
 
 Homeboy Extensions resolves that dependency through the runner dependency
 contract, prepares a runnable artifact when the source checkout needs Composer
@@ -52,7 +60,22 @@ materialization, mounts the prepared plugin into WP Codebox, and attaches
 `prepared_dependencies` provenance to the final bench results. The workload
 artifact reports the runtime side of that same contract: configured dependency,
 source path when explicitly provided, git revision when visible, prepared artifact
-path when exported, mounted plugin directory, plugin version, and status.
+path when exported, mounted plugin directory, plugin version, and status. If the
+dependency provider exports a prepared artifact path that is unavailable in the
+runtime, the workload records `build_failed` inside the matrix artifact instead
+of hiding the failure behind a generic skipped profile.
+
+This deliberately reuses the mounting shape proven by the WooCommerce Stripe ECE
+product-page rig without duplicating its browser fixture. That rig owns direct WP
+Codebox recipe mounting for Stripe product-page traces:
+
+```json
+{"source":"/path/to/woocommerce-gateway-stripe","slug":"woocommerce-gateway-stripe","pluginFile":"woocommerce-gateway-stripe/woocommerce-gateway-stripe.php","activate":true}
+```
+
+The gateway matrix is a WordPress bench workload, so it consumes the same
+slug/entrypoint/runtime metadata through Homeboy Extensions' WordPress dependency
+contract instead of building a second Stripe-specific mount path in this rig.
 
 PayPal Payments and WooPayments stay optional. Mount them for focused coverage by
 adding them to `validation_dependencies` or by overriding `wp_codebox_extra_plugins`
@@ -132,9 +155,12 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   without secrets, and links evidence to WooCommerce issue #62659, WooCommerce PR
   #65588, Jorge's PR review, and Homeboy Rigs issue #255.
   Limit the matrix during focused smokes with
+  `WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET=stripe` or
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
-  report explicit skip details when their entrypoint is unavailable or activation
-  fails, so the core controls remain runnable without gateway secrets.
+  report explicit `not_configured`, `entrypoint_missing`, `activation_failed`, or
+  `build_failed` details when their entrypoint is unavailable, activation fails,
+  or dependency materialization fails, so the core controls remain runnable
+  without gateway secrets.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed
