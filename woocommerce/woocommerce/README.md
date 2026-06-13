@@ -35,27 +35,28 @@ homeboy rig check woocommerce-performance
 
 ## Runner Prerequisites
 
-The rig mounts a local WooCommerce checkout into the disposable WP Codebox
-WordPress runtime. On local and Lab runners, the checkout must exist at:
+The rig mounts the selected WooCommerce checkout into the disposable WP Codebox
+WordPress runtime. Pass `homeboy bench --path /absolute/path/to/plugins/woocommerce`
+when validating a specific WooCommerce worktree.
 
-```text
-~/Developer/woocommerce/plugins/woocommerce
+The checkout gateway compatibility matrix declares WooCommerce Stripe Gateway as
+a first-class WordPress validation dependency by slug:
+
+```json
+"validation_dependencies": ["woocommerce-gateway-stripe"]
 ```
 
-This path mirrors the WooCommerce monorepo layout after cloning
-https://github.com/woocommerce/woocommerce into `~/Developer/woocommerce`.
+Homeboy Extensions resolves that dependency through the runner dependency
+contract, prepares a runnable artifact when the source checkout needs Composer
+materialization, mounts the prepared plugin into WP Codebox, and attaches
+`prepared_dependencies` provenance to the final bench results. The workload
+artifact reports the runtime side of that same contract: configured dependency,
+source path when explicitly provided, git revision when visible, prepared artifact
+path when exported, mounted plugin directory, plugin version, and status.
 
-The checkout gateway compatibility matrix also mounts the local WooCommerce
-Stripe Gateway checkout as a first-class WordPress validation dependency, which
-the WP Codebox bench runner mounts as an extra plugin when available:
-
-```text
-~/Developer/woocommerce-gateway-stripe
-```
-
-PayPal Payments and WooPayments stay optional. Mount them for focused local
-coverage by overriding `wp_codebox_extra_plugins` and the matching artifact path
-env values:
+PayPal Payments and WooPayments stay optional. Mount them for focused coverage by
+adding them to `validation_dependencies` or by overriding `wp_codebox_extra_plugins`
+and the matching artifact path env values:
 
 ```bash
 homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
@@ -65,7 +66,9 @@ homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatib
 
 Unavailable gateway plugin profiles skip explicitly as `not_configured` when no
 path is configured, `entrypoint_missing` when a configured path did not mount the
-expected plugin file, or `activation_failed` when WordPress rejects activation.
+expected plugin file, `build_failed` when a prepared artifact path is configured
+but unavailable, or `activation_failed` when WordPress rejects activation or the
+gateway does not register after activation.
 Homeboy core Lab offload provisioning gaps are tracked in:
 
 - https://github.com/Extra-Chill/homeboy/issues/3474
@@ -89,13 +92,8 @@ homeboy rig check woocommerce-performance
   `includes/react-admin/feature-config.php` is missing.
 - It does not modify WooCommerce source files or switch branches.
 
-Equivalent manual prep, when needed for debugging:
-
-```bash
-cd ~/Developer/woocommerce/plugins/woocommerce
-XDEBUG_MODE=off composer install --no-interaction --no-progress
-php bin/generate-feature-config.php
-```
+Equivalent manual prep, when needed for debugging, should run from the selected
+WooCommerce plugin directory.
 
 ## Benchmark Commands
 
@@ -129,10 +127,10 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
   first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,
   WooCommerce PayPal Payments, and WooPayments when those plugin paths are
-  configured. It captures plugin activation, configured path, mounted path,
-  best-effort git revision, and version details without secrets, and links
-  evidence to WooCommerce issue #62659, WooCommerce PR #65588, Jorge's PR
-  review, and Homeboy Rigs issue #255.
+  configured. It captures configured dependency/source/prepared paths, mounted
+  plugin directory, best-effort git revision, plugin version, and status details
+  without secrets, and links evidence to WooCommerce issue #62659, WooCommerce PR
+  #65588, Jorge's PR review, and Homeboy Rigs issue #255.
   Limit the matrix during focused smokes with
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
   report explicit skip details when their entrypoint is unavailable or activation
