@@ -77,6 +77,22 @@ homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatib
   --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES":"core_bacs,core_cheque,core_cod"}'
 ```
 
+Classify real gateway plugin readiness independently with:
+
+```bash
+homeboy bench --rig woocommerce-performance --scenario checkout-gateway-profile-readiness --iterations 1 \
+  --shared-state /tmp/woocommerce-gateway-profile-readiness
+```
+
+The readiness workload writes structured JSON artifacts under
+`checkout-gateway-profile-readiness/` with plugin source path/revision, prepared
+artifact path, activation result, registered gateway IDs, checkout surface,
+status, reason, and per-profile log tail. Missing dependency-provider output is
+reported per profile as `blocked_dependency_provider` with links to
+https://github.com/chubes4/homeboy-rigs/issues/296 and
+https://github.com/Extra-Chill/homeboy-extensions/issues/1339, so one gateway
+plugin failure does not abort unrelated profiles.
+
 Mount gateway plugins for focused coverage by adding them to
 `validation_dependencies` once Homeboy Extensions supports the selected provider,
 or by overriding `wp_codebox_extra_plugins` and matching source/prepared artifact
@@ -192,6 +208,12 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   report explicit `available`, `build_failed`, `skipped`, and `blocked` details
   when their entrypoint is unavailable or activation fails, so the core controls
   remain runnable without gateway secrets or third-party materialization.
+- `checkout-gateway-profile-readiness` classifies real gateway plugin profile
+  readiness for WooPayments, Stripe, PayPal, Square, Razorpay, Mollie, and
+  Klarna without running checkout payment flows. Each profile is isolated and
+  writes source/revision/artifact/activation/gateway/surface/status/reason/log
+  evidence; dependency-provider gaps are classified as
+  `blocked_dependency_provider` rather than failing the full scenario.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed

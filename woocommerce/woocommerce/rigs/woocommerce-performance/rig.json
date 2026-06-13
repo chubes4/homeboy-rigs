@@ -37,6 +37,7 @@
     "wordpress": [
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
       { "path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php" },
+      { "path": "${package.root}/bench/checkout-gateway-profile-readiness.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
       { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" }
@@ -46,6 +47,7 @@
     "smoke": [
       "checkout-concurrent-create-order",
       "checkout-gateway-compatibility-matrix",
+      "checkout-gateway-profile-readiness",
       "checkout-shipping-cache",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl"
@@ -53,6 +55,7 @@
     "hot": [
       "checkout-concurrent-create-order",
       "checkout-gateway-compatibility-matrix",
+      "checkout-gateway-profile-readiness",
       "checkout-shipping-cache",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl"
