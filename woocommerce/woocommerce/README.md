@@ -67,7 +67,7 @@ Stripe dependency setup opt-in so core gateway profiles remain runnable without
 Stripe materialization. The workload artifact reports the runtime side of that
 same contract: configured dependency, source path when explicitly provided, git
 revision when visible, prepared artifact path when exported, mounted plugin
-directory, plugin version, activation status, and skip/build failure status.
+directory, plugin version, activation status, and explicit readiness status.
 
 Core gateway profiles stay independent of third-party plugin preparation. Run the
 core controls with:
@@ -100,16 +100,19 @@ Profile-specific env keys use this shape:
 | `plugin_mollie` | `WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH` |
 | `plugin_klarna` | `WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH` |
 
-Unavailable gateway plugin profiles skip explicitly as `not_configured` when no
-path is configured, `entrypoint_missing` when a configured path did not mount the
-expected plugin file, `build_failed` when a prepared artifact path is configured
-but unavailable, `activation_failed` when WordPress rejects activation, or
-`gateway_missing` when the plugin activates but does not register the expected
-gateway. Each profile row reports structured `available`, `build_failed`,
-`skipped`, and `blocked` fields.
+Unavailable gateway plugin profiles report explicit readiness statuses:
+`blocked_dependency_provider` when plugin materialization is not configured or
+mounted, `build_failed` when a prepared artifact path is configured but
+unavailable, `fatal` when WordPress rejects activation, or `missing_gateway`
+when the plugin activates but does not register the expected gateway. Credential,
+external-account, and checkout-surface blockers should be reported as
+`blocked_credentials`, `blocked_external_account`, or
+`unsupported_checkout_surface` when the profile readiness scenario can classify
+them.
 Gateway dependency-provider blockers are tracked in:
 
 - https://github.com/chubes4/homeboy-rigs/issues/292
+- https://github.com/chubes4/homeboy-rigs/issues/295
 - https://github.com/Extra-Chill/homeboy-extensions/issues/1336
 
 Homeboy core Lab offload provisioning gaps are tracked in:
@@ -189,8 +192,8 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   Homeboy Rigs issue #255.
   Limit the matrix during focused smokes with
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
-  report explicit `available`, `build_failed`, `skipped`, and `blocked` details
-  when their entrypoint is unavailable or activation fails, so the core controls
+  report explicit readiness statuses when their entrypoint is unavailable,
+  activation fails, or the expected gateway is missing, so the core controls
   remain runnable without gateway secrets or third-party materialization.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
