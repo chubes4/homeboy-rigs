@@ -67,7 +67,7 @@ Stripe dependency setup opt-in so core gateway profiles remain runnable without
 Stripe materialization. The workload artifact reports the runtime side of that
 same contract: configured dependency, source path when explicitly provided, git
 revision when visible, prepared artifact path when exported, mounted plugin
-directory, plugin version, activation status, and skip/build failure status.
+directory, plugin version, activation status, and explicit readiness status.
 
 Core gateway profiles stay independent of third-party plugin preparation. Run the
 core controls with:
@@ -76,6 +76,22 @@ core controls with:
 homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
   --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES":"core_bacs,core_cheque,core_cod"}'
 ```
+
+Classify real gateway plugin readiness independently with:
+
+```bash
+homeboy bench --rig woocommerce-performance --scenario checkout-gateway-profile-readiness --iterations 1 \
+  --shared-state /tmp/woocommerce-gateway-profile-readiness
+```
+
+The readiness workload writes structured JSON artifacts under
+`checkout-gateway-profile-readiness/` with plugin source path/revision, prepared
+artifact path, activation result, registered gateway IDs, checkout surface,
+status, reason, and per-profile log tail. Missing dependency-provider output is
+reported per profile as `blocked_dependency_provider` with links to
+https://github.com/chubes4/homeboy-rigs/issues/296 and
+https://github.com/Extra-Chill/homeboy-extensions/issues/1339, so one gateway
+plugin failure does not abort unrelated profiles.
 
 Mount gateway plugins for focused coverage by adding them to
 `validation_dependencies` once Homeboy Extensions supports the selected provider,
@@ -100,21 +116,24 @@ Profile-specific env keys use this shape:
 | `plugin_mollie` | `WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH` |
 | `plugin_klarna` | `WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH` | `WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH` |
 
-Unavailable gateway plugin profiles skip explicitly as `not_configured` when no
-path is configured, `entrypoint_missing` when a configured path did not mount the
-expected plugin file, `build_failed` when a prepared artifact path is configured
-but unavailable, `activation_failed` when WordPress rejects activation, or
-`missing_gateway` when the plugin activates but WooCommerce APIs do not expose the
-expected gateway. Runtime discovery uses `WC()->payment_gateways()` and each row
-reports expected gateway IDs, discovery patterns, matched gateway IDs, safe test
+Unavailable gateway plugin profiles report explicit readiness statuses:
+`blocked_dependency_provider` when plugin materialization is not configured or
+mounted, `build_failed` when a prepared artifact path is configured but
+unavailable, `fatal` when WordPress rejects activation, or `missing_gateway`
+when the plugin activates but does not register the expected gateway. Credential,
+external-account, and checkout-surface blockers should be reported as
+`blocked_credentials`, `blocked_external_account`, or
+`unsupported_checkout_surface` when the profile readiness scenario can classify
+them. Runtime discovery uses `WC()->payment_gateways()` and each row reports
+expected gateway IDs, discovery patterns, matched gateway IDs, safe test
 settings, checkout surface classification, credential/account boundaries, and a
-readiness boundary. Third-party profiles stop at `blocked_credentials` or
-`blocked_external_account` unless a future credential-safe fixture explicitly
-marks them `ready`; the rig does not use real credentials or call live payment
-networks.
+readiness boundary. Third-party profiles stop before `process_payment()` unless a
+future credential-safe fixture explicitly marks them `ready`; the rig does not
+use real credentials or call live payment networks.
 Gateway dependency-provider blockers are tracked in:
 
 - https://github.com/chubes4/homeboy-rigs/issues/292
+- https://github.com/chubes4/homeboy-rigs/issues/295
 - https://github.com/Extra-Chill/homeboy-extensions/issues/1336
 
 Homeboy core Lab offload provisioning gaps are tracked in:
@@ -196,11 +215,17 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   Homeboy Rigs issues #255, #295, and #296.
   Limit the matrix during focused smokes with
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
-  report explicit `available`, `build_failed`, `skipped`, `blocked`, and
-  readiness-boundary details when their entrypoint is unavailable, activation
-  fails, gateway discovery misses, or credentials/external accounts are required,
-  so the core controls remain runnable without gateway secrets or third-party
-  materialization.
+  report explicit readiness statuses plus `available`, `build_failed`, `skipped`,
+  `blocked`, discovery, and readiness-boundary details when their entrypoint is
+  unavailable, activation fails, gateway discovery misses, or credentials/external
+  accounts are required, so the core controls remain runnable without gateway
+  secrets or third-party materialization.
+- `checkout-gateway-profile-readiness` classifies real gateway plugin profile
+  readiness for WooPayments, Stripe, PayPal, Square, Razorpay, Mollie, and
+  Klarna without running checkout payment flows. Each profile is isolated and
+  writes source/revision/artifact/activation/gateway/surface/status/reason/log
+  evidence; dependency-provider gaps are classified as
+  `blocked_dependency_provider` rather than failing the full scenario.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed

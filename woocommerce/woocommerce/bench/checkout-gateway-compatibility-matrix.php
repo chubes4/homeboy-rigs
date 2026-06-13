@@ -365,7 +365,7 @@ return function (): array {
 			'activated'              => false,
 			'activation_status'      => $profile['entrypoint'] ? 'not_attempted' : 'core',
 			'version'                => null,
-			'status'                 => 'available',
+			'status'                 => 'ready',
 			'status_reason'          => '',
 			'skip_reason'            => '',
 			'build_failure_reason'   => '',
@@ -381,10 +381,10 @@ return function (): array {
 					$install['build_failed']         = true;
 					$install['skip_reason']          = $install['build_failure_reason'];
 				} elseif ( '' === $source_path && '' === $prepared_path ) {
-					$install['status']      = 'not_configured';
+					$install['status']      = ! empty( $install['blocked_by'] ) ? 'blocked_dependency_provider' : 'missing_gateway';
 					$install['skip_reason'] = 'Plugin dependency was not configured or mounted for this run.';
 				} else {
-					$install['status']      = 'entrypoint_missing';
+					$install['status']      = ! empty( $install['blocked_by'] ) ? 'blocked_dependency_provider' : 'missing_gateway';
 					$install['skip_reason'] = 'Configured plugin dependency did not mount the expected WordPress entrypoint.';
 				}
 				$install['status_reason']     = $install['skip_reason'];
@@ -403,7 +403,7 @@ return function (): array {
 					$install['available']         = false;
 					$install['skipped']           = true;
 					$install['activation_status'] = 'failed';
-					$install['status']            = 'activation_failed';
+					$install['status']            = 'fatal';
 					$install['skip_reason']       = 'Plugin activation failed: ' . $result->get_error_message();
 					$install['status_reason']     = $install['skip_reason'];
 					return $install;
