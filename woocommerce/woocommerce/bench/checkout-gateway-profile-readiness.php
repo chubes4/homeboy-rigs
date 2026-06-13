@@ -55,7 +55,7 @@ return function (): array {
 			'expected_gateway_ids' => array( 'stripe' ),
 		),
 		array(
-			'profile'              => 'plugin_paypal',
+			'profile'              => 'plugin_paypal_payments',
 			'label'                => 'WooCommerce PayPal Payments',
 			'plugin'               => 'woocommerce-paypal-payments',
 			'dependency_slug'      => 'woocommerce-paypal-payments',
@@ -107,6 +107,9 @@ return function (): array {
 	);
 
 	$profile_filter = getenv( 'WC_CHECKOUT_GATEWAY_READINESS_PROFILES' );
+	if ( false === $profile_filter || '' === trim( (string) $profile_filter ) ) {
+		$profile_filter = getenv( 'WC_CHECKOUT_GATEWAY_MATRIX_PROFILES' );
+	}
 	if ( $profile_filter ) {
 		$allowed  = array_filter( array_map( 'trim', explode( ',', $profile_filter ) ) );
 		$profiles = array_values(
@@ -177,10 +180,10 @@ return function (): array {
 						'https://github.com/Extra-Chill/homeboy-extensions/issues/1339',
 					);
 				} elseif ( '' !== $prepared_path && ! file_exists( $prepared_path ) ) {
-					$result['status'] = 'artifact_missing';
+					$result['status'] = 'build_failed';
 					$result['reason'] = 'Prepared artifact path is configured but unavailable in the runtime.';
 				} else {
-					$result['status'] = 'entrypoint_missing';
+					$result['status'] = 'missing_gateway';
 					$result['reason'] = 'Configured plugin dependency did not mount the expected WordPress entrypoint.';
 				}
 				$log_tail[] = $result['reason'];
@@ -196,7 +199,7 @@ return function (): array {
 				$activation = activate_plugin( $entrypoint, '', false, true );
 				if ( is_wp_error( $activation ) ) {
 					$result['activation'] = 'failed';
-					$result['status']     = 'activation_failed';
+					$result['status']     = 'fatal';
 					$result['reason']     = $activation->get_error_message();
 					$log_tail[]           = 'Activation failed: ' . $result['reason'];
 					$result['log_tail']   = array_slice( $log_tail, -10 );
@@ -221,7 +224,7 @@ return function (): array {
 			);
 
 			if ( count( $result['registered_gateway_ids'] ) < 1 ) {
-				$result['status'] = 'gateway_missing';
+				$result['status'] = 'missing_gateway';
 				$result['reason'] = 'Plugin loaded but none of the expected gateway IDs registered.';
 			} else {
 				$result['status'] = 'ready';
@@ -229,7 +232,7 @@ return function (): array {
 			}
 			$log_tail[] = $result['reason'];
 		} catch ( Throwable $exception ) {
-			$result['status'] = 'classification_failed';
+			$result['status'] = 'fatal';
 			$result['reason'] = $exception->getMessage();
 			$log_tail[]       = 'Classification failed: ' . $exception->getMessage();
 		}
