@@ -194,8 +194,8 @@ async function prepareStripePlugin(pathname) {
   }
 
   const npmInstallArgs = existsSync(path.join(pathname, 'package-lock.json'))
-    ? ['ci', '--ignore-scripts', '--no-audit', '--no-fund']
-    : ['install', '--ignore-scripts', '--no-audit', '--no-fund'];
+    ? ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict=false']
+    : ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict=false'];
   event('fixture', 'stripe_plugin.node_install.start', { path: pathname, command: `npm ${npmInstallArgs.join(' ')}` });
   await execFileAsync('npm', npmInstallArgs, {
     cwd: pathname,
