@@ -61,9 +61,21 @@ materialization, mounts the prepared plugin into WP Codebox, and attaches
 artifact reports the runtime side of that same contract: configured dependency,
 source path when explicitly provided, git revision when visible, prepared artifact
 path when exported, mounted plugin directory, plugin version, and status. If the
-dependency provider reports `WC_CHECKOUT_GATEWAY_MATRIX_<PLUGIN>_BUILD_STATUS=build_failed`,
-the workload records `build_failed` inside the matrix artifact instead of hiding
-the failure behind a generic skipped profile.
+dependency provider exports a prepared artifact path that is unavailable in the
+runtime, the workload records `build_failed` inside the matrix artifact instead
+of hiding the failure behind a generic skipped profile.
+
+This deliberately reuses the mounting shape proven by the WooCommerce Stripe ECE
+product-page rig without duplicating its browser fixture. That rig owns direct WP
+Codebox recipe mounting for Stripe product-page traces:
+
+```json
+{"source":"/path/to/woocommerce-gateway-stripe","slug":"woocommerce-gateway-stripe","pluginFile":"woocommerce-gateway-stripe/woocommerce-gateway-stripe.php","activate":true}
+```
+
+The gateway matrix is a WordPress bench workload, so it consumes the same
+slug/entrypoint/runtime metadata through Homeboy Extensions' WordPress dependency
+contract instead of building a second Stripe-specific mount path in this rig.
 
 PayPal Payments and WooPayments stay optional. Mount them for focused coverage by
 adding them to `validation_dependencies` or by overriding `wp_codebox_extra_plugins`

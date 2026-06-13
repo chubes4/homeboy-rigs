@@ -186,21 +186,12 @@ return function (): array {
 		return '' !== $env_name ? (string) getenv( $env_name ) : '';
 	};
 
-	$get_profile_env_value = static function ( string $plugin, string $suffix ): string {
-		$slug     = strtoupper( str_replace( '-', '_', $plugin ) );
-		$env_name = 'WC_CHECKOUT_GATEWAY_MATRIX_' . $slug . '_' . $suffix;
-
-		return (string) getenv( $env_name );
-	};
-
-	$ensure_gateway_profile = static function ( array $profile ) use ( $get_git_revision, $get_env_value, $get_profile_env_value ): array {
+	$ensure_gateway_profile = static function ( array $profile ) use ( $get_git_revision, $get_env_value ): array {
 		$entrypoint_path    = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['entrypoint'] : '';
 		$mounted_plugin_dir = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . dirname( $profile['entrypoint'] ) : '';
 		$dependency         = $get_env_value( $profile, 'dependency_env' );
 		$source_path        = $get_env_value( $profile, 'source_path_env' );
 		$prepared_path      = $get_env_value( $profile, 'prepared_path_env' );
-		$build_status       = $get_profile_env_value( $profile['plugin'], 'BUILD_STATUS' );
-		$build_reason       = $get_profile_env_value( $profile['plugin'], 'BUILD_REASON' );
 		$configured         = '' !== $dependency || '' !== $source_path || '' !== $prepared_path;
 		$install            = array(
 			'plugin'                 => $profile['plugin'],
@@ -219,13 +210,6 @@ return function (): array {
 		);
 
 		if ( $profile['entrypoint'] ) {
-			if ( 'build_failed' === $build_status ) {
-				$install['available']   = false;
-				$install['status']      = 'build_failed';
-				$install['skip_reason'] = $build_reason ?: 'Dependency provider reported a plugin artifact build failure.';
-				return $install;
-			}
-
 			if ( ! file_exists( $entrypoint_path ) ) {
 				$install['available'] = false;
 				if ( '' !== $prepared_path && ! is_dir( $prepared_path ) ) {
