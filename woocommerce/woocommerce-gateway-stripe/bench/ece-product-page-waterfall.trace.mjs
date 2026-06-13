@@ -640,7 +640,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       '#wc-stripe-express-checkout-element { display: block !important; width: 100% !important; }',
       '#wc-stripe-express-checkout-element-wallets-link { display: block !important; width: 100% !important; }',
       '#wc-stripe-express-checkout-element-wallets-link > div { display: block !important; width: 100% !important; margin: 0 0 8px; }',
-    ].join('\n');
+    ].join('\\n');
     document.head.appendChild(style);
 
     let grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');

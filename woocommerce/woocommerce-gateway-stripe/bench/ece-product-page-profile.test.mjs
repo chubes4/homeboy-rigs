@@ -567,6 +567,7 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /#wc-stripe-express-checkout-element-wallets-link/);
   assert.match(traceSource, /homeboy-stripe-ece-fanout-proof-style/);
   assert.match(traceSource, /display: block !important; width: 100% !important/);
+  assert.match(traceSource, /join\('\\\\n'\)/);
   assert.match(traceSource, /ece-wallet-fanout-proof/);
   assert.match(traceSource, /installStripeEceInstrumentation/);
   assert.match(traceSource, /express_checkout_create_calls/);
