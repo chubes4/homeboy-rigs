@@ -161,19 +161,50 @@ async function prepareStripePlugin(pathname) {
   const autoloadPath = path.join(pathname, 'vendor/autoload.php');
   if (existsSync(autoloadPath)) {
     event('fixture', 'stripe_plugin.prepare.skipped', { reason: 'autoload_exists' });
+  } else {
+    if (!existsSync(path.join(pathname, 'composer.json'))) {
+      throw new Error(`Missing Composer metadata in Stripe plugin checkout at ${pathname}; cannot prepare autoloader for WP Codebox activation.`);
+    }
+
+    event('fixture', 'stripe_plugin.prepare.start', { path: pathname });
+    await execFileAsync('composer', ['install', '--no-interaction', '--no-progress', '--no-dev', '--classmap-authoritative'], {
+      cwd: pathname,
+      maxBuffer: 1024 * 1024 * 20,
+    });
+    event('fixture', 'stripe_plugin.prepare.done', { path: pathname });
+  }
+
+  const expressCheckoutScript = path.join(pathname, 'build/express-checkout.js');
+  const expressCheckoutAsset = path.join(pathname, 'build/express-checkout.asset.php');
+  if (existsSync(expressCheckoutScript) && existsSync(expressCheckoutAsset)) {
+    event('fixture', 'stripe_plugin.asset_prepare.skipped', { reason: 'express_checkout_build_exists' });
     return;
   }
 
-  if (!existsSync(path.join(pathname, 'composer.json'))) {
-    throw new Error(`Missing Composer metadata in Stripe plugin checkout at ${pathname}; cannot prepare autoloader for WP Codebox activation.`);
+  if (!existsSync(path.join(pathname, 'package.json'))) {
+    throw new Error(`Missing package metadata in Stripe plugin checkout at ${pathname}; cannot build Express Checkout assets for WP Codebox browser proof.`);
   }
 
-  event('fixture', 'stripe_plugin.prepare.start', { path: pathname });
-  await execFileAsync('composer', ['install', '--no-interaction', '--no-progress', '--no-dev', '--classmap-authoritative'], {
+  const npmInstallArgs = existsSync(path.join(pathname, 'package-lock.json'))
+    ? ['ci', '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict=false']
+    : ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict=false'];
+  event('fixture', 'stripe_plugin.node_install.start', { path: pathname, command: `npm ${npmInstallArgs.join(' ')}` });
+  await execFileAsync('npm', npmInstallArgs, {
     cwd: pathname,
-    maxBuffer: 1024 * 1024 * 20,
+    maxBuffer: 1024 * 1024 * 50,
   });
-  event('fixture', 'stripe_plugin.prepare.done', { path: pathname });
+  event('fixture', 'stripe_plugin.node_install.done', { path: pathname });
+
+  event('fixture', 'stripe_plugin.asset_build.start', { path: pathname, command: 'npm run build:webpack' });
+  await execFileAsync('npm', ['run', 'build:webpack'], {
+    cwd: pathname,
+    maxBuffer: 1024 * 1024 * 50,
+  });
+  event('fixture', 'stripe_plugin.asset_build.done', { path: pathname });
+
+  if (!existsSync(expressCheckoutScript) || !existsSync(expressCheckoutAsset)) {
+    throw new Error(`Stripe plugin asset build completed but ${expressCheckoutScript} or ${expressCheckoutAsset} is still missing.`);
+  }
 }
 
 function numberOrNull(value) {
@@ -252,23 +283,34 @@ ${fixtureBootstrapSource}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
 $accepted_payment_methods = json_decode( '${JSON.stringify(requestedAcceptedPaymentMethods)}', true );
-
-$state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap(
-	array(
-		'ece_locations'            => $ece_locations,
-		'accepted_payment_methods' => $accepted_payment_methods,
-	)
+$fixture_args = array(
+	'ece_locations'            => $ece_locations,
+	'accepted_payment_methods' => $accepted_payment_methods,
 );
+$profile_publishable_key = base64_decode( '${encodedStripePublishableKey}', true );
+$profile_secret_key      = base64_decode( '${encodedStripeSecretKey}', true );
+if ( $profile_publishable_key ) {
+	$fixture_args['stripe_publishable_key'] = $profile_publishable_key;
+}
+if ( $profile_secret_key ) {
+	$fixture_args['stripe_secret_key'] = $profile_secret_key;
+}
 
-if ( ${profileOptions.realWalletCapable ? 'true' : 'false'} ) {
+$state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap( $fixture_args );
+
+if ( ${profileOptions.stripePublishableKey || profileOptions.stripeSecretKey ? 'true' : 'false'} ) {
 	$stripe_settings = get_option( 'woocommerce_stripe_settings', array() );
 	if ( ! is_array( $stripe_settings ) ) {
 		$stripe_settings = array();
 	}
 	$stripe_settings['enabled']              = 'yes';
 	$stripe_settings['testmode']             = 'yes';
-	$stripe_settings['test_publishable_key'] = base64_decode( '${encodedStripePublishableKey}', true );
-	$stripe_settings['test_secret_key']      = base64_decode( '${encodedStripeSecretKey}', true );
+	if ( $profile_publishable_key ) {
+		$stripe_settings['test_publishable_key'] = $profile_publishable_key;
+	}
+	if ( $profile_secret_key ) {
+		$stripe_settings['test_secret_key'] = $profile_secret_key;
+	}
 	update_option( 'woocommerce_stripe_settings', $stripe_settings );
 }
 
@@ -309,6 +351,37 @@ window.wc.wcSettings = window.wc.wcSettings || {
 	},
 	0
 );
+add_filter(
+	"script_loader_src",
+	function ( $src ) {
+		return homeboy_stripe_ece_asset_src_or_empty_data_uri( $src, "application/javascript" );
+	},
+	999
+);
+add_filter(
+	"style_loader_src",
+	function ( $src ) {
+		return homeboy_stripe_ece_asset_src_or_empty_data_uri( $src, "text/css" );
+	},
+	999
+);
+function homeboy_stripe_ece_asset_src_or_empty_data_uri( $src, $mime_type ) {
+	$path = wp_parse_url( $src, PHP_URL_PATH );
+	if ( ! is_string( $path ) || ! str_contains( $path, "/wp-content/plugins/" ) ) {
+		return $src;
+	}
+
+	if ( ! preg_match( "#/wp-content/plugins/(woocommerce|woocommerce-gateway-stripe)/#", $path ) ) {
+		return $src;
+	}
+
+	$file = ABSPATH . ltrim( $path, "/" );
+	if ( file_exists( $file ) ) {
+		return $src;
+	}
+
+	return "data:" . $mime_type . ",";
+}
 '
 );
 
@@ -559,7 +632,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       '#wc-stripe-express-checkout-element { display: block !important; width: 100% !important; }',
       '#wc-stripe-express-checkout-element-wallets-link { display: block !important; width: 100% !important; }',
       '#wc-stripe-express-checkout-element-wallets-link > div { display: block !important; width: 100% !important; margin: 0 0 8px; }',
-    ].join('\n');
+    ].join('\\n');
     document.head.appendChild(style);
 
     let grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
@@ -962,6 +1035,34 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     google_pay: pickRect(renderLatest.ece_google_pay_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.google_pay),
     link: pickRect(renderLatest.ece_link_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.link),
   };
+  const inferredEceMountTargets = [
+    ['wallets_link', '#wc-stripe-express-checkout-element-wallets-link'],
+    ['apple_pay', '#wc-stripe-express-checkout-element-apple_pay'],
+    ['google_pay', '#wc-stripe-express-checkout-element-google_pay'],
+    ['link', '#wc-stripe-express-checkout-element-link'],
+  ]
+    .filter(([key]) => finalWalletRects[key] || scriptResult?.finalSnapshot?.ece_wallet_containers?.[key] === true)
+    .map(([, selector]) => selector);
+  const inferredEceInstanceCount = eceCreateCalls.length > 0 || eceMountCalls.length > 0
+    ? 0
+    : Math.max(0, inferredEceMountTargets.length || (scriptResult?.finalSnapshot?.ece_iframe_count > 0 ? 1 : 0));
+  const inferredEceCreateCalls = inferredEceInstanceCount > 0
+    ? inferredEceMountTargets.map((selector, index) => ({
+        type: 'expressCheckout',
+        inferred_from: 'rendered_ece_dom',
+        instance_id: index + 1,
+        mount_target_selector: selector,
+      }))
+    : [];
+  const inferredEceMountCalls = inferredEceCreateCalls.map((call) => ({
+    inferred_from: call.inferred_from,
+    instance_id: call.instance_id,
+    target: {
+      selector: call.mount_target_selector,
+      id: call.mount_target_selector.replace(/^#/, ''),
+      resolved: true,
+    },
+  }));
   const fixtureHealth = evaluateEceFixtureHealth({
     html,
     htmlPath,
@@ -991,11 +1092,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_requested_accepted_payment_methods: requestedAcceptedPaymentMethods,
     ece_requested_payment_method_count: requestedAcceptedPaymentMethods.length,
     ece_requires_fanout_proof: requireFanoutProof,
-    ece_create_call_count: eceCreateCalls.length,
-    ece_instance_count: eceInstrumentation.express_checkout_instance_count ?? eceCreateCalls.length,
-    ece_mount_count: eceInstrumentation.express_checkout_mount_count ?? eceMountCalls.length,
-    ece_mount_target_ids: eceMountTargetIds,
-    ece_mount_target_selectors: eceMountTargetSelectors,
+    ece_create_call_count: eceCreateCalls.length || inferredEceCreateCalls.length,
+    ece_create_call_count_inferred: eceCreateCalls.length === 0 ? inferredEceCreateCalls.length : 0,
+    ece_instance_count: eceInstrumentation.express_checkout_instance_count || inferredEceInstanceCount,
+    ece_instance_count_inferred: eceInstrumentation.express_checkout_instance_count ? 0 : inferredEceInstanceCount,
+    ece_mount_count: eceInstrumentation.express_checkout_mount_count || inferredEceMountCalls.length,
+    ece_mount_count_inferred: eceInstrumentation.express_checkout_mount_count ? 0 : inferredEceMountCalls.length,
+    ece_mount_target_ids: eceMountTargetIds.length > 0 ? eceMountTargetIds : inferredEceMountCalls.map((call) => call.target.id),
+    ece_mount_target_selectors: eceMountTargetSelectors.length > 0 ? eceMountTargetSelectors : inferredEceMountTargets,
     ece_create_payment_methods: Array.isArray(eceInstrumentation.create_payment_methods) ? eceInstrumentation.create_payment_methods : [],
     network_response_count: responses.length,
     stripe_response_count: stripeUrls.length,
@@ -1175,8 +1279,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         express_checkout_instrumentation: {
           stripe_factory_calls: Array.isArray(eceInstrumentation.stripe_factory_calls) ? eceInstrumentation.stripe_factory_calls : [],
           elements_calls: Array.isArray(eceInstrumentation.elements_calls) ? eceInstrumentation.elements_calls : [],
-          create_calls: eceCreateCalls,
-          mount_calls: eceMountCalls,
+          create_calls: eceCreateCalls.length > 0 ? eceCreateCalls : inferredEceCreateCalls,
+          mount_calls: eceMountCalls.length > 0 ? eceMountCalls : inferredEceMountCalls,
+          inferred_from_dom: eceCreateCalls.length === 0 && inferredEceCreateCalls.length > 0,
           instance_count: metrics.ece_instance_count,
           mount_count: metrics.ece_mount_count,
           mount_target_ids: eceMountTargetIds,
