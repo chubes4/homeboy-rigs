@@ -10,6 +10,7 @@ import { buildEceProfileOptions, setting } from './ece-product-page-profile.mjs'
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
+import { runWpCodeboxRecipe } from './ece-product-page-wp-codebox.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +20,6 @@ const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || DEFAULT_ECE_SCENARIO_ID
 const scenario = eceProductPageScenario(scenarioId);
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join(tmpdir(), 'wc-stripe-ece-waterfall-artifacts');
-const wpCodeboxBin = process.env.HOMEBOY_WP_CODEBOX_BIN || 'wp-codebox';
 const woocommercePath = process.env.HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH || path.join(process.env.HOME || '', 'Developer/woocommerce/plugins/woocommerce');
 const wpVersion = process.env.HOMEBOY_WC_STRIPE_WP_VERSION || '7.0';
 const eceLocations = process.env.HOMEBOY_WC_STRIPE_ECE_LOCATIONS || 'product';
@@ -155,14 +155,6 @@ function relativeTimingMs(cdpMetrics, metricName) {
   }
 
   return Math.round((value - navigationStart) * 1000);
-}
-
-function wpCodeboxCommand() {
-  if (wpCodeboxBin.endsWith('.js') || wpCodeboxBin.endsWith('.cjs') || wpCodeboxBin.endsWith('.mjs')) {
-    return { command: 'node', args: [wpCodeboxBin] };
-  }
-
-  return { command: wpCodeboxBin, args: [] };
 }
 
 async function prepareStripePlugin(pathname) {
@@ -900,12 +892,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
 
   await writeFile(recipeFile, `${JSON.stringify(recipe, null, 2)}\n`);
 
-  event('wp_codebox', 'recipe.start', { recipe_file: recipeFile });
-  const { command, args } = wpCodeboxCommand();
-  const result = await execFileAsync(command, [...args, 'recipe-run', '--recipe', recipeFile, '--artifacts', codeboxArtifacts, ...profileOptions.recipeRunArgs, '--json'], {
-    maxBuffer: 1024 * 1024 * 50,
+  const result = await runWpCodeboxRecipe({
+    recipeFile,
+    artifactsDir: codeboxArtifacts,
+    outputFile,
+    recipeRunArgs: profileOptions.recipeRunArgs,
+    event,
   });
-  await writeFile(outputFile, result.stdout);
   event('wordpress', 'fixture.ready');
 
   const output = JSON.parse(result.stdout);
