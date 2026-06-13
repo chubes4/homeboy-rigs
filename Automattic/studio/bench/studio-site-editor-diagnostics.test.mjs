@@ -61,6 +61,10 @@ const {
   installStudioWordPressFixturePlugins,
   restoreStudioWordPressFixturePlugins,
 } = await import('./lib/wordpress-fixture-plugins.mjs');
+const {
+  loadStudioWordPressProfileExtensionModule,
+  summarizeStudioWordPressRequests,
+} = await import('./lib/studio-wordpress-profile.mjs');
 
 function withEnv(values, callback) {
   const previous = {};
@@ -350,6 +354,66 @@ test('Studio WordPress fixture plugins delegate install and restore to Homeboy E
   } finally {
     await rm(fixture.tempDir, { recursive: true, force: true });
   }
+});
+
+test('Studio WordPress profile extension loader honors page profile and admin fallback env prefixes', async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-wordpress-profile-extension-'));
+  const pageModulePath = path.join(tempDir, 'page-extension.mjs');
+  const adminModulePath = path.join(tempDir, 'admin-extension.mjs');
+  await writeFile(pageModulePath, 'export const source = "page";\n');
+  await writeFile(adminModulePath, 'export const source = "admin";\n');
+
+  try {
+    await withEnvAsync(
+      {
+        HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE: pageModulePath,
+        HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_EXTENSION_MODULE: undefined,
+      },
+      async () => {
+        const extension = await loadStudioWordPressProfileExtensionModule([
+          'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_EXTENSION_MODULE',
+          'HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE',
+        ]);
+        assert.equal(extension.source, 'page');
+      }
+    );
+
+    await withEnvAsync(
+      {
+        HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE: pageModulePath,
+        HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_EXTENSION_MODULE: adminModulePath,
+      },
+      async () => {
+        const extension = await loadStudioWordPressProfileExtensionModule([
+          'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_EXTENSION_MODULE',
+          'HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE',
+        ]);
+        assert.equal(extension.source, 'admin');
+      }
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('Studio WordPress request summaries support diagnostics and admin scale shapes', () => {
+  const entries = [
+    { request_id: 'slow', uri: '/wp-admin/site-editor.php?token=secret', method: 'GET', t_ms: 10, event: 'request.start' },
+    { request_id: 'slow', uri: '/wp-admin/site-editor.php?token=secret', method: 'GET', t_ms: 75, event: 'hook.stop', data: { hook: 'init', duration_ms: 20 } },
+    { request_id: 'slow', uri: '/wp-admin/site-editor.php?token=secret', method: 'GET', t_ms: 80, event: 'http.request.start', data: { url: 'https://example.test/?nonce=abc' } },
+    { request_id: 'fast', uri: '/wp-admin/', method: 'GET', t_ms: 5, event: 'request.start' },
+  ];
+
+  const diagnostics = summarizeStudioWordPressRequests(entries, { includeHttpUrls: true, includeHooks: true, limit: 80 });
+  assert.equal(diagnostics[0].duration_ms, 80);
+  assert.match(diagnostics[0].uri, /token=\[redacted\]/);
+  assert.deepEqual(diagnostics[0].hooks, [{ hook: 'init', duration_ms: 20 }]);
+  assert.deepEqual(diagnostics[0].http_urls, ['https://example.test/?nonce=[redacted]']);
+
+  const admin = summarizeStudioWordPressRequests(entries, { limit: 120 });
+  assert.equal(admin[0].duration_ms, 80);
+  assert.equal(admin[0].hooks, undefined);
+  assert.equal(admin[0].http_urls, undefined);
 });
 
 test('timingCorrelatorPath honors the direct WordPress helper env var', () => {
