@@ -36,14 +36,14 @@ if (!process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON) {
       slug: 'agents-api',
       plugin: 'agents-api',
       path: defaultPluginPath('HOMEBOY_AGENTS_API_PLUGIN_PATH', 'agents-api'),
-      activate: false,
+      activate: true,
       copy: true,
     },
     {
       slug: 'data-machine',
       plugin: 'data-machine',
       path: defaultPluginPath('HOMEBOY_DATAMACHINE_PLUGIN_PATH', 'data-machine'),
-      activate: false,
+      activate: true,
       copy: true,
     },
   ]);
