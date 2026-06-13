@@ -25,6 +25,10 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
 - https://github.com/chubes4/homeboy-rigs/issues/253
 - https://github.com/chubes4/homeboy-rigs/issues/255
+- https://github.com/chubes4/homeboy-rigs/issues/268
+- https://github.com/chubes4/homeboy-rigs/issues/269
+- https://github.com/chubes4/homeboy-rigs/issues/270
+- https://github.com/chubes4/homeboy-rigs/issues/271
 
 ## Install
 
@@ -254,3 +258,22 @@ The report separates timing evidence from shipping-rate call-count evidence and
 documents the cache invalidation controls covered by the current workload. See
 `docs/checkout-shipping-cache-matrix-report.md` for the planned matrix commands
 and current dependency blockers.
+
+## Checkout PR Evidence Matrix
+
+Use the checkout PR evidence generator when preparing the final reviewer-facing
+proof loop for WooCommerce issue #62659 and PR #65588:
+
+```bash
+node woocommerce/woocommerce/tools/checkout-pr-evidence-report.mjs
+```
+
+The generated matrix is intentionally dependency-aware. It lists the old PR shape
+failure run, ready commands for public `create_order()` side effects, sequential
+retry, true concurrent checkout, and core gateway rows, and keeps no-payment,
+order-pay, identity, coupon lifecycle, hook sequencing, and real Stripe rows
+blocked until their prerequisite issues land. Real Stripe coverage is framed as a
+reusable gateway-plugin profile capability that should share the existing
+`woocommerce-stripe-ece-product-page` WooCommerce + Stripe mounting abstractions,
+not duplicate checkout-specific setup. See
+`docs/checkout-pr-evidence-matrix.md` for the full recipe.

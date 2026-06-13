@@ -1,0 +1,160 @@
+{
+  "title": "WooCommerce checkout create_order idempotency evidence matrix",
+  "issue": "https://github.com/chubes4/homeboy-rigs/issues/273",
+  "woocommerce_issue": "https://github.com/woocommerce/woocommerce/issues/62659",
+  "woocommerce_pr": "https://github.com/woocommerce/woocommerce/pull/65588",
+  "review": "https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929",
+  "old_fix_failure_run": "136c2b85-647c-4d85-be13-2c0be175abfd",
+  "reusable_capabilities": [
+    {
+      "id": "stripe_gateway_plugin_profile",
+      "title": "Reusable Stripe gateway plugin profile capability",
+      "source": "woocommerce/woocommerce-gateway-stripe",
+      "rig": "woocommerce-stripe-ece-product-page",
+      "merged_prs": [176, 178, 183, 184, 193, 197, 219, 220, 235, 236, 238, 265],
+      "guidance": "Real Stripe checkout coverage should reuse the existing WooCommerce + WooCommerce Stripe mounting and dependency abstractions from the Stripe ECE/product-page rig track. Treat Stripe as a reusable gateway-plugin profile capability for WooCommerce workloads, not as a one-off checkout-matrix setup path."
+    }
+  ],
+  "prerequisites": [
+    {
+      "id": "no_payment_order_pay",
+      "title": "No-payment and order-pay checkout guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/268",
+      "status": "open"
+    },
+    {
+      "id": "identity",
+      "title": "Customer/session identity guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/269",
+      "status": "open"
+    },
+    {
+      "id": "hook_sequencing",
+      "title": "Hook sequencing guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/270",
+      "status": "open"
+    },
+    {
+      "id": "coupon_lifecycle",
+      "title": "Coupon lifecycle guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/271",
+      "status": "open"
+    },
+    {
+      "id": "real_gateway_profiles",
+      "title": "Real gateway plugin profile stabilization",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/272",
+      "status": "open"
+    },
+    {
+      "id": "stripe_dependency_provider",
+      "title": "Stripe dependency provider fix",
+      "url": "https://github.com/Extra-Chill/homeboy-extensions/issues/1321",
+      "status": "open"
+    }
+  ],
+  "runs": [
+    {
+      "id": "old_pr_shape",
+      "label": "Old PR shape baseline",
+      "woocommerce_ref": "WooCommerce PR #65588 current old-fix shape",
+      "shared_state": "/tmp/woocommerce-checkout-pr-65588-old-shape",
+      "expected": "Fails known guardrails: public create_order writes order_awaiting_payment; legacy coupon independence is not preserved; true concurrent behavior remains unproven. Do not use this as passing evidence."
+    },
+    {
+      "id": "revised_candidate",
+      "label": "Revised checkout candidate",
+      "woocommerce_ref": "replacement branch or revised PR candidate",
+      "shared_state": "/tmp/woocommerce-checkout-pr-65588-revised-candidate",
+      "expected": "Passes public create_order side-effect guardrails and resume behavior without overclaiming true concurrency unless the concurrent scenario passes. Any remaining failures must be scoped in the Woo PR description."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "public_create_order_side_effects",
+      "label": "Public create_order side effects",
+      "status": "ready",
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"core_bacs,core_cheque,core_cod\"}'",
+      "old_fix_expected": "FAIL: public WC_Checkout::create_order() sets order_awaiting_payment before payment processing.",
+      "candidate_expected": "PASS: public create_order() does not set order_awaiting_payment; payment-start paths own that write."
+    },
+    {
+      "id": "sequential_retry_resume",
+      "label": "Sequential retry and resume behavior",
+      "status": "ready",
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"core_bacs,core_cheque,core_cod\"}'",
+      "old_fix_expected": "Mixed: sequential reuse may appear to work only because create_order writes the session branch too early.",
+      "candidate_expected": "PASS: retry/resume uses the intended order_awaiting_payment branch after payment start while preserving carts for failure/cancel paths."
+    },
+    {
+      "id": "true_concurrent_checkout",
+      "label": "True concurrent checkout behavior",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "UNPROVEN/FAIL: old PR description overclaims Closes #62659 without proving the true concurrent duplicate-order path.",
+      "candidate_expected": "PASS only if duplicate_order_count is zero under real concurrent harness evidence; otherwise PR must avoid Closes #62659."
+    },
+    {
+      "id": "no_payment_order_pay",
+      "label": "No-payment and order-pay paths",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/268"],
+      "scenario": "pending #268 workload",
+      "command": "Run the #268 workload after it lands; append artifacts under the same shared-state root.",
+      "old_fix_expected": "Pending #268; do not claim old-shape failure beyond available artifacts.",
+      "candidate_expected": "Pending #268; expected to preserve order-pay/no-payment flows without session side-effect regressions."
+    },
+    {
+      "id": "identity",
+      "label": "Guest, logged-in, and customer identity cases",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/269"],
+      "scenario": "pending #269 workload",
+      "command": "Run the #269 workload after it lands; append artifacts under the same shared-state root.",
+      "old_fix_expected": "Pending #269; do not claim identity coverage from current gateway-only evidence.",
+      "candidate_expected": "Pending #269; expected to keep session/customer identity attached to the correct order."
+    },
+    {
+      "id": "coupon_lifecycle",
+      "label": "Coupon lifecycle",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/271"],
+      "scenario": "pending #271 workload",
+      "command": "Run the #271 workload after it lands; append artifacts under the same shared-state root.",
+      "old_fix_expected": "FAIL already known from legacy_coupon_independence guardrail state, but final matrix still needs #271 artifacts.",
+      "candidate_expected": "PASS: coupons survive retry/failure/cancel lifecycle where WooCommerce expects cart restoration."
+    },
+    {
+      "id": "hook_sequencing",
+      "label": "Hook sequencing and counts",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/270"],
+      "scenario": "pending #270 workload",
+      "command": "Run the #270 workload after it lands; append artifacts under the same shared-state root.",
+      "old_fix_expected": "Pending #270; do not infer hook sequencing from order/session metrics alone.",
+      "candidate_expected": "PASS: checkout hooks fire once in expected order for create, payment, retry, failure, and cancel paths."
+    },
+    {
+      "id": "core_gateways",
+      "label": "Core gateway profiles",
+      "status": "ready",
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"core_bacs,core_cheque,core_cod\"}'",
+      "old_fix_expected": "FAIL or scoped regressions should be visible in order_awaiting_payment and cart-clearing metrics.",
+      "candidate_expected": "PASS across BACS, cheque, and COD without unexpected cart clearing."
+    },
+    {
+      "id": "real_stripe",
+      "label": "Real Stripe gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/272", "https://github.com/Extra-Chill/homeboy-extensions/issues/1321"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_stripe\"}'",
+      "old_fix_expected": "Pending real Stripe stabilization; skip output is not failure evidence. Reuse the existing WooCommerce Stripe ECE/product-page mounting abstractions instead of adding checkout-only Stripe setup.",
+      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; skip with explicit blocker is acceptable until then."
+    }
+  ]
+}
