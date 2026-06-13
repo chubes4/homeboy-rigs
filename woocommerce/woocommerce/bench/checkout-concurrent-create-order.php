@@ -10,8 +10,6 @@
  * - https://github.com/chubes4/homeboy-rigs/issues/253
  * - https://github.com/chubes4/homeboy-rigs/issues/254
  * - https://github.com/chubes4/homeboy-rigs/issues/269
- * - https://github.com/chubes4/homeboy-rigs/issues/270
- * - https://github.com/chubes4/homeboy-rigs/issues/271
  * - https://github.com/chubes4/homeboy-rigs/issues/268
  */
 return function (): array {
@@ -57,8 +55,6 @@ return function (): array {
 		'https://github.com/chubes4/homeboy-rigs/issues/253',
 		'https://github.com/chubes4/homeboy-rigs/issues/254',
 		'https://github.com/chubes4/homeboy-rigs/issues/269',
-		'https://github.com/chubes4/homeboy-rigs/issues/270',
-		'https://github.com/chubes4/homeboy-rigs/issues/271',
 		'https://github.com/chubes4/homeboy-rigs/issues/268',
 	);
 	$request_count = max( 2, min( 8, absint( getenv( 'WC_CONCURRENT_CHECKOUT_REQUESTS' ) ?: 2 ) ) );
