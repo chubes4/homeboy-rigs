@@ -5,6 +5,16 @@
   "woocommerce_pr": "https://github.com/woocommerce/woocommerce/pull/65588",
   "review": "https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929",
   "old_fix_failure_run": "136c2b85-647c-4d85-be13-2c0be175abfd",
+  "reusable_capabilities": [
+    {
+      "id": "stripe_gateway_plugin_profile",
+      "title": "Reusable Stripe gateway plugin profile capability",
+      "source": "woocommerce/woocommerce-gateway-stripe",
+      "rig": "woocommerce-stripe-ece-product-page",
+      "merged_prs": [176, 178, 183, 184, 193, 197, 219, 220, 235, 236, 238, 265],
+      "guidance": "Real Stripe checkout coverage should reuse the existing WooCommerce + WooCommerce Stripe mounting and dependency abstractions from the Stripe ECE/product-page rig track. Treat Stripe as a reusable gateway-plugin profile capability for WooCommerce workloads, not as a one-off checkout-matrix setup path."
+    }
+  ],
   "prerequisites": [
     {
       "id": "no_payment_order_pay",
@@ -143,8 +153,8 @@
       "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/272", "https://github.com/Extra-Chill/homeboy-extensions/issues/1321"],
       "scenario": "checkout-gateway-compatibility-matrix",
       "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_stripe\"}'",
-      "old_fix_expected": "Pending real Stripe stabilization; skip output is not failure evidence.",
-      "candidate_expected": "PASS once Stripe dependency materialization is stable; skip with explicit blocker is acceptable until then."
+      "old_fix_expected": "Pending real Stripe stabilization; skip output is not failure evidence. Reuse the existing WooCommerce Stripe ECE/product-page mounting abstractions instead of adding checkout-only Stripe setup.",
+      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; skip with explicit blocker is acceptable until then."
     }
   ]
 }

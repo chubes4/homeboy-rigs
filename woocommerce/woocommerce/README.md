@@ -163,5 +163,8 @@ The generated matrix is intentionally dependency-aware. It lists the old PR shap
 failure run, ready commands for public `create_order()` side effects, sequential
 retry, true concurrent checkout, and core gateway rows, and keeps no-payment,
 order-pay, identity, coupon lifecycle, hook sequencing, and real Stripe rows
-blocked until their prerequisite issues land. See
+blocked until their prerequisite issues land. Real Stripe coverage is framed as a
+reusable gateway-plugin profile capability that should share the existing
+`woocommerce-stripe-ece-product-page` WooCommerce + Stripe mounting abstractions,
+not duplicate checkout-specific setup. See
 `docs/checkout-pr-evidence-matrix.md` for the full recipe.

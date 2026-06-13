@@ -19,6 +19,20 @@ The report is generated from
 old-fix failures, revised-candidate expectations, dependencies, and commands stay
 reviewable in one place.
 
+## Reusable Stripe Gateway Capability
+
+Real Stripe checkout coverage should build on the existing
+`woocommerce/woocommerce-gateway-stripe` rig track instead of adding a
+checkout-matrix-only Stripe setup path. The
+`woocommerce-stripe-ece-product-page` rig already owns WooCommerce +
+WooCommerce Stripe mounting, Stripe checkout path checks, fixture expectations,
+and real-wallet/secure-browser profile separation.
+
+The final checkout matrix should treat Stripe as a reusable gateway-plugin
+profile capability that can be shared by WooCommerce workloads. Relevant merged
+homeboy-rigs PRs in that track include #176, #178, #183, #184, #193, #197, #219,
+#220, #235, #236, #238, and #265.
+
 ## Current Dependencies
 
 | Dependency | Status | Scope |
@@ -71,7 +85,7 @@ The following rows stay pending until their prerequisites land:
 | Guest, logged-in, customer identity | https://github.com/chubes4/homeboy-rigs/issues/269 |
 | Hook sequencing and counts | https://github.com/chubes4/homeboy-rigs/issues/270 |
 | Coupon lifecycle | https://github.com/chubes4/homeboy-rigs/issues/271 |
-| Real Stripe gateway | https://github.com/chubes4/homeboy-rigs/issues/272 and https://github.com/Extra-Chill/homeboy-extensions/issues/1321 |
+| Real Stripe gateway | https://github.com/chubes4/homeboy-rigs/issues/272 and https://github.com/Extra-Chill/homeboy-extensions/issues/1321; reuse the `woocommerce-stripe-ece-product-page` mounting abstractions instead of duplicating setup |
 
 ## Reviewer-Facing Output Contract
 
@@ -85,5 +99,8 @@ The WooCommerce PR evidence should include:
   row.
 - Explicit `blocked` labels for #268-#272 and HBEX #1321 rows until those runs
   exist.
+- Real Stripe coverage framed as reusable gateway-plugin profile capability,
+  sharing the existing WooCommerce Stripe ECE/product-page rig mounting
+  abstractions.
 - A PR description note that avoids `Closes #62659` unless the true concurrent
   checkout row passes.

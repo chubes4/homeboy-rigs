@@ -29,6 +29,18 @@ function renderReport(data) {
 	lines.push('- Blocked rows stay blocked until their prerequisite issues land and produce artifacts.');
 	lines.push('- The WooCommerce PR should avoid `Closes #62659` unless the true concurrent checkout row passes.');
 	lines.push('');
+	if (Array.isArray(data.reusable_capabilities) && data.reusable_capabilities.length > 0) {
+		lines.push('## Reusable Capabilities');
+		lines.push('');
+		lines.push('| Capability | Source | Guidance |');
+		lines.push('|---|---|---|');
+		for (const capability of data.reusable_capabilities) {
+			const source = `${capability.source} / ${capability.rig}`;
+			const prs = Array.isArray(capability.merged_prs) && capability.merged_prs.length > 0 ? ` Merged PRs: ${capability.merged_prs.map((number) => `#${number}`).join(', ')}.` : '';
+			lines.push(`| ${capability.title} | ${source} | ${capability.guidance}${prs} |`);
+		}
+		lines.push('');
+	}
 	lines.push('## Prerequisites');
 	lines.push('');
 	lines.push('| Status | Dependency | Link |');
