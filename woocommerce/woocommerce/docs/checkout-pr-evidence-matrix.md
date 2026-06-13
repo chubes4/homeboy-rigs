@@ -41,8 +41,8 @@ homeboy-rigs PRs in that track include #176, #178, #183, #184, #193, #197, #219,
 | https://github.com/chubes4/homeboy-rigs/issues/269 | landed | guest, logged-in, customer/session identity guardrails |
 | https://github.com/chubes4/homeboy-rigs/issues/270 | landed | checkout hook sequencing and counts |
 | https://github.com/chubes4/homeboy-rigs/issues/271 | landed | coupon lifecycle guardrails |
-| https://github.com/chubes4/homeboy-rigs/issues/272 | open | real gateway profile stabilization |
-| https://github.com/Extra-Chill/homeboy-extensions/issues/1321 | open | Stripe dependency provider fix |
+| https://github.com/chubes4/homeboy-rigs/issues/272 | closed | previous real gateway profile blocker |
+| https://github.com/Extra-Chill/homeboy-extensions/issues/1336 | open | Stripe dependency provider fix |
 
 ## Ready Rows
 
@@ -77,11 +77,11 @@ Repeat with the revised candidate checked out and
 
 ## Remaining Blocked Rows
 
-The following row stays pending until its prerequisite real-gateway profile work lands:
+The following row stays pending until its reusable Stripe dependency provider work lands. The rig-side workload should still reach execution and emit a structured `not_configured`, `build_failed`, `entrypoint_missing`, `activation_failed`, or `gateway_missing` artifact row instead of failing before dispatch.
 
 | Row | Blocker |
 |---|---|
-| Real Stripe gateway | https://github.com/chubes4/homeboy-rigs/issues/272 and https://github.com/Extra-Chill/homeboy-extensions/issues/1321; reuse the `woocommerce-stripe-ece-product-page` mounting abstractions instead of duplicating setup |
+| Real Stripe gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336; reuse the `woocommerce-stripe-ece-product-page` mounting abstractions instead of duplicating setup |
 
 ## Reviewer-Facing Output Contract
 
@@ -93,8 +93,8 @@ The WooCommerce PR evidence should include:
   `136c2b85-647c-4d85-be13-2c0be175abfd`.
 - A table with old PR shape output and revised candidate output for every ready
   row.
-- Explicit `blocked` labels for real Stripe coverage until #272 and HBEX #1321
-  produce stable reusable gateway artifacts.
+- Explicit `blocked` labels for real Stripe coverage until HBEX #1336 produces
+  stable reusable gateway artifacts or structured dependency build failures.
 - Real Stripe coverage framed as reusable gateway-plugin profile capability,
   sharing the existing WooCommerce Stripe ECE/product-page rig mounting
   abstractions.

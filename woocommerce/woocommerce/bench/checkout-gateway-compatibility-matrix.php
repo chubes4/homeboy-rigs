@@ -103,7 +103,10 @@ return function (): array {
 			'gateway_id'     => 'stripe',
 			'label'          => 'WooCommerce Stripe Gateway',
 			'plugin'         => 'woocommerce-gateway-stripe',
+			'dependency'     => 'woocommerce-gateway-stripe',
 			'entrypoint'     => 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH', 'HOMEBOY_WC_STRIPE_COMPONENT_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_PATH' ),
 			'settings'       => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
@@ -114,7 +117,10 @@ return function (): array {
 			'gateway_id'     => 'ppcp-gateway',
 			'label'          => 'WooCommerce PayPal Payments',
 			'plugin'         => 'woocommerce-paypal-payments',
+			'dependency'     => 'woocommerce-paypal-payments',
 			'entrypoint'     => 'woocommerce-paypal-payments/woocommerce-paypal-payments.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PREPARED_PATH' ),
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
@@ -122,7 +128,10 @@ return function (): array {
 			'gateway_id'     => 'woocommerce_payments',
 			'label'          => 'WooPayments',
 			'plugin'         => 'woocommerce-payments',
+			'dependency'     => 'woocommerce-payments',
 			'entrypoint'     => 'woocommerce-payments/woocommerce-payments.php',
+			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH' ),
+			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PREPARED_PATH' ),
 			'settings'       => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
@@ -143,22 +152,66 @@ return function (): array {
 		);
 	}
 
-	$ensure_gateway_profile = static function ( array $profile ): array {
+	$get_first_env = static function ( array $names ): string {
+		foreach ( $names as $name ) {
+			$value = getenv( $name );
+			if ( false !== $value && '' !== trim( (string) $value ) ) {
+				return (string) $value;
+			}
+		}
+		return '';
+	};
+
+	$get_git_revision = static function ( string $path ): ?string {
+		if ( '' === $path || ! is_dir( $path ) || ! function_exists( 'shell_exec' ) ) {
+			return null;
+		}
+
+		$revision = shell_exec( 'git -C ' . escapeshellarg( $path ) . ' rev-parse HEAD 2>/dev/null' );
+		$revision = is_string( $revision ) ? trim( $revision ) : '';
+		return '' !== $revision ? $revision : null;
+	};
+
+	$ensure_gateway_profile = static function ( array $profile ) use ( $get_first_env, $get_git_revision ): array {
 		$entrypoint_path = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['entrypoint'] : '';
+		$source_path     = $profile['entrypoint'] ? $get_first_env( $profile['source_env'] ?? array() ) : '';
+		$prepared_path   = $profile['entrypoint'] ? $get_first_env( $profile['prepared_env'] ?? array() ) : '';
+		$mounted_dir     = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['plugin'] : '';
 		$install         = array(
-			'plugin'          => $profile['plugin'],
-			'entrypoint'      => $profile['entrypoint'],
-			'entrypoint_path' => $entrypoint_path,
-			'available'       => true,
-			'activated'       => false,
-			'version'         => null,
-			'skip_reason'     => '',
+			'plugin'                 => $profile['plugin'],
+			'dependency'             => $profile['dependency'] ?? $profile['plugin'],
+			'entrypoint'             => $profile['entrypoint'],
+			'entrypoint_path'        => $entrypoint_path,
+			'source_path'            => $source_path,
+			'source_git_revision'    => $get_git_revision( $source_path ),
+			'prepared_artifact_path' => $prepared_path,
+			'mounted_plugin_dir'     => $mounted_dir,
+			'available'              => true,
+			'activated'              => false,
+			'activation_status'      => $profile['entrypoint'] ? 'not_attempted' : 'core',
+			'version'                => null,
+			'status'                 => 'available',
+			'status_reason'          => '',
+			'skip_reason'            => '',
+			'build_failure_reason'   => '',
 		);
 
 		if ( $profile['entrypoint'] ) {
 			if ( ! file_exists( $entrypoint_path ) ) {
-				$install['available']   = false;
-				$install['skip_reason'] = 'Plugin entrypoint is not mounted in WP Codebox.';
+				$install['available'] = false;
+				if ( '' !== $prepared_path && ! file_exists( $prepared_path ) ) {
+					$install['status']               = 'build_failed';
+					$install['build_failure_reason'] = 'Prepared artifact path is configured but unavailable in the runtime.';
+					$install['skip_reason']          = $install['build_failure_reason'];
+				} elseif ( '' === $source_path && '' === $prepared_path ) {
+					$install['status']      = 'not_configured';
+					$install['skip_reason'] = 'Plugin dependency was not configured or mounted for this run.';
+				} else {
+					$install['status']      = 'entrypoint_missing';
+					$install['skip_reason'] = 'Configured plugin dependency did not mount the expected WordPress entrypoint.';
+				}
+				$install['status_reason']     = $install['skip_reason'];
+				$install['activation_status'] = 'skipped';
 				return $install;
 			}
 
@@ -169,12 +222,16 @@ return function (): array {
 			if ( function_exists( 'is_plugin_active' ) && ! is_plugin_active( $profile['entrypoint'] ) ) {
 				$result = activate_plugin( $profile['entrypoint'], '', false, true );
 				if ( is_wp_error( $result ) ) {
-					$install['available']   = false;
-					$install['skip_reason'] = 'Plugin activation failed: ' . $result->get_error_message();
+					$install['available']         = false;
+					$install['activation_status'] = 'failed';
+					$install['status']            = 'activation_failed';
+					$install['skip_reason']       = 'Plugin activation failed: ' . $result->get_error_message();
+					$install['status_reason']     = $install['skip_reason'];
 					return $install;
 				}
 				$install['activated'] = true;
 			}
+			$install['activation_status'] = function_exists( 'is_plugin_active' ) && is_plugin_active( $profile['entrypoint'] ) ? 'active' : 'loaded';
 
 			if ( ! function_exists( 'get_plugin_data' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -198,8 +255,10 @@ return function (): array {
 
 		$gateways = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
 		if ( ! isset( $gateways[ $profile['gateway_id'] ] ) ) {
-			$install['available']   = false;
-			$install['skip_reason'] = 'Gateway id is not registered after activation/configuration.';
+			$install['available']     = false;
+			$install['status']        = 'gateway_missing';
+			$install['skip_reason']   = 'Gateway id is not registered after activation/configuration.';
+			$install['status_reason'] = $install['skip_reason'];
 		}
 
 		return $install;
