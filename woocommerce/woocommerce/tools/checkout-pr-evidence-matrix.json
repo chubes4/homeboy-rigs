@@ -43,12 +43,12 @@
     {
       "id": "real_gateway_profiles",
       "title": "Real gateway plugin profile stabilization",
-      "url": "https://github.com/chubes4/homeboy-rigs/issues/272",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/292",
       "status": "open"
     },
     {
-      "id": "stripe_dependency_provider",
-      "title": "Stripe dependency provider fix",
+      "id": "gateway_dependency_provider",
+      "title": "Gateway dependency provider materialization fix",
       "url": "https://github.com/Extra-Chill/homeboy-extensions/issues/1336",
       "status": "open"
     }
@@ -67,6 +67,119 @@
       "woocommerce_ref": "replacement branch or revised PR candidate",
       "shared_state": "/tmp/woocommerce-checkout-pr-65588-revised-candidate",
       "expected": "Passes public create_order side-effect guardrails and resume behavior without overclaiming true concurrency unless the concurrent scenario passes. Any remaining failures must be scoped in the Woo PR description."
+    }
+  ],
+  "gateway_profiles": [
+    {
+      "profile": "core_bacs",
+      "label": "Direct bank transfer (BACS)",
+      "dependency_slug": "woocommerce-core",
+      "entrypoint": "",
+      "expected_gateway_ids": ["bacs"],
+      "status_fields": { "available": true, "build_failed": false, "skipped": false, "blocked": false },
+      "command_profiles": "core_bacs"
+    },
+    {
+      "profile": "core_cheque",
+      "label": "Check payments",
+      "dependency_slug": "woocommerce-core",
+      "entrypoint": "",
+      "expected_gateway_ids": ["cheque"],
+      "status_fields": { "available": true, "build_failed": false, "skipped": false, "blocked": false },
+      "command_profiles": "core_cheque"
+    },
+    {
+      "profile": "core_cod",
+      "label": "Cash on delivery",
+      "dependency_slug": "woocommerce-core",
+      "entrypoint": "",
+      "expected_gateway_ids": ["cod"],
+      "status_fields": { "available": true, "build_failed": false, "skipped": false, "blocked": false },
+      "command_profiles": "core_cod"
+    },
+    {
+      "profile": "plugin_stripe",
+      "label": "WooCommerce Stripe Gateway",
+      "dependency_slug": "woocommerce-gateway-stripe",
+      "entrypoint": "woocommerce-gateway-stripe/woocommerce-gateway-stripe.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_PATH",
+      "expected_gateway_ids": ["stripe"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/292", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_stripe"
+    },
+    {
+      "profile": "plugin_woopayments",
+      "label": "WooPayments",
+      "dependency_slug": "woocommerce-payments",
+      "entrypoint": "woocommerce-payments/woocommerce-payments.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PREPARED_PATH",
+      "expected_gateway_ids": ["woocommerce_payments"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_woopayments"
+    },
+    {
+      "profile": "plugin_paypal_payments",
+      "label": "WooCommerce PayPal Payments",
+      "dependency_slug": "woocommerce-paypal-payments",
+      "entrypoint": "woocommerce-paypal-payments/woocommerce-paypal-payments.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PREPARED_PATH",
+      "expected_gateway_ids": ["ppcp-gateway"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_paypal_payments"
+    },
+    {
+      "profile": "plugin_square",
+      "label": "WooCommerce Square",
+      "dependency_slug": "woocommerce-square",
+      "entrypoint": "woocommerce-square/woocommerce-square.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PREPARED_PATH",
+      "expected_gateway_ids": ["square_credit_card"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_square"
+    },
+    {
+      "profile": "plugin_razorpay",
+      "label": "Razorpay for WooCommerce",
+      "dependency_slug": "razorpay",
+      "entrypoint": "razorpay/razorpay.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PREPARED_PATH",
+      "expected_gateway_ids": ["razorpay"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_razorpay"
+    },
+    {
+      "profile": "plugin_mollie",
+      "label": "Mollie Payments for WooCommerce",
+      "dependency_slug": "mollie-payments-for-woocommerce",
+      "entrypoint": "mollie-payments-for-woocommerce/mollie-payments-for-woocommerce.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH",
+      "expected_gateway_ids": ["mollie_wc_gateway_creditcard", "mollie_wc_gateway_ideal", "mollie_wc_gateway_paypal"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_mollie"
+    },
+    {
+      "profile": "plugin_klarna",
+      "label": "Klarna for WooCommerce",
+      "dependency_slug": "klarna-payments-for-woocommerce",
+      "entrypoint": "klarna-payments-for-woocommerce/klarna-payments-for-woocommerce.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH",
+      "expected_gateway_ids": ["klarna_payments", "kco"],
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": "artifact-dependent", "blocked": true },
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_klarna"
     }
   ],
   "scenarios": [
@@ -146,11 +259,71 @@
       "id": "real_stripe",
       "label": "Real Stripe gateway profile",
       "status": "blocked",
-      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/292", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
       "scenario": "checkout-gateway-compatibility-matrix",
       "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_stripe\"}'",
       "old_fix_expected": "Pending real Stripe dependency-provider stabilization; structured not_configured/build_failed/entrypoint_missing output is blocker evidence, not checkout pass/fail evidence. Reuse the existing WooCommerce Stripe ECE/product-page mounting abstractions instead of adding checkout-only Stripe setup.",
-      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; structured build_failed or explicit skip with blocker #1336 is acceptable until then."
+      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; structured build_failed or explicit skip with blockers #292 and #1336 is acceptable until then."
+    },
+    {
+      "id": "real_woopayments",
+      "label": "Real WooPayments gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_woopayments\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; skip/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once WooPayments materializes and registers gateway id woocommerce_payments, or remain explicitly blocked/skipped with structured status fields."
+    },
+    {
+      "id": "real_paypal_payments",
+      "label": "Real WooCommerce PayPal Payments gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_paypal_payments\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; skip/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once PayPal Payments materializes and registers gateway id ppcp-gateway, or remain explicitly blocked/skipped with structured status fields."
+    },
+    {
+      "id": "real_square",
+      "label": "Real WooCommerce Square gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_square\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; skip/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Square materializes and registers gateway id square_credit_card, or remain explicitly blocked/skipped with structured status fields."
+    },
+    {
+      "id": "real_razorpay",
+      "label": "Real Razorpay for WooCommerce gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_razorpay\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; skip/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Razorpay materializes and registers gateway id razorpay, or remain explicitly blocked/skipped with structured status fields."
+    },
+    {
+      "id": "real_mollie",
+      "label": "Real Mollie Payments for WooCommerce gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_mollie\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; skip/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Mollie materializes and registers one of mollie_wc_gateway_creditcard, mollie_wc_gateway_ideal, or mollie_wc_gateway_paypal, or remain explicitly blocked/skipped with structured status fields."
+    },
+    {
+      "id": "real_klarna",
+      "label": "Real Klarna for WooCommerce gateway profile",
+      "status": "blocked",
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_klarna\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; skip/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Klarna materializes and registers gateway id klarna_payments or kco, or remain explicitly blocked/skipped with structured status fields."
     }
   ]
 }

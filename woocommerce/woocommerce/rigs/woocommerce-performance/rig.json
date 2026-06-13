@@ -10,7 +10,7 @@
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
           "bench_env": {
-            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "core_bacs,core_cheque,core_cod,plugin_stripe,plugin_paypal_payments,plugin_woopayments",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "core_bacs,core_cheque,core_cod,plugin_stripe,plugin_woopayments,plugin_paypal_payments,plugin_square,plugin_razorpay,plugin_mollie,plugin_klarna",
             "WC_SHIPPING_CACHE_CART_ITEMS": "40",
             "WC_SHIPPING_CACHE_PACKAGES": "8",
             "WC_SHIPPING_CACHE_WARM_RUNS": "5",

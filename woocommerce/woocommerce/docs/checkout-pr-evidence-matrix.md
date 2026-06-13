@@ -19,7 +19,7 @@ The report is generated from
 old-fix failures, revised-candidate expectations, dependencies, and commands stay
 reviewable in one place.
 
-## Reusable Stripe Gateway Capability
+## Reusable Gateway Profile Capability
 
 Real Stripe checkout coverage should build on the existing
 `woocommerce/woocommerce-gateway-stripe` rig track instead of adding a
@@ -33,6 +33,23 @@ profile capability that can be shared by WooCommerce workloads. Relevant merged
 homeboy-rigs PRs in that track include #176, #178, #183, #184, #193, #197, #219,
 #220, #235, #236, #238, and #265.
 
+The expanded gateway profile matrix now declares explicit rows for these popular
+gateway plugins:
+
+| Profile | Dependency slug | Expected gateway IDs |
+|---|---|---|
+| `plugin_stripe` | `woocommerce-gateway-stripe` | `stripe` |
+| `plugin_woopayments` | `woocommerce-payments` | `woocommerce_payments` |
+| `plugin_paypal_payments` | `woocommerce-paypal-payments` | `ppcp-gateway` |
+| `plugin_square` | `woocommerce-square` | `square_credit_card` |
+| `plugin_razorpay` | `razorpay` | `razorpay` |
+| `plugin_mollie` | `mollie-payments-for-woocommerce` | `mollie_wc_gateway_creditcard`, `mollie_wc_gateway_ideal`, `mollie_wc_gateway_paypal` |
+| `plugin_klarna` | `klarna-payments-for-woocommerce` | `klarna_payments`, `kco` |
+
+Each runtime profile reports structured `available`, `build_failed`, `skipped`,
+and `blocked` fields plus source/prepared path env metadata. Core profiles do
+not require any third-party plugin preparation.
+
 ## Current Dependencies
 
 | Dependency | Status | Scope |
@@ -41,8 +58,8 @@ homeboy-rigs PRs in that track include #176, #178, #183, #184, #193, #197, #219,
 | https://github.com/chubes4/homeboy-rigs/issues/269 | landed | guest, logged-in, customer/session identity guardrails |
 | https://github.com/chubes4/homeboy-rigs/issues/270 | landed | checkout hook sequencing and counts |
 | https://github.com/chubes4/homeboy-rigs/issues/271 | landed | coupon lifecycle guardrails |
-| https://github.com/chubes4/homeboy-rigs/issues/272 | closed | previous real gateway profile blocker |
-| https://github.com/Extra-Chill/homeboy-extensions/issues/1336 | open | Stripe dependency provider fix |
+| https://github.com/chubes4/homeboy-rigs/issues/292 | open | real Stripe gateway evidence row |
+| https://github.com/Extra-Chill/homeboy-extensions/issues/1336 | open | reusable gateway dependency provider materialization |
 
 ## Ready Rows
 
@@ -77,11 +94,19 @@ Repeat with the revised candidate checked out and
 
 ## Remaining Blocked Rows
 
-The following row stays pending until its reusable Stripe dependency provider work lands. The rig-side workload should still reach execution and emit a structured `not_configured`, `build_failed`, `entrypoint_missing`, `activation_failed`, or `gateway_missing` artifact row instead of failing before dispatch.
+The following rows stay pending until reusable gateway dependency materialization
+can either mount each plugin or return structured `build_failed` artifacts without
+aborting unrelated/core rows:
 
 | Row | Blocker |
 |---|---|
-| Real Stripe gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336; reuse the `woocommerce-stripe-ece-product-page` mounting abstractions instead of duplicating setup |
+| Real Stripe gateway | https://github.com/chubes4/homeboy-rigs/issues/292 and https://github.com/Extra-Chill/homeboy-extensions/issues/1336; reuse the `woocommerce-stripe-ece-product-page` mounting abstractions instead of duplicating setup |
+| Real WooPayments gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 |
+| Real WooCommerce PayPal Payments gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 |
+| Real WooCommerce Square gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 |
+| Real Razorpay for WooCommerce gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 |
+| Real Mollie Payments for WooCommerce gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 |
+| Real Klarna for WooCommerce gateway | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 |
 
 ## Reviewer-Facing Output Contract
 
@@ -93,10 +118,10 @@ The WooCommerce PR evidence should include:
   `136c2b85-647c-4d85-be13-2c0be175abfd`.
 - A table with old PR shape output and revised candidate output for every ready
   row.
-- Explicit `blocked` labels for real Stripe coverage until HBEX #1336 produces
-  stable reusable gateway artifacts or structured dependency build failures.
-- Real Stripe coverage framed as reusable gateway-plugin profile capability,
-  sharing the existing WooCommerce Stripe ECE/product-page rig mounting
-  abstractions.
+- Explicit `blocked` labels for real gateway coverage until #292 and HBEX #1336
+  produce stable reusable gateway artifacts or structured build-failure rows.
+- Real gateway coverage framed as reusable gateway-plugin profile capability.
+  Stripe should share the existing WooCommerce Stripe ECE/product-page rig
+  mounting abstractions.
 - A PR description note that avoids `Closes #62659` unless the true concurrent
   checkout row passes.
