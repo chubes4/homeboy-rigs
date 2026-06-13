@@ -55,7 +55,7 @@ const PROFILE_METADATA = {
   },
 };
 
-const SYNTHETIC_FANOUT_PUBLISHABLE_KEY = 'pk_test_homeboy_ece_wallet_fanout';
+const SYNTHETIC_FANOUT_PUBLISHABLE_KEY = 'pk_test_TYooMQauvdEDq54NiTphI7jx';
 
 function profileMetadata(profile) {
   return PROFILE_METADATA[profile] || PROFILE_METADATA[DEFAULT_PROFILE];
