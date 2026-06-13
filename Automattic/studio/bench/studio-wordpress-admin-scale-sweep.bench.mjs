@@ -1,27 +1,27 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import {
   artifactDir as studioArtifactDir,
-  createStudioSite,
   expandHome,
   metric,
-  parseStudioSiteStatus,
-  redact,
   runCli,
   safeResult,
   sanitizeArtifact,
   setting,
   startStudioSite,
-  stopStudioSite,
-  studioSiteStatus,
   variant,
 } from './lib/studio-bench.mjs';
 import {
-  installStudioWordPressFixturePlugins,
-  restoreStudioWordPressFixturePlugins,
-} from './lib/wordpress-fixture-plugins.mjs';
+  createStudioWordPressProfileSite,
+  installStudioWordPressProfilePlugins,
+  loadStudioWordPressProfileExtensionModule,
+  parseStudioWordPressProfileSiteStatus,
+  restoreStudioWordPressProfilePlugins,
+  stopStudioWordPressProfileSite,
+  studioWordPressProfileSiteStatus,
+  summarizeStudioWordPressRequests,
+} from './lib/studio-wordpress-profile.mjs';
 import {
   loadWordPressAdminScaleSweepManifest,
 } from './lib/wordpress-admin-scale-sweep.mjs';
@@ -39,32 +39,21 @@ if (!BROWSER_HELPER) {
 const { runBrowserBench } = await import(BROWSER_HELPER);
 
 async function createSite(sitePath) {
-  return createStudioSite(sitePath, {
-    name: `Studio Bench ${variant()} WordPress Admin Scale Sweep ${process.pid}`,
-    wp: process.env.HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_WP_VERSION || process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_WP_VERSION,
-    php: process.env.HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_PHP_VERSION || process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PHP_VERSION,
-    timeoutMs: 420000,
+  return createStudioWordPressProfileSite(sitePath, {
+    nameSuffix: 'WordPress Admin Scale Sweep',
+    wpEnv: 'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_WP_VERSION',
+    fallbackWpEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_WP_VERSION',
+    phpEnv: 'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_PHP_VERSION',
+    fallbackPhpEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PHP_VERSION',
   });
 }
 
 async function siteStatus(sitePath) {
-  return studioSiteStatus(sitePath, { timeoutMs: 90000 });
+  return studioWordPressProfileSiteStatus(sitePath);
 }
 
 async function stopSite(sitePath) {
-  return stopStudioSite(sitePath, { timeoutMs: 90000 });
-}
-
-async function loadProfileExtensionModule() {
-  const modulePath = expandHome(
-    process.env.HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_EXTENSION_MODULE ||
-      process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE ||
-      ''
-  );
-  if (!modulePath) {
-    return null;
-  }
-  return import(pathToFileURL(modulePath).href);
+  return stopStudioWordPressProfileSite(sitePath);
 }
 
 function manifestHasInteractions(manifest) {
@@ -125,30 +114,6 @@ function adaptAdminPageSummary({ pageSpec, pageSummary, profile, artifacts }) {
   };
 }
 
-function summarizeWordPressRequests(entries = []) {
-  const byRequest = new Map();
-  for (const entry of entries) {
-    const id = entry.request_id || 'unknown';
-    if (!byRequest.has(id)) {
-      byRequest.set(id, []);
-    }
-    byRequest.get(id).push(entry);
-  }
-
-  return [...byRequest.values()]
-    .map((events) => {
-      events.sort((a, b) => (a.t_ms || 0) - (b.t_ms || 0));
-      const last = events[events.length - 1];
-      return {
-        uri: redact(last?.uri || ''),
-        method: last?.method,
-        duration_ms: last?.t_ms || 0,
-      };
-    })
-    .sort((a, b) => b.duration_ms - a.duration_ms)
-    .slice(0, 120);
-}
-
 export default async function studioWordPressAdminScaleSweepBench() {
   const currentVariant = variant();
   const { path: profilerPath, module: profiler } = loadWordPressRequestProfiler();
@@ -193,14 +158,17 @@ export default async function studioWordPressAdminScaleSweepBench() {
       start = await startStudioSite(sitePath, { timeoutMs: 240000 });
     }
     initialStatusResult = await siteStatus(sitePath);
-    installedPlugins = await installStudioWordPressFixturePlugins(sitePath, {
+    installedPlugins = await installStudioWordPressProfilePlugins(sitePath, {
       jsonEnv: 'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_PLUGINS_JSON',
       pathsEnv: 'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_PLUGIN_PATHS',
       fallbackJsonEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON',
       fallbackPathsEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_PATHS',
       activateTimeoutEnv: 'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_PLUGIN_ACTIVATE_TIMEOUT_MS',
     });
-    profileExtension = await loadProfileExtensionModule();
+    profileExtension = await loadStudioWordPressProfileExtensionModule([
+      'HOMEBOY_WORDPRESS_ADMIN_SCALE_SWEEP_EXTENSION_MODULE',
+      'HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE',
+    ]);
     assertInteractionSupport({ manifest, pageProfiler, profileExtension });
     assertAdminSweepSummarySupport({ pageProfiler, profileExtension });
     if (profileExtension?.setupWordPressAdminScaleSweep || profileExtension?.setupWordPressPageProfile) {
@@ -211,10 +179,7 @@ export default async function studioWordPressAdminScaleSweepBench() {
     }
 
     statusResult = await siteStatus(sitePath);
-    status = parseStudioSiteStatus(statusResult.stdout);
-    if (!status.siteUrl || !status.autoLoginUrl) {
-      throw new Error(`site status missing siteUrl/autoLoginUrl: ${redact(statusResult.stdout).slice(0, 1000)}`);
-    }
+    status = parseStudioWordPressProfileSiteStatus(statusResult);
 
     profiler?.installWordPressRequestProfiler?.(sitePath);
 
@@ -315,7 +280,7 @@ export default async function studioWordPressAdminScaleSweepBench() {
           },
           pages: pageResults,
           combinedSummary: summary,
-          wordpressRequests: summarizeWordPressRequests(wordpressRequests),
+          wordpressRequests: summarizeStudioWordPressRequests(wordpressRequests, { limit: 120 }),
           commands: {
             create: safeResult(create),
             start: safeResult(start),
@@ -371,7 +336,7 @@ export default async function studioWordPressAdminScaleSweepBench() {
     if (profiler) {
       profiler.uninstallWordPressRequestProfiler?.(sitePath);
     }
-    await restoreStudioWordPressFixturePlugins(installedPlugins);
+    await restoreStudioWordPressProfilePlugins(installedPlugins);
     if (createdSite && !stop) {
       stop = await stopSite(sitePath);
     }
