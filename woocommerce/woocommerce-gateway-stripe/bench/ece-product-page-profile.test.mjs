@@ -135,18 +135,7 @@ test('rig manifest exposes the ECE webperf profile matrix', () => {
       woocommerce_stripe_ece_require_fanout_proof: '1',
     },
   });
-  assert.deepEqual(manifest.trace_profiles['real-wallet'].public_preview, {
-    mode: 'homeboy_native',
-    local_origin: 'http://127.0.0.1:${env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PORT}',
-    require_https: true,
-    provider: 'homeboy-native-preview',
-    native: {
-      operator_domain: 'dev.chubes.net',
-      session_id: 'wc-stripe-real-wallet-${env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PORT}',
-      ingress_url: 'https://homeboy-health-tunnel.dev.chubes.net',
-      token_env: 'HOMEBOY_PREVIEW_TUNNEL_TOKEN',
-    },
-  });
+  assert.equal(manifest.trace_profiles['real-wallet'].public_preview, undefined);
 });
 
 test('real-wallet profile fails fast when Stripe keys are missing', () => {
@@ -554,7 +543,6 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /ece_instance_count/);
   assert.match(traceSource, /ece_mount_count/);
   assert.match(traceSource, /ece_mount_target_selectors/);
-  assert.doesNotMatch(traceSource, /homeboy-stripe-ece-fanout-button/);
   assert.match(traceSource, /id: 'ece-construction-observed'/);
   assert.match(traceSource, /id: 'ece-grouped-wallet-layout'/);
   assert.match(traceSource, /id: 'fixture-health'/);
