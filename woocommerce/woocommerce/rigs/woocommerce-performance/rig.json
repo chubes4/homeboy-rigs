@@ -8,11 +8,9 @@
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
-          "validation_dependencies": [
-            "woocommerce-gateway-stripe"
-          ],
           "bench_env": {
-            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "core_bacs,core_cheque,core_cod,plugin_stripe,plugin_paypal_payments,plugin_woopayments",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET": "core_only",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "",
             "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_DEPENDENCY": "woocommerce-gateway-stripe",
             "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH": "",
             "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH": "",
