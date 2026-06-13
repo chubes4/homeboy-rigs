@@ -37,10 +37,10 @@ homeboy-rigs PRs in that track include #176, #178, #183, #184, #193, #197, #219,
 
 | Dependency | Status | Scope |
 |---|---|---|
-| https://github.com/chubes4/homeboy-rigs/issues/268 | open | no-payment and order-pay guardrails |
-| https://github.com/chubes4/homeboy-rigs/issues/269 | open | guest, logged-in, customer/session identity guardrails |
-| https://github.com/chubes4/homeboy-rigs/issues/270 | open | checkout hook sequencing and counts |
-| https://github.com/chubes4/homeboy-rigs/issues/271 | open | coupon lifecycle guardrails |
+| https://github.com/chubes4/homeboy-rigs/issues/268 | landed | no-payment and order-pay guardrails |
+| https://github.com/chubes4/homeboy-rigs/issues/269 | landed | guest, logged-in, customer/session identity guardrails |
+| https://github.com/chubes4/homeboy-rigs/issues/270 | landed | checkout hook sequencing and counts |
+| https://github.com/chubes4/homeboy-rigs/issues/271 | landed | coupon lifecycle guardrails |
 | https://github.com/chubes4/homeboy-rigs/issues/272 | open | real gateway profile stabilization |
 | https://github.com/Extra-Chill/homeboy-extensions/issues/1321 | open | Stripe dependency provider fix |
 
@@ -75,16 +75,12 @@ Repeat with the revised candidate checked out and
 | True concurrent checkout | Unproven by the old PR shape; do not claim `Closes #62659`. | Only passes when duplicate-order count is zero in the concurrent harness. |
 | Core gateways | Failure/regression should be visible in `order_awaiting_payment` and cart-clearing metrics. | Passes across BACS, cheque, and COD without unexpected cart clearing. |
 
-## Blocked Rows
+## Remaining Blocked Rows
 
-The following rows stay pending until their prerequisites land:
+The following row stays pending until its prerequisite real-gateway profile work lands:
 
 | Row | Blocker |
 |---|---|
-| No-payment and order-pay paths | https://github.com/chubes4/homeboy-rigs/issues/268 |
-| Guest, logged-in, customer identity | https://github.com/chubes4/homeboy-rigs/issues/269 |
-| Hook sequencing and counts | https://github.com/chubes4/homeboy-rigs/issues/270 |
-| Coupon lifecycle | https://github.com/chubes4/homeboy-rigs/issues/271 |
 | Real Stripe gateway | https://github.com/chubes4/homeboy-rigs/issues/272 and https://github.com/Extra-Chill/homeboy-extensions/issues/1321; reuse the `woocommerce-stripe-ece-product-page` mounting abstractions instead of duplicating setup |
 
 ## Reviewer-Facing Output Contract
@@ -97,8 +93,8 @@ The WooCommerce PR evidence should include:
   `136c2b85-647c-4d85-be13-2c0be175abfd`.
 - A table with old PR shape output and revised candidate output for every ready
   row.
-- Explicit `blocked` labels for #268-#272 and HBEX #1321 rows until those runs
-  exist.
+- Explicit `blocked` labels for real Stripe coverage until #272 and HBEX #1321
+  produce stable reusable gateway artifacts.
 - Real Stripe coverage framed as reusable gateway-plugin profile capability,
   sharing the existing WooCommerce Stripe ECE/product-page rig mounting
   abstractions.

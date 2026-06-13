@@ -13,6 +13,7 @@ process.stdout.write(renderReport(matrix));
 
 function renderReport(data) {
 	const lines = [];
+	const blockedScenarios = Array.isArray(data.scenarios) ? data.scenarios.filter((scenario) => scenario.status === 'blocked') : [];
 	lines.push(`# ${data.title}`);
 	lines.push('');
 	lines.push('## Links');
@@ -26,7 +27,11 @@ function renderReport(data) {
 	lines.push('## Status');
 	lines.push('');
 	lines.push('- This is a proof-loop recipe, not final pass/fail evidence.');
-	lines.push('- Blocked rows stay blocked until their prerequisite issues land and produce artifacts.');
+	if (blockedScenarios.length > 0) {
+		lines.push('- Blocked rows stay blocked until their prerequisite issues land and produce artifacts.');
+	} else {
+		lines.push('- All matrix rows are ready to run.');
+	}
 	lines.push('- The WooCommerce PR should avoid `Closes #62659` unless the true concurrent checkout row passes.');
 	lines.push('');
 	if (Array.isArray(data.reusable_capabilities) && data.reusable_capabilities.length > 0) {
@@ -71,8 +76,11 @@ function renderReport(data) {
 	lines.push('1. Check out the old PR shape in `~/Developer/woocommerce` and run `homeboy rig up woocommerce-performance`.');
 	lines.push('2. Run every `ready` command with `<shared-state>` set to `/tmp/woocommerce-checkout-pr-65588-old-shape`.');
 	lines.push('3. Check out the revised WooCommerce candidate and rerun the same commands with `<shared-state>` set to `/tmp/woocommerce-checkout-pr-65588-revised-candidate`.');
-	lines.push('4. After #268-#272 and HBEX #1321 land, add their artifacts under the same two shared-state roots and regenerate this report.');
-	lines.push('5. Copy the filled matrix into WooCommerce PR #65588 or its replacement PR, keeping blocked rows explicitly marked instead of inferred.');
+	if (blockedScenarios.length > 0) {
+		lines.push('4. Keep blocked rows explicitly marked until their prerequisite artifacts exist, then add those artifacts under the same two shared-state roots and regenerate this report.');
+	} else {
+		lines.push('4. Regenerate this report from the two shared-state roots and copy the filled matrix into WooCommerce PR #65588 or its replacement PR.');
+	}
 	lines.push('');
 	return `${lines.join('\n')}\n`;
 }

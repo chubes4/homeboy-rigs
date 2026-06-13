@@ -20,25 +20,25 @@
       "id": "no_payment_order_pay",
       "title": "No-payment and order-pay checkout guardrails",
       "url": "https://github.com/chubes4/homeboy-rigs/issues/268",
-      "status": "open"
+      "status": "landed"
     },
     {
       "id": "identity",
       "title": "Customer/session identity guardrails",
       "url": "https://github.com/chubes4/homeboy-rigs/issues/269",
-      "status": "open"
+      "status": "landed"
     },
     {
       "id": "hook_sequencing",
       "title": "Hook sequencing guardrails",
       "url": "https://github.com/chubes4/homeboy-rigs/issues/270",
-      "status": "open"
+      "status": "landed"
     },
     {
       "id": "coupon_lifecycle",
       "title": "Coupon lifecycle guardrails",
       "url": "https://github.com/chubes4/homeboy-rigs/issues/271",
-      "status": "open"
+      "status": "landed"
     },
     {
       "id": "real_gateway_profiles",
@@ -100,41 +100,37 @@
     {
       "id": "no_payment_order_pay",
       "label": "No-payment and order-pay paths",
-      "status": "blocked",
-      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/268"],
-      "scenario": "pending #268 workload",
-      "command": "Run the #268 workload after it lands; append artifacts under the same shared-state root.",
-      "old_fix_expected": "Pending #268; do not claim old-shape failure beyond available artifacts.",
-      "candidate_expected": "Pending #268; expected to preserve order-pay/no-payment flows without session side-effect regressions."
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL: old shape should expose no-payment/order-pay session or cart side-effect regressions if present.",
+      "candidate_expected": "PASS: no-payment and order-pay flows complete without unintended session side-effect regressions."
     },
     {
       "id": "identity",
       "label": "Guest, logged-in, and customer identity cases",
-      "status": "blocked",
-      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/269"],
-      "scenario": "pending #269 workload",
-      "command": "Run the #269 workload after it lands; append artifacts under the same shared-state root.",
-      "old_fix_expected": "Pending #269; do not claim identity coverage from current gateway-only evidence.",
-      "candidate_expected": "Pending #269; expected to keep session/customer identity attached to the correct order."
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL if pending-order reuse crosses billing email, customer ID, or session identity boundaries.",
+      "candidate_expected": "PASS: same-identity retries reuse safely while different billing/customer/session identities do not mutate or reuse the wrong order."
     },
     {
       "id": "coupon_lifecycle",
       "label": "Coupon lifecycle",
-      "status": "blocked",
-      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/271"],
-      "scenario": "pending #271 workload",
-      "command": "Run the #271 workload after it lands; append artifacts under the same shared-state root.",
-      "old_fix_expected": "FAIL already known from legacy_coupon_independence guardrail state, but final matrix still needs #271 artifacts.",
-      "candidate_expected": "PASS: coupons survive retry/failure/cancel lifecycle where WooCommerce expects cart restoration."
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL when coupon reservation/usage state is consumed or leaked across retry, failed, completed, changed-cart, or public create_order paths.",
+      "candidate_expected": "PASS: coupons survive retry/failure/cancel lifecycle where WooCommerce expects cart restoration and independent public create_order calls remain independent."
     },
     {
       "id": "hook_sequencing",
       "label": "Hook sequencing and counts",
-      "status": "blocked",
-      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/270"],
-      "scenario": "pending #270 workload",
-      "command": "Run the #270 workload after it lands; append artifacts under the same shared-state root.",
-      "old_fix_expected": "Pending #270; do not infer hook sequencing from order/session metrics alone.",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL or scoped regression when hook counts show suppressed, duplicated, or misplaced checkout/resume/payment hooks.",
       "candidate_expected": "PASS: checkout hooks fire once in expected order for create, payment, retry, failure, and cancel paths."
     },
     {
