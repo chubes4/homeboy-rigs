@@ -76,6 +76,7 @@ return function (): array {
 			'label'          => 'Direct bank transfer (BACS)',
 			'plugin'         => 'woocommerce-core',
 			'entrypoint'     => '',
+			'path_env'       => '',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
@@ -84,6 +85,7 @@ return function (): array {
 			'label'          => 'Check payments',
 			'plugin'         => 'woocommerce-core',
 			'entrypoint'     => '',
+			'path_env'       => '',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
@@ -92,6 +94,7 @@ return function (): array {
 			'label'          => 'Cash on delivery',
 			'plugin'         => 'woocommerce-core',
 			'entrypoint'     => '',
+			'path_env'       => '',
 			'settings'       => array(
 				'enabled'            => 'yes',
 				'enable_for_methods' => array(),
@@ -104,6 +107,7 @@ return function (): array {
 			'label'          => 'WooCommerce Stripe Gateway',
 			'plugin'         => 'woocommerce-gateway-stripe',
 			'entrypoint'     => 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php',
+			'path_env'       => 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH',
 			'settings'       => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
@@ -115,6 +119,7 @@ return function (): array {
 			'label'          => 'WooCommerce PayPal Payments',
 			'plugin'         => 'woocommerce-paypal-payments',
 			'entrypoint'     => 'woocommerce-paypal-payments/woocommerce-paypal-payments.php',
+			'path_env'       => 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
@@ -123,6 +128,7 @@ return function (): array {
 			'label'          => 'WooPayments',
 			'plugin'         => 'woocommerce-payments',
 			'entrypoint'     => 'woocommerce-payments/woocommerce-payments.php',
+			'path_env'       => 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH',
 			'settings'       => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
@@ -143,24 +149,50 @@ return function (): array {
 		);
 	}
 
-	$ensure_gateway_profile = static function ( array $profile ): array {
+	$get_mounted_plugin_revision = static function ( string $plugin_dir ): ?string {
+		if ( '' === $plugin_dir || ! is_dir( $plugin_dir ) || ! function_exists( 'shell_exec' ) ) {
+			return null;
+		}
+
+		$command  = 'git -C ' . escapeshellarg( $plugin_dir ) . ' rev-parse --short HEAD 2>/dev/null';
+		$revision = shell_exec( $command );
+		$revision = is_string( $revision ) ? trim( $revision ) : '';
+
+		return '' !== $revision ? $revision : null;
+	};
+
+	$ensure_gateway_profile = static function ( array $profile ) use ( $get_mounted_plugin_revision ): array {
 		$entrypoint_path = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['entrypoint'] : '';
+		$mounted_path    = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . dirname( $profile['entrypoint'] ) : '';
+		$configured_path = '';
+		if ( ! empty( $profile['path_env'] ) ) {
+			$configured_path = (string) getenv( $profile['path_env'] );
+		}
 		$install         = array(
-			'plugin'          => $profile['plugin'],
-			'entrypoint'      => $profile['entrypoint'],
-			'entrypoint_path' => $entrypoint_path,
-			'available'       => true,
-			'activated'       => false,
-			'version'         => null,
-			'skip_reason'     => '',
+			'plugin'            => $profile['plugin'],
+			'entrypoint'        => $profile['entrypoint'],
+			'entrypoint_path'   => $entrypoint_path,
+			'configured_path'   => $configured_path,
+			'mounted_path'      => $mounted_path,
+			'mounted_revision'  => null,
+			'available'         => true,
+			'activated'         => false,
+			'version'           => null,
+			'status'            => 'available',
+			'skip_reason'       => '',
 		);
 
 		if ( $profile['entrypoint'] ) {
 			if ( ! file_exists( $entrypoint_path ) ) {
 				$install['available']   = false;
-				$install['skip_reason'] = 'Plugin entrypoint is not mounted in WP Codebox.';
+				$install['status']      = $configured_path ? 'entrypoint_missing' : 'not_configured';
+				$install['skip_reason'] = $configured_path
+					? 'Configured plugin path did not mount the expected entrypoint in WP Codebox.'
+					: 'Plugin path is not configured for this gateway profile.';
 				return $install;
 			}
+
+			$install['mounted_revision'] = $get_mounted_plugin_revision( $mounted_path );
 
 			if ( ! function_exists( 'is_plugin_active' ) || ! function_exists( 'activate_plugin' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -170,6 +202,7 @@ return function (): array {
 				$result = activate_plugin( $profile['entrypoint'], '', false, true );
 				if ( is_wp_error( $result ) ) {
 					$install['available']   = false;
+					$install['status']      = 'activation_failed';
 					$install['skip_reason'] = 'Plugin activation failed: ' . $result->get_error_message();
 					return $install;
 				}
@@ -199,6 +232,7 @@ return function (): array {
 		$gateways = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
 		if ( ! isset( $gateways[ $profile['gateway_id'] ] ) ) {
 			$install['available']   = false;
+			$install['status']      = 'gateway_missing';
 			$install['skip_reason'] = 'Gateway id is not registered after activation/configuration.';
 		}
 
@@ -472,6 +506,12 @@ return function (): array {
 			}
 		)
 	);
+	$install_status_counts = array_count_values(
+		array_map(
+			static fn ( array $result ): string => (string) ( $result['install']['status'] ?? 'unknown' ),
+			$results
+		)
+	);
 
 	$summary = array(
 		'success_rate'                       => 1,
@@ -479,6 +519,7 @@ return function (): array {
 		'gateway_profiles_available'         => $available_count,
 		'gateway_plugin_profiles_available'  => $plugin_available_count,
 		'gateway_profiles_skipped'           => count( $results ) - $available_count,
+		'gateway_install_status_counts'      => $install_status_counts,
 		'duplicate_checkout_attempts'         => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['duplicate_checkout_attempts'] ?? 0 ), $results ) ),
 		'duplicate_order_count'               => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['duplicate_order_count'] ?? 0 ), $results ) ),
 		'order_awaiting_payment_writes'       => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['order_awaiting_payment_writes'] ?? 0 ), $results ) ),

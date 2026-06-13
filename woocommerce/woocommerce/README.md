@@ -44,6 +44,27 @@ WordPress runtime. On local and Lab runners, the checkout must exist at:
 
 This path mirrors the WooCommerce monorepo layout after cloning
 https://github.com/woocommerce/woocommerce into `~/Developer/woocommerce`.
+
+The checkout gateway compatibility matrix also mounts the local WooCommerce
+Stripe Gateway checkout as a first-class WP Codebox extra plugin when available:
+
+```text
+~/Developer/woocommerce-gateway-stripe
+```
+
+PayPal Payments and WooPayments stay optional. Mount them for focused local
+coverage by overriding `wp_codebox_extra_plugins` and the matching artifact path
+env values:
+
+```bash
+homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
+  --setting-json 'wp_codebox_extra_plugins=[{"source":"/path/to/woocommerce-paypal-payments","slug":"woocommerce-paypal-payments","pluginFile":"woocommerce-paypal-payments/woocommerce-paypal-payments.php","activate":false},{"source":"/path/to/woocommerce-payments","slug":"woocommerce-payments","pluginFile":"woocommerce-payments/woocommerce-payments.php","activate":false}]' \
+  --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH":"/path/to/woocommerce-paypal-payments","WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH":"/path/to/woocommerce-payments"}'
+```
+
+Unavailable gateway plugin profiles skip explicitly as `not_configured` when no
+path is configured, `entrypoint_missing` when a configured path did not mount the
+expected plugin file, or `activation_failed` when WordPress rejects activation.
 Homeboy core Lab offload provisioning gaps are tracked in:
 
 - https://github.com/Extra-Chill/homeboy/issues/3474
@@ -105,11 +126,12 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   legacy coupon independence.
 - `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
-  opportunistic real-plugin profiles for WooCommerce Stripe Gateway,
-  WooCommerce PayPal Payments, and WooPayments when those plugin entrypoints are
-  mounted in the WP Codebox runtime. It captures plugin activation/version
-  details without secrets and links evidence to WooCommerce issue #62659,
-  WooCommerce PR #65588, Jorge's PR review, and Homeboy Rigs issue #255.
+  first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,
+  WooCommerce PayPal Payments, and WooPayments when those plugin paths are
+  configured. It captures plugin activation, configured path, mounted path,
+  best-effort git revision, and version details without secrets, and links
+  evidence to WooCommerce issue #62659, WooCommerce PR #65588, Jorge's PR
+  review, and Homeboy Rigs issue #255.
   Limit the matrix during focused smokes with
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
   report explicit skip details when their entrypoint is unavailable or activation
