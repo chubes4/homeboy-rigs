@@ -86,7 +86,7 @@ export function previewBind() {
 }
 
 export function previewPublicUrl() {
-  return setting('woocommerce_stripe_ece_preview_public_url', process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL || '');
+  return setting('woocommerce_stripe_ece_preview_public_url', process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL || process.env.HOMEBOY_PREVIEW_PUBLIC_URL || '');
 }
 
 function validateHttpsPublicUrl(value) {
@@ -106,11 +106,11 @@ function requireRealWalletProfileEnv(publicUrl) {
   }
 
   if (!publicUrl) {
-    throw new Error('real-wallet profile requires HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL to be set to an HTTPS public preview origin.');
+    throw new Error('real-wallet profile requires HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL or HOMEBOY_PREVIEW_PUBLIC_URL to be set to an HTTPS public preview origin.');
   }
 
   if (!validateHttpsPublicUrl(publicUrl)) {
-    throw new Error('real-wallet profile requires HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL to be an HTTPS public preview origin, not localhost or plain HTTP.');
+    throw new Error('real-wallet profile requires HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL or HOMEBOY_PREVIEW_PUBLIC_URL to be an HTTPS public preview origin, not localhost or plain HTTP.');
   }
 }
 

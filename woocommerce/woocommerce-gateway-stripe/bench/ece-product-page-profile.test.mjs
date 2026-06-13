@@ -8,6 +8,7 @@ import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from '
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
+import { classifyEceWalletFanoutEvidence, ECE_FANOUT_REVIEWER_READY, ECE_FANOUT_SUPPLEMENTAL, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -126,6 +127,15 @@ test('rig manifest exposes the ECE webperf profile matrix', () => {
       woocommerce_stripe_ece_browser_profile: 'webperf-desktop-slow-4g',
     },
   });
+  assert.deepEqual(manifest.trace_profiles['webperf-wallet-fanout'], {
+    scenario: 'ece-product-page-waterfall',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-desktop-slow-4g',
+      woocommerce_stripe_accepted_payment_methods: 'card,link,apple_pay,google_pay',
+      woocommerce_stripe_ece_require_fanout_proof: '1',
+    },
+  });
+  assert.equal(manifest.trace_profiles['real-wallet'].public_preview, undefined);
 });
 
 test('real-wallet profile fails fast when Stripe keys are missing', () => {
@@ -160,17 +170,63 @@ test('real-wallet profile requires an HTTPS public preview origin', () => {
     STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL: process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL,
+    HOMEBOY_PREVIEW_PUBLIC_URL: process.env.HOMEBOY_PREVIEW_PUBLIC_URL,
   };
 
   process.env.STRIPE_PUBLISHABLE_KEY = 'pk_test_real_fixture';
   process.env.STRIPE_SECRET_KEY = 'sk_test_real_fixture';
   process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL = 'http://localhost:49800';
+  delete process.env.HOMEBOY_PREVIEW_PUBLIC_URL;
 
   try {
     assert.throws(
       () => buildEceProfileOptions('real-wallet'),
-      /HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL to be an HTTPS public preview origin/
+      /HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL or HOMEBOY_PREVIEW_PUBLIC_URL to be an HTTPS public preview origin/
     );
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});
+
+test('real-wallet profile accepts Homeboy native preview public URL', () => {
+  const previous = {
+    STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    HOMEBOY_WC_STRIPE_ECE_PREVIEW_PORT: process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PORT,
+    HOMEBOY_WC_STRIPE_ECE_PREVIEW_BIND: process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_BIND,
+    HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL: process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL,
+    HOMEBOY_PREVIEW_PUBLIC_URL: process.env.HOMEBOY_PREVIEW_PUBLIC_URL,
+  };
+
+  process.env.STRIPE_PUBLISHABLE_KEY = 'pk_test_real_fixture';
+  process.env.STRIPE_SECRET_KEY = 'sk_test_real_fixture';
+  process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PORT = '49800';
+  process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_BIND = '127.0.0.1';
+  delete process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL;
+  process.env.HOMEBOY_PREVIEW_PUBLIC_URL = 'https://native-preview.example.test';
+
+  try {
+    const options = buildEceProfileOptions('real-wallet');
+
+    assert.deepEqual(options.runtimePreview, {
+      port: 49800,
+      bind: '127.0.0.1',
+      publicUrl: 'https://native-preview.example.test',
+    });
+    assert.deepEqual(options.recipeRunArgs, [
+      '--preview-port',
+      '49800',
+      '--preview-bind',
+      '127.0.0.1',
+      '--preview-public-url',
+      'https://native-preview.example.test',
+    ]);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) {
@@ -232,6 +288,100 @@ test('real-wallet profile carries real-wallet evidence settings without leaking 
       }
     }
   }
+});
+
+test('wallet fanout classification keeps card-link real-wallet smoke supplemental', () => {
+  const evidence = classifyEceWalletFanoutEvidence({
+    requestedPaymentMethods: ['card', 'link'],
+    realWalletCapable: true,
+    syntheticOnly: false,
+    eceConstructed: true,
+    browserEligibility: {
+      secureContext: true,
+      paymentRequestSupported: true,
+      applePaySessionSupported: false,
+    },
+    renderedWallets: {
+      link: true,
+    },
+    observedWallets: {
+      link: true,
+    },
+  });
+
+  assert.equal(evidence.classification, 'supplemental smoke only');
+  assert.equal(evidence.valid_fanout_proof, false);
+  assert.equal(evidence.requested_wallet_fanout, false);
+  assert.deepEqual(evidence.reason_codes, ['wallet_fanout_not_requested']);
+  assert.deepEqual(evidence.wallets.apple_pay, {
+    method: 'apple_pay',
+    requested: false,
+    eligible: false,
+    rendered: false,
+    observed: false,
+  });
+});
+
+test('wallet fanout classification reports browser eligibility and missing observed wallets', () => {
+  const evidence = classifyEceWalletFanoutEvidence({
+    requestedPaymentMethods: ['card', 'link', 'apple_pay', 'google_pay'],
+    realWalletCapable: true,
+    syntheticOnly: false,
+    eceConstructed: true,
+    browserEligibility: {
+      secureContext: true,
+      paymentRequestSupported: true,
+      applePaySessionSupported: false,
+    },
+    renderedWallets: {
+      link: true,
+    },
+    observedWallets: {
+      link: true,
+    },
+  });
+
+  assert.equal(evidence.classification, 'supplemental smoke only');
+  assert.equal(evidence.valid_fanout_proof, false);
+  assert.equal(evidence.requested_wallet_fanout, true);
+  assert.ok(evidence.reason_codes.includes('apple_pay_browser_not_eligible'));
+  assert.ok(evidence.reason_codes.includes('apple_pay_not_observed'));
+  assert.ok(evidence.reason_codes.includes('google_pay_not_observed'));
+  assert.ok(evidence.reason_codes.includes('wallet_fanout_not_observed'));
+  assert.equal(evidence.wallets.google_pay.eligible, true);
+  assert.equal(evidence.wallets.link.observed, true);
+});
+
+test('wallet fanout classification marks synthetic fanout with ECE construction as reviewer ready', () => {
+  const evidence = classifyEceWalletFanoutEvidence({
+    requestedPaymentMethods: ['card', 'link', 'apple_pay', 'google_pay'],
+    realWalletCapable: false,
+    syntheticOnly: true,
+    eceConstructed: true,
+    browserEligibility: {
+      secureContext: false,
+      paymentRequestSupported: false,
+      applePaySessionSupported: false,
+    },
+  });
+
+  assert.equal(evidence.classification, ECE_FANOUT_REVIEWER_READY);
+  assert.equal(evidence.valid_fanout_proof, true);
+  assert.equal(evidence.observed_wallet_fanout, false);
+  assert.deepEqual(evidence.reason_codes, []);
+});
+
+test('wallet fanout classification requires ECE construction for synthetic proof', () => {
+  const evidence = classifyEceWalletFanoutEvidence({
+    requestedPaymentMethods: ['card', 'link', 'apple_pay', 'google_pay'],
+    realWalletCapable: false,
+    syntheticOnly: true,
+    eceConstructed: false,
+  });
+
+  assert.equal(evidence.classification, ECE_FANOUT_SUPPLEMENTAL);
+  assert.equal(evidence.valid_fanout_proof, false);
+  assert.ok(evidence.reason_codes.includes('ece_not_constructed'));
 });
 
 test('ECE scenario registry preserves load-only default and exposes interactions', () => {
@@ -381,8 +531,61 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   const traceSource = readFileSync(tracePath, 'utf8');
 
   assert.match(traceSource, /\.\.\.profileOptions\.browserProbeAssertions/);
+  assert.match(traceSource, /woocommerce_stripe_accepted_payment_methods/);
+  assert.match(traceSource, /woocommerce_stripe_ece_require_fanout_proof/);
+  assert.match(traceSource, /#wc-stripe-express-checkout-element-apple_pay/);
+  assert.match(traceSource, /#wc-stripe-express-checkout-element-google_pay/);
+  assert.match(traceSource, /#wc-stripe-express-checkout-element-wallets-link/);
+  assert.match(traceSource, /ece-wallet-fanout-proof/);
+  assert.match(traceSource, /installStripeEceInstrumentation/);
+  assert.match(traceSource, /express_checkout_create_calls/);
+  assert.match(traceSource, /express_checkout_mount_calls/);
+  assert.match(traceSource, /ece_instance_count/);
+  assert.match(traceSource, /ece_mount_count/);
+  assert.match(traceSource, /ece_mount_target_selectors/);
+  assert.match(traceSource, /id: 'ece-construction-observed'/);
+  assert.match(traceSource, /id: 'ece-grouped-wallet-layout'/);
   assert.match(traceSource, /id: 'fixture-health'/);
   assert.match(traceSource, /id: 'real-wallet-asset-health'/);
+});
+
+test('grouped wallet layout summary catches collapsed and wrapped grouped containers', () => {
+  assert.equal(
+    groupedWalletLayoutSummary({
+      ece_render_wallets_link_present: true,
+      ece_render_final_container_height: 48,
+      ece_render_final_wallets_link_width: 360,
+      ece_render_final_wallets_link_height: 48,
+      ece_render_final_apple_pay_height: 48,
+      ece_render_final_google_pay_height: 48,
+      ece_render_final_link_height: 48,
+    }).dimensionsPass,
+    true
+  );
+  assert.equal(
+    groupedWalletLayoutSummary({
+      ece_render_wallets_link_present: true,
+      ece_render_final_container_height: 0,
+      ece_render_final_wallets_link_width: 360,
+      ece_render_final_wallets_link_height: 0,
+      ece_render_final_apple_pay_height: 48,
+      ece_render_final_google_pay_height: 48,
+      ece_render_final_link_height: 48,
+    }).dimensionsPass,
+    false
+  );
+  assert.equal(
+    groupedWalletLayoutSummary({
+      ece_render_wallets_link_present: true,
+      ece_render_final_container_height: 160,
+      ece_render_final_wallets_link_width: 360,
+      ece_render_final_wallets_link_height: 144,
+      ece_render_final_apple_pay_height: 48,
+      ece_render_final_google_pay_height: 48,
+      ece_render_final_link_height: 48,
+    }).dimensionsPass,
+    false
+  );
 });
 
 test('fixture bootstrap forces a tiny Woo-compatible classic theme', () => {
