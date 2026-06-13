@@ -11,6 +11,7 @@
  * - https://github.com/chubes4/homeboy-rigs/issues/254
  * - https://github.com/chubes4/homeboy-rigs/issues/269
  * - https://github.com/chubes4/homeboy-rigs/issues/268
+ * - https://github.com/chubes4/homeboy-rigs/issues/270
  */
 return function (): array {
 	if ( ! class_exists( 'WooCommerce' ) ) {
@@ -56,6 +57,7 @@ return function (): array {
 		'https://github.com/chubes4/homeboy-rigs/issues/254',
 		'https://github.com/chubes4/homeboy-rigs/issues/269',
 		'https://github.com/chubes4/homeboy-rigs/issues/268',
+		'https://github.com/chubes4/homeboy-rigs/issues/270',
 	);
 	$request_count = max( 2, min( 8, absint( getenv( 'WC_CONCURRENT_CHECKOUT_REQUESTS' ) ?: 2 ) ) );
 	$iterations    = max( 1, min( 10, absint( getenv( 'WC_CONCURRENT_CHECKOUT_ITERATIONS' ) ?: 3 ) ) );
@@ -209,6 +211,141 @@ return function (): array {
 	$session_order_awaiting_payment = static function (): int {
 		return WC()->session ? absint( WC()->session->get( 'order_awaiting_payment' ) ) : 0;
 	};
+
+	$hook_observer_scenario = 'bootstrap';
+	$hook_sequence          = 0;
+	$hook_events            = array();
+	$record_hook_event      = static function ( string $hook, array $args ) use ( &$hook_events, &$hook_sequence, &$hook_observer_scenario ): void {
+		$order_ids      = array();
+		$payment_method = '';
+		$result_status  = '';
+
+		foreach ( $args as $arg ) {
+			if ( $arg instanceof WC_Order ) {
+				$order_ids[] = $arg->get_id();
+				if ( '' === $payment_method ) {
+					$payment_method = $arg->get_payment_method();
+				}
+			} elseif ( is_numeric( $arg ) ) {
+				$order_ids[] = absint( $arg );
+			} elseif ( is_array( $arg ) ) {
+				if ( '' === $payment_method && isset( $arg['payment_method'] ) ) {
+					$payment_method = (string) $arg['payment_method'];
+				}
+				if ( '' === $result_status && isset( $arg['result'] ) ) {
+					$result_status = (string) $arg['result'];
+				}
+				if ( isset( $arg['order_id'] ) ) {
+					$order_ids[] = absint( $arg['order_id'] );
+				}
+			}
+		}
+
+		$order_ids = array_values( array_unique( array_filter( $order_ids ) ) );
+		$order_id  = $order_ids[0] ?? 0;
+		$order     = $order_id ? wc_get_order( $order_id ) : null;
+
+		$hook_events[] = array(
+			'sequence'                       => ++$hook_sequence,
+			'scenario'                       => $hook_observer_scenario,
+			'hook'                           => $hook,
+			'order_id'                       => $order_id,
+			'order_ids'                      => $order_ids,
+			'order_status'                   => $order instanceof WC_Order ? $order->get_status() : '',
+			'created_via'                    => $order instanceof WC_Order ? $order->get_created_via() : '',
+			'cart_hash'                      => $order instanceof WC_Order ? $order->get_cart_hash() : '',
+			'payment_method'                 => $payment_method,
+			'payment_result'                 => $result_status,
+			'order_awaiting_payment_session' => WC()->session ? absint( WC()->session->get( 'order_awaiting_payment' ) ) : 0,
+		);
+	};
+	$run_hook_observed_scenario = static function ( string $scenario, callable $callback ) use ( &$hook_observer_scenario, &$hook_events ): array {
+		$previous_scenario      = $hook_observer_scenario;
+		$hook_observer_scenario = $scenario;
+		$before_index           = count( $hook_events );
+		try {
+			$result = $callback();
+			return array(
+				'result'           => $result,
+				'hook_event_start' => $before_index,
+				'hook_event_count' => count( $hook_events ) - $before_index,
+				'hook_events'      => array_slice( $hook_events, $before_index ),
+			);
+		} finally {
+			$hook_observer_scenario = $previous_scenario;
+		}
+	};
+	$summarize_hook_events = static function ( array $events ): array {
+		$summary = array(
+			'event_count' => count( $events ),
+			'counts'      => array(),
+			'order_ids'   => array(),
+			'by_scenario' => array(),
+			'events'      => $events,
+		);
+
+		foreach ( $events as $event ) {
+			$hook     = (string) $event['hook'];
+			$scenario = (string) $event['scenario'];
+			$summary['counts'][ $hook ] = ( $summary['counts'][ $hook ] ?? 0 ) + 1;
+			$summary['order_ids'][ $hook ] = array_values( array_unique( array_merge( $summary['order_ids'][ $hook ] ?? array(), (array) $event['order_ids'] ) ) );
+
+			if ( ! isset( $summary['by_scenario'][ $scenario ] ) ) {
+				$summary['by_scenario'][ $scenario ] = array(
+					'event_count' => 0,
+					'counts'      => array(),
+					'order_ids'   => array(),
+					'events'      => array(),
+				);
+			}
+			$summary['by_scenario'][ $scenario ]['event_count']++;
+			$summary['by_scenario'][ $scenario ]['counts'][ $hook ] = ( $summary['by_scenario'][ $scenario ]['counts'][ $hook ] ?? 0 ) + 1;
+			$summary['by_scenario'][ $scenario ]['order_ids'][ $hook ] = array_values( array_unique( array_merge( $summary['by_scenario'][ $scenario ]['order_ids'][ $hook ] ?? array(), (array) $event['order_ids'] ) ) );
+			$summary['by_scenario'][ $scenario ]['events'][] = $event;
+		}
+
+		ksort( $summary['counts'] );
+		ksort( $summary['order_ids'] );
+		ksort( $summary['by_scenario'] );
+
+		return $summary;
+	};
+	$checkout_hook_callbacks = array(
+		'woocommerce_checkout_create_order'       => static function ( WC_Order $order, array $posted_data ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_checkout_create_order', array( $order, $posted_data ) );
+		},
+		'woocommerce_checkout_order_created'      => static function ( WC_Order $order ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_checkout_order_created', array( $order ) );
+		},
+		'woocommerce_checkout_update_order_meta'  => static function ( int $order_id, array $posted_data ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_checkout_update_order_meta', array( $order_id, $posted_data ) );
+		},
+		'woocommerce_checkout_order_processed'    => static function ( int $order_id, array $posted_data, WC_Order $order ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_checkout_order_processed', array( $order_id, $posted_data, $order ) );
+		},
+		'woocommerce_resume_order'                => static function ( int $order_id ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_resume_order', array( $order_id ) );
+		},
+		'woocommerce_pre_payment_complete'        => static function ( int $order_id, string $transaction_id = '' ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_pre_payment_complete', array( $order_id, $transaction_id ) );
+		},
+		'woocommerce_payment_complete'            => static function ( int $order_id, string $transaction_id = '' ) use ( $record_hook_event ): void {
+			$record_hook_event( 'woocommerce_payment_complete', array( $order_id, $transaction_id ) );
+		},
+	);
+	foreach ( $checkout_hook_callbacks as $hook => $callback ) {
+		add_action( $hook, $callback, 999, 3 );
+	}
+	$payment_successful_result_observer = static function ( array $result, int $order_id ) use ( $record_hook_event ): array {
+		$record_hook_event( 'woocommerce_payment_successful_result', array( $result, $order_id ) );
+		return $result;
+	};
+	$payment_complete_status_observer = static function ( string $status, int $order_id, WC_Order $order ) use ( $record_hook_event ): string {
+		$record_hook_event( 'woocommerce_payment_complete_order_status', array( $status, $order_id, $order ) );
+		return $status;
+	};
+	add_filter( 'woocommerce_payment_successful_result', $payment_successful_result_observer, 999, 2 );
+	add_filter( 'woocommerce_payment_complete_order_status', $payment_complete_status_observer, 999, 3 );
 
 	$unexpected_output = '';
 	$create_order      = static function ( array $posted_data ) use ( &$unexpected_output ): int {
@@ -519,14 +656,36 @@ return function (): array {
 
 	$before = microtime( true );
 
-	$base_cart                             = $set_cart( 1 );
-	$order_id_1                            = $create_order( $data );
-	$session_after_first_create_order      = $session_order_awaiting_payment();
-	$cart_count_after_first_create_order   = WC()->cart->get_cart_contents_count();
-	$order_id_2                            = $create_order( $data );
-	$session_after_second_create_order     = $session_order_awaiting_payment();
-	$cart_count_after_second_create_order  = WC()->cart->get_cart_contents_count();
-	$elapsed_ms                            = ( microtime( true ) - $before ) * 1000;
+	$public_create_order_observation = $run_hook_observed_scenario(
+		'public_create_order_outside_process_checkout',
+		static function () use ( $set_cart, $create_order, $data, $session_order_awaiting_payment ): array {
+			$base_cart                            = $set_cart( 1 );
+			$order_id_1                           = $create_order( $data );
+			$session_after_first_create_order     = $session_order_awaiting_payment();
+			$cart_count_after_first_create_order  = WC()->cart->get_cart_contents_count();
+			$order_id_2                           = $create_order( $data );
+			$session_after_second_create_order    = $session_order_awaiting_payment();
+			$cart_count_after_second_create_order = WC()->cart->get_cart_contents_count();
+
+			return array(
+				'base_cart'                           => $base_cart,
+				'order_id_1'                          => $order_id_1,
+				'order_id_2'                          => $order_id_2,
+				'session_after_first_create_order'     => $session_after_first_create_order,
+				'session_after_second_create_order'    => $session_after_second_create_order,
+				'cart_count_after_first_create_order'  => $cart_count_after_first_create_order,
+				'cart_count_after_second_create_order' => $cart_count_after_second_create_order,
+			);
+		}
+	);
+	$base_cart                            = $public_create_order_observation['result']['base_cart'];
+	$order_id_1                           = $public_create_order_observation['result']['order_id_1'];
+	$order_id_2                           = $public_create_order_observation['result']['order_id_2'];
+	$session_after_first_create_order     = $public_create_order_observation['result']['session_after_first_create_order'];
+	$session_after_second_create_order    = $public_create_order_observation['result']['session_after_second_create_order'];
+	$cart_count_after_first_create_order  = $public_create_order_observation['result']['cart_count_after_first_create_order'];
+	$cart_count_after_second_create_order = $public_create_order_observation['result']['cart_count_after_second_create_order'];
+	$elapsed_ms                           = ( microtime( true ) - $before ) * 1000;
 
 	$order_ids          = array_map( 'absint', array( $order_id_1, $order_id_2 ) );
 	$orders             = array_filter( array_map( 'wc_get_order', $order_ids ) );
@@ -623,35 +782,158 @@ return function (): array {
 		);
 	};
 
-	$set_cart( 1 );
-	$pending_order_id = $create_order( $data );
-	WC()->session->set( 'order_awaiting_payment', $pending_order_id );
-	$pending_retry_id = $create_order( $data );
+	$pending_retry_observation = $run_hook_observed_scenario(
+		'same_cart_retry_pending',
+		static function () use ( $set_cart, $create_order, $data ): array {
+			$set_cart( 1 );
+			$pending_order_id = $create_order( $data );
+			WC()->session->set( 'order_awaiting_payment', $pending_order_id );
+			$pending_retry_id = $create_order( $data );
 
-	$set_cart( 1 );
-	$failed_order_id = $create_order( $data );
-	$failed_order    = wc_get_order( $failed_order_id );
-	$failed_order->set_status( 'failed' );
-	$failed_order->save();
-	WC()->session->set( 'order_awaiting_payment', $failed_order_id );
-	$failed_retry_id = $create_order( $data );
+			return array(
+				'pending_order_id' => $pending_order_id,
+				'pending_retry_id' => $pending_retry_id,
+			);
+		}
+	);
+	$pending_order_id = $pending_retry_observation['result']['pending_order_id'];
+	$pending_retry_id = $pending_retry_observation['result']['pending_retry_id'];
 
-	$set_cart( 1 );
-	$completed_order_id = $create_order( $data );
-	$completed_order    = wc_get_order( $completed_order_id );
-	$completed_order->set_status( 'completed' );
-	$completed_order->save();
-	WC()->session->set( 'order_awaiting_payment', $completed_order_id );
-	$completed_retry_id    = $create_order( $data );
-	$completed_after_retry = wc_get_order( $completed_order_id );
+	$failed_retry_observation = $run_hook_observed_scenario(
+		'same_cart_retry_failed',
+		static function () use ( $set_cart, $create_order, $data ): array {
+			$set_cart( 1 );
+			$failed_order_id = $create_order( $data );
+			$failed_order    = wc_get_order( $failed_order_id );
+			$failed_order->set_status( 'failed' );
+			$failed_order->save();
+			WC()->session->set( 'order_awaiting_payment', $failed_order_id );
+			$failed_retry_id = $create_order( $data );
 
-	$set_cart( 1 );
-	$changed_cart_order_id = $create_order( $data );
-	WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
-	$changed_original_hash = wc_get_order( $changed_cart_order_id )->get_cart_hash();
-	$changed_cart          = $set_cart( 2 );
-	WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
-	$changed_retry_id = $create_order( $data );
+			return array(
+				'failed_order_id' => $failed_order_id,
+				'failed_retry_id' => $failed_retry_id,
+			);
+		}
+	);
+	$failed_order_id = $failed_retry_observation['result']['failed_order_id'];
+	$failed_retry_id = $failed_retry_observation['result']['failed_retry_id'];
+
+	$completed_retry_observation = $run_hook_observed_scenario(
+		'completed_order_safety',
+		static function () use ( $set_cart, $create_order, $data ): array {
+			$set_cart( 1 );
+			$completed_order_id = $create_order( $data );
+			$completed_order    = wc_get_order( $completed_order_id );
+			$completed_order->set_status( 'completed' );
+			$completed_order->save();
+			WC()->session->set( 'order_awaiting_payment', $completed_order_id );
+			$completed_retry_id    = $create_order( $data );
+			$completed_after_retry = wc_get_order( $completed_order_id );
+
+			return array(
+				'completed_order_id'    => $completed_order_id,
+				'completed_retry_id'    => $completed_retry_id,
+				'completed_after_retry' => $completed_after_retry,
+			);
+		}
+	);
+	$completed_order_id    = $completed_retry_observation['result']['completed_order_id'];
+	$completed_retry_id    = $completed_retry_observation['result']['completed_retry_id'];
+	$completed_after_retry = $completed_retry_observation['result']['completed_after_retry'];
+
+	$changed_cart_observation = $run_hook_observed_scenario(
+		'changed_cart_retry',
+		static function () use ( $set_cart, $create_order, $data ): array {
+			$set_cart( 1 );
+			$changed_cart_order_id = $create_order( $data );
+			WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
+			$changed_original_hash = wc_get_order( $changed_cart_order_id )->get_cart_hash();
+			$changed_cart          = $set_cart( 2 );
+			WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
+			$changed_retry_id      = $create_order( $data );
+
+			return array(
+				'changed_cart_order_id' => $changed_cart_order_id,
+				'changed_retry_id'      => $changed_retry_id,
+				'changed_original_hash' => $changed_original_hash,
+				'changed_cart'          => $changed_cart,
+			);
+		}
+	);
+	$changed_cart_order_id = $changed_cart_observation['result']['changed_cart_order_id'];
+	$changed_retry_id      = $changed_cart_observation['result']['changed_retry_id'];
+	$changed_original_hash = $changed_cart_observation['result']['changed_original_hash'];
+	$changed_cart          = $changed_cart_observation['result']['changed_cart'];
+
+	$fresh_checkout_observation = $run_hook_observed_scenario(
+		'fresh_checkout_process_checkout',
+		static function () use ( $set_cart, $data, $run_id ): array {
+			$set_cart( 1 );
+			if ( WC()->session ) {
+				WC()->session->__unset( 'order_awaiting_payment' );
+			}
+
+			$fresh_data                         = $data;
+			$fresh_data['billing_email']        = 'homeboy-fresh-checkout-' . $run_id . '@example.com';
+			$fresh_data['payment_method']       = 'cod';
+			$fresh_data['order_comments']       = 'Homeboy fresh process_checkout hook sequencing ' . $run_id;
+			$fresh_order_id                     = 0;
+			$fresh_redirect                     = '';
+			$unexpected_process_checkout_output = '';
+			$sentinel_message                   = 'homeboy-fresh-checkout-hook-observer-complete-' . $run_id;
+
+			$capture_processed_order = static function ( int $order_id ) use ( &$fresh_order_id ): void {
+				$fresh_order_id = $order_id;
+			};
+			$intercept_redirect      = static function ( array $result ) use ( &$fresh_redirect, $sentinel_message ): array {
+				$fresh_redirect = (string) ( $result['redirect'] ?? '' );
+				throw new RuntimeException( $sentinel_message );
+			};
+
+			$post_before    = $_POST;
+			$request_before = $_REQUEST;
+			$_POST          = array_merge(
+				$fresh_data,
+				array(
+					'woocommerce-process-checkout-nonce' => wp_create_nonce( 'woocommerce-process_checkout' ),
+					'security'                           => wp_create_nonce( 'woocommerce-process_checkout' ),
+					'_wp_http_referer'                   => wc_get_checkout_url(),
+				)
+			);
+			$_REQUEST       = array_merge( $_REQUEST, $_POST );
+
+			add_action( 'woocommerce_checkout_order_processed', $capture_processed_order, 1, 1 );
+			add_filter( 'woocommerce_payment_successful_result', $intercept_redirect, 1000, 1 );
+			ob_start();
+			try {
+				WC()->checkout()->process_checkout();
+			} catch ( RuntimeException $exception ) {
+				if ( $sentinel_message !== $exception->getMessage() ) {
+					throw $exception;
+				}
+			} finally {
+				$unexpected_process_checkout_output = (string) ob_get_clean();
+				remove_action( 'woocommerce_checkout_order_processed', $capture_processed_order, 1 );
+				remove_filter( 'woocommerce_payment_successful_result', $intercept_redirect, 1000 );
+				$_POST    = $post_before;
+				$_REQUEST = $request_before;
+			}
+
+			if ( ! $fresh_order_id ) {
+				throw new RuntimeException( 'Fresh process_checkout did not reach woocommerce_checkout_order_processed.' );
+			}
+
+			$fresh_order = wc_get_order( $fresh_order_id );
+			return array(
+				'order_id'                => $fresh_order_id,
+				'order_status'            => $fresh_order instanceof WC_Order ? $fresh_order->get_status() : '',
+				'redirect'                => $fresh_redirect,
+				'unexpected_output_bytes' => strlen( $unexpected_process_checkout_output ),
+			);
+		}
+	);
+	$fresh_checkout = $fresh_checkout_observation['result'];
 
 	$set_cart( 1 );
 	$extension_order = wc_create_order(
@@ -883,6 +1165,10 @@ return function (): array {
 	);
 
 	$changed_retry_order = wc_get_order( $changed_retry_id );
+	$hook_report         = $summarize_hook_events( $hook_events );
+	$hook_count          = static function ( string $scenario, string $hook ) use ( &$hook_report ): int {
+		return (int) ( $hook_report['by_scenario'][ $scenario ]['counts'][ $hook ] ?? 0 );
+	};
 	$guardrails          = array(
 		'public_create_order_does_not_set_order_awaiting_payment' => ! $public_side_effect['sets_order_awaiting_payment'],
 		'public_create_order_does_not_clear_cart'                 => ! $public_side_effect['clears_cart'],
@@ -906,6 +1192,12 @@ return function (): array {
 		'order_pay_failed_order_resume_redirects_to_received'     => $order_pay_metrics['redirect_contains_order_received'],
 		'order_pay_endpoint_sets_session_cookie'                  => $order_pay_metrics['session_cookie_after_order_pay'],
 		'legacy_coupon_independence'                              => ! $coupon_metrics['covered'] || ( ! $coupon_metrics['public_create_order_sets_session'] && ! $coupon_metrics['public_create_order_clears_cart'] && $coupon_metrics['order_coupon_line_count'] > 0 ),
+		'hook_fresh_checkout_order_processed_once'                => 1 === $hook_count( 'fresh_checkout_process_checkout', 'woocommerce_checkout_order_processed' ),
+		'hook_public_create_order_skips_order_processed'          => 0 === $hook_count( 'public_create_order_outside_process_checkout', 'woocommerce_checkout_order_processed' ),
+		'hook_same_cart_pending_retry_resumes_once'                => 1 === $hook_count( 'same_cart_retry_pending', 'woocommerce_resume_order' ),
+		'hook_same_cart_failed_retry_resumes_once'                 => 1 === $hook_count( 'same_cart_retry_failed', 'woocommerce_resume_order' ),
+		'hook_completed_safety_does_not_resume'                   => 0 === $hook_count( 'completed_order_safety', 'woocommerce_resume_order' ),
+		'hook_changed_cart_retry_does_not_resume'                 => 0 === $hook_count( 'changed_cart_retry', 'woocommerce_resume_order' ),
 	);
 
 	$failed_guardrails = array_keys(
@@ -1061,6 +1353,7 @@ return function (): array {
 		'duplicate_created' => (bool) $duplicate_created,
 		'unexpected_output' => $unexpected_output,
 		'public_side_effects' => $public_side_effect,
+		'fresh_checkout'    => $fresh_checkout,
 		'retry_behavior'    => array(
 			'pending_order_id'      => $pending_order_id,
 			'pending_retry_id'      => $pending_retry_id,
@@ -1081,6 +1374,7 @@ return function (): array {
 		'paid_public_create_order' => $early_paid_public_create_order,
 		'no_payment'        => $no_payment_metrics,
 		'order_pay'         => $order_pay_metrics,
+		'hook_observation'  => $hook_report,
 		'legacy_coupon'     => $coupon_metrics,
 		'identity_dimensions' => array(
 			'cart_hash'      => $base_cart['cart_hash'],
@@ -1125,6 +1419,8 @@ return function (): array {
 		'unexpected_output_detected'                              => '' === $unexpected_output ? 0 : 1,
 		'unexpected_output_bytes'                                 => strlen( $unexpected_output ),
 		'elapsed_ms'                                              => $elapsed_ms,
+		'fresh_checkout_order_id'                                 => (int) $fresh_checkout['order_id'],
+		'fresh_checkout_unexpected_output_bytes'                  => (int) $fresh_checkout['unexpected_output_bytes'],
 		'cart_items'                                              => WC()->cart->get_cart_contents_count(),
 		'cart_total'                                              => (float) WC()->cart->get_total( 'edit' ),
 		'identity_guardrail_scenarios'                            => count( $identity_scenarios ),
@@ -1183,8 +1479,18 @@ return function (): array {
 		'order_pay_cart_count_before_pay_action'                  => $order_pay_metrics['cart_count_before_pay_action'],
 		'order_pay_cart_count_after_pay_action'                   => $order_pay_metrics['cart_count_after_pay_action'],
 		'legacy_coupon_independence'                              => (int) $guardrails['legacy_coupon_independence'],
+		'hook_observed_event_count'                               => (int) $hook_report['event_count'],
+		'hook_fresh_checkout_order_processed_count'               => $hook_count( 'fresh_checkout_process_checkout', 'woocommerce_checkout_order_processed' ),
+		'hook_public_create_order_processed_count'                => $hook_count( 'public_create_order_outside_process_checkout', 'woocommerce_checkout_order_processed' ),
+		'hook_same_cart_pending_resume_order_count'               => $hook_count( 'same_cart_retry_pending', 'woocommerce_resume_order' ),
+		'hook_same_cart_failed_resume_order_count'                => $hook_count( 'same_cart_retry_failed', 'woocommerce_resume_order' ),
+		'hook_completed_safety_resume_order_count'                => $hook_count( 'completed_order_safety', 'woocommerce_resume_order' ),
+		'hook_changed_cart_retry_resume_order_count'              => $hook_count( 'changed_cart_retry', 'woocommerce_resume_order' ),
 		'guardrail_failure_count'                                 => count( $failed_guardrails ),
 	);
+	foreach ( $hook_report['counts'] as $hook => $count ) {
+		$summary[ 'hook_count_' . sanitize_key( $hook ) ] = (int) $count;
+	}
 	foreach ( $concurrent_summary as $metric_name => $metric_value ) {
 		$summary[ 'concurrent_' . $metric_name ] = $metric_value;
 	}
