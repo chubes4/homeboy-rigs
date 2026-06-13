@@ -111,6 +111,35 @@ test('webperf desktop slow 4g profile keeps desktop context while applying Codeb
   assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
 });
 
+test('webperf wallet fanout profile supplies a non-secret synthetic publishable key', () => {
+  const previous = {
+    HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF: process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF,
+    HOMEBOY_WC_STRIPE_REQUIRE_FANOUT_PROOF: process.env.HOMEBOY_WC_STRIPE_REQUIRE_FANOUT_PROOF,
+    HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY: process.env.HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY,
+  };
+
+  process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF = '1';
+  process.env.HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY = 'pk_test_custom_synthetic_fixture';
+
+  try {
+    const options = buildEceProfileOptions('webperf-desktop-slow-4g');
+
+    assert.equal(options.syntheticOnly, true);
+    assert.equal(options.realWalletCapable, false);
+    assert.equal(options.stripePublishableKey, 'pk_test_custom_synthetic_fixture');
+    assert.equal(options.stripeSecretKey, null);
+    assert.deepEqual(options.recipeRunArgs, []);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});
+
 test('rig manifest exposes the ECE webperf profile matrix', () => {
   const manifestPath = path.join(__dirname, '../rigs/woocommerce-stripe-ece-product-page/rig.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -536,6 +565,8 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /#wc-stripe-express-checkout-element-apple_pay/);
   assert.match(traceSource, /#wc-stripe-express-checkout-element-google_pay/);
   assert.match(traceSource, /#wc-stripe-express-checkout-element-wallets-link/);
+  assert.match(traceSource, /homeboy-stripe-ece-fanout-proof-style/);
+  assert.match(traceSource, /display: block !important; width: 100% !important/);
   assert.match(traceSource, /ece-wallet-fanout-proof/);
   assert.match(traceSource, /installStripeEceInstrumentation/);
   assert.match(traceSource, /express_checkout_create_calls/);

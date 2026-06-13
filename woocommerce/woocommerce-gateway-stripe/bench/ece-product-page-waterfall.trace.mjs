@@ -495,23 +495,31 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       }
       return elements;
     };
+    const wrapStripeInstance = (stripe) => {
+      if (stripe && !stripe.__homeboyEceInstrumented && typeof stripe.elements === 'function') {
+        Object.defineProperty(stripe, '__homeboyEceInstrumented', { value: true, configurable: true });
+        const originalElements = stripe.elements;
+        stripe.elements = function homeboyInstrumentedStripeElements(...elementsArgs) {
+          instrumentation.elements_calls.push({ t_ms: elapsed(), args: jsonSafe(elementsArgs) });
+          return wrapElements(originalElements.apply(this, elementsArgs));
+        };
+      }
+      return stripe;
+    };
     const wrapStripeFactory = (StripeFactory) => {
       if (typeof StripeFactory !== 'function' || StripeFactory.__homeboyEceInstrumented) {
         return StripeFactory;
       }
-      const wrappedFactory = function homeboyInstrumentedStripeFactory(...stripeArgs) {
-        instrumentation.stripe_factory_calls.push({ t_ms: elapsed(), args: jsonSafe(stripeArgs) });
-        const stripe = StripeFactory.apply(this, stripeArgs);
-        if (stripe && !stripe.__homeboyEceInstrumented && typeof stripe.elements === 'function') {
-          Object.defineProperty(stripe, '__homeboyEceInstrumented', { value: true, configurable: true });
-          const originalElements = stripe.elements;
-          stripe.elements = function homeboyInstrumentedStripeElements(...elementsArgs) {
-            instrumentation.elements_calls.push({ t_ms: elapsed(), args: jsonSafe(elementsArgs) });
-            return wrapElements(originalElements.apply(this, elementsArgs));
-          };
-        }
-        return stripe;
-      };
+      const wrappedFactory = new Proxy(StripeFactory, {
+        apply(target, thisArg, stripeArgs) {
+          instrumentation.stripe_factory_calls.push({ mode: 'call', t_ms: elapsed(), args: jsonSafe(stripeArgs) });
+          return wrapStripeInstance(Reflect.apply(target, thisArg, stripeArgs));
+        },
+        construct(target, stripeArgs, newTarget) {
+          instrumentation.stripe_factory_calls.push({ mode: 'construct', t_ms: elapsed(), args: jsonSafe(stripeArgs) });
+          return wrapStripeInstance(Reflect.construct(target, stripeArgs, newTarget));
+        },
+      });
       Object.defineProperty(wrappedFactory, '__homeboyEceInstrumented', { value: true, configurable: true });
       for (const key of Reflect.ownKeys(StripeFactory)) {
         if (['length', 'name', 'prototype'].includes(key)) {
@@ -552,6 +560,15 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
 
     window.__homeboyStripeEceFanoutProofInstalled = true;
     root.setAttribute('data-homeboy-wallet-fanout-proof', '1');
+
+    const style = document.createElement('style');
+    style.id = 'homeboy-stripe-ece-fanout-proof-style';
+    style.textContent = [
+      '#wc-stripe-express-checkout-element { display: block !important; width: 100% !important; }',
+      '#wc-stripe-express-checkout-element-wallets-link { display: block !important; width: 100% !important; }',
+      '#wc-stripe-express-checkout-element-wallets-link > div { display: block !important; width: 100% !important; margin: 0 0 8px; }',
+    ].join('\n');
+    document.head.appendChild(style);
 
     let grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
     if (!grouped) {
