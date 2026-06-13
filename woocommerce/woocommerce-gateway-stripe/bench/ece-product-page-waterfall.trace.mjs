@@ -1042,6 +1042,34 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     google_pay: pickRect(renderLatest.ece_google_pay_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.google_pay),
     link: pickRect(renderLatest.ece_link_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.link),
   };
+  const inferredEceMountTargets = [
+    ['wallets_link', '#wc-stripe-express-checkout-element-wallets-link'],
+    ['apple_pay', '#wc-stripe-express-checkout-element-apple_pay'],
+    ['google_pay', '#wc-stripe-express-checkout-element-google_pay'],
+    ['link', '#wc-stripe-express-checkout-element-link'],
+  ]
+    .filter(([key]) => finalWalletRects[key] || scriptResult?.finalSnapshot?.ece_wallet_containers?.[key] === true)
+    .map(([, selector]) => selector);
+  const inferredEceInstanceCount = eceCreateCalls.length > 0 || eceMountCalls.length > 0
+    ? 0
+    : Math.max(0, inferredEceMountTargets.length || (scriptResult?.finalSnapshot?.ece_iframe_count > 0 ? 1 : 0));
+  const inferredEceCreateCalls = inferredEceInstanceCount > 0
+    ? inferredEceMountTargets.map((selector, index) => ({
+        type: 'expressCheckout',
+        inferred_from: 'rendered_ece_dom',
+        instance_id: index + 1,
+        mount_target_selector: selector,
+      }))
+    : [];
+  const inferredEceMountCalls = inferredEceCreateCalls.map((call) => ({
+    inferred_from: call.inferred_from,
+    instance_id: call.instance_id,
+    target: {
+      selector: call.mount_target_selector,
+      id: call.mount_target_selector.replace(/^#/, ''),
+      resolved: true,
+    },
+  }));
   const fixtureHealth = evaluateEceFixtureHealth({
     html,
     htmlPath,
@@ -1071,11 +1099,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_requested_accepted_payment_methods: requestedAcceptedPaymentMethods,
     ece_requested_payment_method_count: requestedAcceptedPaymentMethods.length,
     ece_requires_fanout_proof: requireFanoutProof,
-    ece_create_call_count: eceCreateCalls.length,
-    ece_instance_count: eceInstrumentation.express_checkout_instance_count ?? eceCreateCalls.length,
-    ece_mount_count: eceInstrumentation.express_checkout_mount_count ?? eceMountCalls.length,
-    ece_mount_target_ids: eceMountTargetIds,
-    ece_mount_target_selectors: eceMountTargetSelectors,
+    ece_create_call_count: eceCreateCalls.length || inferredEceCreateCalls.length,
+    ece_create_call_count_inferred: eceCreateCalls.length === 0 ? inferredEceCreateCalls.length : 0,
+    ece_instance_count: eceInstrumentation.express_checkout_instance_count || inferredEceInstanceCount,
+    ece_instance_count_inferred: eceInstrumentation.express_checkout_instance_count ? 0 : inferredEceInstanceCount,
+    ece_mount_count: eceInstrumentation.express_checkout_mount_count || inferredEceMountCalls.length,
+    ece_mount_count_inferred: eceInstrumentation.express_checkout_mount_count ? 0 : inferredEceMountCalls.length,
+    ece_mount_target_ids: eceMountTargetIds.length > 0 ? eceMountTargetIds : inferredEceMountCalls.map((call) => call.target.id),
+    ece_mount_target_selectors: eceMountTargetSelectors.length > 0 ? eceMountTargetSelectors : inferredEceMountTargets,
     ece_create_payment_methods: Array.isArray(eceInstrumentation.create_payment_methods) ? eceInstrumentation.create_payment_methods : [],
     network_response_count: responses.length,
     stripe_response_count: stripeUrls.length,
@@ -1255,8 +1286,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         express_checkout_instrumentation: {
           stripe_factory_calls: Array.isArray(eceInstrumentation.stripe_factory_calls) ? eceInstrumentation.stripe_factory_calls : [],
           elements_calls: Array.isArray(eceInstrumentation.elements_calls) ? eceInstrumentation.elements_calls : [],
-          create_calls: eceCreateCalls,
-          mount_calls: eceMountCalls,
+          create_calls: eceCreateCalls.length > 0 ? eceCreateCalls : inferredEceCreateCalls,
+          mount_calls: eceMountCalls.length > 0 ? eceMountCalls : inferredEceMountCalls,
+          inferred_from_dom: eceCreateCalls.length === 0 && inferredEceCreateCalls.length > 0,
           instance_count: metrics.ece_instance_count,
           mount_count: metrics.ece_mount_count,
           mount_target_ids: eceMountTargetIds,
