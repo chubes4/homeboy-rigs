@@ -18,6 +18,7 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/issues/32055
 - https://github.com/woocommerce/woocommerce/issues/26569
 - https://github.com/woocommerce/woocommerce/issues/17355
+- https://github.com/woocommerce/woocommerce/issues/62659
 
 ## Install
 
@@ -85,6 +86,13 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 
 ## Current Workloads
 
+- `checkout-concurrent-create-order` reproduces the duplicate checkout order
+  window from WooCommerce #62659 and records identity guardrails for WooCommerce
+  PR #65588 review follow-up: guest same-cart retry, logged-in same-cart retry,
+  same cart hash with a different billing email, same cart hash with a different
+  customer ID, and session/user switch isolation. Artifacts include the identity
+  dimensions used by each decision: guest/customer ID, billing email, cart hash,
+  and session marker.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
   US shipping zone, builds a cart, splits cart contents into configurable shipping
   packages, and measures cold, warm, totals-only churn, and address-rehashed
