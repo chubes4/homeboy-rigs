@@ -9,8 +9,24 @@ import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-pa
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, ECE_FANOUT_REVIEWER_READY, ECE_FANOUT_SUPPLEMENTAL, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
+import { wpCodeboxBin, wpCodeboxCommand } from './ece-product-page-wp-codebox.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+test('WP Codebox helper centralizes binary resolution', () => {
+  assert.equal(wpCodeboxBin({}), 'wp-codebox');
+  assert.equal(wpCodeboxBin({ HOMEBOY_SETTINGS_WP_CODEBOX_BIN: '/tmp/wp-codebox-settings.js' }), '/tmp/wp-codebox-settings.js');
+  assert.equal(
+    wpCodeboxBin({
+      HOMEBOY_WP_CODEBOX_BIN: '/tmp/wp-codebox-env.mjs',
+      HOMEBOY_SETTINGS_WP_CODEBOX_BIN: '/tmp/wp-codebox-settings.js',
+    }),
+    '/tmp/wp-codebox-env.mjs'
+  );
+
+  assert.deepEqual(wpCodeboxCommand('/tmp/wp-codebox.mjs'), { command: 'node', args: ['/tmp/wp-codebox.mjs'] });
+  assert.deepEqual(wpCodeboxCommand('wp-codebox'), { command: 'wp-codebox', args: [] });
+});
 
 test('default smoke profile preserves browser probe defaults', () => {
   const options = buildEceProfileOptions('smoke');
