@@ -121,8 +121,11 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   deterministic guardrails for session/cart side effects: public create-order
   `order_awaiting_payment` mutation, public create-order cart clearing,
   pending/failed retries, completed-order safety, changed-cart retries,
-  `template_redirect` cart clearing after paid extension-created orders, and
-  legacy coupon independence.
+  `template_redirect` cart clearing after paid extension-created orders,
+  zero-total no-payment processing, failed `order-pay` retry/resume, and legacy
+  coupon independence. It links evidence to WooCommerce issue #62659,
+  WooCommerce PR #65588, Jorge's PR review, and Homeboy Rigs issues #253, #254,
+  and #268.
 - `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
   first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,
@@ -184,8 +187,16 @@ The first slice reports:
   `template_redirect_clears_paid_completed_extension_order`,
   `template_redirect_does_not_clear_without_payment_signal`,
   `template_redirect_does_not_clear_pending_retry_order`,
-  `legacy_coupon_independence`, and `guardrail_failure_count` for the checkout
-  duplicate-order side-effect guardrails.
+  `paid_public_create_order_does_not_trigger_cart_clear`,
+  `no_payment_process_order_without_payment_completes_order`,
+  `no_payment_process_order_without_payment_clears_cart`,
+  `no_payment_process_order_without_payment_returns_success`,
+  `order_pay_failed_order_resume_processes_payment`,
+  `order_pay_failed_order_resume_clears_cart`,
+  `order_pay_failed_order_resume_redirects_to_received`,
+  `order_pay_endpoint_sets_session_cookie`, `legacy_coupon_independence`, and
+  `guardrail_failure_count` for the checkout duplicate-order side-effect
+  guardrails.
 - `total_churn_shipping_p50_ms`, `total_churn_to_warm_ratio`, and
   `total_churn_rate_calculation_calls` for package subtotal/total-only churn.
 - `rehash_shipping_p50_ms` and `rehash_to_warm_ratio` for address/hash changes.

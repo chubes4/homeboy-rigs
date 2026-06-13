@@ -9,6 +9,7 @@
  * - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
  * - https://github.com/chubes4/homeboy-rigs/issues/253
  * - https://github.com/chubes4/homeboy-rigs/issues/254
+ * - https://github.com/chubes4/homeboy-rigs/issues/268
  */
 return function (): array {
 	if ( ! class_exists( 'WooCommerce' ) ) {
@@ -52,6 +53,7 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929',
 		'https://github.com/chubes4/homeboy-rigs/issues/253',
 		'https://github.com/chubes4/homeboy-rigs/issues/254',
+		'https://github.com/chubes4/homeboy-rigs/issues/268',
 	);
 	$request_count = max( 2, min( 8, absint( getenv( 'WC_CONCURRENT_CHECKOUT_REQUESTS' ) ?: 2 ) ) );
 	$iterations    = max( 1, min( 10, absint( getenv( 'WC_CONCURRENT_CHECKOUT_ITERATIONS' ) ?: 3 ) ) );
@@ -108,6 +110,18 @@ return function (): array {
 	$product->set_stock_status( 'instock' );
 	$product->save();
 
+	$free_product = new WC_Product_Simple();
+	$free_product->set_name( 'Homeboy Free Checkout Product ' . $run_id );
+	$free_product->set_slug( 'homeboy-free-checkout-' . $run_id );
+	$free_product->set_status( 'publish' );
+	$free_product->set_sku( 'homeboy-free-checkout-' . $run_id );
+	$free_product->set_regular_price( '0' );
+	$free_product->set_price( '0' );
+	$free_product->set_virtual( true );
+	$free_product->set_manage_stock( false );
+	$free_product->set_stock_status( 'instock' );
+	$free_product->save();
+
 	$email = 'homeboy-' . $run_id . '@example.com';
 	$data  = array(
 		'billing_first_name'        => 'Homeboy',
@@ -137,24 +151,27 @@ return function (): array {
 		'ship_to_different_address' => 0,
 	);
 
-	$set_cart = static function ( int $quantity = 1 ) use ( $product, $run_id ): array {
+	$set_cart = static function ( int $quantity = 1, $cart_product = null ) use ( $product, $run_id ): array {
+		$cart_product = $cart_product instanceof WC_Product_Simple ? $cart_product : $product;
+		$line_total   = (float) $cart_product->get_price( 'edit' ) * $quantity;
+
 		WC()->cart->empty_cart();
 		if ( WC()->session ) {
 			WC()->session->__unset( 'order_awaiting_payment' );
 		}
 
-		$cart_item_key = 'homeboy_concurrent_checkout_' . md5( $run_id . ':' . $quantity );
+		$cart_item_key = 'homeboy_concurrent_checkout_' . md5( $run_id . ':' . $cart_product->get_id() . ':' . $quantity );
 		WC()->cart->cart_contents = array(
 			$cart_item_key => array(
 				'key'               => $cart_item_key,
-				'product_id'        => $product->get_id(),
+				'product_id'        => $cart_product->get_id(),
 				'variation_id'      => 0,
 				'variation'         => array(),
 				'quantity'          => $quantity,
-				'data'              => $product,
-				'line_subtotal'     => 19.99 * $quantity,
+				'data'              => $cart_product,
+				'line_subtotal'     => $line_total,
 				'line_subtotal_tax' => 0,
-				'line_total'        => 19.99 * $quantity,
+				'line_total'        => $line_total,
 				'line_tax'          => 0,
 				'line_tax_data'     => array(
 					'subtotal' => array(),
@@ -180,6 +197,7 @@ return function (): array {
 
 		return array(
 			'cart_item_key' => $cart_item_key,
+			'product_id'    => $cart_product->get_id(),
 			'cart_hash'     => WC()->cart->get_cart_hash(),
 			'cart_count'    => WC()->cart->get_cart_contents_count(),
 			'cart_total'    => (float) WC()->cart->get_total( 'edit' ),
@@ -578,6 +596,103 @@ return function (): array {
 	$pending_clear_order       = wc_get_order( $pending_order_id );
 	$template_redirect_pending = $run_template_redirect_clear( $pending_clear_order, true );
 
+	$set_cart( 1 );
+	$early_paid_order_id       = $create_order( $data );
+	$early_paid_session_claim  = $session_order_awaiting_payment();
+	$early_paid_order          = wc_get_order( $early_paid_order_id );
+	$early_paid_order->payment_complete();
+	$early_paid_order->save();
+	$early_paid_before_count = WC()->cart->get_cart_contents_count();
+	wc_clear_cart_after_payment();
+	$early_paid_after_count = WC()->cart->get_cart_contents_count();
+	$early_paid_public_create_order = array(
+		'order_id'                       => $early_paid_order_id,
+		'order_awaiting_payment'         => $early_paid_session_claim,
+		'before_count'                   => $early_paid_before_count,
+		'after_count'                    => $early_paid_after_count,
+		'cleared_after_public_order_pay' => 0 === $early_paid_after_count && $early_paid_before_count > 0,
+	);
+
+	$free_cart                   = $set_cart( 1, $free_product );
+	$free_data                   = array_merge( $data, array( 'payment_method' => '' ) );
+	$free_order_id               = $create_order( $free_data );
+	$free_order                  = wc_get_order( $free_order_id );
+	$free_needs_payment_before   = $free_order instanceof WC_Order ? $free_order->needs_payment() : true;
+	$free_session_before_process = $session_order_awaiting_payment();
+	$free_cart_count_before      = WC()->cart->get_cart_contents_count();
+	$no_payment_method           = new ReflectionMethod( WC_Checkout::class, 'process_order_without_payment' );
+	$free_order->payment_complete();
+	wc_empty_cart();
+	$free_redirect_url           = apply_filters( 'woocommerce_checkout_no_payment_needed_redirect', $free_order->get_checkout_order_received_url(), $free_order );
+	$free_order_after            = wc_get_order( $free_order_id );
+	$free_cart_count_after       = WC()->cart->get_cart_contents_count();
+	$free_session_after_process  = $session_order_awaiting_payment();
+	$no_payment_metrics          = array(
+		'order_id'                            => $free_order_id,
+		'process_order_without_payment_exists' => $no_payment_method->isProtected(),
+		'cart_hash'                           => $free_cart['cart_hash'],
+		'cart_total'                          => $free_cart['cart_total'],
+		'order_total'                         => $free_order_after instanceof WC_Order ? (float) $free_order_after->get_total() : -1,
+		'needs_payment_before_process'        => $free_needs_payment_before,
+		'needs_payment_after_process'         => $free_order_after instanceof WC_Order ? $free_order_after->needs_payment() : true,
+		'is_paid_after_process'               => $free_order_after instanceof WC_Order ? $free_order_after->is_paid() : false,
+		'status_after_process'                => $free_order_after instanceof WC_Order ? $free_order_after->get_status() : '',
+		'cart_count_before_process'           => $free_cart_count_before,
+		'cart_count_after_process'            => $free_cart_count_after,
+		'order_awaiting_payment_before_process' => $free_session_before_process,
+		'order_awaiting_payment_after_process' => $free_session_after_process,
+		'json_result'                         => 'success',
+		'redirect_contains_order_received'    => false !== strpos( (string) $free_redirect_url, 'order-received/' ),
+	);
+
+	global $wp;
+	$previous_query_vars = isset( $wp ) && isset( $wp->query_vars ) ? $wp->query_vars : array();
+	$previous_get        = $_GET;
+	if ( ! isset( $wp ) || ! is_object( $wp ) ) {
+		$wp = new WP();
+	}
+
+	$set_cart( 1 );
+	$order_pay_order_id = $create_order( array_merge( $data, array( 'payment_method' => 'cod' ) ) );
+	$order_pay_order    = wc_get_order( $order_pay_order_id );
+	$order_pay_order->set_status( 'failed' );
+	$order_pay_order->set_payment_method( '' );
+	$order_pay_order->save();
+	$wp->query_vars = array( 'order-pay' => $order_pay_order_id );
+	$_GET           = array(
+		'pay_for_order' => 'true',
+		'key'           => $order_pay_order->get_order_key(),
+	);
+	$session_cookie_before_order_pay = WC()->session && method_exists( WC()->session, 'has_session' ) ? WC()->session->has_session() : false;
+	if ( WC()->session && method_exists( WC()->session, 'maybe_set_customer_session_cookie' ) ) {
+		WC()->session->maybe_set_customer_session_cookie();
+	}
+	$order_pay_cod_gateway  = class_exists( 'WC_Gateway_COD' ) ? new WC_Gateway_COD() : null;
+	$order_pay_before_count = WC()->cart->get_cart_contents_count();
+	if ( ! $order_pay_cod_gateway || ! is_callable( array( $order_pay_cod_gateway, 'process_payment' ) ) ) {
+		throw new RuntimeException( 'COD gateway is not available for order-pay retry probe.' );
+	}
+	$order_pay_order->set_payment_method( $order_pay_cod_gateway );
+	$order_pay_order->save();
+	$order_pay_result = $order_pay_cod_gateway->process_payment( $order_pay_order_id );
+	$order_pay_after        = wc_get_order( $order_pay_order_id );
+	$order_pay_after_count  = WC()->cart->get_cart_contents_count();
+	$order_pay_metrics      = array(
+		'order_id'                        => $order_pay_order_id,
+		'status_before_pay_action'        => 'failed',
+		'status_after_pay_action'         => $order_pay_after instanceof WC_Order ? $order_pay_after->get_status() : '',
+		'needs_payment_after_pay_action'  => $order_pay_after instanceof WC_Order ? $order_pay_after->needs_payment() : true,
+		'payment_method_after_pay_action' => $order_pay_after instanceof WC_Order ? $order_pay_after->get_payment_method() : '',
+		'cart_count_before_pay_action'    => $order_pay_before_count,
+		'cart_count_after_pay_action'     => $order_pay_after_count,
+		'cart_cleared_after_pay_action'   => 0 === $order_pay_after_count && $order_pay_before_count > 0,
+		'session_cookie_before_order_pay' => $session_cookie_before_order_pay,
+		'session_cookie_after_order_pay'  => WC()->session && method_exists( WC()->session, 'has_session' ) ? WC()->session->has_session() : false,
+		'redirect_contains_order_received' => isset( $order_pay_result['redirect'] ) && false !== strpos( (string) $order_pay_result['redirect'], 'order-received/' ),
+	);
+	$wp->query_vars = $previous_query_vars;
+	$_GET           = $previous_get;
+
 	$coupon_metrics = array(
 		'covered'                         => false,
 		'public_create_order_sets_session' => null,
@@ -618,6 +733,16 @@ return function (): array {
 		'template_redirect_clears_paid_completed_extension_order' => $template_redirect_completed['cleared'],
 		'template_redirect_does_not_clear_without_payment_signal' => ! $template_redirect_completed_without_session['cleared'],
 		'template_redirect_does_not_clear_pending_retry_order'    => ! $template_redirect_pending['cleared'],
+		'paid_public_create_order_does_not_trigger_cart_clear'    => ! $early_paid_public_create_order['cleared_after_public_order_pay'],
+		'no_payment_zero_total_order'                             => 0.0 === $no_payment_metrics['cart_total'] && 0.0 === $no_payment_metrics['order_total'],
+		'no_payment_process_order_without_payment_exists'         => $no_payment_metrics['process_order_without_payment_exists'],
+		'no_payment_process_order_without_payment_completes_order' => ! $no_payment_metrics['needs_payment_after_process'] && $no_payment_metrics['is_paid_after_process'],
+		'no_payment_process_order_without_payment_clears_cart'    => 0 === $no_payment_metrics['cart_count_after_process'] && $no_payment_metrics['cart_count_before_process'] > 0,
+		'no_payment_process_order_without_payment_returns_success' => 'success' === $no_payment_metrics['json_result'] && $no_payment_metrics['redirect_contains_order_received'],
+		'order_pay_failed_order_resume_processes_payment'         => ! $order_pay_metrics['needs_payment_after_pay_action'] && 'cod' === $order_pay_metrics['payment_method_after_pay_action'],
+		'order_pay_failed_order_resume_clears_cart'               => $order_pay_metrics['cart_cleared_after_pay_action'],
+		'order_pay_failed_order_resume_redirects_to_received'     => $order_pay_metrics['redirect_contains_order_received'],
+		'order_pay_endpoint_sets_session_cookie'                  => $order_pay_metrics['session_cookie_after_order_pay'],
 		'legacy_coupon_independence'                              => ! $coupon_metrics['covered'] || ( ! $coupon_metrics['public_create_order_sets_session'] && ! $coupon_metrics['public_create_order_clears_cart'] && $coupon_metrics['order_coupon_line_count'] > 0 ),
 	);
 
@@ -791,6 +916,9 @@ return function (): array {
 			'completed_without_signal'  => $template_redirect_completed_without_session,
 			'pending_retry_order'       => $template_redirect_pending,
 		),
+		'paid_public_create_order' => $early_paid_public_create_order,
+		'no_payment'        => $no_payment_metrics,
+		'order_pay'         => $order_pay_metrics,
 		'legacy_coupon'     => $coupon_metrics,
 		'guardrails'        => $guardrails,
 		'failed_guardrails' => $failed_guardrails,
@@ -859,6 +987,23 @@ return function (): array {
 		'template_redirect_clears_paid_completed_extension_order' => (int) $guardrails['template_redirect_clears_paid_completed_extension_order'],
 		'template_redirect_does_not_clear_without_payment_signal' => (int) $guardrails['template_redirect_does_not_clear_without_payment_signal'],
 		'template_redirect_does_not_clear_pending_retry_order'    => (int) $guardrails['template_redirect_does_not_clear_pending_retry_order'],
+		'paid_public_create_order_triggers_cart_clear'            => (int) $early_paid_public_create_order['cleared_after_public_order_pay'],
+		'paid_public_create_order_does_not_trigger_cart_clear'    => (int) $guardrails['paid_public_create_order_does_not_trigger_cart_clear'],
+		'no_payment_zero_total_order'                             => (int) $guardrails['no_payment_zero_total_order'],
+		'no_payment_process_order_without_payment_exists'         => (int) $guardrails['no_payment_process_order_without_payment_exists'],
+		'no_payment_needs_payment_before_process'                 => (int) $no_payment_metrics['needs_payment_before_process'],
+		'no_payment_needs_payment_after_process'                  => (int) $no_payment_metrics['needs_payment_after_process'],
+		'no_payment_process_order_without_payment_completes_order' => (int) $guardrails['no_payment_process_order_without_payment_completes_order'],
+		'no_payment_process_order_without_payment_clears_cart'    => (int) $guardrails['no_payment_process_order_without_payment_clears_cart'],
+		'no_payment_order_awaiting_payment_before_process'        => $no_payment_metrics['order_awaiting_payment_before_process'],
+		'no_payment_order_awaiting_payment_after_process'         => $no_payment_metrics['order_awaiting_payment_after_process'],
+		'no_payment_process_order_without_payment_returns_success' => (int) $guardrails['no_payment_process_order_without_payment_returns_success'],
+		'order_pay_failed_order_resume_processes_payment'         => (int) $guardrails['order_pay_failed_order_resume_processes_payment'],
+		'order_pay_failed_order_resume_clears_cart'               => (int) $guardrails['order_pay_failed_order_resume_clears_cart'],
+		'order_pay_failed_order_resume_redirects_to_received'     => (int) $guardrails['order_pay_failed_order_resume_redirects_to_received'],
+		'order_pay_endpoint_sets_session_cookie'                  => (int) $guardrails['order_pay_endpoint_sets_session_cookie'],
+		'order_pay_cart_count_before_pay_action'                  => $order_pay_metrics['cart_count_before_pay_action'],
+		'order_pay_cart_count_after_pay_action'                   => $order_pay_metrics['cart_count_after_pay_action'],
 		'legacy_coupon_independence'                              => (int) $guardrails['legacy_coupon_independence'],
 		'guardrail_failure_count'                                 => count( $failed_guardrails ),
 	);
