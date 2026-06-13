@@ -149,3 +149,19 @@ The report separates timing evidence from shipping-rate call-count evidence and
 documents the cache invalidation controls covered by the current workload. See
 `docs/checkout-shipping-cache-matrix-report.md` for the planned matrix commands
 and current dependency blockers.
+
+## Checkout PR Evidence Matrix
+
+Use the checkout PR evidence generator when preparing the final reviewer-facing
+proof loop for WooCommerce issue #62659 and PR #65588:
+
+```bash
+node woocommerce/woocommerce/tools/checkout-pr-evidence-report.mjs
+```
+
+The generated matrix is intentionally dependency-aware. It lists the old PR shape
+failure run, ready commands for public `create_order()` side effects, sequential
+retry, true concurrent checkout, and core gateway rows, and keeps no-payment,
+order-pay, identity, coupon lifecycle, hook sequencing, and real Stripe rows
+blocked until their prerequisite issues land. See
+`docs/checkout-pr-evidence-matrix.md` for the full recipe.
