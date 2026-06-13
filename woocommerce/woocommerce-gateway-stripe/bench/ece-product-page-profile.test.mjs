@@ -578,6 +578,12 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /id: 'ece-grouped-wallet-layout'/);
   assert.match(traceSource, /id: 'fixture-health'/);
   assert.match(traceSource, /id: 'real-wallet-asset-health'/);
+  assert.match(traceSource, /build\/express-checkout\.js/);
+  assert.match(traceSource, /npm', \['run', 'build:webpack'\]/);
+  assert.match(traceSource, /profile_publishable_key/);
+  assert.match(traceSource, /stripe_publishable_key/);
+  assert.match(traceSource, /homeboy_stripe_ece_asset_src_or_empty_data_uri/);
+  assert.match(traceSource, /data:" \. \$mime_type \. ","/);
 });
 
 test('grouped wallet layout summary catches collapsed and wrapped grouped containers', () => {

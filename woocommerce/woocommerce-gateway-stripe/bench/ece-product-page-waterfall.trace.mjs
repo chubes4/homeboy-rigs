@@ -169,19 +169,50 @@ async function prepareStripePlugin(pathname) {
   const autoloadPath = path.join(pathname, 'vendor/autoload.php');
   if (existsSync(autoloadPath)) {
     event('fixture', 'stripe_plugin.prepare.skipped', { reason: 'autoload_exists' });
+  } else {
+    if (!existsSync(path.join(pathname, 'composer.json'))) {
+      throw new Error(`Missing Composer metadata in Stripe plugin checkout at ${pathname}; cannot prepare autoloader for WP Codebox activation.`);
+    }
+
+    event('fixture', 'stripe_plugin.prepare.start', { path: pathname });
+    await execFileAsync('composer', ['install', '--no-interaction', '--no-progress', '--no-dev', '--classmap-authoritative'], {
+      cwd: pathname,
+      maxBuffer: 1024 * 1024 * 20,
+    });
+    event('fixture', 'stripe_plugin.prepare.done', { path: pathname });
+  }
+
+  const expressCheckoutScript = path.join(pathname, 'build/express-checkout.js');
+  const expressCheckoutAsset = path.join(pathname, 'build/express-checkout.asset.php');
+  if (existsSync(expressCheckoutScript) && existsSync(expressCheckoutAsset)) {
+    event('fixture', 'stripe_plugin.asset_prepare.skipped', { reason: 'express_checkout_build_exists' });
     return;
   }
 
-  if (!existsSync(path.join(pathname, 'composer.json'))) {
-    throw new Error(`Missing Composer metadata in Stripe plugin checkout at ${pathname}; cannot prepare autoloader for WP Codebox activation.`);
+  if (!existsSync(path.join(pathname, 'package.json'))) {
+    throw new Error(`Missing package metadata in Stripe plugin checkout at ${pathname}; cannot build Express Checkout assets for WP Codebox browser proof.`);
   }
 
-  event('fixture', 'stripe_plugin.prepare.start', { path: pathname });
-  await execFileAsync('composer', ['install', '--no-interaction', '--no-progress', '--no-dev', '--classmap-authoritative'], {
+  const npmInstallArgs = existsSync(path.join(pathname, 'package-lock.json'))
+    ? ['ci', '--ignore-scripts', '--no-audit', '--no-fund']
+    : ['install', '--ignore-scripts', '--no-audit', '--no-fund'];
+  event('fixture', 'stripe_plugin.node_install.start', { path: pathname, command: `npm ${npmInstallArgs.join(' ')}` });
+  await execFileAsync('npm', npmInstallArgs, {
     cwd: pathname,
-    maxBuffer: 1024 * 1024 * 20,
+    maxBuffer: 1024 * 1024 * 50,
   });
-  event('fixture', 'stripe_plugin.prepare.done', { path: pathname });
+  event('fixture', 'stripe_plugin.node_install.done', { path: pathname });
+
+  event('fixture', 'stripe_plugin.asset_build.start', { path: pathname, command: 'npm run build:webpack' });
+  await execFileAsync('npm', ['run', 'build:webpack'], {
+    cwd: pathname,
+    maxBuffer: 1024 * 1024 * 50,
+  });
+  event('fixture', 'stripe_plugin.asset_build.done', { path: pathname });
+
+  if (!existsSync(expressCheckoutScript) || !existsSync(expressCheckoutAsset)) {
+    throw new Error(`Stripe plugin asset build completed but ${expressCheckoutScript} or ${expressCheckoutAsset} is still missing.`);
+  }
 }
 
 function numberOrNull(value) {
@@ -260,23 +291,34 @@ ${fixtureBootstrapSource}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
 $accepted_payment_methods = json_decode( '${JSON.stringify(requestedAcceptedPaymentMethods)}', true );
-
-$state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap(
-	array(
-		'ece_locations'            => $ece_locations,
-		'accepted_payment_methods' => $accepted_payment_methods,
-	)
+$fixture_args = array(
+	'ece_locations'            => $ece_locations,
+	'accepted_payment_methods' => $accepted_payment_methods,
 );
+$profile_publishable_key = base64_decode( '${encodedStripePublishableKey}', true );
+$profile_secret_key      = base64_decode( '${encodedStripeSecretKey}', true );
+if ( $profile_publishable_key ) {
+	$fixture_args['stripe_publishable_key'] = $profile_publishable_key;
+}
+if ( $profile_secret_key ) {
+	$fixture_args['stripe_secret_key'] = $profile_secret_key;
+}
 
-if ( ${profileOptions.realWalletCapable ? 'true' : 'false'} ) {
+$state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap( $fixture_args );
+
+if ( ${profileOptions.stripePublishableKey || profileOptions.stripeSecretKey ? 'true' : 'false'} ) {
 	$stripe_settings = get_option( 'woocommerce_stripe_settings', array() );
 	if ( ! is_array( $stripe_settings ) ) {
 		$stripe_settings = array();
 	}
 	$stripe_settings['enabled']              = 'yes';
 	$stripe_settings['testmode']             = 'yes';
-	$stripe_settings['test_publishable_key'] = base64_decode( '${encodedStripePublishableKey}', true );
-	$stripe_settings['test_secret_key']      = base64_decode( '${encodedStripeSecretKey}', true );
+	if ( $profile_publishable_key ) {
+		$stripe_settings['test_publishable_key'] = $profile_publishable_key;
+	}
+	if ( $profile_secret_key ) {
+		$stripe_settings['test_secret_key'] = $profile_secret_key;
+	}
 	update_option( 'woocommerce_stripe_settings', $stripe_settings );
 }
 
@@ -317,6 +359,37 @@ window.wc.wcSettings = window.wc.wcSettings || {
 	},
 	0
 );
+add_filter(
+	"script_loader_src",
+	function ( $src ) {
+		return homeboy_stripe_ece_asset_src_or_empty_data_uri( $src, "application/javascript" );
+	},
+	999
+);
+add_filter(
+	"style_loader_src",
+	function ( $src ) {
+		return homeboy_stripe_ece_asset_src_or_empty_data_uri( $src, "text/css" );
+	},
+	999
+);
+function homeboy_stripe_ece_asset_src_or_empty_data_uri( $src, $mime_type ) {
+	$path = wp_parse_url( $src, PHP_URL_PATH );
+	if ( ! is_string( $path ) || ! str_contains( $path, "/wp-content/plugins/" ) ) {
+		return $src;
+	}
+
+	if ( ! preg_match( "#/wp-content/plugins/(woocommerce|woocommerce-gateway-stripe)/#", $path ) ) {
+		return $src;
+	}
+
+	$file = ABSPATH . ltrim( $path, "/" );
+	if ( file_exists( $file ) ) {
+		return $src;
+	}
+
+	return "data:" . $mime_type . ",";
+}
 '
 );
 
