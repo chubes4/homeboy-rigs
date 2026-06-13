@@ -25,6 +25,7 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
 - https://github.com/chubes4/homeboy-rigs/issues/253
 - https://github.com/chubes4/homeboy-rigs/issues/255
+- https://github.com/chubes4/homeboy-rigs/issues/271
 
 ## Install
 
@@ -122,7 +123,7 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   `order_awaiting_payment` mutation, public create-order cart clearing,
   pending/failed retries, completed-order safety, changed-cart retries,
   `template_redirect` cart clearing after paid extension-created orders, and
-  legacy coupon independence.
+  limited-coupon hold/release lifecycle behavior.
 - `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
   first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,

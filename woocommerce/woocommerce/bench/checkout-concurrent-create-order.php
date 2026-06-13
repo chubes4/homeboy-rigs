@@ -9,6 +9,7 @@
  * - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
  * - https://github.com/chubes4/homeboy-rigs/issues/253
  * - https://github.com/chubes4/homeboy-rigs/issues/254
+ * - https://github.com/chubes4/homeboy-rigs/issues/271
  */
 return function (): array {
 	if ( ! class_exists( 'WooCommerce' ) ) {
@@ -52,6 +53,7 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929',
 		'https://github.com/chubes4/homeboy-rigs/issues/253',
 		'https://github.com/chubes4/homeboy-rigs/issues/254',
+		'https://github.com/chubes4/homeboy-rigs/issues/271',
 	);
 	$request_count = max( 2, min( 8, absint( getenv( 'WC_CONCURRENT_CHECKOUT_REQUESTS' ) ?: 2 ) ) );
 	$iterations    = max( 1, min( 10, absint( getenv( 'WC_CONCURRENT_CHECKOUT_ITERATIONS' ) ?: 3 ) ) );
@@ -139,6 +141,9 @@ return function (): array {
 
 	$set_cart = static function ( int $quantity = 1 ) use ( $product, $run_id ): array {
 		WC()->cart->empty_cart();
+		if ( method_exists( WC()->cart, 'remove_coupons' ) ) {
+			WC()->cart->remove_coupons();
+		}
 		if ( WC()->session ) {
 			WC()->session->__unset( 'order_awaiting_payment' );
 		}
@@ -207,6 +212,49 @@ return function (): array {
 		}
 
 		return $order_id;
+	};
+
+	$make_limited_coupon = static function ( string $suffix, int $usage_limit = 2 ) use ( $run_id ): WC_Coupon {
+		$coupon = new WC_Coupon();
+		$coupon->set_code( 'homeboy-lifecycle-' . $suffix . '-' . strtolower( wp_generate_password( 6, false ) ) );
+		$coupon->set_discount_type( 'fixed_cart' );
+		$coupon->set_amount( 1 );
+		$coupon->set_usage_limit( $usage_limit );
+		$coupon->set_description( 'Homeboy coupon lifecycle guardrail ' . $run_id );
+		$coupon->save();
+
+		return $coupon;
+	};
+
+	$coupon_snapshot = static function ( WC_Coupon $coupon, int $order_id = 0 ) use ( $wpdb ): array {
+		$coupon = new WC_Coupon( $coupon->get_id() );
+		$tentative_hold_keys = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT meta_key FROM $wpdb->postmeta WHERE post_id = %d AND meta_key LIKE %s AND meta_key > %s ORDER BY meta_id ASC",
+				$coupon->get_id(),
+				$wpdb->esc_like( '_coupon_held_' ) . '%',
+				'_coupon_held_' . time()
+			)
+		);
+		$order = $order_id ? wc_get_order( $order_id ) : null;
+		$held_keys = $order instanceof WC_Order ? (array) $order->get_meta( '_coupon_held_keys' ) : array();
+
+		return array(
+			'coupon_id'                          => $coupon->get_id(),
+			'coupon_code'                        => $coupon->get_code(),
+			'usage_limit'                        => $coupon->get_usage_limit(),
+			'usage_count'                        => $coupon->get_usage_count(),
+			'tentative_hold_count'               => count( $tentative_hold_keys ),
+			'tentative_hold_keys'                => array_values( $tentative_hold_keys ),
+			'reserved_count'                     => $coupon->get_usage_count() + count( $tentative_hold_keys ),
+			'order_id'                           => $order_id,
+			'order_status'                       => $order instanceof WC_Order ? $order->get_status() : '',
+			'order_coupon_line_count'            => $order instanceof WC_Order ? count( $order->get_coupon_codes() ) : 0,
+			'order_coupon_codes'                 => $order instanceof WC_Order ? $order->get_coupon_codes() : array(),
+			'order_recorded_coupon_usage_counts' => $order instanceof WC_Order ? (bool) $order->get_data_store()->get_recorded_coupon_usage_counts( $order ) : false,
+			'order_held_key_count'               => count( $held_keys ),
+			'order_held_keys'                    => $held_keys,
+		);
 	};
 
 	$run_template_redirect_clear = static function ( WC_Order $order, bool $with_session_reference = true ): array {
@@ -579,29 +627,140 @@ return function (): array {
 	$template_redirect_pending = $run_template_redirect_clear( $pending_clear_order, true );
 
 	$coupon_metrics = array(
-		'covered'                         => false,
-		'public_create_order_sets_session' => null,
-		'public_create_order_clears_cart'  => null,
-		'order_coupon_line_count'          => null,
+		'covered'   => false,
+		'scenarios' => array(),
+		'metrics'   => array(),
 	);
 	if ( class_exists( 'WC_Coupon' ) ) {
+		$coupon_metrics['covered'] = true;
+
 		$set_cart( 1 );
-		$coupon_code = 'homeboy-legacy-' . strtolower( wp_generate_password( 6, false ) );
-		$coupon      = new WC_Coupon();
-		$coupon->set_code( $coupon_code );
-		$coupon->set_discount_type( 'fixed_cart' );
-		$coupon->set_amount( 1 );
-		$coupon->save();
-		WC()->cart->apply_coupon( $coupon_code );
+		$same_cart_coupon = $make_limited_coupon( 'same-cart', 2 );
+		WC()->cart->apply_coupon( $same_cart_coupon->get_code() );
 		WC()->cart->calculate_totals();
-		$before_coupon_session = $session_order_awaiting_payment();
-		$coupon_order_id       = $create_order( $data );
-		$coupon_order          = wc_get_order( $coupon_order_id );
-		$coupon_metrics        = array(
-			'covered'                         => true,
-			'public_create_order_sets_session' => $session_order_awaiting_payment() !== $before_coupon_session,
-			'public_create_order_clears_cart'  => 0 === WC()->cart->get_cart_contents_count(),
-			'order_coupon_line_count'          => count( $coupon_order->get_coupon_codes() ),
+		$same_cart_before = $coupon_snapshot( $same_cart_coupon );
+		$same_cart_first_order_id = $create_order( $data );
+		$same_cart_after_first = $coupon_snapshot( $same_cart_coupon, $same_cart_first_order_id );
+		WC()->session->set( 'order_awaiting_payment', $same_cart_first_order_id );
+		$same_cart_retry_order_id = $create_order( $data );
+		$same_cart_after_retry = $coupon_snapshot( $same_cart_coupon, $same_cart_retry_order_id );
+		$coupon_metrics['scenarios']['same_cart_retry'] = array(
+			'first_order_id' => $same_cart_first_order_id,
+			'retry_order_id' => $same_cart_retry_order_id,
+			'before'         => $same_cart_before,
+			'after_first'    => $same_cart_after_first,
+			'after_retry'    => $same_cart_after_retry,
+		);
+
+		$set_cart( 1 );
+		$changed_cart_coupon = $make_limited_coupon( 'changed-cart', 2 );
+		WC()->cart->apply_coupon( $changed_cart_coupon->get_code() );
+		WC()->cart->calculate_totals();
+		$changed_coupon_first_order_id = $create_order( $data );
+		$changed_coupon_after_first = $coupon_snapshot( $changed_cart_coupon, $changed_coupon_first_order_id );
+		WC()->session->set( 'order_awaiting_payment', $changed_coupon_first_order_id );
+		$changed_coupon_original_hash = wc_get_order( $changed_coupon_first_order_id )->get_cart_hash();
+		$changed_coupon_cart = $set_cart( 2 );
+		WC()->cart->apply_coupon( $changed_cart_coupon->get_code() );
+		WC()->cart->calculate_totals();
+		WC()->session->set( 'order_awaiting_payment', $changed_coupon_first_order_id );
+		$changed_coupon_retry_order_id = $create_order( $data );
+		$changed_coupon_retry_order = wc_get_order( $changed_coupon_retry_order_id );
+		$changed_coupon_after_retry = $coupon_snapshot( $changed_cart_coupon, $changed_coupon_retry_order_id );
+		$coupon_metrics['scenarios']['changed_cart_retry'] = array(
+			'first_order_id'       => $changed_coupon_first_order_id,
+			'retry_order_id'       => $changed_coupon_retry_order_id,
+			'original_cart_hash'   => $changed_coupon_original_hash,
+			'retry_cart_hash'      => $changed_coupon_retry_order ? $changed_coupon_retry_order->get_cart_hash() : '',
+			'expected_cart_hash'   => $changed_coupon_cart['cart_hash'],
+			'after_first'          => $changed_coupon_after_first,
+			'after_retry'          => $changed_coupon_after_retry,
+		);
+
+		$set_cart( 1 );
+		$failed_coupon = $make_limited_coupon( 'failed-resume', 2 );
+		WC()->cart->apply_coupon( $failed_coupon->get_code() );
+		WC()->cart->calculate_totals();
+		$failed_coupon_order_id = $create_order( $data );
+		$failed_coupon_order = wc_get_order( $failed_coupon_order_id );
+		$failed_coupon_after_first = $coupon_snapshot( $failed_coupon, $failed_coupon_order_id );
+		$failed_coupon_order->set_status( 'failed' );
+		$failed_coupon_order->save();
+		$failed_coupon_after_failed_status = $coupon_snapshot( $failed_coupon, $failed_coupon_order_id );
+		WC()->session->set( 'order_awaiting_payment', $failed_coupon_order_id );
+		$failed_coupon_retry_order_id = $create_order( $data );
+		$failed_coupon_after_retry = $coupon_snapshot( $failed_coupon, $failed_coupon_retry_order_id );
+		$coupon_metrics['scenarios']['failed_order_resume'] = array(
+			'failed_order_id'     => $failed_coupon_order_id,
+			'retry_order_id'      => $failed_coupon_retry_order_id,
+			'after_first'         => $failed_coupon_after_first,
+			'after_failed_status' => $failed_coupon_after_failed_status,
+			'after_retry'         => $failed_coupon_after_retry,
+		);
+
+		$set_cart( 1 );
+		$completed_coupon = $make_limited_coupon( 'completed-safety', 2 );
+		WC()->cart->apply_coupon( $completed_coupon->get_code() );
+		WC()->cart->calculate_totals();
+		$completed_coupon_order_id = $create_order( $data );
+		$completed_coupon_order = wc_get_order( $completed_coupon_order_id );
+		$completed_coupon_after_first = $coupon_snapshot( $completed_coupon, $completed_coupon_order_id );
+		$completed_coupon_order->set_status( 'completed' );
+		$completed_coupon_order->save();
+		WC()->session->set( 'order_awaiting_payment', $completed_coupon_order_id );
+		$completed_coupon_retry_order_id = $create_order( $data );
+		$completed_coupon_after_retry = $coupon_snapshot( $completed_coupon, $completed_coupon_retry_order_id );
+		$completed_coupon_after_original = $coupon_snapshot( $completed_coupon, $completed_coupon_order_id );
+		$coupon_metrics['scenarios']['completed_order_safety'] = array(
+			'completed_order_id'    => $completed_coupon_order_id,
+			'retry_order_id'        => $completed_coupon_retry_order_id,
+			'after_first'           => $completed_coupon_after_first,
+			'after_retry'           => $completed_coupon_after_retry,
+			'after_original_status' => $completed_coupon_after_original,
+		);
+
+		$set_cart( 1 );
+		$public_coupon = $make_limited_coupon( 'public-independent', 2 );
+		WC()->cart->apply_coupon( $public_coupon->get_code() );
+		WC()->cart->calculate_totals();
+		$public_first_order_id = $create_order( $data );
+		$public_after_first = $coupon_snapshot( $public_coupon, $public_first_order_id );
+		$set_cart( 1 );
+		WC()->cart->apply_coupon( $public_coupon->get_code() );
+		WC()->cart->calculate_totals();
+		if ( WC()->session ) {
+			WC()->session->__unset( 'order_awaiting_payment' );
+		}
+		$public_second_order_id = $create_order( $data );
+		$public_after_second = $coupon_snapshot( $public_coupon, $public_second_order_id );
+		$coupon_metrics['scenarios']['public_create_order_independent'] = array(
+			'first_order_id'  => $public_first_order_id,
+			'second_order_id' => $public_second_order_id,
+			'after_first'     => $public_after_first,
+			'after_second'    => $public_after_second,
+		);
+
+		$coupon_metrics['metrics'] = array(
+			'limited_first_order_reserved_count'             => $same_cart_after_first['reserved_count'],
+			'limited_first_order_usage_count'                => $same_cart_after_first['usage_count'],
+			'limited_first_order_tentative_hold_count'       => $same_cart_after_first['tentative_hold_count'],
+			'same_cart_retry_reserved_count'                 => $same_cart_after_retry['reserved_count'],
+			'changed_cart_retry_reserved_count'              => $changed_coupon_after_retry['reserved_count'],
+			'failed_order_resume_reserved_count'             => $failed_coupon_after_retry['reserved_count'],
+			'completed_order_retry_reserved_count'           => $completed_coupon_after_retry['reserved_count'],
+			'public_independent_reserved_count'              => $public_after_second['reserved_count'],
+			'public_independent_order_coupon_line_count_sum' => $public_after_first['order_coupon_line_count'] + $public_after_second['order_coupon_line_count'],
+		);
+
+		$coupon_metrics['guardrails'] = array(
+			'limited_coupon_reserved_on_first_order'               => 1 === $same_cart_after_first['reserved_count'] && $same_cart_after_first['order_coupon_line_count'] > 0,
+			'same_cart_retry_reuses_order_without_double_reserving' => $same_cart_first_order_id === $same_cart_retry_order_id && $same_cart_after_retry['reserved_count'] === $same_cart_after_first['reserved_count'],
+			'changed_cart_retry_creates_new_coupon_order'           => $changed_coupon_first_order_id !== $changed_coupon_retry_order_id && $changed_coupon_after_retry['reserved_count'] === $changed_coupon_after_first['reserved_count'] + 1,
+			'changed_cart_retry_uses_changed_coupon_cart_hash'      => $changed_coupon_retry_order && $changed_coupon_retry_order->get_cart_hash() === $changed_coupon_cart['cart_hash'] && $changed_coupon_original_hash !== $changed_coupon_cart['cart_hash'],
+			'failed_order_resume_restores_coupon_reservation'       => $failed_coupon_order_id === $failed_coupon_retry_order_id && $failed_coupon_after_failed_status['reserved_count'] <= $failed_coupon_after_first['reserved_count'] && $failed_coupon_after_retry['reserved_count'] === 1,
+			'completed_coupon_order_is_not_reused'                  => $completed_coupon_order_id !== $completed_coupon_retry_order_id,
+			'completed_coupon_order_status_is_preserved'            => 'completed' === $completed_coupon_after_original['order_status'],
+			'public_create_order_independent_coupon_orders'         => $public_first_order_id !== $public_second_order_id && 2 === $public_after_second['reserved_count'] && 2 === $coupon_metrics['metrics']['public_independent_order_coupon_line_count_sum'],
 		);
 	}
 
@@ -618,8 +777,11 @@ return function (): array {
 		'template_redirect_clears_paid_completed_extension_order' => $template_redirect_completed['cleared'],
 		'template_redirect_does_not_clear_without_payment_signal' => ! $template_redirect_completed_without_session['cleared'],
 		'template_redirect_does_not_clear_pending_retry_order'    => ! $template_redirect_pending['cleared'],
-		'legacy_coupon_independence'                              => ! $coupon_metrics['covered'] || ( ! $coupon_metrics['public_create_order_sets_session'] && ! $coupon_metrics['public_create_order_clears_cart'] && $coupon_metrics['order_coupon_line_count'] > 0 ),
+		'coupon_lifecycle_guardrails'                             => ! $coupon_metrics['covered'] || ! in_array( false, $coupon_metrics['guardrails'], true ),
 	);
+	if ( $coupon_metrics['covered'] ) {
+		$guardrails = array_merge( $guardrails, $coupon_metrics['guardrails'] );
+	}
 
 	$failed_guardrails = array_keys(
 		array_filter(
@@ -791,7 +953,7 @@ return function (): array {
 			'completed_without_signal'  => $template_redirect_completed_without_session,
 			'pending_retry_order'       => $template_redirect_pending,
 		),
-		'legacy_coupon'     => $coupon_metrics,
+		'coupon_lifecycle'  => $coupon_metrics,
 		'guardrails'        => $guardrails,
 		'failed_guardrails' => $failed_guardrails,
 		'concurrent_checkout' => array(
@@ -859,9 +1021,17 @@ return function (): array {
 		'template_redirect_clears_paid_completed_extension_order' => (int) $guardrails['template_redirect_clears_paid_completed_extension_order'],
 		'template_redirect_does_not_clear_without_payment_signal' => (int) $guardrails['template_redirect_does_not_clear_without_payment_signal'],
 		'template_redirect_does_not_clear_pending_retry_order'    => (int) $guardrails['template_redirect_does_not_clear_pending_retry_order'],
-		'legacy_coupon_independence'                              => (int) $guardrails['legacy_coupon_independence'],
+		'coupon_lifecycle_guardrails'                             => (int) $guardrails['coupon_lifecycle_guardrails'],
 		'guardrail_failure_count'                                 => count( $failed_guardrails ),
 	);
+	foreach ( $coupon_metrics['metrics'] as $metric_name => $metric_value ) {
+		$summary[ 'coupon_lifecycle_' . $metric_name ] = $metric_value;
+	}
+	if ( $coupon_metrics['covered'] ) {
+		foreach ( $coupon_metrics['guardrails'] as $guardrail_name => $passed ) {
+			$summary[ 'coupon_' . $guardrail_name ] = (int) $passed;
+		}
+	}
 	foreach ( $concurrent_summary as $metric_name => $metric_value ) {
 		$summary[ 'concurrent_' . $metric_name ] = $metric_value;
 	}
