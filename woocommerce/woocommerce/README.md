@@ -27,6 +27,8 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 - https://github.com/chubes4/homeboy-rigs/issues/255
 - https://github.com/chubes4/homeboy-rigs/issues/268
 - https://github.com/chubes4/homeboy-rigs/issues/269
+- https://github.com/chubes4/homeboy-rigs/issues/270
+- https://github.com/chubes4/homeboy-rigs/issues/271
 
 ## Install
 
@@ -125,8 +127,8 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   pending/failed retries, completed-order safety, changed-cart retries,
   `template_redirect` cart clearing after paid extension-created orders,
   customer/session identity isolation, zero-total no-payment processing, failed
-  `order-pay` retry/resume, and legacy coupon independence. It also records
-  checkout hook sequencing by
+  `order-pay` retry/resume, legacy coupon independence, and limited-coupon
+  hold/release lifecycle behavior. It also records checkout hook sequencing by
   scenario for `woocommerce_checkout_create_order`,
   `woocommerce_checkout_order_created`,
   `woocommerce_checkout_update_order_meta`,
@@ -134,7 +136,8 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   payment-result hooks so WooCommerce issue #62659 / PR #65588 revisions can be
   checked against Jorge's extension-compatibility review and Homeboy Rigs issue
   #270. It links evidence to WooCommerce issue #62659, WooCommerce PR #65588,
-  Jorge's PR review, and Homeboy Rigs issues #253, #254, #268, #269, and #270.
+  Jorge's PR review, and Homeboy Rigs issues #253, #254, #268, #269, #270, and
+  #271.
 - `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
   first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,
@@ -208,9 +211,10 @@ The first slice reports:
   `guest_same_cart_retry_reused`, `different_billing_email_reused`,
   `different_customer_id_reused`, `session_user_switch_reused`, and
   `hook_observed_event_count`, per-hook
-  `hook_count_*` values, scenario-specific resume/order-processed counts, and
-  `guardrail_failure_count` for the checkout duplicate-order side-effect,
-  identity, and hook sequencing guardrails.
+  `hook_count_*` values, scenario-specific resume/order-processed counts,
+  `coupon_lifecycle_*`, `coupon_*`, and `guardrail_failure_count` for the
+  checkout duplicate-order side-effect, identity, hook sequencing, and coupon
+  lifecycle guardrails.
 - `total_churn_shipping_p50_ms`, `total_churn_to_warm_ratio`, and
   `total_churn_rate_calculation_calls` for package subtotal/total-only churn.
 - `rehash_shipping_p50_ms` and `rehash_to_warm_ratio` for address/hash changes.
