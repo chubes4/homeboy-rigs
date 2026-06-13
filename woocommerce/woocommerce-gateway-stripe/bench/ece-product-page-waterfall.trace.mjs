@@ -561,6 +561,15 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     window.__homeboyStripeEceFanoutProofInstalled = true;
     root.setAttribute('data-homeboy-wallet-fanout-proof', '1');
 
+    const style = document.createElement('style');
+    style.id = 'homeboy-stripe-ece-fanout-proof-style';
+    style.textContent = [
+      '#wc-stripe-express-checkout-element { display: block !important; width: 100% !important; }',
+      '#wc-stripe-express-checkout-element-wallets-link { display: block !important; width: 100% !important; }',
+      '#wc-stripe-express-checkout-element-wallets-link > div { display: block !important; width: 100% !important; margin: 0 0 8px; }',
+    ].join('\n');
+    document.head.appendChild(style);
+
     let grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
     if (!grouped) {
       grouped = document.createElement('div');

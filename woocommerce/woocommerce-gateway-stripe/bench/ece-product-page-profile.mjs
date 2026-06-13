@@ -55,6 +55,8 @@ const PROFILE_METADATA = {
   },
 };
 
+const SYNTHETIC_FANOUT_PUBLISHABLE_KEY = 'pk_test_homeboy_ece_wallet_fanout';
+
 function profileMetadata(profile) {
   return PROFILE_METADATA[profile] || PROFILE_METADATA[DEFAULT_PROFILE];
 }
@@ -89,6 +91,16 @@ export function previewPublicUrl() {
   return setting('woocommerce_stripe_ece_preview_public_url', process.env.HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL || process.env.HOMEBOY_PREVIEW_PUBLIC_URL || '');
 }
 
+function requireSyntheticFanoutProof() {
+  return ['1', 'true', 'yes'].includes(
+    String(setting('woocommerce_stripe_ece_require_fanout_proof', process.env.HOMEBOY_WC_STRIPE_REQUIRE_FANOUT_PROOF || '')).toLowerCase()
+  );
+}
+
+function syntheticFanoutPublishableKey() {
+  return process.env.HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY || SYNTHETIC_FANOUT_PUBLISHABLE_KEY;
+}
+
 function validateHttpsPublicUrl(value) {
   try {
     const url = new URL(value);
@@ -118,6 +130,8 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
   const metadata = profileMetadata(profile);
 
   if (profile === WEBPERF_DESKTOP_LOAD_PROFILE) {
+    const fanoutProof = requireSyntheticFanoutProof();
+
     return {
       profile,
       profileLabel: metadata.label,
@@ -126,7 +140,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       throttleProfile: null,
       realWalletCapable: false,
       syntheticOnly: true,
-      stripePublishableKey: null,
+      stripePublishableKey: fanoutProof ? syntheticFanoutPublishableKey() : null,
       stripeSecretKey: null,
       runtimePreview: null,
       recipeRunArgs: [],
@@ -137,6 +151,8 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
   }
 
   if (profile === WEBPERF_DESKTOP_SLOW_4G_PROFILE) {
+    const fanoutProof = requireSyntheticFanoutProof();
+
     return {
       profile,
       profileLabel: metadata.label,
@@ -145,7 +161,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       throttleProfile: 'low-end-mobile-slow-4g',
       realWalletCapable: false,
       syntheticOnly: true,
-      stripePublishableKey: null,
+      stripePublishableKey: fanoutProof ? syntheticFanoutPublishableKey() : null,
       stripeSecretKey: null,
       runtimePreview: null,
       recipeRunArgs: [],
