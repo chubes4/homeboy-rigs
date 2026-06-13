@@ -4,14 +4,16 @@
   "components": {
     "woocommerce": {
       "path": "~/Developer/woocommerce/plugins/woocommerce",
-      "checkout_root": "~/Developer/woocommerce",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
+          "validation_dependencies": [
+            "~/Developer/woocommerce-gateway-stripe"
+          ],
           "bench_env": {
             "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "core_bacs,core_cheque,core_cod,plugin_stripe,plugin_paypal_payments,plugin_woopayments",
-            "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH": "${components.woocommerce-gateway-stripe.path}",
+            "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH": "~/Developer/woocommerce-gateway-stripe",
             "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH": "",
             "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH": "",
             "WC_SHIPPING_CACHE_CART_ITEMS": "40",
@@ -41,29 +43,13 @@
             "WC_ADMIN_DASHBOARD_PRODUCTS": "500",
             "WC_ADMIN_DASHBOARD_TERMS": "20",
             "WC_ADMIN_DASHBOARD_PHYSICAL_PERCENT": "100"
-          },
-          "wp_codebox_extra_plugins": [
-            {
-              "source": "${components.woocommerce-gateway-stripe.path}",
-              "slug": "woocommerce-gateway-stripe",
-              "pluginFile": "woocommerce-gateway-stripe/woocommerce-gateway-stripe.php",
-              "activate": false
-            }
-          ]
+          }
         }
       }
     },
     "woocommerce-gateway-stripe": {
       "path": "~/Developer/woocommerce-gateway-stripe",
       "branch": "develop"
-    },
-    "woocommerce-paypal-payments": {
-      "path": "",
-      "branch": "trunk"
-    },
-    "woocommerce-payments": {
-      "path": "",
-      "branch": "trunk"
     }
   },
   "resources": {
