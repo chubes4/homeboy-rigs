@@ -49,7 +49,7 @@
     {
       "id": "stripe_dependency_provider",
       "title": "Stripe dependency provider fix",
-      "url": "https://github.com/Extra-Chill/homeboy-extensions/issues/1321",
+      "url": "https://github.com/Extra-Chill/homeboy-extensions/issues/1336",
       "status": "open"
     }
   ],
@@ -146,11 +146,11 @@
       "id": "real_stripe",
       "label": "Real Stripe gateway profile",
       "status": "blocked",
-      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/272", "https://github.com/Extra-Chill/homeboy-extensions/issues/1321"],
+      "blocked_by": ["https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
       "scenario": "checkout-gateway-compatibility-matrix",
       "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_stripe\"}'",
-      "old_fix_expected": "Pending real Stripe stabilization; skip output is not failure evidence. Reuse the existing WooCommerce Stripe ECE/product-page mounting abstractions instead of adding checkout-only Stripe setup.",
-      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; skip with explicit blocker is acceptable until then."
+      "old_fix_expected": "Pending real Stripe dependency-provider stabilization; structured not_configured/build_failed/entrypoint_missing output is blocker evidence, not checkout pass/fail evidence. Reuse the existing WooCommerce Stripe ECE/product-page mounting abstractions instead of adding checkout-only Stripe setup.",
+      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; structured build_failed or explicit skip with blocker #1336 is acceptable until then."
     }
   ]
 }

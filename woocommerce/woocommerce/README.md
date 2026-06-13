@@ -43,20 +43,24 @@ The rig mounts the selected WooCommerce checkout into the disposable WP Codebox
 WordPress runtime. Pass `homeboy bench --path /absolute/path/to/plugins/woocommerce`
 when validating a specific WooCommerce worktree.
 
-The checkout gateway compatibility matrix declares WooCommerce Stripe Gateway as
-a first-class WordPress validation dependency by slug:
+The checkout gateway compatibility matrix treats WooCommerce Stripe Gateway as a
+first-class WordPress validation dependency when the selected bench run provides
+that dependency by slug:
 
 ```json
 "validation_dependencies": ["woocommerce-gateway-stripe"]
 ```
 
-Homeboy Extensions resolves that dependency through the runner dependency
-contract, prepares a runnable artifact when the source checkout needs Composer
-materialization, mounts the prepared plugin into WP Codebox, and attaches
-`prepared_dependencies` provenance to the final bench results. The workload
-artifact reports the runtime side of that same contract: configured dependency,
-source path when explicitly provided, git revision when visible, prepared artifact
-path when exported, mounted plugin directory, plugin version, and status.
+Homeboy Extensions is expected to resolve that dependency through the runner
+dependency contract, prepare a runnable artifact when the source checkout needs
+Composer materialization, mount the prepared plugin into WP Codebox, and attach
+`prepared_dependencies` provenance to the final bench results. Until
+https://github.com/Extra-Chill/homeboy-extensions/issues/1336 lands, the rig keeps
+Stripe dependency setup opt-in so core gateway profiles remain runnable without
+Stripe materialization. The workload artifact reports the runtime side of that
+same contract: configured dependency, source path when explicitly provided, git
+revision when visible, prepared artifact path when exported, mounted plugin
+directory, plugin version, activation status, and skip/build failure status.
 
 PayPal Payments and WooPayments stay optional. Mount them for focused coverage by
 adding them to `validation_dependencies` or by overriding `wp_codebox_extra_plugins`
@@ -71,8 +75,9 @@ homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatib
 Unavailable gateway plugin profiles skip explicitly as `not_configured` when no
 path is configured, `entrypoint_missing` when a configured path did not mount the
 expected plugin file, `build_failed` when a prepared artifact path is configured
-but unavailable, or `activation_failed` when WordPress rejects activation or the
-gateway does not register after activation.
+but unavailable, `activation_failed` when WordPress rejects activation, or
+`gateway_missing` when the plugin activates but does not register the expected
+gateway.
 Homeboy core Lab offload provisioning gaps are tracked in:
 
 - https://github.com/Extra-Chill/homeboy/issues/3474
