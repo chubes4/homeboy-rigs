@@ -1324,7 +1324,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const observedSeparateWalletFanout = walletFanoutEvidence.observed_wallet_fanout;
   const observedGroupedWalletFanout = metrics.ece_render_wallets_link_present;
   const observedEceConstruction = metrics.ece_instance_count > 0 && metrics.ece_mount_count > 0;
-  const fanoutProofPass = !requireFanoutProof || (walletFanoutEvidence.valid_fanout_proof && groupedWalletLayout.dimensionsPass);
+  const groupedLayoutRequired = requireFanoutProof && metrics.ece_instance_count <= 1;
+  const groupedLayoutPass = !groupedLayoutRequired || groupedWalletLayout.dimensionsPass;
+  const fanoutProofPass = !requireFanoutProof || (walletFanoutEvidence.valid_fanout_proof && groupedLayoutPass);
   const browserProbeCompleted = responses.length > 0 && existsSync(networkPath) && existsSync(performancePath);
   const pass = fixtureHealth.ok && realWalletAssetHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass && fanoutProofPass;
   const summaryText = pass
@@ -1373,14 +1375,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     id: 'ece-wallet-fanout-proof',
     status: fanoutProofPass ? 'pass' : 'fail',
     message: requireFanoutProof
-      ? `Classification=${walletFanoutEvidence.classification}; requested wallet fan-out=${requestedWalletFanout}; observed ECE construction=${observedEceConstruction}; observed grouped wallets-link=${observedGroupedWalletFanout}; observed apple/google/link=${observedSeparateWalletFanout}; grouped layout valid=${groupedWalletLayout.dimensionsPass}; reason codes=${walletFanoutEvidence.reason_codes.join(',') || 'none'}.`
+      ? `Classification=${walletFanoutEvidence.classification}; requested wallet fan-out=${requestedWalletFanout}; observed ECE construction=${observedEceConstruction}; observed grouped wallets-link=${observedGroupedWalletFanout}; observed apple/google/link=${observedSeparateWalletFanout}; grouped layout required=${groupedLayoutRequired}; grouped layout valid=${groupedWalletLayout.dimensionsPass}; reason codes=${walletFanoutEvidence.reason_codes.join(',') || 'none'}.`
       : 'Wallet fan-out proof not required for this profile.',
   });
   trace.assertion({
     id: 'ece-grouped-wallet-layout',
-    status: !requireFanoutProof || groupedWalletLayout.dimensionsPass ? 'pass' : 'fail',
+    status: groupedLayoutPass ? 'pass' : 'fail',
     message: requireFanoutProof
-      ? `Grouped wallets-link rect width=${groupedWalletLayout.groupedWidth}, height=${groupedWalletLayout.groupedHeight}, max wallet height=${groupedWalletLayout.maxWalletHeight}, single-row height limit=${groupedWalletLayout.singleRowHeightLimit}.`
+      ? `Grouped layout required=${groupedLayoutRequired}; wallets-link rect width=${groupedWalletLayout.groupedWidth}, height=${groupedWalletLayout.groupedHeight}, max wallet height=${groupedWalletLayout.maxWalletHeight}, single-row height limit=${groupedWalletLayout.singleRowHeightLimit}.`
       : 'Grouped wallet layout proof not required for this profile.',
   });
   trace.assertion({
