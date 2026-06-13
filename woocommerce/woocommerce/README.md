@@ -46,7 +46,8 @@ This path mirrors the WooCommerce monorepo layout after cloning
 https://github.com/woocommerce/woocommerce into `~/Developer/woocommerce`.
 
 The checkout gateway compatibility matrix also mounts the local WooCommerce
-Stripe Gateway checkout as a first-class WP Codebox extra plugin when available:
+Stripe Gateway checkout as a first-class WordPress validation dependency, which
+the WP Codebox bench runner mounts as an extra plugin when available:
 
 ```text
 ~/Developer/woocommerce-gateway-stripe
