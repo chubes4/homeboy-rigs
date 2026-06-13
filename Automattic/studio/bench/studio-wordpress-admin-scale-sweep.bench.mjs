@@ -366,7 +366,7 @@ export default async function studioWordPressAdminScaleSweepBench() {
   } finally {
     if (profileExtension?.cleanupWordPressAdminScaleSweep || profileExtension?.cleanupWordPressPageProfile) {
       const cleanup = profileExtension.cleanupWordPressAdminScaleSweep || profileExtension.cleanupWordPressPageProfile;
-      await cleanup({ sitePath, setupProfile, manifest, pageSpecs: manifest.pages, pageSpec: manifest.pages[0] });
+      await cleanup({ sitePath, setupProfile, manifest, pageSpecs: manifest.pages, pageSpec: manifest.pages[0], runCli });
     }
     if (profiler) {
       profiler.uninstallWordPressRequestProfiler?.(sitePath);

@@ -437,10 +437,15 @@ test('wordpressPageProfilerSpec supports selector readiness and resource include
   );
 });
 
-test('Data Machine pipelines scale profile writes configurable seed loader and artifact', async () => {
+test('Data Machine pipelines scale profile delegates setup and cleanup to upstream fixture command', async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'dm-pipelines-scale-'));
   const sitePath = path.join(tempDir, 'site');
   const artifactDir = path.join(tempDir, 'artifacts');
+  const calls = [];
+  const runCli = async (args, options) => {
+    calls.push({ args, options });
+    return { stdout: JSON.stringify({ ok: true }), stderr: '', elapsedMs: 5 };
+  };
 
   try {
     const setupProfile = await withEnv(
@@ -451,7 +456,7 @@ test('Data Machine pipelines scale profile writes configurable seed loader and a
         HOMEBOY_DATAMACHINE_CONFIG_PAYLOAD_SIZE: '16',
         HOMEBOY_DATAMACHINE_SCALE_SEED_SLUG: 'test-scale',
       },
-      () => setupDatamachinePipelinesScaleProfile({ sitePath, artifactDir })
+      () => setupDatamachinePipelinesScaleProfile({ sitePath, artifactDir, runCli })
     );
 
     assert.equal(setupProfile.pipelineCount, 2);
@@ -459,22 +464,49 @@ test('Data Machine pipelines scale profile writes configurable seed loader and a
     assert.equal(setupProfile.stepsPerFlow, 4);
     assert.equal(setupProfile.configPayloadSize, 16);
     assert.equal(setupProfile.seedSlug, 'test-scale');
+    assert.deepEqual(setupProfile.command, [
+      'wp',
+      '--path',
+      sitePath,
+      'datamachine',
+      'fixtures',
+      'admin-scale',
+      'setup',
+      '--seed-slug=test-scale',
+      '--pipeline-count=2',
+      '--flows-per-pipeline=3',
+      '--steps-per-flow=4',
+      '--payload-size=16',
+      '--format=json',
+    ]);
+    assert.deepEqual(calls[0], { args: setupProfile.command, options: { timeoutMs: 180000 } });
 
-    const loader = await readFile(setupProfile.loaderPath, 'utf8');
-    assert.match(loader, /Temporary Homeboy Data Machine scale profile loader/);
-    assert.match(loader, /test-scale/);
-    assert.match(loader, /datamachine_pipelines/);
     assert.deepEqual(JSON.parse(await readFile(setupProfile.artifactPath, 'utf8')), {
       pipelineCount: 2,
       flowsPerPipeline: 3,
       stepsPerFlow: 4,
       configPayloadSize: 16,
       seedSlug: 'test-scale',
-      loaderPath: setupProfile.loaderPath,
+      command: setupProfile.command,
+      stdout: JSON.stringify({ ok: true }),
+      stderr: '',
     });
 
-    await cleanupDatamachinePipelinesScaleProfile({ setupProfile });
-    await assert.rejects(() => readFile(setupProfile.loaderPath, 'utf8'), { code: 'ENOENT' });
+    await cleanupDatamachinePipelinesScaleProfile({ sitePath, setupProfile, runCli });
+    assert.deepEqual(calls[1], {
+      args: [
+        'wp',
+        '--path',
+        sitePath,
+        'datamachine',
+        'fixtures',
+        'admin-scale',
+        'cleanup',
+        '--seed-slug=test-scale',
+        '--format=json',
+      ],
+      options: { allowFailure: true, timeoutMs: 180000 },
+    });
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }

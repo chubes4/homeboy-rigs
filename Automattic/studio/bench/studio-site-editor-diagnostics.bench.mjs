@@ -438,7 +438,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
     };
   } finally {
     if (profileExtension?.cleanupWordPressPageProfile) {
-      await profileExtension.cleanupWordPressPageProfile({ sitePath, setupProfile });
+      await profileExtension.cleanupWordPressPageProfile({ sitePath, setupProfile, runCli });
     }
     if (profiler) {
       profiler.uninstallWordPressRequestProfiler?.(sitePath);
