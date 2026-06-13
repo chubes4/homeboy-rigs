@@ -33,6 +33,7 @@ Homeboy core reporting change.
 | --- | --- | --- | --- | --- |
 | `webperf-desktop-load` | `load` | none | Normal-ish desktop LCP/FCP/TTFB/load/navigation timing shape. | Use for non-throttled absolute load context, not stable synthetic fan-out deltas. |
 | `webperf-desktop-slow-4g` | `load` | `low-end-mobile-slow-4g` | Stable synthetic third-party response fan-out and relative waterfall deltas. | Desktop rendering is intentionally paired with a slow synthetic throttle; do not present these as normal desktop absolute timings. |
+| `webperf-wallet-fanout` | `load` | `low-end-mobile-slow-4g` | Deterministic ECE create/mount count proof with `card,link,apple_pay,google_pay` requested. | Constructor and mount counts are primary proof; Stripe network/session counters are supporting evidence only. |
 
 Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-load` to keep the
 desktop browser context without synthetic CPU/network throttling. This profile
@@ -61,6 +62,19 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   --setting woocommerce_stripe_ece_browser_profile=webperf-desktop-slow-4g \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-webperf.json
+```
+
+Use the `webperf-wallet-fanout` trace profile when proving grouped ECE
+construction behavior across baseline/candidate runs. It requests
+`card,link,apple_pay,google_pay`, enables the deterministic fan-out assertion,
+and records Express Checkout Element create/mount calls without requiring Apple
+Pay or Google Pay enrollment in the browser.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile webperf-wallet-fanout \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-wallet-fanout.json
 ```
 
 Set `woocommerce_stripe_ece_browser_profile=secure-browser` to run the same
@@ -149,6 +163,9 @@ The stable signals are structural:
   `browser_fcp_ms`, `browser_lcp_ms`, and `browser_nav_duration_ms`.
 - Real-wallet evidence classification: `ece_real_wallet_capable` and
   `ece_synthetic_only`.
+- Deterministic ECE construction fields: `ece_create_call_count`,
+  `ece_instance_count`, `ece_mount_count`, `ece_mount_target_ids`,
+  `ece_mount_target_selectors`, and `ece_create_payment_methods`.
 - Stripe Elements session status/error counts and visible-button outcome.
 - Deterministic CLS fields for simulated profiles: `browser_cls`,
   `browser_layout_shift_count`, `ece_render_final_container_height`,
@@ -175,10 +192,16 @@ These fields are written to `ece-waterfall-metrics.json` with the
 `ece_render_*` prefix. The raw observer events are also preserved in
 `ece-waterfall-metadata.json` for debugging false positives or missing marks.
 
+For `webperf-wallet-fanout`, the pre-page script also wraps the Stripe factory,
+`stripe.elements()`, `elements.create('expressCheckout', ...)`, and each ECE
+instance's `mount(...)`. Metrics contain normalized counts and mount targets;
+metadata preserves full create/mount records under
+`express_checkout_instrumentation`.
+
 ## Known Follow-Ups
 
-- Add named overlay variants for fan-out reduction and lazy product-page ECE
-  initialization once the Stripe PR stack settles.
+- Add named overlay variants for lazy product-page ECE initialization once the
+  Stripe PR stack settles.
 - Add an ECE-disabled control variant.
 - Add interaction probes that intentionally trigger deferred ECE initialization
   and verify button availability after the trigger.

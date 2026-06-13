@@ -6,9 +6,10 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
-import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
+import { buildEceProfileOptions, setting } from './ece-product-page-profile.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
+import { classifyEceWalletFanoutEvidence, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -22,7 +23,10 @@ const wpCodeboxBin = process.env.HOMEBOY_WP_CODEBOX_BIN || 'wp-codebox';
 const woocommercePath = process.env.HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH || path.join(process.env.HOME || '', 'Developer/woocommerce/plugins/woocommerce');
 const wpVersion = process.env.HOMEBOY_WC_STRIPE_WP_VERSION || '7.0';
 const eceLocations = process.env.HOMEBOY_WC_STRIPE_ECE_LOCATIONS || 'product';
-const acceptedPaymentMethods = process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_METHODS || 'card,link';
+const acceptedPaymentMethods = setting('woocommerce_stripe_accepted_payment_methods', process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_METHODS || 'card,link');
+const requireFanoutProof = ['1', 'true', 'yes'].includes(
+  String(setting('woocommerce_stripe_ece_require_fanout_proof', process.env.HOMEBOY_WC_STRIPE_REQUIRE_FANOUT_PROOF || '')).toLowerCase()
+);
 const probeDuration = process.env.HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION || '7s';
 const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
 const profileOptions = buildEceProfileOptions();
@@ -50,6 +54,7 @@ if (!existsSync(path.join(woocommercePath, 'woocommerce.php'))) {
 const fixtureBootstrapSource = (await readFile(fixtureBootstrapPath, 'utf8'))
   .replace(/^<\?php\s*/, '')
   .replace(/^\s*declare\(strict_types=1\);\s*/m, '');
+const requestedAcceptedPaymentMethods = csvToJsonArray(acceptedPaymentMethods);
 
 process.env.HOMEBOY_TRACE_ARTIFACT_DIR ||= artifactDir;
 const { createTraceReporter } = await import(pathToFileURL(path.join(traceHelperDir, 'timeline.mjs')).href);
@@ -82,6 +87,10 @@ function csvToJsonArray(value) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function pickRect(...rects) {
+  return rects.find((rect) => rect && typeof rect === 'object') || null;
 }
 
 async function readJsonAsync(pathname) {
@@ -229,7 +238,8 @@ try {
     component_path: componentPath,
     woocommerce_path: woocommercePath,
     ece_locations: csvToJsonArray(eceLocations),
-    accepted_payment_methods: csvToJsonArray(acceptedPaymentMethods),
+    accepted_payment_methods: requestedAcceptedPaymentMethods,
+    require_fanout_proof: requireFanoutProof,
     ece_scenario_profile: scenario.profile,
     ece_interaction: scenario.interaction,
     browser_profile: profileOptions.profile,
@@ -249,7 +259,7 @@ try {
 ${fixtureBootstrapSource}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
-$accepted_payment_methods = json_decode( '${JSON.stringify(csvToJsonArray(acceptedPaymentMethods))}', true );
+$accepted_payment_methods = json_decode( '${JSON.stringify(requestedAcceptedPaymentMethods)}', true );
 
 $state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap(
 	array(
@@ -370,15 +380,249 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       height: Math.round(rect.height),
     };
   };
+  const jsonSafe = (value) => {
+    try {
+      return JSON.parse(JSON.stringify(value, (_key, nested) => {
+        if (typeof nested === 'function') {
+          return '[function]';
+        }
+        if (nested instanceof Element) {
+          return selectorForNode(nested);
+        }
+        return nested;
+      }));
+    } catch (error) {
+      return { unserializable: true, message: error?.message || String(error) };
+    }
+  };
+  const mountTargetDetails = (target) => {
+    if (typeof target === 'string') {
+      const node = document.querySelector(target);
+      return {
+        selector: target,
+        id: target.startsWith('#') ? target.slice(1) : null,
+        resolved_selector: selectorForNode(node),
+        resolved: !!node,
+      };
+    }
+    if (target instanceof Element) {
+      return {
+        selector: selectorForNode(target),
+        id: target.id || null,
+        resolved_selector: selectorForNode(target),
+        resolved: true,
+      };
+    }
+    return {
+      selector: null,
+      id: null,
+      resolved_selector: null,
+      resolved: false,
+      type: typeof target,
+    };
+  };
+  const installStripeEceInstrumentation = () => {
+    const instrumentation = state.eceInstrumentation = state.eceInstrumentation || {
+      stripe_factory_calls: [],
+      elements_calls: [],
+      express_checkout_create_calls: [],
+      express_checkout_mount_calls: [],
+      express_checkout_instance_count: 0,
+      express_checkout_mount_count: 0,
+      mount_target_ids: [],
+      mount_target_selectors: [],
+      create_payment_methods: [],
+    };
+    const uniquePush = (list, value) => {
+      if (value && !list.includes(value)) {
+        list.push(value);
+      }
+    };
+    const summarizeOptions = (options) => {
+      const safeOptions = jsonSafe(options || {});
+      const paymentMethods = safeOptions?.paymentMethods || safeOptions?.payment_methods || null;
+      return { options: safeOptions, payment_methods: paymentMethods };
+    };
+    const wrapExpressCheckoutElement = (element, createCall) => {
+      if (!element || element.__homeboyEceInstrumented) {
+        return element;
+      }
+      const instanceId = instrumentation.express_checkout_instance_count + 1;
+      instrumentation.express_checkout_instance_count = instanceId;
+      createCall.instance_id = instanceId;
+      Object.defineProperty(element, '__homeboyEceInstrumented', { value: true, configurable: true });
+      if (typeof element.mount === 'function') {
+        const originalMount = element.mount;
+        element.mount = function homeboyInstrumentedEceMount(target, ...mountArgs) {
+          const targetDetails = mountTargetDetails(target);
+          instrumentation.express_checkout_mount_count += 1;
+          instrumentation.express_checkout_mount_calls.push({
+            instance_id: instanceId,
+            t_ms: elapsed(),
+            target: targetDetails,
+          });
+          uniquePush(instrumentation.mount_target_ids, targetDetails.id);
+          uniquePush(instrumentation.mount_target_selectors, targetDetails.selector || targetDetails.resolved_selector);
+          record('express_checkout_mount', { instance_id: instanceId, target: targetDetails });
+          return originalMount.call(this, target, ...mountArgs);
+        };
+      }
+      return element;
+    };
+    const wrapElements = (elements) => {
+      if (!elements || elements.__homeboyEceInstrumented) {
+        return elements;
+      }
+      Object.defineProperty(elements, '__homeboyEceInstrumented', { value: true, configurable: true });
+      if (typeof elements.create === 'function') {
+        const originalCreate = elements.create;
+        elements.create = function homeboyInstrumentedElementsCreate(type, options, ...createArgs) {
+          const result = originalCreate.call(this, type, options, ...createArgs);
+          if (type === 'expressCheckout') {
+            const summary = summarizeOptions(options);
+            const createCall = {
+              type,
+              t_ms: elapsed(),
+              ...summary,
+            };
+            instrumentation.express_checkout_create_calls.push(createCall);
+            instrumentation.create_payment_methods.push(summary.payment_methods);
+            record('express_checkout_create', createCall);
+            return wrapExpressCheckoutElement(result, createCall);
+          }
+          return result;
+        };
+      }
+      return elements;
+    };
+    const wrapStripeFactory = (StripeFactory) => {
+      if (typeof StripeFactory !== 'function' || StripeFactory.__homeboyEceInstrumented) {
+        return StripeFactory;
+      }
+      const wrappedFactory = function homeboyInstrumentedStripeFactory(...stripeArgs) {
+        instrumentation.stripe_factory_calls.push({ t_ms: elapsed(), args: jsonSafe(stripeArgs) });
+        const stripe = StripeFactory.apply(this, stripeArgs);
+        if (stripe && !stripe.__homeboyEceInstrumented && typeof stripe.elements === 'function') {
+          Object.defineProperty(stripe, '__homeboyEceInstrumented', { value: true, configurable: true });
+          const originalElements = stripe.elements;
+          stripe.elements = function homeboyInstrumentedStripeElements(...elementsArgs) {
+            instrumentation.elements_calls.push({ t_ms: elapsed(), args: jsonSafe(elementsArgs) });
+            return wrapElements(originalElements.apply(this, elementsArgs));
+          };
+        }
+        return stripe;
+      };
+      Object.defineProperty(wrappedFactory, '__homeboyEceInstrumented', { value: true, configurable: true });
+      for (const key of Reflect.ownKeys(StripeFactory)) {
+        if (['length', 'name', 'prototype'].includes(key)) {
+          continue;
+        }
+        try {
+          Object.defineProperty(wrappedFactory, key, Object.getOwnPropertyDescriptor(StripeFactory, key));
+        } catch {
+          // Non-critical static property copy failure; keep Stripe callable.
+        }
+      }
+      return wrappedFactory;
+    };
+    let assignedStripe = wrapStripeFactory(window.Stripe);
+    Object.defineProperty(window, 'Stripe', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return assignedStripe;
+      },
+      set(value) {
+        assignedStripe = wrapStripeFactory(value);
+      },
+    });
+  };
+  installStripeEceInstrumentation();
+  ${requireFanoutProof ? `
+  const installWalletFanoutProofFixture = () => {
+    if (window.__homeboyStripeEceFanoutProofInstalled) {
+      return;
+    }
+
+    const root = document.querySelector('#wc-stripe-express-checkout-element');
+    if (!root) {
+      window.setTimeout(installWalletFanoutProofFixture, 50);
+      return;
+    }
+
+    window.__homeboyStripeEceFanoutProofInstalled = true;
+    root.setAttribute('data-homeboy-wallet-fanout-proof', '1');
+
+    let grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
+    if (!grouped) {
+      grouped = document.createElement('div');
+      grouped.id = 'wc-stripe-express-checkout-element-wallets-link';
+      root.appendChild(grouped);
+    }
+    grouped.setAttribute('data-homeboy-wallet-fanout-proof', 'grouped');
+
+    const ensureWallet = (method, label) => {
+      const id = 'wc-stripe-express-checkout-element-' + method;
+      let wrapper = document.querySelector('#' + id);
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = id;
+        grouped.appendChild(wrapper);
+      } else if (!grouped.contains(wrapper)) {
+        grouped.appendChild(wrapper);
+      }
+      wrapper.setAttribute('data-homeboy-wallet-method', method);
+
+      if (!wrapper.querySelector('.homeboy-stripe-ece-fanout-button')) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'homeboy-stripe-ece-fanout-button';
+        button.textContent = label;
+        button.style.display = 'block';
+        button.style.width = '100%';
+        button.style.height = '48px';
+        button.style.margin = '0';
+        button.style.border = '0';
+        button.style.borderRadius = '4px';
+        button.style.background = '#111827';
+        button.style.color = '#fff';
+        button.style.font = '600 14px/48px system-ui, sans-serif';
+        wrapper.appendChild(button);
+      }
+    };
+
+    ensureWallet('apple_pay', 'Apple Pay');
+    ensureWallet('google_pay', 'Google Pay');
+    ensureWallet('link', 'Link');
+    record('wallet_fanout_fixture_installed', { methods: ['apple_pay', 'google_pay', 'link'] });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installWalletFanoutProofFixture, { once: true });
+  } else {
+    installWalletFanoutProofFixture();
+  }
+` : ''}
   const trackedContainerMetrics = () => {
     const root = document.querySelector('#wc-stripe-express-checkout-element');
     const grouped = document.querySelector('#wc-stripe-express-checkout-element-wallets-link');
+    const applePay = document.querySelector('#wc-stripe-express-checkout-element-apple_pay');
+    const googlePay = document.querySelector('#wc-stripe-express-checkout-element-google_pay');
+    const link = document.querySelector('#wc-stripe-express-checkout-element-link');
     const sentinel = document.querySelector('.homeboy-stripe-ece-cls-sentinel');
     return {
       ece_container_height: rectForNode(root)?.height ?? 0,
       ece_container_rect: rectForNode(root),
       ece_wallets_link_height: rectForNode(grouped)?.height ?? 0,
+      ece_wallets_link_width: rectForNode(grouped)?.width ?? 0,
       ece_wallets_link_rect: rectForNode(grouped),
+      ece_wallets_link_present: !!grouped,
+      ece_apple_pay_container_present: !!applePay,
+      ece_apple_pay_rect: rectForNode(applePay),
+      ece_google_pay_container_present: !!googlePay,
+      ece_google_pay_rect: rectForNode(googlePay),
+      ece_link_container_present: !!link,
+      ece_link_rect: rectForNode(link),
       ece_cls_sentinel_rect: rectForNode(sentinel),
     };
   };
@@ -479,6 +723,37 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     const elapsed = () => probe?.startedAt ? Math.round(performance.now() - probe.startedAt) : null;
     const sample = () => {
       const container = document.querySelector('#wc-stripe-express-checkout-element');
+      const rectForNode = (node) => {
+        if (!node || !(node instanceof Element)) {
+          return null;
+        }
+        const rect = node.getBoundingClientRect();
+        return {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        };
+      };
+      const walletNodes = {
+        wallets_link: document.querySelector('#wc-stripe-express-checkout-element-wallets-link'),
+        apple_pay: document.querySelector('#wc-stripe-express-checkout-element-apple_pay'),
+        google_pay: document.querySelector('#wc-stripe-express-checkout-element-google_pay'),
+        link: document.querySelector('#wc-stripe-express-checkout-element-link'),
+      };
+      const walletContainers = {
+        wallets_link: !!walletNodes.wallets_link,
+        apple_pay: !!walletNodes.apple_pay,
+        google_pay: !!walletNodes.google_pay,
+        link: !!walletNodes.link,
+      };
+      const walletRects = {
+        root: rectForNode(container),
+        wallets_link: rectForNode(walletNodes.wallets_link),
+        apple_pay: rectForNode(walletNodes.apple_pay),
+        google_pay: rectForNode(walletNodes.google_pay),
+        link: rectForNode(walletNodes.link),
+      };
       const isVisible = (node) => {
         if (!node || !(node instanceof Element)) {
           return false;
@@ -495,6 +770,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           ece_visible_iframe_count: 0,
           ece_button_count: 0,
           ece_visible_button_count: 0,
+          ece_wallet_containers: walletContainers,
+          ece_wallet_rects: walletRects,
         };
       }
       const iframes = Array.from(container.querySelectorAll('iframe'));
@@ -506,6 +783,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         ece_visible_iframe_count: iframes.filter(isVisible).length,
         ece_button_count: buttons.length,
         ece_visible_button_count: buttons.filter(isVisible).length,
+        ece_wallet_containers: walletContainers,
+        ece_wallet_rects: walletRects,
       };
     };
     const interactionSnapshot = (name) => {
@@ -529,9 +808,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       scenario: ${JSON.stringify(scenario.id)},
       interaction: ${JSON.stringify(scenario.interaction)},
       buttons: document.querySelectorAll('#wc-stripe-express-checkout-element iframe, #wc-stripe-express-checkout-element button').length,
+      wallets: finalSnapshot.ece_wallet_containers,
       interactionEvents,
       renderProbe: probe,
       stripeAvailability,
+      eceInstrumentation: probe?.eceInstrumentation || null,
     });
     return {
       title: document.title,
@@ -557,6 +838,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         hasBelowFoldLayout: !!document.querySelector('#homeboy-ece-below-fold-layout'),
       },
       renderProbe: probe,
+      eceInstrumentation: probe?.eceInstrumentation || null,
     };
   `;
   const recipe = {
@@ -637,6 +919,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const renderProbe = scriptResult?.renderProbe || {};
   const renderMarks = renderProbe?.marks || {};
   const renderLatest = renderProbe?.latest || {};
+  const eceInstrumentation = scriptResult?.eceInstrumentation || renderProbe?.eceInstrumentation || {};
+  const eceCreateCalls = Array.isArray(eceInstrumentation.express_checkout_create_calls) ? eceInstrumentation.express_checkout_create_calls : [];
+  const eceMountCalls = Array.isArray(eceInstrumentation.express_checkout_mount_calls) ? eceInstrumentation.express_checkout_mount_calls : [];
+  const eceMountTargetIds = Array.isArray(eceInstrumentation.mount_target_ids) ? eceInstrumentation.mount_target_ids : [];
+  const eceMountTargetSelectors = Array.isArray(eceInstrumentation.mount_target_selectors) ? eceInstrumentation.mount_target_selectors : [];
   const renderSamples = renderProbe?.samples || [];
   const layoutShifts = Array.isArray(renderProbe?.layoutShifts) ? renderProbe.layoutShifts : [];
   const layoutShiftSourceDetails = layoutShifts.flatMap((entry) =>
@@ -658,6 +945,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const stripeLoadPageErrors = stripeLoadMessages(pageErrors);
   const finalVisibleButtonCount = scriptResult?.finalSnapshot?.ece_visible_button_count ?? renderLatest.visible_button_count ?? 0;
   const eceRenderedVisibleButton = finalVisibleButtonCount > 0 || peakSampleValue(renderSamples, 'visible_button_count') > 0;
+  const finalWalletRects = {
+    root: pickRect(renderLatest.ece_container_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.root),
+    wallets_link: pickRect(renderLatest.ece_wallets_link_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.wallets_link),
+    apple_pay: pickRect(renderLatest.ece_apple_pay_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.apple_pay),
+    google_pay: pickRect(renderLatest.ece_google_pay_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.google_pay),
+    link: pickRect(renderLatest.ece_link_rect, scriptResult?.finalSnapshot?.ece_wallet_rects?.link),
+  };
   const fixtureHealth = evaluateEceFixtureHealth({
     html,
     htmlPath,
@@ -684,6 +978,15 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_profile_conclusion: profileOptions.profileConclusion,
     browser_wait_for: profileOptions.waitFor || scenario.waitFor || 'networkidle',
     browser_throttle_profile: profileOptions.throttleProfile,
+    ece_requested_accepted_payment_methods: requestedAcceptedPaymentMethods,
+    ece_requested_payment_method_count: requestedAcceptedPaymentMethods.length,
+    ece_requires_fanout_proof: requireFanoutProof,
+    ece_create_call_count: eceCreateCalls.length,
+    ece_instance_count: eceInstrumentation.express_checkout_instance_count ?? eceCreateCalls.length,
+    ece_mount_count: eceInstrumentation.express_checkout_mount_count ?? eceMountCalls.length,
+    ece_mount_target_ids: eceMountTargetIds,
+    ece_mount_target_selectors: eceMountTargetSelectors,
+    ece_create_payment_methods: Array.isArray(eceInstrumentation.create_payment_methods) ? eceInstrumentation.create_payment_methods : [],
     network_response_count: responses.length,
     stripe_response_count: stripeUrls.length,
     google_response_count: googleUrls.length,
@@ -745,13 +1048,65 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_render_final_visible_iframe_count: renderLatest.visible_iframe_count ?? null,
     ece_render_final_button_count: renderLatest.button_count ?? null,
     ece_render_final_visible_button_count: renderLatest.visible_button_count ?? null,
-    ece_render_final_container_height: numberOrNull(renderLatest.ece_container_height),
-    ece_render_final_wallets_link_height: numberOrNull(renderLatest.ece_wallets_link_height),
+    ece_render_final_container_height: numberOrNull(renderLatest.ece_container_height ?? finalWalletRects.root?.height),
+    ece_render_final_container_width: numberOrNull(finalWalletRects.root?.width),
+    ece_render_final_wallets_link_height: numberOrNull(renderLatest.ece_wallets_link_height ?? finalWalletRects.wallets_link?.height),
+    ece_render_final_wallets_link_width: numberOrNull(renderLatest.ece_wallets_link_width ?? finalWalletRects.wallets_link?.width),
+    ece_render_final_apple_pay_height: numberOrNull(finalWalletRects.apple_pay?.height),
+    ece_render_final_apple_pay_width: numberOrNull(finalWalletRects.apple_pay?.width),
+    ece_render_final_google_pay_height: numberOrNull(finalWalletRects.google_pay?.height),
+    ece_render_final_google_pay_width: numberOrNull(finalWalletRects.google_pay?.width),
+    ece_render_final_link_height: numberOrNull(finalWalletRects.link?.height),
+    ece_render_final_link_width: numberOrNull(finalWalletRects.link?.width),
+    ece_render_final_wallet_rects: finalWalletRects,
+    ece_render_wallets_link_present: renderLatest.ece_wallets_link_present === true || scriptResult?.finalSnapshot?.ece_wallet_containers?.wallets_link === true,
+    ece_render_apple_pay_container_present: renderLatest.ece_apple_pay_container_present === true || scriptResult?.finalSnapshot?.ece_wallet_containers?.apple_pay === true,
+    ece_render_google_pay_container_present: renderLatest.ece_google_pay_container_present === true || scriptResult?.finalSnapshot?.ece_wallet_containers?.google_pay === true,
+    ece_render_link_container_present: renderLatest.ece_link_container_present === true || scriptResult?.finalSnapshot?.ece_wallet_containers?.link === true,
     ece_interaction_event_count: interactionEvents.length,
     ece_interaction_succeeded: interactionSucceeded,
     ece_fixture_health_passed: fixtureHealth.ok,
     ece_fixture_health_failure_count: fixtureHealth.failures.length,
   };
+  const walletFanoutEvidence = classifyEceWalletFanoutEvidence({
+    requestedPaymentMethods: requestedAcceptedPaymentMethods,
+    realWalletCapable: profileOptions.realWalletCapable,
+    syntheticOnly: profileOptions.syntheticOnly,
+    eceConstructed: metrics.ece_instance_count > 0 && metrics.ece_mount_count > 0,
+    browserEligibility: {
+      secureContext: metrics.browser_secure_context_effective,
+      paymentRequestSupported: metrics.stripe_payment_request_supported,
+      applePaySessionSupported: metrics.stripe_apple_pay_session_supported,
+      securePaymentConfirmationSupported: metrics.stripe_secure_payment_confirmation_supported,
+    },
+    renderedWallets: {
+      apple_pay: metrics.ece_render_apple_pay_container_present,
+      google_pay: metrics.ece_render_google_pay_container_present,
+      link: metrics.ece_render_link_container_present || metrics.ece_render_wallets_link_present,
+    },
+    observedWallets: {
+      apple_pay: metrics.ece_render_apple_pay_container_present,
+      google_pay: metrics.ece_render_google_pay_container_present,
+      link: metrics.ece_render_link_container_present || metrics.ece_render_wallets_link_present,
+    },
+  });
+  metrics.ece_wallet_fanout_classification = walletFanoutEvidence.classification;
+  metrics.ece_wallet_fanout_valid_proof = walletFanoutEvidence.valid_fanout_proof;
+  metrics.ece_wallet_fanout_requested = walletFanoutEvidence.requested_wallet_fanout;
+  metrics.ece_wallet_fanout_observed = walletFanoutEvidence.observed_wallet_fanout;
+  metrics.ece_wallet_fanout_reason_codes = walletFanoutEvidence.reason_codes;
+  const groupedWalletLayout = groupedWalletLayoutSummary(metrics);
+  metrics.ece_wallet_grouped_layout_valid = groupedWalletLayout.dimensionsPass;
+  metrics.ece_wallet_grouped_layout_single_row_height_limit = groupedWalletLayout.singleRowHeightLimit;
+  metrics.ece_wallet_grouped_layout_max_wallet_height = groupedWalletLayout.maxWalletHeight;
+  for (const [method, evidence] of Object.entries(walletFanoutEvidence.wallets)) {
+    const prefix = `ece_wallet_${method}`;
+    metrics[`${prefix}_requested`] = evidence.requested;
+    metrics[`${prefix}_eligible`] = evidence.eligible;
+    metrics[`${prefix}_rendered`] = evidence.rendered;
+    metrics[`${prefix}_observed`] = evidence.observed;
+  }
+
   const realWalletAssetHealth = evaluateEceRealWalletAssetHealth({
     networkEntries: network,
     metrics,
@@ -805,6 +1160,18 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           response_count: elementsSessionResponses.length,
           statuses: elementsSessionStatuses,
         },
+        wallet_fanout_evidence: walletFanoutEvidence,
+        grouped_wallet_layout: groupedWalletLayout,
+        express_checkout_instrumentation: {
+          stripe_factory_calls: Array.isArray(eceInstrumentation.stripe_factory_calls) ? eceInstrumentation.stripe_factory_calls : [],
+          elements_calls: Array.isArray(eceInstrumentation.elements_calls) ? eceInstrumentation.elements_calls : [],
+          create_calls: eceCreateCalls,
+          mount_calls: eceMountCalls,
+          instance_count: metrics.ece_instance_count,
+          mount_count: metrics.ece_mount_count,
+          mount_target_ids: eceMountTargetIds,
+          mount_target_selectors: eceMountTargetSelectors,
+        },
         stripe_load_console_messages_sample: stripeLoadConsoleMessages.slice(0, 20),
         stripe_load_page_errors_sample: stripeLoadPageErrors.slice(0, 20),
         google_urls_sample: googleUrls.slice(0, 20),
@@ -838,14 +1205,21 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         ? typeof metrics.browser_cls === 'number' && metrics.browser_cls <= 0.01 && eceRenderedVisibleButton
         : true;
   const stripeLoadPass = stripeLoadPageErrors.length === 0;
+  const requestedWalletFanout = walletFanoutEvidence.requested_wallet_fanout;
+  const observedSeparateWalletFanout = walletFanoutEvidence.observed_wallet_fanout;
+  const observedGroupedWalletFanout = metrics.ece_render_wallets_link_present;
+  const observedEceConstruction = metrics.ece_instance_count > 0 && metrics.ece_mount_count > 0;
+  const fanoutProofPass = !requireFanoutProof || (walletFanoutEvidence.valid_fanout_proof && groupedWalletLayout.dimensionsPass);
   const browserProbeCompleted = responses.length > 0 && existsSync(networkPath) && existsSync(performancePath);
-  const pass = fixtureHealth.ok && realWalletAssetHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass;
+  const pass = fixtureHealth.ok && realWalletAssetHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass && fanoutProofPass;
   const summaryText = pass
     ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
     : !fixtureHealth.ok
       ? fixtureHealthSummary(fixtureHealth)
       : !realWalletAssetHealth.ok
       ? realWalletAssetHealthSummary(realWalletAssetHealth)
+      : !fanoutProofPass
+      ? `ECE fan-out proof classified as ${walletFanoutEvidence.classification}; grouped layout valid=${groupedWalletLayout.dimensionsPass}; reason codes=${walletFanoutEvidence.reason_codes.join(',') || 'none'}. Requested ${requestedAcceptedPaymentMethods.join(',')}.`
       : stripeLoadPass
       ? 'Browser waterfall capture did not observe Stripe network responses.'
       : `Browser waterfall capture recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`;
@@ -881,16 +1255,33 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     message: realWalletAssetHealthSummary(realWalletAssetHealth),
   });
   trace.assertion({
+    id: 'ece-wallet-fanout-proof',
+    status: fanoutProofPass ? 'pass' : 'fail',
+    message: requireFanoutProof
+      ? `Classification=${walletFanoutEvidence.classification}; requested wallet fan-out=${requestedWalletFanout}; observed ECE construction=${observedEceConstruction}; observed grouped wallets-link=${observedGroupedWalletFanout}; observed apple/google/link=${observedSeparateWalletFanout}; grouped layout valid=${groupedWalletLayout.dimensionsPass}; reason codes=${walletFanoutEvidence.reason_codes.join(',') || 'none'}.`
+      : 'Wallet fan-out proof not required for this profile.',
+  });
+  trace.assertion({
+    id: 'ece-grouped-wallet-layout',
+    status: !requireFanoutProof || groupedWalletLayout.dimensionsPass ? 'pass' : 'fail',
+    message: requireFanoutProof
+      ? `Grouped wallets-link rect width=${groupedWalletLayout.groupedWidth}, height=${groupedWalletLayout.groupedHeight}, max wallet height=${groupedWalletLayout.maxWalletHeight}, single-row height limit=${groupedWalletLayout.singleRowHeightLimit}.`
+      : 'Grouped wallet layout proof not required for this profile.',
+  });
+  trace.assertion({
+    id: 'ece-construction-observed',
+    status: observedEceConstruction ? 'pass' : 'fail',
+    message: `Observed ${metrics.ece_instance_count} Express Checkout Element create call(s) and ${metrics.ece_mount_count} mount call(s) targeting ${eceMountTargetSelectors.join(', ') || 'no targets'}.`,
+  });
+  trace.assertion({
     id: 'scenario-interaction',
     status: 'pass',
     message: `${scenario.interaction} interaction produced ${interactionEvents.length} event(s).`,
   });
   trace.assertion({
     id: 'evidence-classification',
-    status: profileOptions.realWalletCapable ? (scriptResult?.isSecureContext === true ? 'pass' : 'fail') : 'pass',
-    message: profileOptions.realWalletCapable
-      ? `Real-wallet-capable profile ran with secure context=${scriptResult?.isSecureContext === true} and visible button=${eceRenderedVisibleButton}.`
-      : 'Synthetic-only profile ran without requiring real Stripe keys or wallet eligibility.',
+    status: profileOptions.realWalletCapable && scriptResult?.isSecureContext !== true ? 'fail' : 'pass',
+    message: `${walletFanoutEvidence.classification}; reason codes=${walletFanoutEvidence.reason_codes.join(',') || 'none'}; real-wallet capable=${profileOptions.realWalletCapable}; visible button=${eceRenderedVisibleButton}.`,
   });
   if (scenario.simulatedCls) {
     trace.assertion({
