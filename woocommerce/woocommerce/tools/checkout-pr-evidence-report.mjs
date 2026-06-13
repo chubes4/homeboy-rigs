@@ -65,13 +65,17 @@ function renderReport(data) {
 	if (Array.isArray(data.gateway_profiles) && data.gateway_profiles.length > 0) {
 		lines.push('## Gateway Profiles');
 		lines.push('');
-		lines.push('| Profile | Dependency | Expected gateway IDs | Entrypoint | Status fields | Blockers |');
-		lines.push('|---|---|---|---|---|---|');
+		lines.push('| Profile | Dependency | Expected gateway IDs | Discovery patterns | Entrypoint | Checkout surfaces | Safe settings | Boundary | Status fields | Blockers |');
+		lines.push('|---|---|---|---|---|---|---|---|---|---|');
 		for (const profile of data.gateway_profiles) {
 			const expectedGatewayIds = Array.isArray(profile.expected_gateway_ids) ? profile.expected_gateway_ids.join(', ') : '';
+			const discoveryPatterns = Array.isArray(profile.discovery_patterns) ? profile.discovery_patterns.join(', ') : '';
+			const checkoutSurfaces = Array.isArray(profile.checkout_surfaces) ? profile.checkout_surfaces.join(', ') : '';
+			const safeSettings = profile.safe_settings ? Object.keys(profile.safe_settings).join(', ') : '';
+			const boundary = profile.readiness_boundary ? `${profile.readiness_boundary}; ${profile.credential_boundary || 'unknown'}` : '';
 			const statusFields = profile.status_fields ? Object.entries(profile.status_fields).map(([key, value]) => `${key}=${value}`).join(', ') : '';
 			const blockers = Array.isArray(profile.blocked_by) && profile.blocked_by.length > 0 ? profile.blocked_by.join(', ') : '';
-			lines.push(`| ${profile.profile} | ${profile.dependency_slug} | ${expectedGatewayIds} | ${profile.entrypoint || 'WooCommerce core'} | ${statusFields} | ${blockers} |`);
+			lines.push(`| ${profile.profile} | ${profile.dependency_slug} | ${expectedGatewayIds} | ${discoveryPatterns} | ${profile.entrypoint || 'WooCommerce core'} | ${checkoutSurfaces} | ${safeSettings} | ${boundary} | ${statusFields} | ${blockers} |`);
 		}
 		lines.push('');
 	}

@@ -42,6 +42,8 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/pull/65588',
 		'https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929',
 		'https://github.com/chubes4/homeboy-rigs/issues/255',
+		'https://github.com/chubes4/homeboy-rigs/issues/295',
+		'https://github.com/chubes4/homeboy-rigs/issues/296',
 	);
 
 	wp_set_current_user( 0 );
@@ -74,30 +76,42 @@ return function (): array {
 			'profile'        => 'core_bacs',
 			'gateway_id'     => 'bacs',
 			'expected_gateway_ids' => array( 'bacs' ),
+			'discovery_patterns' => array( '/^bacs$/' ),
 			'label'          => 'Direct bank transfer (BACS)',
 			'plugin'         => 'woocommerce-core',
 			'dependency_slug' => 'woocommerce-core',
 			'entrypoint'     => '',
+			'checkout_surfaces' => array( 'classic' ),
+			'credential_boundary' => 'none',
+			'readiness_boundary' => 'ready',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
 			'profile'        => 'core_cheque',
 			'gateway_id'     => 'cheque',
 			'expected_gateway_ids' => array( 'cheque' ),
+			'discovery_patterns' => array( '/^cheque$/' ),
 			'label'          => 'Check payments',
 			'plugin'         => 'woocommerce-core',
 			'dependency_slug' => 'woocommerce-core',
 			'entrypoint'     => '',
+			'checkout_surfaces' => array( 'classic' ),
+			'credential_boundary' => 'none',
+			'readiness_boundary' => 'ready',
 			'settings'       => array( 'enabled' => 'yes' ),
 		),
 		array(
 			'profile'        => 'core_cod',
 			'gateway_id'     => 'cod',
 			'expected_gateway_ids' => array( 'cod' ),
+			'discovery_patterns' => array( '/^cod$/' ),
 			'label'          => 'Cash on delivery',
 			'plugin'         => 'woocommerce-core',
 			'dependency_slug' => 'woocommerce-core',
 			'entrypoint'     => '',
+			'checkout_surfaces' => array( 'classic' ),
+			'credential_boundary' => 'none',
+			'readiness_boundary' => 'ready',
 			'settings'       => array(
 				'enabled'            => 'yes',
 				'enable_for_methods' => array(),
@@ -108,10 +122,15 @@ return function (): array {
 			'profile'        => 'plugin_stripe',
 			'gateway_id'     => 'stripe',
 			'expected_gateway_ids' => array( 'stripe' ),
+			'discovery_patterns' => array( '/^stripe(_|$)/', '/stripe/i' ),
 			'label'          => 'WooCommerce Stripe Gateway',
 			'plugin'         => 'woocommerce-gateway-stripe',
 			'dependency'     => 'woocommerce-gateway-stripe',
 			'entrypoint'     => 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php',
+			'checkout_surfaces' => array( 'classic', 'blocks', 'hosted_fields', 'wallet/express' ),
+			'credential_boundary' => 'test_api_keys_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_credentials',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH', 'HOMEBOY_WC_STRIPE_COMPONENT_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_PATH' ),
 			'blocked_by'     => array(
@@ -119,30 +138,47 @@ return function (): array {
 				'https://github.com/Extra-Chill/homeboy-extensions/issues/1336',
 			),
 			'settings'       => array(
-				'enabled'  => 'yes',
-				'testmode' => 'yes',
+				'enabled'             => 'yes',
+				'testmode'            => 'yes',
+				'capture'             => 'yes',
+				'payment_request'     => 'no',
+				'test_publishable_key' => '',
+				'test_secret_key'     => '',
 			),
 		),
 		array(
 			'profile'        => 'plugin_paypal_payments',
 			'gateway_id'     => 'ppcp-gateway',
 			'expected_gateway_ids' => array( 'ppcp-gateway' ),
+			'discovery_patterns' => array( '/^ppcp-/', '/paypal/i' ),
 			'label'          => 'WooCommerce PayPal Payments',
 			'plugin'         => 'woocommerce-paypal-payments',
 			'dependency'     => 'woocommerce-paypal-payments',
 			'entrypoint'     => 'woocommerce-paypal-payments/woocommerce-paypal-payments.php',
+			'checkout_surfaces' => array( 'classic', 'blocks', 'redirect', 'wallet/express', 'external_account' ),
+			'credential_boundary' => 'paypal_sandbox_account_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_external_account',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PREPARED_PATH' ),
-			'settings'       => array( 'enabled' => 'yes' ),
+			'settings'       => array(
+				'enabled' => 'yes',
+				'test_mode' => 'yes',
+			),
 		),
 		array(
 			'profile'        => 'plugin_woopayments',
 			'gateway_id'     => 'woocommerce_payments',
 			'expected_gateway_ids' => array( 'woocommerce_payments' ),
+			'discovery_patterns' => array( '/^woocommerce_payments$/' ),
 			'label'          => 'WooPayments',
 			'plugin'         => 'woocommerce-payments',
 			'dependency'     => 'woocommerce-payments',
 			'entrypoint'     => 'woocommerce-payments/woocommerce-payments.php',
+			'checkout_surfaces' => array( 'classic', 'blocks', 'hosted_fields', 'wallet/express', 'external_account' ),
+			'credential_boundary' => 'wpcom_connected_account_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_external_account',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PREPARED_PATH' ),
 			'settings'       => array(
@@ -154,10 +190,15 @@ return function (): array {
 			'profile'        => 'plugin_square',
 			'gateway_id'     => 'square_credit_card',
 			'expected_gateway_ids' => array( 'square_credit_card' ),
+			'discovery_patterns' => array( '/^square/', '/square/i' ),
 			'label'          => 'WooCommerce Square',
 			'plugin'         => 'woocommerce-square',
 			'dependency'     => 'woocommerce-square',
 			'entrypoint'     => 'woocommerce-square/woocommerce-square.php',
+			'checkout_surfaces' => array( 'classic', 'blocks', 'hosted_fields', 'external_account' ),
+			'credential_boundary' => 'square_sandbox_account_location_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_external_account',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PREPARED_PATH' ),
 			'settings'       => array(
@@ -170,42 +211,63 @@ return function (): array {
 			'profile'        => 'plugin_razorpay',
 			'gateway_id'     => 'razorpay',
 			'expected_gateway_ids' => array( 'razorpay' ),
+			'discovery_patterns' => array( '/razorpay/i' ),
 			'label'          => 'Razorpay for WooCommerce',
 			'plugin'         => 'razorpay',
 			'dependency'     => 'razorpay',
 			'entrypoint'     => 'razorpay/razorpay.php',
+			'checkout_surfaces' => array( 'classic', 'redirect', 'hosted_fields' ),
+			'credential_boundary' => 'test_key_id_and_secret_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_credentials',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PREPARED_PATH' ),
 			'settings'       => array(
-				'enabled' => 'yes',
+				'enabled'     => 'yes',
+				'testmode'    => 'yes',
+				'key_id'      => '',
+				'key_secret'  => '',
 			),
 		),
 		array(
 			'profile'        => 'plugin_mollie',
 			'gateway_id'     => 'mollie_wc_gateway_creditcard',
 			'expected_gateway_ids' => array( 'mollie_wc_gateway_creditcard', 'mollie_wc_gateway_ideal', 'mollie_wc_gateway_paypal' ),
+			'discovery_patterns' => array( '/^mollie_wc_gateway_/' ),
 			'label'          => 'Mollie Payments for WooCommerce',
 			'plugin'         => 'mollie-payments-for-woocommerce',
 			'dependency'     => 'mollie-payments-for-woocommerce',
 			'entrypoint'     => 'mollie-payments-for-woocommerce/mollie-payments-for-woocommerce.php',
+			'checkout_surfaces' => array( 'classic', 'blocks', 'redirect', 'external_account' ),
+			'credential_boundary' => 'mollie_test_api_key_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_credentials',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH' ),
 			'settings'       => array(
-				'enabled' => 'yes',
+				'enabled'      => 'yes',
+				'test_mode'    => 'yes',
+				'test_api_key' => '',
 			),
 		),
 		array(
 			'profile'        => 'plugin_klarna',
 			'gateway_id'     => 'klarna_payments',
 			'expected_gateway_ids' => array( 'klarna_payments', 'kco' ),
+			'discovery_patterns' => array( '/klarna/i', '/^kco$/' ),
 			'label'          => 'Klarna for WooCommerce',
 			'plugin'         => 'klarna-payments-for-woocommerce',
 			'dependency'     => 'klarna-payments-for-woocommerce',
 			'entrypoint'     => 'klarna-payments-for-woocommerce/klarna-payments-for-woocommerce.php',
+			'checkout_surfaces' => array( 'classic', 'blocks', 'redirect', 'external_account' ),
+			'credential_boundary' => 'klarna_test_merchant_credentials_required',
+			'dummy_config_valid' => false,
+			'readiness_boundary' => 'blocked_external_account',
 			'source_env'     => array( 'WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH' ),
 			'prepared_env'   => array( 'WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH' ),
 			'settings'       => array(
-				'enabled' => 'yes',
+				'enabled'  => 'yes',
+				'testmode' => 'yes',
 			),
 		),
 	);
@@ -243,7 +305,31 @@ return function (): array {
 		return '' !== $revision ? $revision : null;
 	};
 
-	$ensure_gateway_profile = static function ( array $profile ) use ( $get_first_env, $get_git_revision ): array {
+	$discover_gateway_ids = static function ( array $gateways, array $profile ): array {
+		$ids      = array_keys( $gateways );
+		$patterns = $profile['discovery_patterns'] ?? array();
+		$matches  = array_values(
+			array_filter(
+				$ids,
+				static function ( string $gateway_id ) use ( $patterns ): bool {
+					foreach ( $patterns as $pattern ) {
+						if ( preg_match( $pattern, $gateway_id ) ) {
+							return true;
+						}
+					}
+					return false;
+				}
+			)
+		);
+
+		return array(
+			'all_gateway_ids'     => $ids,
+			'matched_gateway_ids' => $matches,
+			'patterns'            => $patterns,
+		);
+	};
+
+	$ensure_gateway_profile = static function ( array $profile ) use ( $get_first_env, $get_git_revision, $discover_gateway_ids ): array {
 		$entrypoint_path = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['entrypoint'] : '';
 		$source_path     = $profile['entrypoint'] ? $get_first_env( $profile['source_env'] ?? array() ) : '';
 		$prepared_path   = $profile['entrypoint'] ? $get_first_env( $profile['prepared_env'] ?? array() ) : '';
@@ -262,7 +348,15 @@ return function (): array {
 			'prepared_path'          => $prepared_path,
 			'mounted_plugin_dir'     => $mounted_dir,
 			'expected_gateway_ids'   => $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] ),
+			'discovery_patterns'     => $profile['discovery_patterns'] ?? array(),
 			'registered_gateway_ids' => array(),
+			'discovered_gateway_ids' => array(),
+			'all_gateway_ids'        => array(),
+			'checkout_surfaces'      => $profile['checkout_surfaces'] ?? array( 'unknown' ),
+			'credential_boundary'    => $profile['credential_boundary'] ?? 'unknown',
+			'dummy_config_valid'     => (bool) ( $profile['dummy_config_valid'] ?? true ),
+			'safe_settings'          => $profile['settings'] ?? array(),
+			'readiness_boundary'     => $profile['readiness_boundary'] ?? 'ready',
 			'blocked_by'             => $profile['blocked_by'] ?? array(),
 			'available'              => true,
 			'build_failed'           => false,
@@ -338,8 +432,9 @@ return function (): array {
 			WC()->payment_gateways->init();
 		}
 
-		$gateways              = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
-		$expected_gateway_ids  = $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] );
+		$gateways               = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
+		$discovery              = $discover_gateway_ids( $gateways, $profile );
+		$expected_gateway_ids   = $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] );
 		$registered_gateway_ids = array_values(
 			array_filter(
 				$expected_gateway_ids,
@@ -349,11 +444,23 @@ return function (): array {
 			)
 		);
 		$install['registered_gateway_ids'] = $registered_gateway_ids;
+		$install['discovered_gateway_ids'] = $discovery['matched_gateway_ids'];
+		$install['all_gateway_ids']        = $discovery['all_gateway_ids'];
 		if ( ! isset( $gateways[ $profile['gateway_id'] ] ) ) {
 			$install['available']     = false;
 			$install['skipped']       = true;
-			$install['status']        = 'gateway_missing';
+			$install['status']        = 'missing_gateway';
 			$install['skip_reason']   = 'Gateway id is not registered after activation/configuration.';
+			$install['status_reason'] = $install['skip_reason'];
+			return $install;
+		}
+
+		if ( 'ready' !== $install['readiness_boundary'] ) {
+			$install['available']     = false;
+			$install['skipped']       = true;
+			$install['blocked']       = true;
+			$install['status']        = $install['readiness_boundary'];
+			$install['skip_reason']   = 'Gateway registered, but payment execution requires credentials or an external account boundary that this rig does not cross.';
 			$install['status_reason'] = $install['skip_reason'];
 		}
 
@@ -466,9 +573,18 @@ return function (): array {
 			'profile'        => $profile['profile'],
 			'gateway_id'     => $profile['gateway_id'],
 			'expected_gateway_ids' => $profile['expected_gateway_ids'] ?? array( $profile['gateway_id'] ),
+			'discovery_patterns' => $profile['discovery_patterns'] ?? array(),
 			'label'          => $profile['label'],
 			'dependency_slug' => $profile['dependency'] ?? $profile['plugin'],
 			'install'        => $install,
+			'plugin_file'    => $profile['entrypoint'],
+			'checkout_surfaces' => $install['checkout_surfaces'],
+			'credential_boundary' => $install['credential_boundary'],
+			'dummy_config_valid' => $install['dummy_config_valid'],
+			'safe_settings' => $install['safe_settings'],
+			'readiness_boundary' => $install['readiness_boundary'],
+			'discovered_gateway_ids' => $install['discovered_gateway_ids'],
+			'registered_gateway_ids' => $install['registered_gateway_ids'],
 			'status'         => $install['status'],
 			'status_reason'  => $install['status_reason'],
 			'available'      => (bool) $install['available'],
@@ -695,7 +811,16 @@ return function (): array {
 						'profile'              => $result['profile'],
 						'gateway_id'           => $result['gateway_id'],
 						'expected_gateway_ids' => $result['expected_gateway_ids'],
+						'discovery_patterns'   => $result['discovery_patterns'],
+						'discovered_gateway_ids' => $result['discovered_gateway_ids'],
+						'registered_gateway_ids' => $result['registered_gateway_ids'],
 						'dependency_slug'      => $result['dependency_slug'],
+						'plugin_file'          => $result['plugin_file'],
+						'checkout_surfaces'    => $result['checkout_surfaces'],
+						'credential_boundary'  => $result['credential_boundary'],
+						'dummy_config_valid'   => $result['dummy_config_valid'],
+						'safe_settings'        => $result['safe_settings'],
+						'readiness_boundary'   => $result['readiness_boundary'],
 						'status'               => $result['status'],
 						'status_reason'        => $result['status_reason'],
 						'available'            => $result['available'],

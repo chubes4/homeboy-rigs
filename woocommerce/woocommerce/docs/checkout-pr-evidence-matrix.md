@@ -36,19 +36,23 @@ homeboy-rigs PRs in that track include #176, #178, #183, #184, #193, #197, #219,
 The expanded gateway profile matrix now declares explicit rows for these popular
 gateway plugins:
 
-| Profile | Dependency slug | Expected gateway IDs |
-|---|---|---|
-| `plugin_stripe` | `woocommerce-gateway-stripe` | `stripe` |
-| `plugin_woopayments` | `woocommerce-payments` | `woocommerce_payments` |
-| `plugin_paypal_payments` | `woocommerce-paypal-payments` | `ppcp-gateway` |
-| `plugin_square` | `woocommerce-square` | `square_credit_card` |
-| `plugin_razorpay` | `razorpay` | `razorpay` |
-| `plugin_mollie` | `mollie-payments-for-woocommerce` | `mollie_wc_gateway_creditcard`, `mollie_wc_gateway_ideal`, `mollie_wc_gateway_paypal` |
-| `plugin_klarna` | `klarna-payments-for-woocommerce` | `klarna_payments`, `kco` |
+| Profile | Dependency slug | Expected gateway IDs | Runtime discovery patterns | Checkout surfaces | Readiness boundary |
+|---|---|---|---|---|---|
+| `plugin_stripe` | `woocommerce-gateway-stripe` | `stripe` | `/^stripe(_|$)/`, `/stripe/i` | classic, blocks, hosted fields, wallet/express | `blocked_credentials` |
+| `plugin_woopayments` | `woocommerce-payments` | `woocommerce_payments` | `/^woocommerce_payments$/` | classic, blocks, hosted fields, wallet/express, external account | `blocked_external_account` |
+| `plugin_paypal_payments` | `woocommerce-paypal-payments` | `ppcp-gateway` | `/^ppcp-/`, `/paypal/i` | classic, blocks, redirect, wallet/express, external account | `blocked_external_account` |
+| `plugin_square` | `woocommerce-square` | `square_credit_card` | `/^square/`, `/square/i` | classic, blocks, hosted fields, external account | `blocked_external_account` |
+| `plugin_razorpay` | `razorpay` | `razorpay` | `/razorpay/i` | classic, redirect, hosted fields | `blocked_credentials` |
+| `plugin_mollie` | `mollie-payments-for-woocommerce` | `mollie_wc_gateway_creditcard`, `mollie_wc_gateway_ideal`, `mollie_wc_gateway_paypal` | `/^mollie_wc_gateway_/` | classic, blocks, redirect, external account | `blocked_credentials` |
+| `plugin_klarna` | `klarna-payments-for-woocommerce` | `klarna_payments`, `kco` | `/klarna/i`, `/^kco$/` | classic, blocks, redirect, external account | `blocked_external_account` |
 
 Each runtime profile reports structured `available`, `build_failed`, `skipped`,
-and `blocked` fields plus source/prepared path env metadata. Core profiles do
-not require any third-party plugin preparation.
+and `blocked` fields plus source/prepared path env metadata. Gateway discovery
+uses WooCommerce payment gateway APIs and records both exact expected IDs and
+matched runtime IDs. Core profiles do not require any third-party plugin
+preparation. Third-party profiles do not call `process_payment()` with dummy
+credentials; they stop at the readiness boundary until a credential-safe fixture
+can mark a profile `ready`.
 
 ## Current Dependencies
 
@@ -59,6 +63,8 @@ not require any third-party plugin preparation.
 | https://github.com/chubes4/homeboy-rigs/issues/270 | landed | checkout hook sequencing and counts |
 | https://github.com/chubes4/homeboy-rigs/issues/271 | landed | coupon lifecycle guardrails |
 | https://github.com/chubes4/homeboy-rigs/issues/292 | open | real Stripe gateway evidence row |
+| https://github.com/chubes4/homeboy-rigs/issues/295 | open | checkout gateway profile readiness scenario and artifact shape |
+| https://github.com/chubes4/homeboy-rigs/issues/296 | open | gateway plugin discovery/configuration probes |
 | https://github.com/Extra-Chill/homeboy-extensions/issues/1336 | open | reusable gateway dependency provider materialization |
 
 ## Ready Rows
