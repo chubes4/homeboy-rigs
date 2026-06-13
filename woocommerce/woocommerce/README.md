@@ -122,7 +122,14 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   `order_awaiting_payment` mutation, public create-order cart clearing,
   pending/failed retries, completed-order safety, changed-cart retries,
   `template_redirect` cart clearing after paid extension-created orders, and
-  legacy coupon independence.
+  legacy coupon independence. It also records checkout hook sequencing by
+  scenario for `woocommerce_checkout_create_order`,
+  `woocommerce_checkout_order_created`,
+  `woocommerce_checkout_update_order_meta`,
+  `woocommerce_checkout_order_processed`, `woocommerce_resume_order`, and easy
+  payment-result hooks so WooCommerce issue #62659 / PR #65588 revisions can be
+  checked against Jorge's extension-compatibility review and Homeboy Rigs issue
+  #270.
 - `checkout-gateway-compatibility-matrix` runs the duplicate-checkout/order
   idempotency repro across core BACS, Cheque, and COD gateway controls plus
   first-class mounted real-plugin profiles for WooCommerce Stripe Gateway,
@@ -184,8 +191,10 @@ The first slice reports:
   `template_redirect_clears_paid_completed_extension_order`,
   `template_redirect_does_not_clear_without_payment_signal`,
   `template_redirect_does_not_clear_pending_retry_order`,
-  `legacy_coupon_independence`, and `guardrail_failure_count` for the checkout
-  duplicate-order side-effect guardrails.
+  `legacy_coupon_independence`, `hook_observed_event_count`, per-hook
+  `hook_count_*` values, scenario-specific resume/order-processed counts, and
+  `guardrail_failure_count` for the checkout duplicate-order side-effect and hook
+  sequencing guardrails.
 - `total_churn_shipping_p50_ms`, `total_churn_to_warm_ratio`, and
   `total_churn_rate_calculation_calls` for package subtotal/total-only churn.
 - `rehash_shipping_p50_ms` and `rehash_to_warm_ratio` for address/hash changes.
