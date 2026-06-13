@@ -124,7 +124,12 @@ when the plugin activates but does not register the expected gateway. Credential
 external-account, and checkout-surface blockers should be reported as
 `blocked_credentials`, `blocked_external_account`, or
 `unsupported_checkout_surface` when the profile readiness scenario can classify
-them.
+them. Runtime discovery uses `WC()->payment_gateways()` and each row reports
+expected gateway IDs, discovery patterns, matched gateway IDs, safe test
+settings, checkout surface classification, credential/account boundaries, and a
+readiness boundary. Third-party profiles stop before `process_payment()` unless a
+future credential-safe fixture explicitly marks them `ready`; the rig does not
+use real credentials or call live payment networks.
 Gateway dependency-provider blockers are tracked in:
 
 - https://github.com/chubes4/homeboy-rigs/issues/292
@@ -203,14 +208,18 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   WooCommerce, Mollie Payments for WooCommerce, and Klarna for WooCommerce when
   those plugin paths are configured. It captures configured dependency/source/
   prepared paths, mounted plugin directory, expected and registered gateway IDs,
-  plugin version, and status details without secrets, and links evidence to
+  runtime gateway discovery patterns/matches, safe settings, checkout surface
+  classifications, credential/account boundaries, plugin version, and status
+  details without secrets, and links evidence to
   WooCommerce issue #62659, WooCommerce PR #65588, Jorge's PR review, and
-  Homeboy Rigs issue #255.
+  Homeboy Rigs issues #255, #295, and #296.
   Limit the matrix during focused smokes with
   `WC_CHECKOUT_GATEWAY_MATRIX_PROFILES=core_bacs,plugin_stripe`. Plugin profiles
-  report explicit readiness statuses when their entrypoint is unavailable,
-  activation fails, or the expected gateway is missing, so the core controls
-  remain runnable without gateway secrets or third-party materialization.
+  report explicit readiness statuses plus `available`, `build_failed`, `skipped`,
+  `blocked`, discovery, and readiness-boundary details when their entrypoint is
+  unavailable, activation fails, gateway discovery misses, or credentials/external
+  accounts are required, so the core controls remain runnable without gateway
+  secrets or third-party materialization.
 - `checkout-gateway-profile-readiness` classifies real gateway plugin profile
   readiness for WooPayments, Stripe, PayPal, Square, Razorpay, Mollie, and
   Klarna without running checkout payment flows. Each profile is isolated and

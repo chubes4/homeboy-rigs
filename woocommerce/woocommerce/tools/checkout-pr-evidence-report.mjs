@@ -116,12 +116,16 @@ function renderReport(data) {
 	if (gatewayProfiles.length > 0) {
 		lines.push('## Gateway Profiles');
 		lines.push('');
-		lines.push('| Profile | Status | Dependency | Expected gateway IDs | Entrypoint | Artifact | Scope | Blockers |');
-		lines.push('|---|---|---|---|---|---|---|---|');
+		lines.push('| Profile | Status | Dependency | Expected gateway IDs | Discovery patterns | Entrypoint | Checkout surfaces | Safe settings | Boundary | Artifact | Scope | Blockers |');
+		lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|');
 		for (const profile of gatewayProfiles) {
 			const expectedGatewayIds = Array.isArray(profile.expected_gateway_ids) ? profile.expected_gateway_ids.join(', ') : '';
+			const discoveryPatterns = Array.isArray(profile.discovery_patterns) ? profile.discovery_patterns.join(', ') : '';
+			const checkoutSurfaces = Array.isArray(profile.checkout_surfaces) ? profile.checkout_surfaces.join(', ') : '';
+			const safeSettings = profile.safe_settings ? Object.keys(profile.safe_settings).join(', ') : '';
+			const boundary = profile.readiness_boundary ? `${profile.readiness_boundary}; ${profile.credential_boundary || 'unknown'}` : '';
 			const blockers = Array.isArray(profile.blocked_by) && profile.blocked_by.length > 0 ? profile.blocked_by.join(', ') : '';
-			lines.push(`| ${profile.profile} | ${profile.status} | ${profile.dependency_slug} | ${expectedGatewayIds} | ${profile.entrypoint || 'WooCommerce core'} | ${profile.artifact || 'pending'} | ${profile.scope || ''} | ${blockers} |`);
+			lines.push(`| ${profile.profile} | ${profile.status} | ${profile.dependency_slug} | ${expectedGatewayIds} | ${discoveryPatterns} | ${profile.entrypoint || 'WooCommerce core'} | ${checkoutSurfaces} | ${safeSettings} | ${boundary} | ${profile.artifact || 'pending'} | ${profile.scope || ''} | ${blockers} |`);
 		}
 		lines.push('');
 	}
