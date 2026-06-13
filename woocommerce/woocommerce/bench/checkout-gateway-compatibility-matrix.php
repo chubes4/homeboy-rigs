@@ -102,34 +102,40 @@ return function (): array {
 			),
 		),
 		array(
-			'profile'        => 'plugin_stripe',
-			'gateway_id'     => 'stripe',
-			'label'          => 'WooCommerce Stripe Gateway',
-			'plugin'         => 'woocommerce-gateway-stripe',
-			'entrypoint'     => 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php',
-			'path_env'       => 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH',
-			'settings'       => array(
+			'profile'           => 'plugin_stripe',
+			'gateway_id'        => 'stripe',
+			'label'             => 'WooCommerce Stripe Gateway',
+			'plugin'            => 'woocommerce-gateway-stripe',
+			'entrypoint'        => 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php',
+			'dependency_env'    => 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_DEPENDENCY',
+			'source_path_env'   => 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_SOURCE_PATH',
+			'prepared_path_env' => 'WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_ARTIFACT_PATH',
+			'settings'          => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
 			),
 		),
 		array(
-			'profile'        => 'plugin_paypal_payments',
-			'gateway_id'     => 'ppcp-gateway',
-			'label'          => 'WooCommerce PayPal Payments',
-			'plugin'         => 'woocommerce-paypal-payments',
-			'entrypoint'     => 'woocommerce-paypal-payments/woocommerce-paypal-payments.php',
-			'path_env'       => 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH',
-			'settings'       => array( 'enabled' => 'yes' ),
+			'profile'           => 'plugin_paypal_payments',
+			'gateway_id'        => 'ppcp-gateway',
+			'label'             => 'WooCommerce PayPal Payments',
+			'plugin'            => 'woocommerce-paypal-payments',
+			'entrypoint'        => 'woocommerce-paypal-payments/woocommerce-paypal-payments.php',
+			'dependency_env'    => 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_DEPENDENCY',
+			'source_path_env'   => 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH',
+			'prepared_path_env' => 'WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PREPARED_ARTIFACT_PATH',
+			'settings'          => array( 'enabled' => 'yes' ),
 		),
 		array(
-			'profile'        => 'plugin_woopayments',
-			'gateway_id'     => 'woocommerce_payments',
-			'label'          => 'WooPayments',
-			'plugin'         => 'woocommerce-payments',
-			'entrypoint'     => 'woocommerce-payments/woocommerce-payments.php',
-			'path_env'       => 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH',
-			'settings'       => array(
+			'profile'           => 'plugin_woopayments',
+			'gateway_id'        => 'woocommerce_payments',
+			'label'             => 'WooPayments',
+			'plugin'            => 'woocommerce-payments',
+			'entrypoint'        => 'woocommerce-payments/woocommerce-payments.php',
+			'dependency_env'    => 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_DEPENDENCY',
+			'source_path_env'   => 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH',
+			'prepared_path_env' => 'WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PREPARED_ARTIFACT_PATH',
+			'settings'          => array(
 				'enabled'  => 'yes',
 				'testmode' => 'yes',
 			),
@@ -149,7 +155,7 @@ return function (): array {
 		);
 	}
 
-	$get_mounted_plugin_revision = static function ( string $plugin_dir ): ?string {
+	$get_git_revision = static function ( string $plugin_dir ): ?string {
 		if ( '' === $plugin_dir || ! is_dir( $plugin_dir ) || ! function_exists( 'shell_exec' ) ) {
 			return null;
 		}
@@ -161,38 +167,50 @@ return function (): array {
 		return '' !== $revision ? $revision : null;
 	};
 
-	$ensure_gateway_profile = static function ( array $profile ) use ( $get_mounted_plugin_revision ): array {
-		$entrypoint_path = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['entrypoint'] : '';
-		$mounted_path    = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . dirname( $profile['entrypoint'] ) : '';
-		$configured_path = '';
-		if ( ! empty( $profile['path_env'] ) ) {
-			$configured_path = (string) getenv( $profile['path_env'] );
-		}
-		$install         = array(
-			'plugin'            => $profile['plugin'],
-			'entrypoint'        => $profile['entrypoint'],
-			'entrypoint_path'   => $entrypoint_path,
-			'configured_path'   => $configured_path,
-			'mounted_path'      => $mounted_path,
-			'mounted_revision'  => null,
-			'available'         => true,
-			'activated'         => false,
-			'version'           => null,
-			'status'            => 'available',
-			'skip_reason'       => '',
+	$get_env_value = static function ( array $profile, string $key ): string {
+		$env_name = (string) ( $profile[ $key ] ?? '' );
+		return '' !== $env_name ? (string) getenv( $env_name ) : '';
+	};
+
+	$ensure_gateway_profile = static function ( array $profile ) use ( $get_git_revision, $get_env_value ): array {
+		$entrypoint_path    = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . $profile['entrypoint'] : '';
+		$mounted_plugin_dir = $profile['entrypoint'] ? WP_PLUGIN_DIR . '/' . dirname( $profile['entrypoint'] ) : '';
+		$dependency         = $get_env_value( $profile, 'dependency_env' );
+		$source_path        = $get_env_value( $profile, 'source_path_env' );
+		$prepared_path      = $get_env_value( $profile, 'prepared_path_env' );
+		$configured         = '' !== $dependency || '' !== $source_path || '' !== $prepared_path;
+		$install            = array(
+			'plugin'                 => $profile['plugin'],
+			'entrypoint'             => $profile['entrypoint'],
+			'entrypoint_path'        => $entrypoint_path,
+			'configured_dependency'  => $dependency,
+			'source_path'            => $source_path,
+			'git_revision'           => null,
+			'prepared_artifact_path' => $prepared_path,
+			'mounted_plugin_dir'     => $mounted_plugin_dir,
+			'plugin_version'         => null,
+			'available'              => true,
+			'activated'              => false,
+			'status'                 => 'available',
+			'skip_reason'            => '',
 		);
 
 		if ( $profile['entrypoint'] ) {
 			if ( ! file_exists( $entrypoint_path ) ) {
-				$install['available']   = false;
-				$install['status']      = $configured_path ? 'entrypoint_missing' : 'not_configured';
-				$install['skip_reason'] = $configured_path
-					? 'Configured plugin path did not mount the expected entrypoint in WP Codebox.'
-					: 'Plugin path is not configured for this gateway profile.';
+				$install['available'] = false;
+				if ( '' !== $prepared_path && ! is_dir( $prepared_path ) ) {
+					$install['status']      = 'build_failed';
+					$install['skip_reason'] = 'Prepared dependency artifact path is configured but is not available in the runtime.';
+				} else {
+					$install['status']      = $configured ? 'entrypoint_missing' : 'not_configured';
+					$install['skip_reason'] = $configured
+						? 'Configured dependency did not mount the expected plugin entrypoint in WP Codebox.'
+						: 'Plugin path is not configured for this gateway profile.';
+				}
 				return $install;
 			}
 
-			$install['mounted_revision'] = $get_mounted_plugin_revision( $mounted_path );
+			$install['git_revision'] = $get_git_revision( $source_path ) ?: $get_git_revision( $mounted_plugin_dir );
 
 			if ( ! function_exists( 'is_plugin_active' ) || ! function_exists( 'activate_plugin' ) ) {
 				require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -213,8 +231,8 @@ return function (): array {
 				require_once ABSPATH . 'wp-admin/includes/plugin.php';
 			}
 			if ( function_exists( 'get_plugin_data' ) ) {
-				$plugin_data        = get_plugin_data( $entrypoint_path, false, false );
-				$install['version'] = $plugin_data['Version'] ?? null;
+				$plugin_data               = get_plugin_data( $entrypoint_path, false, false );
+				$install['plugin_version'] = $plugin_data['Version'] ?? null;
 			}
 		}
 
@@ -232,7 +250,7 @@ return function (): array {
 		$gateways = WC()->payment_gateways ? WC()->payment_gateways->payment_gateways() : array();
 		if ( ! isset( $gateways[ $profile['gateway_id'] ] ) ) {
 			$install['available']   = false;
-			$install['status']      = 'gateway_missing';
+			$install['status']      = 'activation_failed';
 			$install['skip_reason'] = 'Gateway id is not registered after activation/configuration.';
 		}
 
