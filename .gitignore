@@ -5,6 +5,7 @@
 
 # Local benchmark outputs and artifacts.
 .bench-output/
+**/artifacts/
 
 # macOS Finder metadata.
 .DS_Store

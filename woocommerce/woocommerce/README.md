@@ -168,6 +168,7 @@ WooCommerce plugin directory.
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state /tmp/woocommerce-concurrent-checkout
 homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state /tmp/woocommerce-gateway-matrix
+HOMEBOY_BIN=/path/to/homeboy node tools/checkout-gateway-readiness-matrix.mjs --runner homeboy-lab --path /path/to/woocommerce/plugins/woocommerce --shared-state /tmp/woocommerce-gateway-profile-readiness --output artifacts/checkout-gateway-readiness-matrix.json
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
@@ -220,10 +221,13 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   unavailable, activation fails, gateway discovery misses, or credentials/external
   accounts are required, so the core controls remain runnable without gateway
   secrets or third-party materialization.
-- `checkout-gateway-profile-readiness` classifies real gateway plugin profile
-  readiness for WooPayments, Stripe, PayPal, Square, Razorpay, Mollie, and
-  Klarna without running checkout payment flows. Each profile is isolated and
-  writes source/revision/artifact/activation/gateway/surface/status/reason/log
+- `checkout-gateway-profile-readiness` classifies one real gateway plugin profile
+  at a time without running checkout payment flows. Use
+  `tools/checkout-gateway-readiness-matrix.mjs` for the full WooPayments,
+  Stripe, PayPal, Square, Razorpay, Mollie, and Klarna set; it launches one
+  Homeboy bench run per profile so one plugin fatal becomes that profile's
+  structured status instead of aborting unrelated profiles. Each profile writes
+  source/revision/artifact/activation/gateway/surface/status/reason/log
   evidence; dependency-provider gaps are classified as
   `blocked_dependency_provider` rather than failing the full scenario.
 - `checkout-shipping-cache` seeds simple physical products, configures a flat-rate
