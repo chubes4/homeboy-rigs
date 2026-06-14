@@ -35,6 +35,13 @@ return function (): array {
 	if ( ! WC()->payment_gateways && class_exists( 'WC_Payment_Gateways' ) ) {
 		WC()->payment_gateways = new WC_Payment_Gateways();
 	}
+	if ( method_exists( WC(), 'mailer' ) ) {
+		foreach ( WC()->mailer()->get_emails() as $email ) {
+			if ( isset( $email->id ) ) {
+				add_filter( 'woocommerce_email_enabled_' . $email->id, '__return_false', 999 );
+			}
+		}
+	}
 
 	$run_id = 'woocommerce-checkout-gateway-compatibility-matrix-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
 	$issues = array(
