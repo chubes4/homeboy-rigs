@@ -278,6 +278,26 @@
         "woocommerce_stripe_ece_require_fanout_proof": "1"
       }
     },
+    "webperf-below-fold-load": {
+      "scenario": "ece-product-page-below-fold-load",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-load"
+      }
+    },
+    "webperf-below-fold-scroll-to-ece": {
+      "scenario": "ece-product-page-below-fold-scroll-to-ece",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-load"
+      }
+    },
+    "webperf-below-fold-wallet-fanout": {
+      "scenario": "ece-product-page-below-fold-scroll-to-ece",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-slow-4g",
+        "woocommerce_stripe_accepted_payment_methods": "card,link,apple_pay,google_pay",
+        "woocommerce_stripe_ece_require_fanout_proof": "1"
+      }
+    },
     "secure-browser": {
       "scenario": "ece-product-page-waterfall",
       "settings": {

@@ -34,6 +34,9 @@ Homeboy core reporting change.
 | `webperf-desktop-load` | `load` | none | Normal-ish desktop LCP/FCP/TTFB/load/navigation timing shape. | Use for non-throttled absolute load context, not stable synthetic fan-out deltas. |
 | `webperf-desktop-slow-4g` | `load` | `low-end-mobile-slow-4g` | Stable synthetic third-party response fan-out and relative waterfall deltas. | Desktop rendering is intentionally paired with a slow synthetic throttle; do not present these as normal desktop absolute timings. |
 | `webperf-wallet-fanout` | `load` | `low-end-mobile-slow-4g` | Deterministic ECE create/mount count proof with `card,link,apple_pay,google_pay` requested. | Constructor and mount counts are primary proof; Stripe network/session counters are supporting evidence only. |
+| `webperf-below-fold-load` | `load` | none | Product content visible timing while ECE is below the initial viewport and no scroll occurs. | Use to prove deferred startup improves visible product load without requiring ECE readiness before proximity. |
+| `webperf-below-fold-scroll-to-ece` | `load` | none | Product content visible timing, then scroll-to-ECE readiness after viewport proximity. | Use for normal-ish desktop below-fold UX validation; not stable synthetic fan-out deltas. |
+| `webperf-below-fold-wallet-fanout` | `load` | `low-end-mobile-slow-4g` | Below-fold product-visible proof, post-scroll ECE readiness, and deterministic wallet fan-out evidence. | Constructor and mount counts are primary proof; Stripe network/session counters are supporting evidence only. |
 
 Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-load` to keep the
 desktop browser context without synthetic CPU/network throttling. This profile
@@ -75,6 +78,25 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   --profile webperf-wallet-fanout \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-wallet-fanout.json
+```
+
+Use the below-fold profiles when validating delayed or viewport-proximity ECE
+startup strategies. They keep the product title, price, and add-to-cart controls
+above the fold while moving the ECE container after `form.cart` and below the
+initial viewport. `webperf-below-fold-load` intentionally does not scroll, while
+`webperf-below-fold-scroll-to-ece` and `webperf-below-fold-wallet-fanout` record
+initial product timing first and then scroll near ECE to prove readiness.
+
+```bash
+homeboy trace compare woocommerce-gateway-stripe ece-product-page-below-fold-scroll-to-ece \
+  --rig woocommerce-stripe-ece-product-page \
+  --profile webperf-below-fold-wallet-fanout \
+  --baseline-target origin/develop \
+  --candidate ./candidate-worktree \
+  --repeat 5 \
+  --schedule interleaved \
+  --canonical \
+  --output /tmp/wc-stripe-ece-below-fold-fanout.compare.json
 ```
 
 Set `woocommerce_stripe_ece_browser_profile=secure-browser` to run the same
@@ -149,6 +171,11 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
 The stable signals are structural:
 
 - ECE container, child, iframe, visible iframe, and visible button timing.
+- Product title, price, and add-to-cart visible timing plus above-fold rects:
+  `product_title_visible_ms`, `product_price_visible_ms`,
+  `product_add_to_cart_visible_ms`, `product_content_visible_ms`,
+  `product_content_above_fold`, `product_title_rect`, `product_price_rect`, and
+  `product_add_to_cart_rect`.
 - Stripe/Stripe Network response count.
 - Total network response count.
 - Browser document count.

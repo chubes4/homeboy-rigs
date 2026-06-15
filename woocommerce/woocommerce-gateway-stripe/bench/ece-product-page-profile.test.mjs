@@ -11,7 +11,7 @@ import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs'
 import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
-import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
+import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, ECE_FANOUT_REVIEWER_READY, ECE_FANOUT_SUPPLEMENTAL, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 import { wpCodeboxBin, wpCodeboxCommand } from './ece-product-page-wp-codebox.mjs';
 
@@ -178,6 +178,26 @@ test('rig manifest exposes the ECE webperf profile matrix', () => {
   });
   assert.deepEqual(manifest.trace_profiles['webperf-wallet-fanout'], {
     scenario: 'ece-product-page-waterfall',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-desktop-slow-4g',
+      woocommerce_stripe_accepted_payment_methods: 'card,link,apple_pay,google_pay',
+      woocommerce_stripe_ece_require_fanout_proof: '1',
+    },
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-below-fold-load'], {
+    scenario: 'ece-product-page-below-fold-load',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-desktop-load',
+    },
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-below-fold-scroll-to-ece'], {
+    scenario: 'ece-product-page-below-fold-scroll-to-ece',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-desktop-load',
+    },
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-below-fold-wallet-fanout'], {
+    scenario: 'ece-product-page-below-fold-scroll-to-ece',
     settings: {
       woocommerce_stripe_ece_browser_profile: 'webperf-desktop-slow-4g',
       woocommerce_stripe_accepted_payment_methods: 'card,link,apple_pay,google_pay',
@@ -437,6 +457,10 @@ test('ECE scenario registry preserves load-only default and exposes interactions
   assert.equal(eceProductPageScenario().id, DEFAULT_ECE_SCENARIO_ID);
   assert.equal(eceProductPageScenario(DEFAULT_ECE_SCENARIO_ID).interaction, 'load-only');
   assert.equal(eceProductPageScenario('ece-product-page-scroll-to-ece').interaction, 'scroll-to-ece');
+  assert.equal(eceProductPageScenario('ece-product-page-below-fold-load').layout, 'below-fold');
+  assert.equal(eceProductPageScenario('ece-product-page-below-fold-load').interaction, 'load-only');
+  assert.equal(eceProductPageScenario('ece-product-page-below-fold-scroll-to-ece').layout, 'below-fold');
+  assert.equal(eceProductPageScenario('ece-product-page-below-fold-scroll-to-ece').interaction, 'scroll-to-ece');
   assert.equal(eceProductPageScenario('ece-product-page-quantity-change').interaction, 'quantity-change');
   assert.equal(eceProductPageScenario('ece-product-page-simulated-cls').simulatedCls, 'unreserved');
   assert.equal(eceProductPageScenario('ece-product-page-simulated-cls-reserved').simulatedCls, 'reserved');
@@ -444,12 +468,17 @@ test('ECE scenario registry preserves load-only default and exposes interactions
   assert.equal(eceProductPageScenario('ece-product-page-simulated-cls-reserved').waitFor, 'load');
   assert.ok(eceProductPageScenarioIds().includes(DEFAULT_ECE_SCENARIO_ID));
   assert.ok(eceProductPageScenarioIds().includes('ece-product-page-scroll-to-ece'));
+  assert.ok(eceProductPageScenarioIds().includes('ece-product-page-below-fold-load'));
+  assert.ok(eceProductPageScenarioIds().includes('ece-product-page-below-fold-scroll-to-ece'));
   assert.ok(eceProductPageScenarioIds().includes('ece-product-page-simulated-cls'));
   assert.ok(eceProductPageScenarioIds().includes('ece-product-page-simulated-cls-reserved'));
 });
 
 test('ECE interaction scripts keep Stripe selectors in the rig', () => {
   assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-scroll-to-ece')), /#wc-stripe-express-checkout-element/);
+  assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-below-fold-scroll-to-ece')), /before_scroll_to_ece/);
+  assert.match(eceLayoutScript(eceProductPageScenario('ece-product-page-below-fold-load')), /#wc-stripe-express-checkout-element \{ display: block !important; margin-top: 1400px !important; \}/);
+  assert.match(eceLayoutScript(eceProductPageScenario('ece-product-page-below-fold-load')), /insertAdjacentElement\('afterend', root\)/);
   assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-quantity-change')), /quantity_change/);
   assert.match(eceInteractionScript(eceProductPageScenario('ece-product-page-simulated-cls')), /simulated_cls_render/);
 });
@@ -625,6 +654,9 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /id: 'fixture-health'/);
   assert.match(traceSource, /id: 'stripe-ece-asset-provenance'/);
   assert.match(traceSource, /id: 'real-wallet-asset-health'/);
+  assert.match(traceSource, /productContentMetrics/);
+  assert.match(traceSource, /product_content_visible_ms/);
+  assert.match(traceSource, /id: 'product-content-visible'/);
   assert.match(traceSource, /buildRequestSummary/);
   assert.match(traceSource, /build\/express-checkout\.js/);
   assert.match(traceSource, /npm', \['run', 'build:webpack'\]/);
