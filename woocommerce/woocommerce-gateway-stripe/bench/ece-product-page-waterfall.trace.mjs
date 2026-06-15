@@ -22,6 +22,7 @@ const eceLocations = process.env.HOMEBOY_WC_STRIPE_ECE_LOCATIONS || 'product';
 const acceptedPaymentMethods = process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_METHODS || 'card,link';
 const probeDuration = process.env.HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION || '7s';
 const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
+const fixtureBootstrapPath = path.join(import.meta.dirname, 'fixture-bootstrap.php');
 const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
 const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
@@ -32,8 +33,8 @@ if (!componentPath) {
 if (!resultsFile) {
   throw new Error('HOMEBOY_TRACE_RESULTS_FILE is required');
 }
-if (!existsSync(path.join(componentPath, 'tests/benchmarks/fixture-bootstrap.php'))) {
-  throw new Error('Missing tests/benchmarks/fixture-bootstrap.php in the Stripe checkout. Run against woocommerce-gateway-stripe#5522 or later.');
+if (!existsSync(fixtureBootstrapPath)) {
+  throw new Error(`Missing rig-owned Stripe fixture at ${fixtureBootstrapPath}.`);
 }
 if (!existsSync(path.join(woocommercePath, 'woocommerce.php'))) {
   throw new Error(`Missing WooCommerce dependency plugin at ${woocommercePath}. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory.`);
@@ -172,7 +173,7 @@ try {
   await writeFile(
     setupFile,
     `<?php
-require_once WP_PLUGIN_DIR . '/woocommerce-gateway-stripe/tests/benchmarks/fixture-bootstrap.php';
+${(await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '')}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
 $accepted_payment_methods = json_decode( '${JSON.stringify(csvToJsonArray(acceptedPaymentMethods))}', true );

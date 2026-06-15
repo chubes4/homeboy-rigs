@@ -304,8 +304,8 @@
       },
       {
         "kind": "command",
-        "label": "Stripe benchmark fixture exists",
-        "command": "stripe_path=\"${HOMEBOY_WC_STRIPE_COMPONENT_PATH:-$HOME/Developer/woocommerce-gateway-stripe}\"; test -f \"$stripe_path/tests/benchmarks/fixture-bootstrap.php\" || { printf '%s\\n' \"Missing Stripe benchmark fixture at $stripe_path/tests/benchmarks/fixture-bootstrap.php. Run against a checkout containing woocommerce-gateway-stripe#5522 or later.\"; exit 1; }"
+        "label": "Rig-owned Stripe benchmark fixture exists",
+        "command": "test -f \"${package.root}/bench/fixture-bootstrap.php\" || { printf '%s\\n' \"Missing rig-owned Stripe benchmark fixture at ${package.root}/bench/fixture-bootstrap.php.\"; exit 1; }"
       },
       {
         "kind": "command",

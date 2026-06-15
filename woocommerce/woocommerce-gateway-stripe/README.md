@@ -58,8 +58,9 @@ Secondary noisy metrics:
 
 ## Prerequisites
 
-The Stripe checkout must include `tests/benchmarks/fixture-bootstrap.php`, which
-is added by https://github.com/woocommerce/woocommerce-gateway-stripe/pull/5522.
+The deterministic benchmark fixture is owned by this rig package at
+`bench/fixture-bootstrap.php`; the Stripe checkout under test does not need to
+carry benchmark fixture files.
 
 For `homeboy rig check`, use `HOMEBOY_WC_STRIPE_COMPONENT_PATH` when the target
 Stripe checkout is a worktree instead of `~/Developer/woocommerce-gateway-stripe`:
@@ -132,6 +133,31 @@ homeboy trace \
   woocommerce-gateway-stripe ece-product-page-waterfall
 ```
 
+Run baseline/candidate proof with WP Codebox visual parity artifacts:
+
+```bash
+homeboy trace compare \
+  --rig woocommerce-stripe-ece-product-page \
+  --baseline-target origin/develop \
+  --candidate <candidate-ref-or-sha> \
+  --schedule interleaved \
+  --repeat 3 \
+  --report markdown \
+  --visual-compare \
+  --visual-compare-provider node \
+  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
+  --visual-threshold 0.1 \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-product-page-proof.md
+```
+
+`--visual-compare` reuses the screenshots captured by the trace workload and
+passes them to Homeboy Extensions' WP Codebox visual compare provider. The
+provider calls WP Codebox's `wordpress.visual-compare` primitive and writes
+source, candidate, diff, `visual-diff.json`, and `visual-explanation.json`
+artifacts under the trace compare output directory. This keeps the rig focused
+on producing browser evidence while WP Codebox owns the visual diff primitive.
+
 Useful settings:
 
 - `HOMEBOY_WC_STRIPE_ECE_LOCATIONS=product`
@@ -142,9 +168,9 @@ Useful settings:
 ## Real Wallet Profile
 
 The default `smoke`, `hot`, and interaction profiles remain synthetic lifecycle
-evidence. They intentionally keep working with the Stripe benchmark fixture's
-placeholder keys so network, DOM, and CLS-style render timing can be collected
-without real Stripe credentials.
+evidence. They intentionally keep working with the rig-owned Stripe benchmark
+fixture's placeholder keys so network, DOM, and CLS-style render timing can be
+collected without real Stripe credentials.
 
 Use the `real-wallet` profile when collecting real-wallet-capable ECE evidence:
 
