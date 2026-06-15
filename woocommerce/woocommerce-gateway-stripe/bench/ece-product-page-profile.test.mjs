@@ -131,6 +131,65 @@ test('webperf desktop slow 4g profile keeps desktop context while applying Codeb
   assert.ok(!options.browserProbeArgs.includes('profile=low-end-mobile-slow-4g'));
 });
 
+test('Stripe hint experiment profiles are opt-in and expose active hint strategy', () => {
+  const none = buildEceProfileOptions('webperf-stripe-hints-none');
+  const preconnect = buildEceProfileOptions('webperf-stripe-preconnect');
+  const preload = buildEceProfileOptions('webperf-stripe-js-preload');
+  const deferred = buildEceProfileOptions('webperf-stripe-deferred-preconnect');
+
+  assert.equal(none.hintStrategy, 'none');
+  assert.deepEqual(none.hintLinks, []);
+  assert.equal(none.deferExpressCheckoutScript, false);
+
+  assert.equal(preconnect.hintStrategy, 'stripe-preconnect');
+  assert.deepEqual(
+    preconnect.hintLinks.map((link) => [link.rel, link.href]),
+    [
+      ['preconnect', 'https://js.stripe.com'],
+      ['preconnect', 'https://api.stripe.com'],
+      ['preconnect', 'https://m.stripe.network'],
+    ]
+  );
+  assert.equal(preconnect.deferExpressCheckoutScript, false);
+
+  assert.equal(preload.hintStrategy, 'stripe-js-preload');
+  assert.ok(preload.hintLinks.some((link) => link.rel === 'preload' && link.href === 'https://js.stripe.com/v3/' && link.as === 'script'));
+
+  assert.equal(deferred.hintStrategy, 'stripe-deferred-preconnect');
+  assert.equal(deferred.deferExpressCheckoutScript, true);
+  assert.ok(deferred.hintLinks.every((link) => link.rel === 'preconnect'));
+
+  for (const options of [none, preconnect, preload, deferred]) {
+    assert.equal(options.throttleProfile, 'low-end-mobile-slow-4g');
+    assert.equal(options.waitFor, 'load');
+    assert.ok(options.browserProbeAssertions.includes('assert=metric:browser_lcp_ms>=0'));
+  }
+});
+
+test('manual hint strategy setting can override browser profile defaults', () => {
+  const previous = {
+    HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY: process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY,
+    HOMEBOY_WC_STRIPE_ECE_HINT_STRATEGY: process.env.HOMEBOY_WC_STRIPE_ECE_HINT_STRATEGY,
+  };
+
+  process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY = 'stripe-preconnect';
+
+  try {
+    const options = buildEceProfileOptions('webperf-desktop-load');
+
+    assert.equal(options.hintStrategy, 'stripe-preconnect');
+    assert.equal(options.hintLinks.length, 3);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});
+
 test('webperf wallet fanout profile supplies a non-secret synthetic publishable key', () => {
   const previous = {
     HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF: process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF,
@@ -183,6 +242,25 @@ test('rig manifest exposes the ECE webperf profile matrix', () => {
       woocommerce_stripe_accepted_payment_methods: 'card,link,apple_pay,google_pay',
       woocommerce_stripe_ece_require_fanout_proof: '1',
     },
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-stripe-hints-none'], {
+    scenario: 'ece-product-page-waterfall',
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'webperf-stripe-hints-none',
+      woocommerce_stripe_ece_hint_strategy: 'none',
+    },
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-stripe-preconnect'].settings, {
+    woocommerce_stripe_ece_browser_profile: 'webperf-stripe-preconnect',
+    woocommerce_stripe_ece_hint_strategy: 'stripe-preconnect',
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-stripe-js-preload'].settings, {
+    woocommerce_stripe_ece_browser_profile: 'webperf-stripe-js-preload',
+    woocommerce_stripe_ece_hint_strategy: 'stripe-js-preload',
+  });
+  assert.deepEqual(manifest.trace_profiles['webperf-stripe-deferred-preconnect'].settings, {
+    woocommerce_stripe_ece_browser_profile: 'webperf-stripe-deferred-preconnect',
+    woocommerce_stripe_ece_hint_strategy: 'stripe-deferred-preconnect',
   });
   assert.equal(manifest.trace_profiles['real-wallet'].public_preview, undefined);
 });
@@ -630,6 +708,11 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /npm', \['run', 'build:webpack'\]/);
   assert.match(traceSource, /profile_publishable_key/);
   assert.match(traceSource, /stripe_publishable_key/);
+  assert.match(traceSource, /stripe_hint_strategy/);
+  assert.match(traceSource, /stripe_hint_comparison_signals/);
+  assert.match(traceSource, /product_content_visible_ms/);
+  assert.match(traceSource, /homeboy-stripe-ece-hint-strategy/);
+  assert.match(traceSource, /script_loader_tag/);
   assert.match(traceSource, /homeboy_stripe_ece_asset_src_or_empty_data_uri/);
   assert.match(traceSource, /data:" \. \$mime_type \. ","/);
 });

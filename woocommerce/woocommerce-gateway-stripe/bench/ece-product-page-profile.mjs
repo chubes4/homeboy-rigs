@@ -2,6 +2,18 @@ export const DEFAULT_PROFILE = 'smoke';
 export const REAL_WALLET_PROFILE = 'real-wallet';
 export const WEBPERF_DESKTOP_LOAD_PROFILE = 'webperf-desktop-load';
 export const WEBPERF_DESKTOP_SLOW_4G_PROFILE = 'webperf-desktop-slow-4g';
+export const WEBPERF_STRIPE_HINTS_NONE_PROFILE = 'webperf-stripe-hints-none';
+export const WEBPERF_STRIPE_PRECONNECT_PROFILE = 'webperf-stripe-preconnect';
+export const WEBPERF_STRIPE_JS_PRELOAD_PROFILE = 'webperf-stripe-js-preload';
+export const WEBPERF_STRIPE_DEFERRED_PRECONNECT_PROFILE = 'webperf-stripe-deferred-preconnect';
+
+const STRIPE_HINT_ORIGINS = [
+  'https://js.stripe.com',
+  'https://api.stripe.com',
+  'https://m.stripe.network',
+];
+
+const STRIPE_JS_URL = 'https://js.stripe.com/v3/';
 
 const DESKTOP_BROWSER_PROBE_ARGS = [
   'browser=chromium',
@@ -53,6 +65,26 @@ const PROFILE_METADATA = {
     caveat: 'Desktop slow-4g profile keeps desktop rendering while applying deterministic low-end-mobile-slow-4g throttle; use it for stable synthetic third-party fan-out deltas, not absolute desktop timings.',
     conclusion: 'Stable synthetic third-party response fan-out and relative waterfall deltas.',
   },
+  [WEBPERF_STRIPE_HINTS_NONE_PROFILE]: {
+    label: 'Stripe hints baseline',
+    caveat: 'Stripe hints baseline uses the slow-4g webperf browser profile without preconnect, preload, or deferred ECE startup.',
+    conclusion: 'Opt-in no-hint control for Stripe hint experiments.',
+  },
+  [WEBPERF_STRIPE_PRECONNECT_PROFILE]: {
+    label: 'Stripe preconnect',
+    caveat: 'Stripe preconnect profile warms Stripe origins during product-page head parsing; compare against the no-hint control for visible-load regressions.',
+    conclusion: 'Opt-in Stripe origin connection warming experiment.',
+  },
+  [WEBPERF_STRIPE_JS_PRELOAD_PROFILE]: {
+    label: 'Stripe.js preload',
+    caveat: 'Stripe.js preload profile models an aggressive Stripe.js script preload and may compete with product-page critical resources.',
+    conclusion: 'Opt-in Stripe.js preload experiment for readiness versus visible-load tradeoffs.',
+  },
+  [WEBPERF_STRIPE_DEFERRED_PRECONNECT_PROFILE]: {
+    label: 'Deferred ECE plus Stripe preconnect',
+    caveat: 'Deferred ECE plus preconnect profile warms Stripe origins while deferring Woo Stripe Express Checkout script execution.',
+    conclusion: 'Opt-in deferred ECE startup with connection warming experiment.',
+  },
 };
 
 const SYNTHETIC_FANOUT_PUBLISHABLE_KEY = 'pk_test_TYooMQauvdEDq54NiTphI7jx';
@@ -101,6 +133,65 @@ function syntheticFanoutPublishableKey() {
   return process.env.HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY || SYNTHETIC_FANOUT_PUBLISHABLE_KEY;
 }
 
+function profileHintStrategy(profile) {
+  const configured = setting('woocommerce_stripe_ece_hint_strategy', process.env.HOMEBOY_WC_STRIPE_ECE_HINT_STRATEGY || '').trim();
+  if (configured) {
+    return configured;
+  }
+
+  switch (profile) {
+    case WEBPERF_STRIPE_PRECONNECT_PROFILE:
+      return 'stripe-preconnect';
+    case WEBPERF_STRIPE_JS_PRELOAD_PROFILE:
+      return 'stripe-js-preload';
+    case WEBPERF_STRIPE_DEFERRED_PRECONNECT_PROFILE:
+      return 'stripe-deferred-preconnect';
+    default:
+      return 'none';
+  }
+}
+
+function buildHintOptions(strategy) {
+  const preconnectLinks = ['stripe-preconnect', 'stripe-js-preload', 'stripe-deferred-preconnect'].includes(strategy)
+    ? STRIPE_HINT_ORIGINS.map((href) => ({ rel: 'preconnect', href, crossorigin: true }))
+    : [];
+  const preloadLinks = strategy === 'stripe-js-preload'
+    ? [{ rel: 'preload', href: STRIPE_JS_URL, as: 'script', crossorigin: true }]
+    : [];
+
+  return {
+    hintStrategy: strategy,
+    hintLinks: [...preconnectLinks, ...preloadLinks],
+    deferExpressCheckoutScript: strategy === 'stripe-deferred-preconnect',
+  };
+}
+
+function webperfProfileOptions(profile, metadata, { throttleProfile = null, hintStrategy = 'none' } = {}) {
+  const fanoutProof = requireSyntheticFanoutProof();
+  const hintOptions = buildHintOptions(hintStrategy);
+
+  return {
+    profile,
+    profileLabel: metadata.label,
+    profileCaveat: metadata.caveat,
+    profileConclusion: metadata.conclusion,
+    throttleProfile,
+    realWalletCapable: false,
+    syntheticOnly: true,
+    stripePublishableKey: fanoutProof ? syntheticFanoutPublishableKey() : null,
+    stripeSecretKey: null,
+    runtimePreview: null,
+    recipeRunArgs: [],
+    browserProbeArgs: [
+      ...DESKTOP_BROWSER_PROBE_ARGS,
+      ...(throttleProfile ? [`throttle=${throttleProfile}`] : []),
+    ],
+    browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
+    waitFor: 'load',
+    ...hintOptions,
+  };
+}
+
 function validateHttpsPublicUrl(value) {
   try {
     const url = new URL(value);
@@ -128,50 +219,23 @@ function requireRealWalletProfileEnv(publicUrl) {
 
 export function buildEceProfileOptions(profile = eceBrowserProfile()) {
   const metadata = profileMetadata(profile);
+  const hintStrategy = profileHintStrategy(profile);
 
   if (profile === WEBPERF_DESKTOP_LOAD_PROFILE) {
-    const fanoutProof = requireSyntheticFanoutProof();
-
-    return {
-      profile,
-      profileLabel: metadata.label,
-      profileCaveat: metadata.caveat,
-      profileConclusion: metadata.conclusion,
-      throttleProfile: null,
-      realWalletCapable: false,
-      syntheticOnly: true,
-      stripePublishableKey: fanoutProof ? syntheticFanoutPublishableKey() : null,
-      stripeSecretKey: null,
-      runtimePreview: null,
-      recipeRunArgs: [],
-      browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
-      browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
-      waitFor: 'load',
-    };
+    return webperfProfileOptions(profile, metadata, { hintStrategy });
   }
 
-  if (profile === WEBPERF_DESKTOP_SLOW_4G_PROFILE) {
-    const fanoutProof = requireSyntheticFanoutProof();
-
-    return {
-      profile,
-      profileLabel: metadata.label,
-      profileCaveat: metadata.caveat,
-      profileConclusion: metadata.conclusion,
+  if ([
+    WEBPERF_DESKTOP_SLOW_4G_PROFILE,
+    WEBPERF_STRIPE_HINTS_NONE_PROFILE,
+    WEBPERF_STRIPE_PRECONNECT_PROFILE,
+    WEBPERF_STRIPE_JS_PRELOAD_PROFILE,
+    WEBPERF_STRIPE_DEFERRED_PRECONNECT_PROFILE,
+  ].includes(profile)) {
+    return webperfProfileOptions(profile, metadata, {
       throttleProfile: 'low-end-mobile-slow-4g',
-      realWalletCapable: false,
-      syntheticOnly: true,
-      stripePublishableKey: fanoutProof ? syntheticFanoutPublishableKey() : null,
-      stripeSecretKey: null,
-      runtimePreview: null,
-      recipeRunArgs: [],
-      browserProbeArgs: [
-        ...DESKTOP_BROWSER_PROBE_ARGS,
-        'throttle=low-end-mobile-slow-4g',
-      ],
-      browserProbeAssertions: WEBPERF_BROWSER_ASSERTIONS,
-      waitFor: 'load',
-    };
+      hintStrategy,
+    });
   }
 
   if (!['secure-browser', REAL_WALLET_PROFILE].includes(profile)) {
@@ -190,6 +254,7 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
       browserProbeArgs: [],
       browserProbeAssertions: STRUCTURAL_BROWSER_ASSERTIONS,
       waitFor: null,
+      ...buildHintOptions(hintStrategy),
     };
   }
 
@@ -226,5 +291,6 @@ export function buildEceProfileOptions(profile = eceBrowserProfile()) {
     browserProbeArgs: DESKTOP_BROWSER_PROBE_ARGS,
     browserProbeAssertions: STRUCTURAL_BROWSER_ASSERTIONS,
     waitFor: null,
+    ...buildHintOptions(hintStrategy),
   };
 }
