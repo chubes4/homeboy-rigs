@@ -27,18 +27,34 @@ const profiles = [
 		slug: 'woocommerce-square',
 		dependency: 'woocommerce-square',
 		plugin_file: 'woocommerce-square/woocommerce-square.php',
+		bootstrap_steps: [
+			{
+				command: 'wordpress.run-php',
+				args: [
+					"code=update_option( 'active_plugins', array_values( array_unique( array_merge( (array) get_option( 'active_plugins', array() ), array( 'woocommerce/woocommerce.php', 'woocommerce-square/woocommerce-square.php' ) ) ) ) ); update_option( 'wc_square_settings', array( 'enabled' => 'yes', 'environment' => 'sandbox', 'sandbox_application_id' => 'sandbox-app-id', 'sandbox_access_token' => 'sandbox-token', 'location_id' => 'sandbox-location', 'create_customer' => 'no' ) ); update_option( 'woocommerce_square_credit_card_settings', array( 'enabled' => 'yes', 'enable_digital_wallets' => 'no' ) ); update_option( 'woocommerce_square_cash_app_pay_settings', array( 'enabled' => 'no' ) ); if ( function_exists( 'wc_square' ) && is_object( wc_square() ) && method_exists( wc_square(), 'init_plugin' ) && ! wc_square()->get_settings_handler() ) { wc_square()->init_plugin(); }",
+				],
+			},
+		],
 	},
 	{
 		profile: 'plugin_razorpay',
-		slug: 'razorpay',
-		dependency: 'razorpay',
-		plugin_file: 'razorpay/razorpay.php',
+		slug: 'woo-razorpay',
+		dependency: 'woo-razorpay',
+		plugin_file: 'woo-razorpay/woo-razorpay.php',
 	},
 	{
 		profile: 'plugin_mollie',
 		slug: 'mollie-payments-for-woocommerce',
 		dependency: 'mollie-payments-for-woocommerce',
 		plugin_file: 'mollie-payments-for-woocommerce/mollie-payments-for-woocommerce.php',
+		bootstrap_steps: [
+			{
+				command: 'wordpress.run-php',
+				args: [
+					"code=update_option( 'active_plugins', array_values( array_unique( array_merge( (array) get_option( 'active_plugins', array() ), array( 'woocommerce/woocommerce.php', 'mollie-payments-for-woocommerce/mollie-payments-for-woocommerce.php' ) ) ) ) ); update_option( 'mollie-payments-for-woocommerce_test_mode_enabled', 'yes' ); update_option( 'mollie-payments-for-woocommerce_test_api_key', 'test_123456789012345678901234567890' ); update_option( 'mollie_wc_gateway_creditcard_settings', array( 'enabled' => 'yes' ) ); update_option( 'mollie_wc_gateway_ideal_settings', array( 'enabled' => 'yes' ) ); update_option( 'mollie_wc_gateway_paypal_settings', array( 'enabled' => 'yes' ) ); $methods = array( array( 'id' => 'creditcard', 'status' => 'activated', 'description' => 'Credit card', 'image' => new stdClass() ), array( 'id' => 'ideal', 'status' => 'activated', 'description' => 'iDEAL', 'image' => new stdClass() ), array( 'id' => 'paypal', 'status' => 'activated', 'description' => 'PayPal', 'image' => new stdClass() ) ); set_transient( 'mollie-wc-' . md5( http_build_query( array( 'locale' => get_locale() ) ) ), $methods, HOUR_IN_SECONDS ); set_transient( 'mollie-wc-' . md5( http_build_query( array( 'mode' => 'test', 'api' => 'methods' ) ) ), $methods, HOUR_IN_SECONDS );",
+				],
+			},
+		],
 	},
 	{
 		profile: 'plugin_klarna',
@@ -181,6 +197,10 @@ function runProfile(options, profile) {
 		'--setting-json',
 		`validation_dependencies=${JSON.stringify([dependency])}`,
 	];
+
+	if (profile.bootstrap_steps) {
+		args.push('--setting-json', `wp_codebox_bootstrap_steps=${JSON.stringify(profile.bootstrap_steps)}`);
+	}
 
 	if (options.runner) {
 		args.splice(1, 0, '--runner', options.runner);
