@@ -173,7 +173,7 @@ try {
   await writeFile(
     setupFile,
     `<?php
-${(await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '')}
+${(await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '').replace(/declare\(strict_types=1\);\s*/, '')}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
 $accepted_payment_methods = json_decode( '${JSON.stringify(csvToJsonArray(acceptedPaymentMethods))}', true );
