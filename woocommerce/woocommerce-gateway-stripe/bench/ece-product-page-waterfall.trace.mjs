@@ -37,6 +37,9 @@ const assetCheckBaseRef = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_BASE_REF || ''
 const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
 const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
+const stripeHintLinksJson = JSON.stringify(profileOptions.hintLinks || []);
+const encodedStripeHintLinks = Buffer.from(stripeHintLinksJson).toString('base64');
+const deferExpressCheckoutScript = profileOptions.deferExpressCheckoutScript === true;
 const traceHelperDir = process.env.HOMEBOY_TRACE_HELPER_DIR;
 const fixtureBootstrapPath = fileURLToPath(new URL('./fixture-bootstrap.php', import.meta.url));
 
@@ -275,6 +278,9 @@ try {
     browser_profile_caveat: profileOptions.profileCaveat,
     browser_wait_for: profileOptions.waitFor || scenario.waitFor || 'networkidle',
     browser_throttle_profile: profileOptions.throttleProfile,
+    stripe_hint_strategy: profileOptions.hintStrategy,
+    stripe_hint_link_count: profileOptions.hintLinks?.length || 0,
+    stripe_defer_express_checkout_script: deferExpressCheckoutScript,
     real_wallet_capable: profileOptions.realWalletCapable,
     synthetic_only: profileOptions.syntheticOnly,
   });
@@ -332,6 +338,9 @@ if ( ! is_dir( $mu_plugin_dir ) && ! wp_mkdir_p( $mu_plugin_dir ) ) {
 file_put_contents(
 	$mu_plugin_dir . '/homeboy-stripe-ece-fixture-dependencies.php',
 	'<?php
+$homeboy_stripe_ece_hint_links              = json_decode( base64_decode( "${encodedStripeHintLinks}" ), true );
+$homeboy_stripe_ece_defer_express_checkout = ${deferExpressCheckoutScript ? 'true' : 'false'};
+$homeboy_stripe_ece_active_hint_strategy   = "${profileOptions.hintStrategy}";
 add_action(
 	"wp_enqueue_scripts",
 	function () {
@@ -343,11 +352,34 @@ add_action(
 );
 add_action(
 	"wp_head",
-	function () {
+	function () use ( $homeboy_stripe_ece_hint_links, $homeboy_stripe_ece_active_hint_strategy ) {
 		if ( ! function_exists( "is_product" ) || ! is_product() ) {
 			return;
 		}
+		if ( is_array( $homeboy_stripe_ece_hint_links ) ) {
+			foreach ( $homeboy_stripe_ece_hint_links as $hint_link ) {
+				if ( ! is_array( $hint_link ) || empty( $hint_link["rel"] ) || empty( $hint_link["href"] ) ) {
+					continue;
+				}
+				$attrs = array(
+					"rel"  => $hint_link["rel"],
+					"href" => $hint_link["href"],
+				);
+				if ( ! empty( $hint_link["as"] ) ) {
+					$attrs["as"] = $hint_link["as"];
+				}
+				if ( ! empty( $hint_link["crossorigin"] ) ) {
+					$attrs["crossorigin"] = "anonymous";
+				}
+				$attr_html = "";
+				foreach ( $attrs as $attr_name => $attr_value ) {
+					$attr_html .= " " . esc_attr( $attr_name ) . "=\"" . esc_attr( $attr_value ) . "\"";
+				}
+				echo "<link" . $attr_html . ">\n";
+			}
+		}
 		?>
+<meta name="homeboy-stripe-ece-hint-strategy" content="<?php echo esc_attr( $homeboy_stripe_ece_active_hint_strategy ); ?>">
 <script id="homeboy-stripe-ece-wc-settings-shim">
 window.wc = window.wc || {};
 window.wcSettings = window.wcSettings || {};
@@ -360,6 +392,23 @@ window.wc.wcSettings = window.wc.wcSettings || {
 		<?php
 	},
 	0
+);
+add_filter(
+	"script_loader_tag",
+	function ( $tag, $handle, $src ) use ( $homeboy_stripe_ece_defer_express_checkout ) {
+		if ( ! $homeboy_stripe_ece_defer_express_checkout ) {
+			return $tag;
+		}
+		if ( ! is_string( $src ) || ! preg_match( "#/woocommerce-gateway-stripe/.*/express-checkout(\\.min)?\\.js#", $src ) ) {
+			return $tag;
+		}
+		if ( false !== strpos( $tag, " defer" ) ) {
+			return $tag;
+		}
+		return str_replace( "<script ", "<script defer ", $tag );
+	},
+	20,
+	3
 );
 add_filter(
 	"script_loader_src",
@@ -719,30 +768,6 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       ece_cls_sentinel_rect: rectForNode(sentinel),
     };
   };
-  const productContentMetrics = () => {
-    const title = document.querySelector('h1.product_title, .product_title, h1');
-    const price = document.querySelector('.summary .price, p.price, .price');
-    const addToCart = document.querySelector('form.cart button[type="submit"], form.cart .single_add_to_cart_button');
-    const titleRect = rectForNode(title);
-    const priceRect = rectForNode(price);
-    const addToCartRect = rectForNode(addToCart);
-    const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
-    const aboveFold = (rect) => !!rect && rect.y >= 0 && rect.y < viewportHeight;
-
-    return {
-      product_title_visible: isVisible(title),
-      product_price_visible: isVisible(price),
-      product_add_to_cart_visible: isVisible(addToCart),
-      product_content_visible: isVisible(title) && isVisible(price) && isVisible(addToCart),
-      product_title_above_fold: aboveFold(titleRect),
-      product_price_above_fold: aboveFold(priceRect),
-      product_add_to_cart_above_fold: aboveFold(addToCartRect),
-      product_content_above_fold: aboveFold(titleRect) && aboveFold(priceRect) && aboveFold(addToCartRect),
-      product_title_rect: titleRect,
-      product_price_rect: priceRect,
-      product_add_to_cart_rect: addToCartRect,
-    };
-  };
   try {
     const layoutShiftObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -773,21 +798,77 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   } catch (error) {
     record('layout_shift_observer_unavailable', { message: error?.message || String(error) });
   }
-  const sample = () => {
-    const productMetrics = productContentMetrics();
-    if (productMetrics.product_title_visible) {
+  const productContentNodes = () => ({
+    title: document.querySelector('h1.product_title, .product_title, h1'),
+    summary: document.querySelector('.summary'),
+    cart: document.querySelector('form.cart'),
+    price: document.querySelector('.summary .price, p.price, .price'),
+    addToCart: document.querySelector('form.cart button[type="submit"], form.cart .single_add_to_cart_button'),
+  });
+  const productContentMetrics = () => {
+    const nodes = productContentNodes();
+    const titleRect = rectForNode(nodes.title);
+    const summaryRect = rectForNode(nodes.summary);
+    const cartRect = rectForNode(nodes.cart);
+    const priceRect = rectForNode(nodes.price);
+    const addToCartRect = rectForNode(nodes.addToCart);
+    const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+    const aboveFold = (rect) => !!rect && rect.y >= 0 && rect.y < viewportHeight;
+
+    return {
+      t_ms: elapsed(),
+      product_title_visible: isVisible(nodes.title),
+      product_summary_visible: isVisible(nodes.summary),
+      product_cart_visible: isVisible(nodes.cart),
+      product_price_visible: isVisible(nodes.price),
+      product_add_to_cart_visible: isVisible(nodes.addToCart),
+      product_content_visible: isVisible(nodes.title) && isVisible(nodes.price) && isVisible(nodes.addToCart),
+      product_title_above_fold: aboveFold(titleRect),
+      product_price_above_fold: aboveFold(priceRect),
+      product_add_to_cart_above_fold: aboveFold(addToCartRect),
+      product_content_above_fold: aboveFold(titleRect) && aboveFold(priceRect) && aboveFold(addToCartRect),
+      product_title_rect: titleRect,
+      product_summary_rect: summaryRect,
+      product_cart_rect: cartRect,
+      product_price_rect: priceRect,
+      product_add_to_cart_rect: addToCartRect,
+    };
+  };
+  const sampleProductContent = () => {
+    const metrics = productContentMetrics();
+    const visibleCount = [metrics.product_title_visible, metrics.product_summary_visible, metrics.product_cart_visible].filter(Boolean).length;
+    if (visibleCount > 0) {
+      mark('product_content_visible', { visible_count: visibleCount });
+    }
+    if (metrics.product_title_visible) {
       mark('product_title_visible');
     }
-    if (productMetrics.product_price_visible) {
+    if (metrics.product_summary_visible) {
+      mark('product_summary_visible');
+    }
+    if (metrics.product_cart_visible) {
+      mark('product_cart_visible');
+    }
+    if (metrics.product_price_visible) {
       mark('product_price_visible');
     }
-    if (productMetrics.product_add_to_cart_visible) {
+    if (metrics.product_add_to_cart_visible) {
       mark('product_add_to_cart_visible');
     }
-    if (productMetrics.product_content_visible) {
-      mark('product_content_visible');
-    }
-
+    state.latestProduct = metrics;
+    state.productLatest = {
+      t_ms: metrics.t_ms,
+      title_visible: metrics.product_title_visible,
+      summary_visible: metrics.product_summary_visible,
+      cart_visible: metrics.product_cart_visible,
+      title_rect: metrics.product_title_rect,
+      summary_rect: metrics.product_summary_rect,
+      cart_rect: metrics.product_cart_rect,
+    };
+    return metrics;
+  };
+  const sample = () => {
+    const productMetrics = sampleProductContent();
     const container = document.querySelector('#wc-stripe-express-checkout-element');
     if (!container) {
       state.latestProduct = {
@@ -976,6 +1057,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       wallets: finalSnapshot.ece_wallet_containers,
       interactionEvents,
       renderProbe: probe,
+      productLatest: probe?.productLatest || null,
       stripeAvailability,
       eceInstrumentation: probe?.eceInstrumentation || null,
     });
@@ -1003,6 +1085,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         hasBelowFoldLayout: !!document.querySelector('#homeboy-ece-below-fold-layout'),
       },
       renderProbe: probe,
+      productLatest: probe?.productLatest || null,
       eceInstrumentation: probe?.eceInstrumentation || null,
     };
   `;
@@ -1174,6 +1257,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_profile_conclusion: profileOptions.profileConclusion,
     browser_wait_for: profileOptions.waitFor || scenario.waitFor || 'networkidle',
     browser_throttle_profile: profileOptions.throttleProfile,
+    stripe_hint_strategy: profileOptions.hintStrategy,
+    stripe_hint_link_count: profileOptions.hintLinks?.length || 0,
+    stripe_hint_links: profileOptions.hintLinks || [],
+    stripe_defer_express_checkout_script: deferExpressCheckoutScript,
     ece_requested_accepted_payment_methods: requestedAcceptedPaymentMethods,
     ece_requested_payment_method_count: requestedAcceptedPaymentMethods.length,
     ece_requires_fanout_proof: requireFanoutProof,
@@ -1200,6 +1287,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_secure_context_effective: scriptResult?.isSecureContext === true,
     browser_cls: roundedNumberOrNull(renderProbe.cls),
     browser_layout_shift_count: layoutShifts.length,
+    product_content_visible_ms: numberOrNull(renderMarks.product_content_visible),
+    product_title_visible_ms: numberOrNull(renderMarks.product_title_visible),
+    product_summary_visible_ms: numberOrNull(renderMarks.product_summary_visible),
+    product_cart_visible_ms: numberOrNull(renderMarks.product_cart_visible),
     ece_real_wallet_capable: profileOptions.realWalletCapable,
     ece_synthetic_only: profileOptions.syntheticOnly,
     ece_rendered_visible_button: eceRenderedVisibleButton,
@@ -1230,10 +1321,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_dom_node_count: browserMetrics.browser_dom_node_count ?? performanceSummary?.final?.dom?.nodes ?? null,
     browser_document_count: performanceSummary?.final?.dom?.documents ?? null,
     browser_js_event_listener_count: cdpMetrics.JSEventListeners ?? null,
-    product_title_visible_ms: numberOrNull(renderMarks.product_title_visible),
     product_price_visible_ms: numberOrNull(renderMarks.product_price_visible),
     product_add_to_cart_visible_ms: numberOrNull(renderMarks.product_add_to_cart_visible),
-    product_content_visible_ms: numberOrNull(renderMarks.product_content_visible),
     product_title_visible: latestProduct.product_title_visible === true || finalProductContent.title_visible === true,
     product_price_visible: latestProduct.product_price_visible === true || finalProductContent.price_visible === true,
     product_add_to_cart_visible: latestProduct.product_add_to_cart_visible === true || finalProductContent.add_to_cart_visible === true,
@@ -1337,6 +1426,33 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   });
   metrics.ece_real_wallet_asset_health_passed = realWalletAssetHealth.ok;
   metrics.ece_real_wallet_asset_health_failure_count = realWalletAssetHealth.failures.length;
+  metrics.stripe_hint_comparison_signals = {
+    visible_load: {
+      product_content_visible_ms: metrics.product_content_visible_ms,
+      fcp_ms: metrics.browser_fcp_ms,
+      lcp_ms: metrics.browser_lcp_ms,
+      cls: metrics.browser_cls,
+    },
+    ece_readiness: {
+      container_visible_ms: metrics.ece_render_container_visible_ms,
+      first_child_ms: metrics.ece_render_first_child_ms,
+      first_iframe_ms: metrics.ece_render_first_iframe_ms,
+      first_visible_button_ms: metrics.ece_render_first_visible_button_ms,
+      rendered_visible_button: metrics.ece_rendered_visible_button,
+    },
+    resources: {
+      network_response_count: metrics.network_response_count,
+      stripe_response_count: metrics.stripe_response_count,
+      browser_resource_count: metrics.browser_resource_count,
+      browser_transfer_size_bytes: metrics.browser_transfer_size_bytes,
+    },
+    errors: {
+      page_error_count: metrics.page_error_count,
+      console_message_count: metrics.console_message_count,
+      stripe_load_page_error_count: metrics.stripe_load_page_error_count,
+      stripe_elements_session_error_count: metrics.stripe_elements_session_error_count,
+    },
+  };
   const requestSummary = buildRequestSummary(responses);
 
   await writeFile(fixtureHealthPath, `${JSON.stringify(fixtureHealth, null, 2)}\n`);
@@ -1362,6 +1478,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         browser_profile_label: profileOptions.profileLabel,
         browser_profile_caveat: profileOptions.profileCaveat,
         browser_profile_conclusion: profileOptions.profileConclusion,
+        stripe_hint_strategy: profileOptions.hintStrategy,
+        stripe_hint_links: profileOptions.hintLinks || [],
+        stripe_defer_express_checkout_script: deferExpressCheckoutScript,
         requested_browser_context: {
           viewport,
           browser_profile: profileOptions.profile,
@@ -1369,6 +1488,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           throttle_profile: profileOptions.throttleProfile,
           runtime_preview: profileOptions.runtimePreview,
           browser_probe_args: profileOptions.browserProbeArgs,
+          stripe_hint_strategy: profileOptions.hintStrategy,
+          stripe_hint_links: profileOptions.hintLinks || [],
+          stripe_defer_express_checkout_script: deferExpressCheckoutScript,
           secure_context_profile: ['secure-browser', 'real-wallet'].includes(profileOptions.profile),
           real_wallet_capable: profileOptions.realWalletCapable,
           synthetic_only: profileOptions.syntheticOnly,
@@ -1394,6 +1516,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           payment_method_details: metrics.ece_available_payment_method_details,
         },
         request_summary: requestSummary,
+        stripe_hint_comparison_signals: metrics.stripe_hint_comparison_signals,
         wallet_fanout_evidence: walletFanoutEvidence,
         grouped_wallet_layout: groupedWalletLayout,
         product_content: {
