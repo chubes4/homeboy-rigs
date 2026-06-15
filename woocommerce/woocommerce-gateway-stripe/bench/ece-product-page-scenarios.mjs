@@ -152,14 +152,37 @@ export function eceLayoutScript(scenario) {
 
       const style = document.createElement('style');
       style.id = 'homeboy-ece-below-fold-layout';
-      style.textContent = 'form.cart { margin-top: 1400px !important; }';
+      style.textContent = '#wc-stripe-express-checkout-element { display: block !important; margin-top: 1400px !important; }';
       document.head.appendChild(style);
+    };
+
+    const moveEceBelowProductControls = () => {
+      const form = document.querySelector('form.cart');
+      const root = document.querySelector('#wc-stripe-express-checkout-element');
+      if (!form || !root || root.previousElementSibling === form) {
+        return;
+      }
+
+      form.insertAdjacentElement('afterend', root);
+    };
+
+    const observeEcePlacement = () => {
+      moveEceBelowProductControls();
+      const observer = new MutationObserver(moveEceBelowProductControls);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      window.setTimeout(() => observer.disconnect(), 15000);
     };
 
     if (document.head) {
       installBelowFoldLayout();
     } else {
       document.addEventListener('DOMContentLoaded', installBelowFoldLayout, { once: true });
+    }
+
+    if (document.documentElement) {
+      observeEcePlacement();
+    } else {
+      document.addEventListener('DOMContentLoaded', observeEcePlacement, { once: true });
     }
   `;
 }
