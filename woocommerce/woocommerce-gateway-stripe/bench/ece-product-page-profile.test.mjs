@@ -11,6 +11,7 @@ import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs'
 import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
+import { summarizeEceReadinessMetrics } from './ece-product-page-readiness-metrics.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, ECE_FANOUT_REVIEWER_READY, ECE_FANOUT_SUPPLEMENTAL, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 import { wpCodeboxBin, wpCodeboxCommand } from './ece-product-page-wp-codebox.mjs';
@@ -489,6 +490,49 @@ test('ECE request summary counts responses by host and type', () => {
       },
     }
   );
+});
+
+test('ECE readiness metrics expose explicit readiness timings and payment method details', () => {
+  const summary = summarizeEceReadinessMetrics({
+    metrics: {
+      ece_requested_accepted_payment_methods: ['card', 'link', 'apple_pay'],
+      ece_create_payment_methods: [['link', 'apple_pay']],
+      ece_render_container_visible_ms: 125.4,
+      ece_render_first_child_ms: 180.2,
+      ece_render_first_iframe_ms: 240.8,
+      ece_render_first_visible_button_ms: 310.1,
+    },
+    networkEntries: [
+      { url: 'https://example.test/product', resourceType: 'document', t_ms: 10 },
+      { url: 'https://js.stripe.com/v3/', resourceType: 'script', responseEnd: 95.6 },
+    ],
+    walletFanoutEvidence: {
+      wallets: {
+        apple_pay: { requested: true, eligible: true, rendered: true, observed: true },
+        google_pay: { requested: false, eligible: true, rendered: false, observed: false },
+        link: { requested: true, eligible: true, rendered: true, observed: true },
+      },
+    },
+  });
+
+  assert.equal(summary.ece_ready_ms, 310);
+  assert.equal(summary.ece_visible_ms, 125);
+  assert.equal(summary.ece_first_iframe_ms, 241);
+  assert.equal(summary.stripe_js_loaded_ms, 96);
+  assert.deepEqual(summary.ece_available_payment_methods, {
+    requested: ['card', 'link', 'apple_pay'],
+    created: ['link', 'apple_pay'],
+    rendered: ['apple_pay', 'link'],
+    observed: ['apple_pay', 'link'],
+  });
+  assert.deepEqual(summary.ece_available_payment_method_details.find((entry) => entry.method === 'google_pay'), {
+    method: 'google_pay',
+    requested: false,
+    created: false,
+    eligible: true,
+    rendered: false,
+    observed: false,
+  });
 });
 
 test('fixture health passes for a structurally valid ECE product page', () => {
