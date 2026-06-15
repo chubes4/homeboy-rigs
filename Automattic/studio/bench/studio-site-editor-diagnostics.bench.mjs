@@ -1,23 +1,28 @@
-import { cp, mkdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { pathToFileURL } from 'node:url';
 import {
   STUDIO_PATH,
   artifactDir as studioArtifactDir,
-  createStudioSite,
   expandHome,
   metric,
-  parseStudioSiteStatus,
   redact,
   runCli,
   safeResult,
   sanitizeArtifact,
   startStudioSite,
-  stopStudioSite,
-  studioSiteStatus,
   variant,
 } from './lib/studio-bench.mjs';
+import {
+  createStudioWordPressProfileSite,
+  installStudioWordPressProfilePlugins,
+  loadStudioWordPressProfileExtensionModule,
+  parseStudioWordPressProfileSiteStatus,
+  restoreStudioWordPressProfilePlugins,
+  stopStudioWordPressProfileSite,
+  studioWordPressProfileSiteStatus,
+  summarizeStudioWordPressRequests,
+} from './lib/studio-wordpress-profile.mjs';
 import {
   buildTimingDeltaSummary,
   flattenPhasedResourceTimings,
@@ -46,109 +51,19 @@ if (!BROWSER_HELPER) {
 const { runBrowserBench } = await import(BROWSER_HELPER);
 
 async function createSite(sitePath) {
-  return createStudioSite(sitePath, {
-    name: `Studio Bench ${variant()} Site Editor Diagnostics ${process.pid}`,
-    wp: process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_WP_VERSION,
-    php: process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PHP_VERSION,
-    timeoutMs: 420000,
+  return createStudioWordPressProfileSite(sitePath, {
+    nameSuffix: 'Site Editor Diagnostics',
+    wpEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_WP_VERSION',
+    phpEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PHP_VERSION',
   });
 }
 
 async function siteStatus(sitePath) {
-  return studioSiteStatus(sitePath, { timeoutMs: 90000 });
+  return studioWordPressProfileSiteStatus(sitePath);
 }
 
 async function stopSite(sitePath) {
-  return stopStudioSite(sitePath, { timeoutMs: 90000 });
-}
-
-function profilePlugins() {
-  const json = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON;
-  if (json) {
-    const parsed = JSON.parse(json);
-    if (!Array.isArray(parsed)) {
-      throw new Error('HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON must be an array');
-    }
-    return parsed.map((plugin) => {
-      if (typeof plugin === 'string') {
-        return { path: expandHome(plugin) };
-      }
-      return { ...plugin, path: expandHome(plugin.path) };
-    });
-  }
-
-  const paths = process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_PATHS;
-  if (!paths) {
-    return [];
-  }
-  return paths
-    .split(',')
-    .map((pluginPath) => ({ path: expandHome(pluginPath.trim()) }))
-    .filter((plugin) => plugin.path);
-}
-
-async function installProfilePlugins(sitePath) {
-  const plugins = profilePlugins();
-  if (plugins.length === 0) {
-    return [];
-  }
-
-  const pluginDir = path.join(sitePath, 'wp-content', 'plugins');
-  await mkdir(pluginDir, { recursive: true });
-
-  const installed = [];
-  for (const plugin of plugins) {
-    if (!plugin.path) {
-      throw new Error('Profile plugin entry requires a path');
-    }
-    const slug = plugin.slug || path.basename(plugin.path);
-    const linkPath = path.join(pluginDir, slug);
-    const backupPath = `${linkPath}.homeboy-profile-backup-${process.pid}-${Date.now()}`;
-    let hadExistingPath = false;
-
-    try {
-      await rename(linkPath, backupPath);
-      hadExistingPath = true;
-    } catch (error) {
-      if (error?.code !== 'ENOENT') {
-        throw error;
-      }
-    }
-
-    await rm(linkPath, { recursive: true, force: true });
-    if (plugin.copy === true) {
-      await cp(plugin.path, linkPath, { recursive: true, force: true });
-    } else {
-      await symlink(plugin.path, linkPath, 'dir');
-    }
-    installed.push({ ...plugin, slug, linkPath, backupPath, hadExistingPath });
-  }
-
-  const activate = installed.filter((plugin) => plugin.activate !== false);
-  const activateTimeoutMs = Number(process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_ACTIVATE_TIMEOUT_MS || 420000);
-  for (const plugin of activate) {
-    await runCli(
-      ['wp', 'plugin', 'activate', plugin.plugin || plugin.slug],
-      { cwd: sitePath, timeoutMs: activateTimeoutMs }
-    );
-  }
-
-  return installed.map((plugin) => ({
-    slug: plugin.slug,
-    path: plugin.path,
-    linkPath: plugin.linkPath,
-    backupPath: plugin.backupPath,
-    hadExistingPath: plugin.hadExistingPath,
-  }));
-}
-
-async function restoreProfilePlugins(installedPlugins) {
-  for (const plugin of [...installedPlugins].reverse()) {
-    await rm(plugin.linkPath, { recursive: true, force: true });
-    if (plugin.hadExistingPath) {
-      await rename(plugin.backupPath, plugin.linkPath);
-    }
-  }
+  return stopStudioWordPressProfileSite(sitePath);
 }
 
 function siteAdminUrl(siteUrl, relativePath = '') {
@@ -165,14 +80,6 @@ function scrubUrl(url) {
   }
 }
 
-async function loadProfileExtensionModule() {
-  const modulePath = expandHome(process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE || '');
-  if (!modulePath) {
-    return null;
-  }
-  return import(pathToFileURL(modulePath).href);
-}
-
 function summarizeNetwork(network, phase) {
   return network
     .filter((request) => request.phase === phase)
@@ -183,38 +90,6 @@ function summarizeNetwork(network, phase) {
       ...request,
       url: scrubUrl(request.url),
     }));
-}
-
-function summarizeWordPressRequests(entries) {
-  const byRequest = new Map();
-  for (const entry of entries || []) {
-    const id = entry.request_id || 'unknown';
-    if (!byRequest.has(id)) {
-      byRequest.set(id, []);
-    }
-    byRequest.get(id).push(entry);
-  }
-
-  return [...byRequest.values()]
-    .map((events) => {
-      events.sort((a, b) => (a.t_ms || 0) - (b.t_ms || 0));
-      const last = events[events.length - 1];
-      return {
-        uri: redact(last?.uri || ''),
-        method: last?.method,
-        duration_ms: last?.t_ms || 0,
-        http_urls: events
-          .filter((event) => event.event === 'http.request.start')
-          .map((event) => redact(event.data?.url || '')),
-        hooks: events
-          .filter((event) => event.event === 'hook.stop')
-          .sort((a, b) => (b.data?.duration_ms || 0) - (a.data?.duration_ms || 0))
-          .slice(0, 8)
-          .map((event) => ({ hook: event.data?.hook, duration_ms: event.data?.duration_ms })),
-      };
-    })
-    .sort((a, b) => b.duration_ms - a.duration_ms)
-    .slice(0, 80);
 }
 
 export default async function studioSiteEditorDiagnosticsBench() {
@@ -259,8 +134,12 @@ export default async function studioSiteEditorDiagnosticsBench() {
       start = await startStudioSite(sitePath, { timeoutMs: 240000 });
     }
     initialStatusResult = await siteStatus(sitePath);
-    installedPlugins = await installProfilePlugins(sitePath);
-    profileExtension = await loadProfileExtensionModule();
+    installedPlugins = await installStudioWordPressProfilePlugins(sitePath, {
+      jsonEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGINS_JSON',
+      pathsEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_PATHS',
+      activateTimeoutEnv: 'HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_ACTIVATE_TIMEOUT_MS',
+    });
+    profileExtension = await loadStudioWordPressProfileExtensionModule(['HOMEBOY_WORDPRESS_PAGE_PROFILE_EXTENSION_MODULE']);
     if (profileExtension?.setupWordPressPageProfile) {
       const startedSetup = Date.now();
       setupProfile = await profileExtension.setupWordPressPageProfile({
@@ -275,10 +154,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
       };
     }
     statusResult = await siteStatus(sitePath);
-    status = parseStudioSiteStatus(statusResult.stdout);
-    if (!status.siteUrl || !status.autoLoginUrl) {
-      throw new Error(`site status missing siteUrl/autoLoginUrl: ${redact(statusResult.stdout).slice(0, 1000)}`);
-    }
+    status = parseStudioWordPressProfileSiteStatus(statusResult);
 
     const bootstrapTimeline = await installWordPressBootstrapTimeline(sitePath, { clearArtifact: true });
     bootstrapTimelineArtifactPath = bootstrapTimeline.artifactPath;
@@ -423,7 +299,7 @@ export default async function studioSiteEditorDiagnosticsBench() {
             dashboardBetweenRuns: summarizeNetwork(network, 'dashboard-between-runs'),
             measurePage: summarizeNetwork(network, 'measure-page'),
           },
-          wordpressRequests: summarizeWordPressRequests(wordpressRequests),
+          wordpressRequests: summarizeStudioWordPressRequests(wordpressRequests, { includeHttpUrls: true, includeHooks: true, limit: 80 }),
           wordpressBootstrapTimeline: summarizeWordPressBootstrapTimeline(wordpressBootstrapTimeline),
           pageDiagnosis,
           timingDeltas,
@@ -520,13 +396,13 @@ export default async function studioSiteEditorDiagnosticsBench() {
     };
   } finally {
     if (profileExtension?.cleanupWordPressPageProfile) {
-      await profileExtension.cleanupWordPressPageProfile({ sitePath, setupProfile });
+      await profileExtension.cleanupWordPressPageProfile({ sitePath, setupProfile, runCli });
     }
     if (profiler) {
       profiler.uninstallWordPressRequestProfiler?.(sitePath);
     }
     await uninstallWordPressBootstrapTimeline(sitePath);
-    await restoreProfilePlugins(installedPlugins);
+    await restoreStudioWordPressProfilePlugins(installedPlugins);
     if (createdSite && !stop) {
       stop = await stopSite(sitePath);
     }

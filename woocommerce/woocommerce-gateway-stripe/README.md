@@ -10,7 +10,7 @@ Express Checkout Element page-load fan-out in WooCommerce Stripe.
 ## What It Measures
 
 The `ece-product-page-waterfall` trace creates a disposable WP Codebox WordPress
-runtime, mounts WooCommerce and WooCommerce Stripe, uses Stripe's benchmark
+runtime, mounts WooCommerce and WooCommerce Stripe, uses this rig's benchmark
 fixture to create a purchasable product with product-page ECE enabled, opens the
 product page in a browser probe, and records waterfall metrics.
 
@@ -58,9 +58,8 @@ Secondary noisy metrics:
 
 ## Prerequisites
 
-The deterministic benchmark fixture is owned by this rig package at
-`bench/fixture-bootstrap.php`; the Stripe checkout under test does not need to
-carry benchmark fixture files.
+The rig owns its benchmark fixture at `bench/fixture-bootstrap.php`; the target
+Stripe checkout does not need benchmark fixture files.
 
 For `homeboy rig check`, use `HOMEBOY_WC_STRIPE_COMPONENT_PATH` when the target
 Stripe checkout is a worktree instead of `~/Developer/woocommerce-gateway-stripe`:
@@ -76,10 +75,10 @@ plugin build when tracing Stripe browser behavior:
 export HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH=/path/to/woocommerce
 ```
 
-The Stripe plugin mounted into WP Codebox must also carry fresh product-page ECE
-frontend build artifacts. Before starting Codebox, the rig verifies the
-rig-specific ECE source entrypoints at `client/entrypoints/express-checkout/*`
-against the WordPress-enqueued artifacts:
+The Stripe plugin mounted into WP Codebox must carry fresh product-page ECE
+frontend build artifacts. Before measurement, the rig prepares the checkout when
+needed and then verifies the rig-specific ECE source entrypoints at
+`client/entrypoints/express-checkout/*` against the WordPress-enqueued artifacts:
 
 - `build/express-checkout.js`
 - `build/express-checkout.css`
@@ -150,31 +149,6 @@ homeboy trace \
   woocommerce-gateway-stripe ece-product-page-waterfall
 ```
 
-Run baseline/candidate proof with WP Codebox visual parity artifacts:
-
-```bash
-homeboy trace compare \
-  --rig woocommerce-stripe-ece-product-page \
-  --baseline-target origin/develop \
-  --candidate <candidate-ref-or-sha> \
-  --schedule interleaved \
-  --repeat 3 \
-  --report markdown \
-  --visual-compare \
-  --visual-compare-provider node \
-  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
-  --visual-threshold 0.1 \
-  woocommerce-gateway-stripe ece-product-page-waterfall \
-  --output /tmp/wc-stripe-ece-product-page-proof.md
-```
-
-`--visual-compare` reuses the screenshots captured by the trace workload and
-passes them to Homeboy Extensions' WP Codebox visual compare provider. The
-provider calls WP Codebox's `wordpress.visual-compare` primitive and writes
-source, candidate, diff, `visual-diff.json`, and `visual-explanation.json`
-artifacts under the trace compare output directory. This keeps the rig focused
-on producing browser evidence while WP Codebox owns the visual diff primitive.
-
 Useful settings:
 
 - `HOMEBOY_WC_STRIPE_ECE_LOCATIONS=product`
@@ -185,9 +159,9 @@ Useful settings:
 ## Real Wallet Profile
 
 The default `smoke`, `hot`, and interaction profiles remain synthetic lifecycle
-evidence. They intentionally keep working with the rig-owned Stripe benchmark
-fixture's placeholder keys so network, DOM, and CLS-style render timing can be
-collected without real Stripe credentials.
+evidence. They intentionally keep working with the rig benchmark fixture's
+placeholder keys so network, DOM, and CLS-style render timing can be collected
+without real Stripe credentials.
 
 Use the `real-wallet` profile when collecting real-wallet-capable ECE evidence:
 
@@ -219,6 +193,67 @@ Real-wallet evidence records:
 - Browser wallet capability flags such as Payment Request and Apple Pay support.
 - Whether a visible ECE button rendered by the end of the probe.
 
+## Fixture Health
+
+Before treating waterfall metrics as reviewer-facing evidence, the rig writes an
+`ece-fixture-health.json` artifact and fails the trace when the benchmark product
+page is structurally invalid. The health gate checks that the benchmark product
+resolved, `form.cart` rendered as the selected product-page insertion point,
+`wc_stripe_express_checkout_params` is present, the ECE mount exists, captured
+HTML is not a tiny `fetch failed` page, fatal/parse-error markers are absent,
+and Woo add-to-cart/template warnings did not break rendering. Failures include
+pointers to the browser summary, captured HTML, console, and page-error artifacts
+so reviewers can inspect the broken fixture directly.
+
+## Canonical Real-Wallet Compare
+
+Use the package wrapper when collecting PR evidence for real-wallet product-page
+ECE behavior. It fails before traces run unless the candidate ref/path, Stripe
+keys, preview port, and HTTPS public preview URL are present, then runs both the
+load-only waterfall and scroll-to-ECE target compares with canonical defaults.
+
+```bash
+export STRIPE_PUBLISHABLE_KEY=pk_test_...
+export STRIPE_SECRET_KEY=sk_test_...
+
+woocommerce/woocommerce-gateway-stripe/tools/real-wallet-ece-compare.sh \
+  --candidate your-branch-or-worktree \
+  --preview-port 49800 \
+  --public-url https://your-public-preview.example
+```
+
+Defaults:
+
+- Baseline: `origin/develop`
+- Profile: `real-wallet`
+- Repeat: `5`
+- Schedule: `interleaved`
+- Evidence mode: `--canonical`
+- Output directory: `woocommerce/woocommerce-gateway-stripe/.homeboy/evidence/woo-stripe-ece-real-wallet-<timestamp>/`
+
+The wrapper writes:
+
+- `README.md` with baseline/candidate/profile/preview settings.
+- `ece-product-page-waterfall.compare.json` and `.compare.log`.
+- `ece-product-page-scroll-to-ece.compare.json` and `.compare.log`.
+
+Reviewer evidence fields to inspect in each compare artifact:
+
+- Stripe responses: `stripe_response_count`,
+  `stripe_elements_session_response_count`, `stripe_elements_session_status`,
+  and `stripe_elements_session_error_count`.
+- ECE mounted/rendered state: `ece_render_container_seen_ms`,
+  `ece_render_first_child_ms`, `ece_render_first_iframe_ms`,
+  `ece_render_first_visible_iframe_ms`, `ece_render_first_visible_button_ms`,
+  and `ece_rendered_visible_button`.
+- Child/iframe/button counts: `ece_render_peak_child_count`,
+  `ece_render_peak_iframe_count`, and
+  `ece_render_peak_visible_iframe_count`.
+- Layout stability: `browser_cls`, `browser_layout_shift_count`, and any
+  layout-shift source rectangles preserved in metadata.
+- Browser artifacts: screenshots, final HTML, and metadata links copied by
+  Homeboy/WP Codebox into the trace artifact bundle.
+
 ## Interpretation
 
 Use request-count and browser-object metrics as the primary signal. The browser
@@ -234,9 +269,11 @@ surfaces to appear after the browser starts loading the product page.
 The metadata artifact records requested and effective browser context, including
 requested viewport, effective viewport, browser profile, preview settings, final
 URL, user agent, and whether the page ran in `window.isSecureContext`. Treat the
-default local HTTP/headless profile as request/lifecycle evidence only. It can
-show Stripe requests, ECE containers, iframes, buttons, console output, and page
-errors, but it is not wallet-eligibility proof. Use the `secure-browser` profile
-for secure-context browser plumbing checks, and use the `real-wallet` profile
-with Stripe test keys plus an HTTPS public preview URL when collecting
-real-wallet-capable evidence.
+default local HTTP/headless profile as synthetic layout proof: it can show Stripe
+requests, ECE containers, iframes, buttons, console output, page errors, and
+deterministic CLS behavior, but it is not wallet-eligibility proof. Structural
+ECE proof means the fixture-health gate passed and the product page actually
+rendered the ECE insertion point, params, and mount needed for those metrics to
+be meaningful. Use the `secure-browser` profile for secure-context browser
+plumbing checks, and use the `real-wallet` profile with Stripe test keys plus an
+HTTPS public preview URL when collecting real-wallet-capable evidence.

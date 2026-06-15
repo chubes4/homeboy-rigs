@@ -8,7 +8,7 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
 
 1. Start a disposable WP Codebox WordPress runtime.
 2. Activate WooCommerce and WooCommerce Stripe.
-3. Run the rig-owned `bench/fixture-bootstrap.php` fixture.
+3. Run this rig's `bench/fixture-bootstrap.php` in the disposable runtime.
 4. Configure Stripe test/ECE settings with product-page ECE enabled.
 5. Create a simple purchasable product.
 6. Open the product page in a browser probe.
@@ -20,7 +20,62 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
 
 The default `smoke` profile preserves the existing WP Codebox browser-probe
 defaults: local Playground origin, default Chromium context, and the rig's fixed
-`1366x900` viewport.
+`1366x900` viewport. Use it for rig health only, not for browser performance
+conclusions.
+
+The product-page waterfall rig now has a small browser performance profile
+matrix. Generated `ece-waterfall-metrics.json` and `ece-waterfall-metadata.json`
+preserve the selected profile name, label, caveat, conclusion scope, wait mode,
+and throttle profile so downstream reports can carry the right labels without a
+Homeboy core reporting change.
+
+| Profile | Wait | Throttle | Supports | Caveat |
+| --- | --- | --- | --- | --- |
+| `webperf-desktop-load` | `load` | none | Normal-ish desktop LCP/FCP/TTFB/load/navigation timing shape. | Use for non-throttled absolute load context, not stable synthetic fan-out deltas. |
+| `webperf-desktop-slow-4g` | `load` | `low-end-mobile-slow-4g` | Stable synthetic third-party response fan-out and relative waterfall deltas. | Desktop rendering is intentionally paired with a slow synthetic throttle; do not present these as normal desktop absolute timings. |
+| `webperf-wallet-fanout` | `load` | `low-end-mobile-slow-4g` | Deterministic ECE create/mount count proof with `card,link,apple_pay,google_pay` requested. | Constructor and mount counts are primary proof; Stripe network/session counters are supporting evidence only. |
+
+Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-load` to keep the
+desktop browser context without synthetic CPU/network throttling. This profile
+waits for `load` and then records the configured probe duration so LCP/FCP/TTFB,
+load, and navigation metrics remain visible without relying on `networkidle`.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --setting woocommerce_stripe_ece_browser_profile=webperf-desktop-load \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-desktop-load.json
+```
+
+Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-slow-4g` to keep
+the desktop browser context used by the synthetic ECE fixture while applying WP
+Codebox's deterministic `low-end-mobile-slow-4g` CPU/network throttle. This
+profile waits for `load` and then records the configured probe duration, rather
+than waiting for `networkidle`, because Stripe/product-page probes may keep
+third-party network activity alive long enough to make `networkidle` timeout.
+The disposable product fixture also provides the Woo settings package surface
+expected by the built Stripe assets on classic product pages, and the trace fails
+if Stripe bootstrap still emits page errors.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --setting woocommerce_stripe_ece_browser_profile=webperf-desktop-slow-4g \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-webperf.json
+```
+
+Use the `webperf-wallet-fanout` trace profile when proving grouped ECE
+construction behavior across baseline/candidate runs. It requests
+`card,link,apple_pay,google_pay`, enables the deterministic fan-out assertion,
+and records Express Checkout Element create/mount calls without requiring Apple
+Pay or Google Pay enrollment in the browser.
+
+```bash
+homeboy trace --rig woocommerce-stripe-ece-product-page \
+  --profile webperf-wallet-fanout \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-wallet-fanout.json
+```
 
 Set `woocommerce_stripe_ece_browser_profile=secure-browser` to run the same
 Stripe product-page scenario through generic secure/browser-visible upstream
@@ -100,40 +155,22 @@ The stable signals are structural:
 - JS event listener count.
 - DOM node count.
 - Long-task count and total duration.
+- Browser profile identity and caveats: `browser_profile`,
+  `browser_profile_label`, `browser_profile_caveat`,
+  `browser_profile_conclusion`, `browser_wait_for`, and
+  `browser_throttle_profile`.
+- WP Codebox web performance metrics when available: `browser_ttfb_ms`,
+  `browser_fcp_ms`, `browser_lcp_ms`, and `browser_nav_duration_ms`.
 - Real-wallet evidence classification: `ece_real_wallet_capable` and
   `ece_synthetic_only`.
+- Deterministic ECE construction fields: `ece_create_call_count`,
+  `ece_instance_count`, `ece_mount_count`, `ece_mount_target_ids`,
+  `ece_mount_target_selectors`, and `ece_create_payment_methods`.
 - Stripe Elements session status/error counts and visible-button outcome.
 - Deterministic CLS fields for simulated profiles: `browser_cls`,
   `browser_layout_shift_count`, `ece_render_final_container_height`,
   `ece_render_final_wallets_link_height`, and metadata-level layout-shift source
   rectangles for the ECE container/sentinel path.
-
-## Visual Parity
-
-Use Homeboy's trace compare visual hook with Homeboy Extensions' WP Codebox
-provider when a PR needs reviewer-facing visual parity evidence:
-
-```bash
-homeboy trace compare \
-  --rig woocommerce-stripe-ece-product-page \
-  --baseline-target origin/develop \
-  --candidate <candidate-ref-or-sha> \
-  --schedule interleaved \
-  --repeat 3 \
-  --report markdown \
-  --visual-compare \
-  --visual-compare-provider node \
-  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
-  --visual-threshold 0.1 \
-  woocommerce-gateway-stripe ece-product-page-waterfall \
-  --output /tmp/wc-stripe-ece-product-page-proof.md
-```
-
-The ECE workload already captures screenshots through `wordpress.browser-probe`.
-`--visual-compare` pairs the baseline and candidate screenshots, then calls WP
-Codebox's `wordpress.visual-compare` primitive through the provider. The proof
-artifacts include `source.png`, `candidate.png`, `diff.png`, `visual-diff.json`,
-and `visual-explanation.json` for the compared browser variant.
 
 ## Secondary Signals
 
@@ -155,10 +192,16 @@ These fields are written to `ece-waterfall-metrics.json` with the
 `ece_render_*` prefix. The raw observer events are also preserved in
 `ece-waterfall-metadata.json` for debugging false positives or missing marks.
 
+For `webperf-wallet-fanout`, the pre-page script also wraps the Stripe factory,
+`stripe.elements()`, `elements.create('expressCheckout', ...)`, and each ECE
+instance's `mount(...)`. Metrics contain normalized counts and mount targets;
+metadata preserves full create/mount records under
+`express_checkout_instrumentation`.
+
 ## Known Follow-Ups
 
-- Add named overlay variants for fan-out reduction and lazy product-page ECE
-  initialization once the Stripe PR stack settles.
+- Add named overlay variants for lazy product-page ECE initialization once the
+  Stripe PR stack settles.
 - Add an ECE-disabled control variant.
 - Add interaction probes that intentionally trigger deferred ECE initialization
   and verify button availability after the trigger.

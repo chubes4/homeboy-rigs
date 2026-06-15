@@ -258,6 +258,26 @@
     "smoke": {
       "scenario": "ece-product-page-waterfall"
     },
+    "webperf-desktop-load": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-load"
+      }
+    },
+    "webperf-desktop-slow-4g": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-slow-4g"
+      }
+    },
+    "webperf-wallet-fanout": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-desktop-slow-4g",
+        "woocommerce_stripe_accepted_payment_methods": "card,link,apple_pay,google_pay",
+        "woocommerce_stripe_ece_require_fanout_proof": "1"
+      }
+    },
     "secure-browser": {
       "scenario": "ece-product-page-waterfall",
       "settings": {
@@ -304,7 +324,7 @@
       },
       {
         "kind": "command",
-        "label": "Rig-owned Stripe benchmark fixture exists",
+        "label": "Rig-owned Stripe fixture exists",
         "command": "test -f \"${package.root}/bench/fixture-bootstrap.php\" || { printf '%s\\n' \"Missing rig-owned Stripe benchmark fixture at ${package.root}/bench/fixture-bootstrap.php.\"; exit 1; }"
       },
       {

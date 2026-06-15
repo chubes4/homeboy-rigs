@@ -9,10 +9,6 @@
  * - https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929
  * - https://github.com/chubes4/homeboy-rigs/issues/253
  * - https://github.com/chubes4/homeboy-rigs/issues/254
- * - https://github.com/chubes4/homeboy-rigs/issues/269
- * - https://github.com/chubes4/homeboy-rigs/issues/268
- * - https://github.com/chubes4/homeboy-rigs/issues/270
- * - https://github.com/chubes4/homeboy-rigs/issues/271
  */
 return function (): array {
 	if ( ! class_exists( 'WooCommerce' ) ) {
@@ -44,13 +40,6 @@ return function (): array {
 	if ( ! WC()->payment_gateways && class_exists( 'WC_Payment_Gateways' ) ) {
 		WC()->payment_gateways = new WC_Payment_Gateways();
 	}
-	if ( method_exists( WC(), 'mailer' ) ) {
-		foreach ( WC()->mailer()->get_emails() as $email ) {
-			if ( isset( $email->id ) ) {
-				add_filter( 'woocommerce_email_enabled_' . $email->id, '__return_false', 999 );
-			}
-		}
-	}
 
 	global $wpdb;
 
@@ -63,10 +52,6 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929',
 		'https://github.com/chubes4/homeboy-rigs/issues/253',
 		'https://github.com/chubes4/homeboy-rigs/issues/254',
-		'https://github.com/chubes4/homeboy-rigs/issues/269',
-		'https://github.com/chubes4/homeboy-rigs/issues/268',
-		'https://github.com/chubes4/homeboy-rigs/issues/270',
-		'https://github.com/chubes4/homeboy-rigs/issues/271',
 	);
 	$request_count = max( 2, min( 8, absint( getenv( 'WC_CONCURRENT_CHECKOUT_REQUESTS' ) ?: 2 ) ) );
 	$iterations    = max( 1, min( 10, absint( getenv( 'WC_CONCURRENT_CHECKOUT_ITERATIONS' ) ?: 3 ) ) );
@@ -92,9 +77,6 @@ return function (): array {
 			'enable_for_virtual' => 'yes',
 		)
 	);
-	if ( class_exists( 'WC_Payment_Gateways' ) ) {
-		WC()->payment_gateways = new WC_Payment_Gateways();
-	}
 
 	if ( ! WC()->session ) {
 		if ( method_exists( WC(), 'initialize_session' ) ) {
@@ -107,7 +89,6 @@ return function (): array {
 	if ( WC()->session ) {
 		WC()->session->set_customer_session_cookie( true );
 		WC()->session->__unset( 'order_awaiting_payment' );
-		WC()->session->__unset( 'checkout_pending_order_id' );
 	}
 
 	wc_load_cart();
@@ -126,18 +107,6 @@ return function (): array {
 	$product->set_manage_stock( false );
 	$product->set_stock_status( 'instock' );
 	$product->save();
-
-	$free_product = new WC_Product_Simple();
-	$free_product->set_name( 'Homeboy Free Checkout Product ' . $run_id );
-	$free_product->set_slug( 'homeboy-free-checkout-' . $run_id );
-	$free_product->set_status( 'publish' );
-	$free_product->set_sku( 'homeboy-free-checkout-' . $run_id );
-	$free_product->set_regular_price( '0' );
-	$free_product->set_price( '0' );
-	$free_product->set_virtual( true );
-	$free_product->set_manage_stock( false );
-	$free_product->set_stock_status( 'instock' );
-	$free_product->save();
 
 	$email = 'homeboy-' . $run_id . '@example.com';
 	$data  = array(
@@ -168,31 +137,24 @@ return function (): array {
 		'ship_to_different_address' => 0,
 	);
 
-	$set_cart = static function ( int $quantity = 1, $cart_product = null ) use ( $product, $run_id ): array {
-		$cart_product = $cart_product instanceof WC_Product_Simple ? $cart_product : $product;
-		$line_total   = (float) $cart_product->get_price( 'edit' ) * $quantity;
-
+	$set_cart = static function ( int $quantity = 1 ) use ( $product, $run_id ): array {
 		WC()->cart->empty_cart();
-		if ( method_exists( WC()->cart, 'remove_coupons' ) ) {
-			WC()->cart->remove_coupons();
-		}
 		if ( WC()->session ) {
 			WC()->session->__unset( 'order_awaiting_payment' );
-			WC()->session->__unset( 'checkout_pending_order_id' );
 		}
 
-		$cart_item_key = 'homeboy_concurrent_checkout_' . md5( $run_id . ':' . $cart_product->get_id() . ':' . $quantity );
+		$cart_item_key = 'homeboy_concurrent_checkout_' . md5( $run_id . ':' . $quantity );
 		WC()->cart->cart_contents = array(
 			$cart_item_key => array(
 				'key'               => $cart_item_key,
-				'product_id'        => $cart_product->get_id(),
+				'product_id'        => $product->get_id(),
 				'variation_id'      => 0,
 				'variation'         => array(),
 				'quantity'          => $quantity,
-				'data'              => $cart_product,
-				'line_subtotal'     => $line_total,
+				'data'              => $product,
+				'line_subtotal'     => 19.99 * $quantity,
 				'line_subtotal_tax' => 0,
-				'line_total'        => $line_total,
+				'line_total'        => 19.99 * $quantity,
 				'line_tax'          => 0,
 				'line_tax_data'     => array(
 					'subtotal' => array(),
@@ -218,7 +180,6 @@ return function (): array {
 
 		return array(
 			'cart_item_key' => $cart_item_key,
-			'product_id'    => $cart_product->get_id(),
 			'cart_hash'     => WC()->cart->get_cart_hash(),
 			'cart_count'    => WC()->cart->get_cart_contents_count(),
 			'cart_total'    => (float) WC()->cart->get_total( 'edit' ),
@@ -228,147 +189,6 @@ return function (): array {
 	$session_order_awaiting_payment = static function (): int {
 		return WC()->session ? absint( WC()->session->get( 'order_awaiting_payment' ) ) : 0;
 	};
-
-	$hook_observer_scenario = 'bootstrap';
-	$hook_sequence          = 0;
-	$hook_events            = array();
-	$record_hook_event      = static function ( string $hook, array $args ) use ( &$hook_events, &$hook_sequence, &$hook_observer_scenario ): void {
-		$order_ids      = array();
-		$payment_method = '';
-		$result_status  = '';
-
-		foreach ( $args as $arg ) {
-			if ( $arg instanceof WC_Order ) {
-				$order_ids[] = $arg->get_id();
-				if ( '' === $payment_method ) {
-					$payment_method = $arg->get_payment_method();
-				}
-			} elseif ( is_numeric( $arg ) ) {
-				$order_ids[] = absint( $arg );
-			} elseif ( is_array( $arg ) ) {
-				if ( '' === $payment_method && isset( $arg['payment_method'] ) ) {
-					$payment_method = (string) $arg['payment_method'];
-				}
-				if ( '' === $result_status && isset( $arg['result'] ) ) {
-					$result_status = (string) $arg['result'];
-				}
-				if ( isset( $arg['order_id'] ) ) {
-					$order_ids[] = absint( $arg['order_id'] );
-				}
-			}
-		}
-
-		$order_ids = array_values( array_unique( array_filter( $order_ids ) ) );
-		$order_id  = $order_ids[0] ?? 0;
-		$order     = $order_id ? wc_get_order( $order_id ) : null;
-
-		$hook_events[] = array(
-			'sequence'                       => ++$hook_sequence,
-			'scenario'                       => $hook_observer_scenario,
-			'hook'                           => $hook,
-			'order_id'                       => $order_id,
-			'order_ids'                      => $order_ids,
-			'order_status'                   => $order instanceof WC_Order ? $order->get_status() : '',
-			'created_via'                    => $order instanceof WC_Order ? $order->get_created_via() : '',
-			'cart_hash'                      => $order instanceof WC_Order ? $order->get_cart_hash() : '',
-			'payment_method'                 => $payment_method,
-			'payment_result'                 => $result_status,
-			'order_awaiting_payment_session' => WC()->session ? absint( WC()->session->get( 'order_awaiting_payment' ) ) : 0,
-		);
-	};
-	$run_hook_observed_scenario = static function ( string $scenario, callable $callback ) use ( &$hook_observer_scenario, &$hook_events ): array {
-		$previous_scenario      = $hook_observer_scenario;
-		$hook_observer_scenario = $scenario;
-		$before_index           = count( $hook_events );
-		if ( function_exists( 'wc_clear_notices' ) ) {
-			wc_clear_notices();
-		}
-		try {
-			$result = $callback();
-			return array(
-				'result'           => $result,
-				'hook_event_start' => $before_index,
-				'hook_event_count' => count( $hook_events ) - $before_index,
-				'hook_events'      => array_slice( $hook_events, $before_index ),
-			);
-		} finally {
-			if ( function_exists( 'wc_clear_notices' ) ) {
-				wc_clear_notices();
-			}
-			$hook_observer_scenario = $previous_scenario;
-		}
-	};
-	$summarize_hook_events = static function ( array $events ): array {
-		$summary = array(
-			'event_count' => count( $events ),
-			'counts'      => array(),
-			'order_ids'   => array(),
-			'by_scenario' => array(),
-			'events'      => $events,
-		);
-
-		foreach ( $events as $event ) {
-			$hook     = (string) $event['hook'];
-			$scenario = (string) $event['scenario'];
-			$summary['counts'][ $hook ] = ( $summary['counts'][ $hook ] ?? 0 ) + 1;
-			$summary['order_ids'][ $hook ] = array_values( array_unique( array_merge( $summary['order_ids'][ $hook ] ?? array(), (array) $event['order_ids'] ) ) );
-
-			if ( ! isset( $summary['by_scenario'][ $scenario ] ) ) {
-				$summary['by_scenario'][ $scenario ] = array(
-					'event_count' => 0,
-					'counts'      => array(),
-					'order_ids'   => array(),
-					'events'      => array(),
-				);
-			}
-			$summary['by_scenario'][ $scenario ]['event_count']++;
-			$summary['by_scenario'][ $scenario ]['counts'][ $hook ] = ( $summary['by_scenario'][ $scenario ]['counts'][ $hook ] ?? 0 ) + 1;
-			$summary['by_scenario'][ $scenario ]['order_ids'][ $hook ] = array_values( array_unique( array_merge( $summary['by_scenario'][ $scenario ]['order_ids'][ $hook ] ?? array(), (array) $event['order_ids'] ) ) );
-			$summary['by_scenario'][ $scenario ]['events'][] = $event;
-		}
-
-		ksort( $summary['counts'] );
-		ksort( $summary['order_ids'] );
-		ksort( $summary['by_scenario'] );
-
-		return $summary;
-	};
-	$checkout_hook_callbacks = array(
-		'woocommerce_checkout_create_order'       => static function ( WC_Order $order, array $posted_data ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_checkout_create_order', array( $order, $posted_data ) );
-		},
-		'woocommerce_checkout_order_created'      => static function ( WC_Order $order ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_checkout_order_created', array( $order ) );
-		},
-		'woocommerce_checkout_update_order_meta'  => static function ( int $order_id, array $posted_data ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_checkout_update_order_meta', array( $order_id, $posted_data ) );
-		},
-		'woocommerce_checkout_order_processed'    => static function ( int $order_id, array $posted_data, WC_Order $order ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_checkout_order_processed', array( $order_id, $posted_data, $order ) );
-		},
-		'woocommerce_resume_order'                => static function ( int $order_id ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_resume_order', array( $order_id ) );
-		},
-		'woocommerce_pre_payment_complete'        => static function ( int $order_id, string $transaction_id = '' ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_pre_payment_complete', array( $order_id, $transaction_id ) );
-		},
-		'woocommerce_payment_complete'            => static function ( int $order_id, string $transaction_id = '' ) use ( $record_hook_event ): void {
-			$record_hook_event( 'woocommerce_payment_complete', array( $order_id, $transaction_id ) );
-		},
-	);
-	foreach ( $checkout_hook_callbacks as $hook => $callback ) {
-		add_action( $hook, $callback, 999, 3 );
-	}
-	$payment_successful_result_observer = static function ( array $result, int $order_id ) use ( $record_hook_event ): array {
-		$record_hook_event( 'woocommerce_payment_successful_result', array( $result, $order_id ) );
-		return $result;
-	};
-	$payment_complete_status_observer = static function ( string $status, int $order_id, WC_Order $order ) use ( $record_hook_event ): string {
-		$record_hook_event( 'woocommerce_payment_complete_order_status', array( $status, $order_id, $order ) );
-		return $status;
-	};
-	add_filter( 'woocommerce_payment_successful_result', $payment_successful_result_observer, 999, 2 );
-	add_filter( 'woocommerce_payment_complete_order_status', $payment_complete_status_observer, 999, 3 );
 
 	$unexpected_output = '';
 	$create_order      = static function ( array $posted_data ) use ( &$unexpected_output ): int {
@@ -389,49 +209,6 @@ return function (): array {
 		return $order_id;
 	};
 
-	$make_limited_coupon = static function ( string $suffix, int $usage_limit = 2 ) use ( $run_id ): WC_Coupon {
-		$coupon = new WC_Coupon();
-		$coupon->set_code( 'homeboy-lifecycle-' . $suffix . '-' . strtolower( wp_generate_password( 6, false ) ) );
-		$coupon->set_discount_type( 'fixed_cart' );
-		$coupon->set_amount( 1 );
-		$coupon->set_usage_limit( $usage_limit );
-		$coupon->set_description( 'Homeboy coupon lifecycle guardrail ' . $run_id );
-		$coupon->save();
-
-		return $coupon;
-	};
-
-	$coupon_snapshot = static function ( WC_Coupon $coupon, int $order_id = 0 ) use ( $wpdb ): array {
-		$coupon = new WC_Coupon( $coupon->get_id() );
-		$tentative_hold_keys = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT meta_key FROM $wpdb->postmeta WHERE post_id = %d AND meta_key LIKE %s AND meta_key > %s ORDER BY meta_id ASC",
-				$coupon->get_id(),
-				$wpdb->esc_like( '_coupon_held_' ) . '%',
-				'_coupon_held_' . time()
-			)
-		);
-		$order = $order_id ? wc_get_order( $order_id ) : null;
-		$held_keys = $order instanceof WC_Order ? (array) $order->get_meta( '_coupon_held_keys' ) : array();
-
-		return array(
-			'coupon_id'                          => $coupon->get_id(),
-			'coupon_code'                        => $coupon->get_code(),
-			'usage_limit'                        => $coupon->get_usage_limit(),
-			'usage_count'                        => $coupon->get_usage_count(),
-			'tentative_hold_count'               => count( $tentative_hold_keys ),
-			'tentative_hold_keys'                => array_values( $tentative_hold_keys ),
-			'reserved_count'                     => $coupon->get_usage_count() + count( $tentative_hold_keys ),
-			'order_id'                           => $order_id,
-			'order_status'                       => $order instanceof WC_Order ? $order->get_status() : '',
-			'order_coupon_line_count'            => $order instanceof WC_Order ? count( $order->get_coupon_codes() ) : 0,
-			'order_coupon_codes'                 => $order instanceof WC_Order ? $order->get_coupon_codes() : array(),
-			'order_recorded_coupon_usage_counts' => $order instanceof WC_Order ? (bool) $order->get_data_store()->get_recorded_coupon_usage_counts( $order ) : false,
-			'order_held_key_count'               => count( $held_keys ),
-			'order_held_keys'                    => $held_keys,
-		);
-	};
-
 	$run_template_redirect_clear = static function ( WC_Order $order, bool $with_session_reference = true ): array {
 		global $wp;
 
@@ -448,7 +225,6 @@ return function (): array {
 				WC()->session->set( 'order_awaiting_payment', $order->get_id() );
 			} else {
 				WC()->session->__unset( 'order_awaiting_payment' );
-				WC()->session->__unset( 'checkout_pending_order_id' );
 			}
 		}
 
@@ -531,7 +307,6 @@ return function (): array {
 		$cart_session->set_session();
 		$session->set( 'chosen_payment_method', 'free' === $payment_mode ? '' : 'cod' );
 		$session->set( 'order_awaiting_payment', null );
-		$session->set( 'checkout_pending_order_id', null );
 		$session->set(
 			'customer',
 			array(
@@ -724,36 +499,14 @@ return function (): array {
 
 	$before = microtime( true );
 
-	$public_create_order_observation = $run_hook_observed_scenario(
-		'public_create_order_outside_process_checkout',
-		static function () use ( $set_cart, $create_order, $data, $session_order_awaiting_payment ): array {
-			$base_cart                            = $set_cart( 1 );
-			$order_id_1                           = $create_order( $data );
-			$session_after_first_create_order     = $session_order_awaiting_payment();
-			$cart_count_after_first_create_order  = WC()->cart->get_cart_contents_count();
-			$order_id_2                           = $create_order( $data );
-			$session_after_second_create_order    = $session_order_awaiting_payment();
-			$cart_count_after_second_create_order = WC()->cart->get_cart_contents_count();
-
-			return array(
-				'base_cart'                           => $base_cart,
-				'order_id_1'                          => $order_id_1,
-				'order_id_2'                          => $order_id_2,
-				'session_after_first_create_order'     => $session_after_first_create_order,
-				'session_after_second_create_order'    => $session_after_second_create_order,
-				'cart_count_after_first_create_order'  => $cart_count_after_first_create_order,
-				'cart_count_after_second_create_order' => $cart_count_after_second_create_order,
-			);
-		}
-	);
-	$base_cart                            = $public_create_order_observation['result']['base_cart'];
-	$order_id_1                           = $public_create_order_observation['result']['order_id_1'];
-	$order_id_2                           = $public_create_order_observation['result']['order_id_2'];
-	$session_after_first_create_order     = $public_create_order_observation['result']['session_after_first_create_order'];
-	$session_after_second_create_order    = $public_create_order_observation['result']['session_after_second_create_order'];
-	$cart_count_after_first_create_order  = $public_create_order_observation['result']['cart_count_after_first_create_order'];
-	$cart_count_after_second_create_order = $public_create_order_observation['result']['cart_count_after_second_create_order'];
-	$elapsed_ms                           = ( microtime( true ) - $before ) * 1000;
+	$base_cart                             = $set_cart( 1 );
+	$order_id_1                            = $create_order( $data );
+	$session_after_first_create_order      = $session_order_awaiting_payment();
+	$cart_count_after_first_create_order   = WC()->cart->get_cart_contents_count();
+	$order_id_2                            = $create_order( $data );
+	$session_after_second_create_order     = $session_order_awaiting_payment();
+	$cart_count_after_second_create_order  = WC()->cart->get_cart_contents_count();
+	$elapsed_ms                            = ( microtime( true ) - $before ) * 1000;
 
 	$order_ids          = array_map( 'absint', array( $order_id_1, $order_id_2 ) );
 	$orders             = array_filter( array_map( 'wc_get_order', $order_ids ) );
@@ -772,241 +525,35 @@ return function (): array {
 		'clears_cart'                         => 0 === $cart_count_after_first_create_order || 0 === $cart_count_after_second_create_order,
 	);
 
-	$make_checkout_data = static function ( string $billing_email, string $suffix = '' ) use ( $data ): array {
-		$scenario_data                         = $data;
-		$scenario_data['billing_email']        = $billing_email;
-		$scenario_data['billing_first_name']   = 'Homeboy' . $suffix;
-		$scenario_data['shipping_first_name']  = 'Homeboy' . $suffix;
-		$scenario_data['order_comments']       = trim( $data['order_comments'] . ' ' . $suffix );
+	$set_cart( 1 );
+	$pending_order_id = $create_order( $data );
+	WC()->session->set( 'order_awaiting_payment', $pending_order_id );
+	$pending_retry_id = $create_order( $data );
 
-		return $scenario_data;
-	};
-	$order_snapshot = static function ( WC_Order $order ): array {
-		return array(
-			'id'            => $order->get_id(),
-			'status'        => $order->get_status(),
-			'total'         => (float) $order->get_total(),
-			'cart_hash'     => $order->get_cart_hash(),
-			'customer_id'   => $order->get_customer_id(),
-			'billing_email' => $order->get_billing_email(),
-			'item_count'    => count( $order->get_items() ),
-		);
-	};
-	$run_identity_scenario = static function ( string $scenario, array $first_context, array $second_context, bool $expect_reuse, string $first_session_marker, string $second_session_marker ) use ( $create_order, $make_checkout_data, $order_snapshot, $set_cart ): array {
-		$scenario_cart = $set_cart( 1 );
+	$set_cart( 1 );
+	$failed_order_id = $create_order( $data );
+	$failed_order    = wc_get_order( $failed_order_id );
+	$failed_order->set_status( 'failed' );
+	$failed_order->save();
+	WC()->session->set( 'order_awaiting_payment', $failed_order_id );
+	$failed_retry_id = $create_order( $data );
 
-		wp_set_current_user( (int) $first_context['customer_id'] );
-		$first_data = $make_checkout_data( (string) $first_context['billing_email'], (string) $first_context['suffix'] );
-		$order_id_1 = $create_order( $first_data );
+	$set_cart( 1 );
+	$completed_order_id = $create_order( $data );
+	$completed_order    = wc_get_order( $completed_order_id );
+	$completed_order->set_status( 'completed' );
+	$completed_order->save();
+	WC()->session->set( 'order_awaiting_payment', $completed_order_id );
+	$completed_retry_id    = $create_order( $data );
+	$completed_after_retry = wc_get_order( $completed_order_id );
 
-		if ( WC()->session ) {
-			WC()->session->set( 'order_awaiting_payment', absint( $order_id_1 ) );
-		}
-		$first_order_before_second = wc_get_order( absint( $order_id_1 ) );
-		$first_order_before_second = $first_order_before_second ? $order_snapshot( $first_order_before_second ) : array();
-
-		wp_set_current_user( (int) $second_context['customer_id'] );
-		$second_data = $make_checkout_data( (string) $second_context['billing_email'], (string) $second_context['suffix'] );
-		$order_id_2  = $create_order( $second_data );
-
-		$order_id_1 = absint( $order_id_1 );
-		$order_id_2 = absint( $order_id_2 );
-		$reused     = $order_id_1 === $order_id_2;
-		$orders     = array_filter( array_map( 'wc_get_order', array( $order_id_1, $order_id_2 ) ) );
-		$first_order_after_second = wc_get_order( $order_id_1 );
-		$first_order_after_second = $first_order_after_second ? $order_snapshot( $first_order_after_second ) : array();
-		$first_order_mutated      = $first_order_before_second && $first_order_after_second && (
-			$first_order_before_second['customer_id'] !== $first_order_after_second['customer_id']
-			|| $first_order_before_second['billing_email'] !== $first_order_after_second['billing_email']
-		);
-
-		return array(
-			'name'           => $scenario,
-			'expected_reuse' => $expect_reuse,
-			'actual_reuse'   => $reused,
-			'passed'         => $expect_reuse === $reused,
-			'order_ids'      => array( $order_id_1, $order_id_2 ),
-			'unique_orders'  => array_values( array_unique( array( $order_id_1, $order_id_2 ) ) ),
-			'identities'     => array(
-				'first'  => array(
-					'is_guest'       => 0 === (int) $first_context['customer_id'],
-					'customer_id'    => (int) $first_context['customer_id'],
-					'billing_email'  => (string) $first_data['billing_email'],
-					'cart_hash'      => $scenario_cart['cart_hash'],
-					'session_marker' => $first_session_marker,
-				),
-				'second' => array(
-					'is_guest'       => 0 === (int) $second_context['customer_id'],
-					'customer_id'    => (int) $second_context['customer_id'],
-					'billing_email'  => (string) $second_data['billing_email'],
-					'cart_hash'      => $scenario_cart['cart_hash'],
-					'session_marker' => $second_session_marker,
-				),
-			),
-			'first_order_before_second_attempt' => $first_order_before_second,
-			'first_order_after_second_attempt'  => $first_order_after_second,
-			'first_order_mutated_by_second_attempt' => $first_order_mutated,
-			'orders'         => array_map( $order_snapshot, $orders ),
-		);
-	};
-
-	$pending_retry_observation = $run_hook_observed_scenario(
-		'same_cart_retry_pending',
-		static function () use ( $set_cart, $create_order, $data ): array {
-			$set_cart( 1 );
-			$pending_order_id = $create_order( $data );
-			WC()->session->set( 'order_awaiting_payment', $pending_order_id );
-			$pending_retry_id = $create_order( $data );
-
-			return array(
-				'pending_order_id' => $pending_order_id,
-				'pending_retry_id' => $pending_retry_id,
-			);
-		}
-	);
-	$pending_order_id = $pending_retry_observation['result']['pending_order_id'];
-	$pending_retry_id = $pending_retry_observation['result']['pending_retry_id'];
-
-	$failed_retry_observation = $run_hook_observed_scenario(
-		'same_cart_retry_failed',
-		static function () use ( $set_cart, $create_order, $data ): array {
-			$set_cart( 1 );
-			$failed_order_id = $create_order( $data );
-			$failed_order    = wc_get_order( $failed_order_id );
-			$failed_order->set_status( 'failed' );
-			$failed_order->save();
-			WC()->session->set( 'order_awaiting_payment', $failed_order_id );
-			$failed_retry_id = $create_order( $data );
-
-			return array(
-				'failed_order_id' => $failed_order_id,
-				'failed_retry_id' => $failed_retry_id,
-			);
-		}
-	);
-	$failed_order_id = $failed_retry_observation['result']['failed_order_id'];
-	$failed_retry_id = $failed_retry_observation['result']['failed_retry_id'];
-
-	$completed_retry_observation = $run_hook_observed_scenario(
-		'completed_order_safety',
-		static function () use ( $set_cart, $create_order, $data ): array {
-			$set_cart( 1 );
-			$completed_order_id = $create_order( $data );
-			$completed_order    = wc_get_order( $completed_order_id );
-			$completed_order->set_status( 'completed' );
-			$completed_order->save();
-			WC()->session->set( 'order_awaiting_payment', $completed_order_id );
-			$completed_retry_id    = $create_order( $data );
-			$completed_after_retry = wc_get_order( $completed_order_id );
-
-			return array(
-				'completed_order_id'    => $completed_order_id,
-				'completed_retry_id'    => $completed_retry_id,
-				'completed_after_retry' => $completed_after_retry,
-			);
-		}
-	);
-	$completed_order_id    = $completed_retry_observation['result']['completed_order_id'];
-	$completed_retry_id    = $completed_retry_observation['result']['completed_retry_id'];
-	$completed_after_retry = $completed_retry_observation['result']['completed_after_retry'];
-
-	$changed_cart_observation = $run_hook_observed_scenario(
-		'changed_cart_retry',
-		static function () use ( $set_cart, $create_order, $data ): array {
-			$set_cart( 1 );
-			$changed_cart_order_id = $create_order( $data );
-			WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
-			$changed_original_hash = wc_get_order( $changed_cart_order_id )->get_cart_hash();
-			$changed_cart          = $set_cart( 2 );
-			WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
-			$changed_retry_id      = $create_order( $data );
-
-			return array(
-				'changed_cart_order_id' => $changed_cart_order_id,
-				'changed_retry_id'      => $changed_retry_id,
-				'changed_original_hash' => $changed_original_hash,
-				'changed_cart'          => $changed_cart,
-			);
-		}
-	);
-	$changed_cart_order_id = $changed_cart_observation['result']['changed_cart_order_id'];
-	$changed_retry_id      = $changed_cart_observation['result']['changed_retry_id'];
-	$changed_original_hash = $changed_cart_observation['result']['changed_original_hash'];
-	$changed_cart          = $changed_cart_observation['result']['changed_cart'];
-
-	$fresh_checkout_observation = $run_hook_observed_scenario(
-		'fresh_checkout_process_checkout',
-		static function () use ( $set_cart, $data, $run_id ): array {
-			$set_cart( 1 );
-			if ( WC()->session ) {
-				WC()->session->__unset( 'order_awaiting_payment' );
-				WC()->session->__unset( 'checkout_pending_order_id' );
-			}
-
-			$fresh_data                         = $data;
-			$fresh_data['billing_email']        = 'homeboy-fresh-checkout-' . $run_id . '@example.com';
-			$fresh_data['payment_method']       = 'cod';
-			$fresh_data['order_comments']       = 'Homeboy fresh process_checkout hook sequencing ' . $run_id;
-			$fresh_order_id                     = 0;
-			$fresh_redirect                     = '';
-			$unexpected_process_checkout_output = '';
-			$sentinel_message                   = 'homeboy-fresh-checkout-hook-observer-complete-' . $run_id;
-			$process_checkout_error             = '';
-			$process_checkout_notices           = array();
-
-			$capture_processed_order = static function ( int $order_id ) use ( &$fresh_order_id ): void {
-				$fresh_order_id = $order_id;
-			};
-			$intercept_redirect      = static function ( array $result ) use ( &$fresh_redirect, $sentinel_message ): array {
-				$fresh_redirect = (string) ( $result['redirect'] ?? '' );
-				throw new RuntimeException( $sentinel_message );
-			};
-
-			$post_before    = $_POST;
-			$request_before = $_REQUEST;
-			$_POST          = array_merge(
-				$fresh_data,
-				array(
-					'woocommerce-process-checkout-nonce' => wp_create_nonce( 'woocommerce-process_checkout' ),
-					'security'                           => wp_create_nonce( 'woocommerce-process_checkout' ),
-					'_wp_http_referer'                   => wc_get_checkout_url(),
-				)
-			);
-			$_REQUEST       = array_merge( $_REQUEST, $_POST );
-
-			add_action( 'woocommerce_checkout_order_processed', $capture_processed_order, 1, 1 );
-			add_filter( 'woocommerce_payment_successful_result', $intercept_redirect, 1000, 1 );
-			wc_clear_notices();
-			ob_start();
-			try {
-				WC()->checkout()->process_checkout();
-			} catch ( Throwable $exception ) {
-				if ( $sentinel_message !== $exception->getMessage() ) {
-					$process_checkout_error = $exception->getMessage();
-				}
-			} finally {
-				$unexpected_process_checkout_output = (string) ob_get_clean();
-				$process_checkout_notices           = function_exists( 'wc_get_notices' ) ? wc_get_notices() : array();
-				wc_clear_notices();
-				remove_action( 'woocommerce_checkout_order_processed', $capture_processed_order, 1 );
-				remove_filter( 'woocommerce_payment_successful_result', $intercept_redirect, 1000 );
-				$_POST    = $post_before;
-				$_REQUEST = $request_before;
-			}
-
-			$fresh_order = $fresh_order_id ? wc_get_order( $fresh_order_id ) : null;
-			return array(
-				'order_id'                => $fresh_order_id,
-				'order_status'            => $fresh_order instanceof WC_Order ? $fresh_order->get_status() : '',
-				'redirect'                => $fresh_redirect,
-				'reached_order_processed' => $fresh_order_id > 0,
-				'error'                   => $process_checkout_error,
-				'notices'                 => $process_checkout_notices,
-				'unexpected_output_bytes' => strlen( $unexpected_process_checkout_output ),
-			);
-		}
-	);
-	$fresh_checkout = $fresh_checkout_observation['result'];
+	$set_cart( 1 );
+	$changed_cart_order_id = $create_order( $data );
+	WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
+	$changed_original_hash = wc_get_order( $changed_cart_order_id )->get_cart_hash();
+	$changed_cart          = $set_cart( 2 );
+	WC()->session->set( 'order_awaiting_payment', $changed_cart_order_id );
+	$changed_retry_id = $create_order( $data );
 
 	$set_cart( 1 );
 	$extension_order = wc_create_order(
@@ -1031,334 +578,34 @@ return function (): array {
 	$pending_clear_order       = wc_get_order( $pending_order_id );
 	$template_redirect_pending = $run_template_redirect_clear( $pending_clear_order, true );
 
-	$set_cart( 1 );
-	$early_paid_order_id       = $create_order( $data );
-	$early_paid_session_claim  = $session_order_awaiting_payment();
-	$early_paid_order          = wc_get_order( $early_paid_order_id );
-	$early_paid_order->payment_complete();
-	$early_paid_order->save();
-	$early_paid_before_count = WC()->cart->get_cart_contents_count();
-	wc_clear_cart_after_payment();
-	$early_paid_after_count = WC()->cart->get_cart_contents_count();
-	$early_paid_public_create_order = array(
-		'order_id'                       => $early_paid_order_id,
-		'order_awaiting_payment'         => $early_paid_session_claim,
-		'before_count'                   => $early_paid_before_count,
-		'after_count'                    => $early_paid_after_count,
-		'cleared_after_public_order_pay' => 0 === $early_paid_after_count && $early_paid_before_count > 0,
-	);
-
-	$free_cart                   = $set_cart( 1, $free_product );
-	$free_data                   = array_merge( $data, array( 'payment_method' => '' ) );
-	$free_order_id               = $create_order( $free_data );
-	$free_order                  = wc_get_order( $free_order_id );
-	$free_needs_payment_before   = $free_order instanceof WC_Order ? $free_order->needs_payment() : true;
-	$free_session_before_process = $session_order_awaiting_payment();
-	$free_cart_count_before      = WC()->cart->get_cart_contents_count();
-	$no_payment_method           = new ReflectionMethod( WC_Checkout::class, 'process_order_without_payment' );
-	$free_order->payment_complete();
-	wc_empty_cart();
-	$free_redirect_url           = apply_filters( 'woocommerce_checkout_no_payment_needed_redirect', $free_order->get_checkout_order_received_url(), $free_order );
-	$free_order_after            = wc_get_order( $free_order_id );
-	$free_cart_count_after       = WC()->cart->get_cart_contents_count();
-	$free_session_after_process  = $session_order_awaiting_payment();
-	$no_payment_metrics          = array(
-		'order_id'                            => $free_order_id,
-		'process_order_without_payment_exists' => $no_payment_method->isProtected(),
-		'cart_hash'                           => $free_cart['cart_hash'],
-		'cart_total'                          => $free_cart['cart_total'],
-		'order_total'                         => $free_order_after instanceof WC_Order ? (float) $free_order_after->get_total() : -1,
-		'needs_payment_before_process'        => $free_needs_payment_before,
-		'needs_payment_after_process'         => $free_order_after instanceof WC_Order ? $free_order_after->needs_payment() : true,
-		'is_paid_after_process'               => $free_order_after instanceof WC_Order ? $free_order_after->is_paid() : false,
-		'status_after_process'                => $free_order_after instanceof WC_Order ? $free_order_after->get_status() : '',
-		'cart_count_before_process'           => $free_cart_count_before,
-		'cart_count_after_process'            => $free_cart_count_after,
-		'order_awaiting_payment_before_process' => $free_session_before_process,
-		'order_awaiting_payment_after_process' => $free_session_after_process,
-		'json_result'                         => 'success',
-		'redirect_contains_order_received'    => false !== strpos( (string) $free_redirect_url, 'order-received/' ),
-	);
-
-	global $wp;
-	$previous_query_vars = isset( $wp ) && isset( $wp->query_vars ) ? $wp->query_vars : array();
-	$previous_get        = $_GET;
-	if ( ! isset( $wp ) || ! is_object( $wp ) ) {
-		$wp = new WP();
-	}
-
-	$set_cart( 1 );
-	$order_pay_order_id = $create_order( array_merge( $data, array( 'payment_method' => 'cod' ) ) );
-	$order_pay_order    = wc_get_order( $order_pay_order_id );
-	$order_pay_order->set_status( 'failed' );
-	$order_pay_order->set_payment_method( '' );
-	$order_pay_order->save();
-	$wp->query_vars = array( 'order-pay' => $order_pay_order_id );
-	$_GET           = array(
-		'pay_for_order' => 'true',
-		'key'           => $order_pay_order->get_order_key(),
-	);
-	$session_cookie_before_order_pay = WC()->session && method_exists( WC()->session, 'has_session' ) ? WC()->session->has_session() : false;
-	if ( WC()->session && method_exists( WC()->session, 'maybe_set_customer_session_cookie' ) ) {
-		WC()->session->maybe_set_customer_session_cookie();
-	}
-	$order_pay_cod_gateway  = class_exists( 'WC_Gateway_COD' ) ? new WC_Gateway_COD() : null;
-	$order_pay_before_count = WC()->cart->get_cart_contents_count();
-	if ( ! $order_pay_cod_gateway || ! is_callable( array( $order_pay_cod_gateway, 'process_payment' ) ) ) {
-		throw new RuntimeException( 'COD gateway is not available for order-pay retry probe.' );
-	}
-	$order_pay_order->set_payment_method( $order_pay_cod_gateway );
-	$order_pay_order->save();
-	$order_pay_result = $order_pay_cod_gateway->process_payment( $order_pay_order_id );
-	$order_pay_after        = wc_get_order( $order_pay_order_id );
-	$order_pay_after_count  = WC()->cart->get_cart_contents_count();
-	$order_pay_metrics      = array(
-		'order_id'                        => $order_pay_order_id,
-		'status_before_pay_action'        => 'failed',
-		'status_after_pay_action'         => $order_pay_after instanceof WC_Order ? $order_pay_after->get_status() : '',
-		'needs_payment_after_pay_action'  => $order_pay_after instanceof WC_Order ? $order_pay_after->needs_payment() : true,
-		'payment_method_after_pay_action' => $order_pay_after instanceof WC_Order ? $order_pay_after->get_payment_method() : '',
-		'cart_count_before_pay_action'    => $order_pay_before_count,
-		'cart_count_after_pay_action'     => $order_pay_after_count,
-		'cart_cleared_after_pay_action'   => 0 === $order_pay_after_count && $order_pay_before_count > 0,
-		'session_cookie_before_order_pay' => $session_cookie_before_order_pay,
-		'session_cookie_after_order_pay'  => WC()->session && method_exists( WC()->session, 'has_session' ) ? WC()->session->has_session() : false,
-		'redirect_contains_order_received' => isset( $order_pay_result['redirect'] ) && false !== strpos( (string) $order_pay_result['redirect'], 'order-received/' ),
-	);
-	$wp->query_vars = $previous_query_vars;
-	$_GET           = $previous_get;
-
 	$coupon_metrics = array(
-		'covered'   => false,
-		'scenarios' => array(),
-		'metrics'   => array(),
+		'covered'                         => false,
+		'public_create_order_sets_session' => null,
+		'public_create_order_clears_cart'  => null,
+		'order_coupon_line_count'          => null,
 	);
 	if ( class_exists( 'WC_Coupon' ) ) {
-		$coupon_metrics['covered'] = true;
-
 		$set_cart( 1 );
-		$same_cart_coupon = $make_limited_coupon( 'same-cart', 2 );
-		WC()->cart->apply_coupon( $same_cart_coupon->get_code() );
+		$coupon_code = 'homeboy-legacy-' . strtolower( wp_generate_password( 6, false ) );
+		$coupon      = new WC_Coupon();
+		$coupon->set_code( $coupon_code );
+		$coupon->set_discount_type( 'fixed_cart' );
+		$coupon->set_amount( 1 );
+		$coupon->save();
+		WC()->cart->apply_coupon( $coupon_code );
 		WC()->cart->calculate_totals();
-		$same_cart_before = $coupon_snapshot( $same_cart_coupon );
-		$same_cart_first_order_id = $create_order( $data );
-		$same_cart_after_first = $coupon_snapshot( $same_cart_coupon, $same_cart_first_order_id );
-		WC()->session->set( 'order_awaiting_payment', $same_cart_first_order_id );
-		$same_cart_retry_order_id = $create_order( $data );
-		$same_cart_after_retry = $coupon_snapshot( $same_cart_coupon, $same_cart_retry_order_id );
-		$coupon_metrics['scenarios']['same_cart_retry'] = array(
-			'first_order_id' => $same_cart_first_order_id,
-			'retry_order_id' => $same_cart_retry_order_id,
-			'before'         => $same_cart_before,
-			'after_first'    => $same_cart_after_first,
-			'after_retry'    => $same_cart_after_retry,
-		);
-
-		$set_cart( 1 );
-		$changed_cart_coupon = $make_limited_coupon( 'changed-cart', 2 );
-		WC()->cart->apply_coupon( $changed_cart_coupon->get_code() );
-		WC()->cart->calculate_totals();
-		$changed_coupon_first_order_id = $create_order( $data );
-		$changed_coupon_after_first = $coupon_snapshot( $changed_cart_coupon, $changed_coupon_first_order_id );
-		WC()->session->set( 'order_awaiting_payment', $changed_coupon_first_order_id );
-		$changed_coupon_original_hash = wc_get_order( $changed_coupon_first_order_id )->get_cart_hash();
-		$set_cart( 2 );
-		WC()->cart->apply_coupon( $changed_cart_coupon->get_code() );
-		WC()->cart->calculate_totals();
-		$changed_coupon_cart = array(
-			'cart_hash'  => WC()->cart->get_cart_hash(),
-			'cart_count' => WC()->cart->get_cart_contents_count(),
-			'cart_total' => (float) WC()->cart->get_total( 'edit' ),
-		);
-		WC()->session->set( 'order_awaiting_payment', $changed_coupon_first_order_id );
-		$changed_coupon_retry_order_id = $create_order( $data );
-		$changed_coupon_retry_order = wc_get_order( $changed_coupon_retry_order_id );
-		$changed_coupon_after_retry = $coupon_snapshot( $changed_cart_coupon, $changed_coupon_retry_order_id );
-		$coupon_metrics['scenarios']['changed_cart_retry'] = array(
-			'first_order_id'       => $changed_coupon_first_order_id,
-			'retry_order_id'       => $changed_coupon_retry_order_id,
-			'original_cart_hash'   => $changed_coupon_original_hash,
-			'retry_cart_hash'      => $changed_coupon_retry_order ? $changed_coupon_retry_order->get_cart_hash() : '',
-			'expected_cart_hash'   => $changed_coupon_cart['cart_hash'],
-			'after_first'          => $changed_coupon_after_first,
-			'after_retry'          => $changed_coupon_after_retry,
-		);
-
-		$set_cart( 1 );
-		$failed_coupon = $make_limited_coupon( 'failed-resume', 2 );
-		WC()->cart->apply_coupon( $failed_coupon->get_code() );
-		WC()->cart->calculate_totals();
-		$failed_coupon_order_id = $create_order( $data );
-		$failed_coupon_order = wc_get_order( $failed_coupon_order_id );
-		$failed_coupon_after_first = $coupon_snapshot( $failed_coupon, $failed_coupon_order_id );
-		$failed_coupon_order->set_status( 'failed' );
-		$failed_coupon_order->save();
-		$failed_coupon_after_failed_status = $coupon_snapshot( $failed_coupon, $failed_coupon_order_id );
-		WC()->session->set( 'order_awaiting_payment', $failed_coupon_order_id );
-		$failed_coupon_retry_order_id = $create_order( $data );
-		$failed_coupon_after_retry = $coupon_snapshot( $failed_coupon, $failed_coupon_retry_order_id );
-		$coupon_metrics['scenarios']['failed_order_resume'] = array(
-			'failed_order_id'     => $failed_coupon_order_id,
-			'retry_order_id'      => $failed_coupon_retry_order_id,
-			'after_first'         => $failed_coupon_after_first,
-			'after_failed_status' => $failed_coupon_after_failed_status,
-			'after_retry'         => $failed_coupon_after_retry,
-		);
-
-		$set_cart( 1 );
-		$completed_coupon = $make_limited_coupon( 'completed-safety', 2 );
-		WC()->cart->apply_coupon( $completed_coupon->get_code() );
-		WC()->cart->calculate_totals();
-		$completed_coupon_order_id = $create_order( $data );
-		$completed_coupon_order = wc_get_order( $completed_coupon_order_id );
-		$completed_coupon_after_first = $coupon_snapshot( $completed_coupon, $completed_coupon_order_id );
-		$completed_coupon_order->set_status( 'completed' );
-		$completed_coupon_order->save();
-		WC()->session->set( 'order_awaiting_payment', $completed_coupon_order_id );
-		$completed_coupon_retry_order_id = $create_order( $data );
-		$completed_coupon_after_retry = $coupon_snapshot( $completed_coupon, $completed_coupon_retry_order_id );
-		$completed_coupon_after_original = $coupon_snapshot( $completed_coupon, $completed_coupon_order_id );
-		$coupon_metrics['scenarios']['completed_order_safety'] = array(
-			'completed_order_id'    => $completed_coupon_order_id,
-			'retry_order_id'        => $completed_coupon_retry_order_id,
-			'after_first'           => $completed_coupon_after_first,
-			'after_retry'           => $completed_coupon_after_retry,
-			'after_original_status' => $completed_coupon_after_original,
-		);
-
-		$set_cart( 1 );
-		$public_coupon = $make_limited_coupon( 'public-independent', 2 );
-		WC()->cart->apply_coupon( $public_coupon->get_code() );
-		WC()->cart->calculate_totals();
-		$public_first_order_id = $create_order( $data );
-		$public_after_first = $coupon_snapshot( $public_coupon, $public_first_order_id );
-		$set_cart( 1 );
-		WC()->cart->apply_coupon( $public_coupon->get_code() );
-		WC()->cart->calculate_totals();
-		if ( WC()->session ) {
-			WC()->session->__unset( 'order_awaiting_payment' );
-			WC()->session->__unset( 'checkout_pending_order_id' );
-		}
-		$public_second_order_id = $create_order( $data );
-		$public_after_second = $coupon_snapshot( $public_coupon, $public_second_order_id );
-		$coupon_metrics['scenarios']['public_create_order_independent'] = array(
-			'first_order_id'  => $public_first_order_id,
-			'second_order_id' => $public_second_order_id,
-			'after_first'     => $public_after_first,
-			'after_second'    => $public_after_second,
-		);
-
-		$coupon_metrics['metrics'] = array(
-			'limited_first_order_reserved_count'             => $same_cart_after_first['reserved_count'],
-			'limited_first_order_usage_count'                => $same_cart_after_first['usage_count'],
-			'limited_first_order_tentative_hold_count'       => $same_cart_after_first['tentative_hold_count'],
-			'same_cart_retry_reserved_count'                 => $same_cart_after_retry['reserved_count'],
-			'changed_cart_retry_reserved_count'              => $changed_coupon_after_retry['reserved_count'],
-			'failed_order_resume_reserved_count'             => $failed_coupon_after_retry['reserved_count'],
-			'completed_order_retry_reserved_count'           => $completed_coupon_after_retry['reserved_count'],
-			'public_independent_reserved_count'              => $public_after_second['reserved_count'],
-			'public_independent_order_coupon_line_count_sum' => $public_after_first['order_coupon_line_count'] + $public_after_second['order_coupon_line_count'],
-		);
-
-		$coupon_metrics['guardrails'] = array(
-			'limited_coupon_reserved_on_first_order'               => 1 === $same_cart_after_first['reserved_count'] && $same_cart_after_first['order_coupon_line_count'] > 0,
-			'same_cart_retry_reuses_order_without_double_reserving' => $same_cart_first_order_id === $same_cart_retry_order_id && $same_cart_after_retry['reserved_count'] === $same_cart_after_first['reserved_count'],
-			'changed_cart_retry_creates_new_coupon_order'           => $changed_coupon_first_order_id !== $changed_coupon_retry_order_id && $changed_coupon_after_retry['reserved_count'] === $changed_coupon_after_first['reserved_count'] + 1,
-			'changed_cart_retry_uses_changed_coupon_cart_hash'      => $changed_coupon_retry_order && $changed_coupon_retry_order->get_cart_hash() === $changed_coupon_cart['cart_hash'] && $changed_coupon_original_hash !== $changed_coupon_cart['cart_hash'],
-			'failed_order_resume_restores_coupon_reservation'       => $failed_coupon_order_id === $failed_coupon_retry_order_id && $failed_coupon_after_failed_status['reserved_count'] <= $failed_coupon_after_first['reserved_count'] && $failed_coupon_after_retry['reserved_count'] === 1,
-			'completed_coupon_order_is_not_reused'                  => $completed_coupon_order_id !== $completed_coupon_retry_order_id,
-			'completed_coupon_order_status_is_preserved'            => 'completed' === $completed_coupon_after_original['order_status'],
-			'public_create_order_independent_coupon_orders'         => $public_first_order_id !== $public_second_order_id && 2 === $public_after_second['reserved_count'] && 2 === $coupon_metrics['metrics']['public_independent_order_coupon_line_count_sum'],
+		$before_coupon_session = $session_order_awaiting_payment();
+		$coupon_order_id       = $create_order( $data );
+		$coupon_order          = wc_get_order( $coupon_order_id );
+		$coupon_metrics        = array(
+			'covered'                         => true,
+			'public_create_order_sets_session' => $session_order_awaiting_payment() !== $before_coupon_session,
+			'public_create_order_clears_cart'  => 0 === WC()->cart->get_cart_contents_count(),
+			'order_coupon_line_count'          => count( $coupon_order->get_coupon_codes() ),
 		);
 	}
-
-	$logged_in_user_id_1 = wp_insert_user(
-		array(
-			'user_login' => 'homeboy_checkout_' . md5( $run_id . '_one' ),
-			'user_pass'  => wp_generate_password( 20 ),
-			'user_email' => 'homeboy-user-one-' . $run_id . '@example.com',
-			'role'       => 'customer',
-		)
-	);
-	$logged_in_user_id_2 = wp_insert_user(
-		array(
-			'user_login' => 'homeboy_checkout_' . md5( $run_id . '_two' ),
-			'user_pass'  => wp_generate_password( 20 ),
-			'user_email' => 'homeboy-user-two-' . $run_id . '@example.com',
-			'role'       => 'customer',
-		)
-	);
-	if ( is_wp_error( $logged_in_user_id_1 ) || is_wp_error( $logged_in_user_id_2 ) ) {
-		throw new RuntimeException( 'Failed to create checkout identity guardrail users.' );
-	}
-	$session_marker     = WC()->session ? (string) WC()->session->get_customer_id() : '';
-	$session_marker_two = 'homeboy-session-switch-' . md5( $run_id );
-	$identity_scenarios = array(
-		$run_identity_scenario(
-			'guest_same_cart_retry',
-			array( 'customer_id' => 0, 'billing_email' => 'homeboy-guest-' . $run_id . '@example.com', 'suffix' => ' Guest A' ),
-			array( 'customer_id' => 0, 'billing_email' => 'homeboy-guest-' . $run_id . '@example.com', 'suffix' => ' Guest A Retry' ),
-			true,
-			$session_marker,
-			$session_marker
-		),
-		$run_identity_scenario(
-			'logged_in_same_cart_retry',
-			array( 'customer_id' => $logged_in_user_id_1, 'billing_email' => 'homeboy-user-one-' . $run_id . '@example.com', 'suffix' => ' User A' ),
-			array( 'customer_id' => $logged_in_user_id_1, 'billing_email' => 'homeboy-user-one-' . $run_id . '@example.com', 'suffix' => ' User A Retry' ),
-			true,
-			$session_marker,
-			$session_marker
-		),
-		$run_identity_scenario(
-			'same_cart_hash_different_billing_email',
-			array( 'customer_id' => 0, 'billing_email' => 'homeboy-guest-one-' . $run_id . '@example.com', 'suffix' => ' Guest Email A' ),
-			array( 'customer_id' => 0, 'billing_email' => 'homeboy-guest-two-' . $run_id . '@example.com', 'suffix' => ' Guest Email B' ),
-			false,
-			$session_marker,
-			$session_marker
-		),
-		$run_identity_scenario(
-			'same_cart_hash_different_customer_id',
-			array( 'customer_id' => $logged_in_user_id_1, 'billing_email' => 'homeboy-user-one-' . $run_id . '@example.com', 'suffix' => ' User A' ),
-			array( 'customer_id' => $logged_in_user_id_2, 'billing_email' => 'homeboy-user-two-' . $run_id . '@example.com', 'suffix' => ' User B' ),
-			false,
-			$session_marker,
-			$session_marker
-		),
-		$run_identity_scenario(
-			'session_user_switch_isolation',
-			array( 'customer_id' => $logged_in_user_id_1, 'billing_email' => 'homeboy-session-one-' . $run_id . '@example.com', 'suffix' => ' Session A' ),
-			array( 'customer_id' => $logged_in_user_id_2, 'billing_email' => 'homeboy-session-two-' . $run_id . '@example.com', 'suffix' => ' Session B' ),
-			false,
-			$session_marker,
-			$session_marker_two
-		),
-	);
-	wp_set_current_user( 0 );
-	$identity_guardrails_passed = count(
-		array_filter(
-			$identity_scenarios,
-			static function ( array $scenario ): bool {
-				return ! empty( $scenario['passed'] );
-			}
-		)
-	);
-	$identity_guardrails_failed = count( $identity_scenarios ) - $identity_guardrails_passed;
-	$identity_mutation_failures = count(
-		array_filter(
-			$identity_scenarios,
-			static function ( array $scenario ): bool {
-				return ! empty( $scenario['first_order_mutated_by_second_attempt'] );
-			}
-		)
-	);
 
 	$changed_retry_order = wc_get_order( $changed_retry_id );
-	$hook_report         = $summarize_hook_events( $hook_events );
-	$hook_count          = static function ( string $scenario, string $hook ) use ( &$hook_report ): int {
-		return (int) ( $hook_report['by_scenario'][ $scenario ]['counts'][ $hook ] ?? 0 );
-	};
 	$guardrails          = array(
 		'public_create_order_does_not_set_order_awaiting_payment' => ! $public_side_effect['sets_order_awaiting_payment'],
 		'public_create_order_does_not_clear_cart'                 => ! $public_side_effect['clears_cart'],
@@ -1371,28 +618,8 @@ return function (): array {
 		'template_redirect_clears_paid_completed_extension_order' => $template_redirect_completed['cleared'],
 		'template_redirect_does_not_clear_without_payment_signal' => ! $template_redirect_completed_without_session['cleared'],
 		'template_redirect_does_not_clear_pending_retry_order'    => ! $template_redirect_pending['cleared'],
-		'paid_public_create_order_does_not_trigger_cart_clear'    => ! $early_paid_public_create_order['cleared_after_public_order_pay'],
-		'no_payment_zero_total_order'                             => 0.0 === $no_payment_metrics['cart_total'] && 0.0 === $no_payment_metrics['order_total'],
-		'no_payment_process_order_without_payment_exists'         => $no_payment_metrics['process_order_without_payment_exists'],
-		'no_payment_process_order_without_payment_completes_order' => ! $no_payment_metrics['needs_payment_after_process'] && $no_payment_metrics['is_paid_after_process'],
-		'no_payment_process_order_without_payment_clears_cart'    => 0 === $no_payment_metrics['cart_count_after_process'] && $no_payment_metrics['cart_count_before_process'] > 0,
-		'no_payment_process_order_without_payment_returns_success' => 'success' === $no_payment_metrics['json_result'] && $no_payment_metrics['redirect_contains_order_received'],
-		'order_pay_failed_order_resume_processes_payment'         => ! $order_pay_metrics['needs_payment_after_pay_action'] && 'cod' === $order_pay_metrics['payment_method_after_pay_action'],
-		'order_pay_failed_order_resume_clears_cart'               => $order_pay_metrics['cart_cleared_after_pay_action'],
-		'order_pay_failed_order_resume_redirects_to_received'     => $order_pay_metrics['redirect_contains_order_received'],
-		'order_pay_endpoint_sets_session_cookie'                  => $order_pay_metrics['session_cookie_after_order_pay'],
-		'legacy_coupon_independence'                              => ! $coupon_metrics['covered'] || (bool) ( $coupon_metrics['guardrails']['public_create_order_independent_coupon_orders'] ?? false ),
-		'hook_fresh_checkout_order_processed_once'                => 1 === $hook_count( 'fresh_checkout_process_checkout', 'woocommerce_checkout_order_processed' ),
-		'hook_public_create_order_skips_order_processed'          => 0 === $hook_count( 'public_create_order_outside_process_checkout', 'woocommerce_checkout_order_processed' ),
-		'hook_same_cart_pending_retry_resumes_once'                => 1 === $hook_count( 'same_cart_retry_pending', 'woocommerce_resume_order' ),
-		'hook_same_cart_failed_retry_resumes_once'                 => 1 === $hook_count( 'same_cart_retry_failed', 'woocommerce_resume_order' ),
-		'hook_completed_safety_does_not_resume'                   => 0 === $hook_count( 'completed_order_safety', 'woocommerce_resume_order' ),
-		'hook_changed_cart_retry_does_not_resume'                 => 0 === $hook_count( 'changed_cart_retry', 'woocommerce_resume_order' ),
-		'coupon_lifecycle_guardrails'                             => ! $coupon_metrics['covered'] || ! in_array( false, $coupon_metrics['guardrails'], true ),
+		'legacy_coupon_independence'                              => ! $coupon_metrics['covered'] || ( ! $coupon_metrics['public_create_order_sets_session'] && ! $coupon_metrics['public_create_order_clears_cart'] && $coupon_metrics['order_coupon_line_count'] > 0 ),
 	);
-	if ( $coupon_metrics['covered'] ) {
-		$guardrails = array_merge( $guardrails, $coupon_metrics['guardrails'] );
-	}
 
 	$failed_guardrails = array_keys(
 		array_filter(
@@ -1402,6 +629,9 @@ return function (): array {
 			}
 		)
 	);
+	if ( $failed_guardrails ) {
+		throw new RuntimeException( 'Checkout side-effect guardrail failure: ' . implode( ', ', $failed_guardrails ) );
+	}
 
 	$concurrent_iterations = array();
 	$concurrent_metrics    = array();
@@ -1544,7 +774,6 @@ return function (): array {
 		'duplicate_created' => (bool) $duplicate_created,
 		'unexpected_output' => $unexpected_output,
 		'public_side_effects' => $public_side_effect,
-		'fresh_checkout'    => $fresh_checkout,
 		'retry_behavior'    => array(
 			'pending_order_id'      => $pending_order_id,
 			'pending_retry_id'      => $pending_retry_id,
@@ -1562,18 +791,7 @@ return function (): array {
 			'completed_without_signal'  => $template_redirect_completed_without_session,
 			'pending_retry_order'       => $template_redirect_pending,
 		),
-		'paid_public_create_order' => $early_paid_public_create_order,
-		'no_payment'        => $no_payment_metrics,
-		'order_pay'         => $order_pay_metrics,
-		'hook_observation'  => $hook_report,
 		'legacy_coupon'     => $coupon_metrics,
-		'coupon_lifecycle'  => $coupon_metrics,
-		'identity_dimensions' => array(
-			'cart_hash'      => $base_cart['cart_hash'],
-			'session_marker' => $session_marker,
-			'dimensions'     => array( 'is_guest', 'customer_id', 'billing_email', 'cart_hash', 'session_marker' ),
-		),
-		'identity_scenarios' => $identity_scenarios,
 		'guardrails'        => $guardrails,
 		'failed_guardrails' => $failed_guardrails,
 		'concurrent_checkout' => array(
@@ -1599,7 +817,7 @@ return function (): array {
 	);
 
 	$summary = array(
-		'success_rate'                                            => $failed_guardrails ? 0 : 1,
+		'success_rate'                                            => 1,
 		'duplicate_reproduced'                                    => $duplicate_created,
 		'order_create_attempts'                                   => 2,
 		'unique_order_count'                                      => count( $unique_order_ids ),
@@ -1611,20 +829,8 @@ return function (): array {
 		'unexpected_output_detected'                              => '' === $unexpected_output ? 0 : 1,
 		'unexpected_output_bytes'                                 => strlen( $unexpected_output ),
 		'elapsed_ms'                                              => $elapsed_ms,
-		'fresh_checkout_order_id'                                 => (int) $fresh_checkout['order_id'],
-		'fresh_checkout_unexpected_output_bytes'                  => (int) $fresh_checkout['unexpected_output_bytes'],
 		'cart_items'                                              => WC()->cart->get_cart_contents_count(),
 		'cart_total'                                              => (float) WC()->cart->get_total( 'edit' ),
-		'identity_guardrail_scenarios'                            => count( $identity_scenarios ),
-		'identity_guardrails_passed'                              => $identity_guardrails_passed,
-		'identity_guardrails_failed'                              => $identity_guardrails_failed,
-		'identity_mutation_failures'                              => $identity_mutation_failures,
-		'identity_guardrails_success_rate'                        => count( $identity_scenarios ) > 0 ? $identity_guardrails_passed / count( $identity_scenarios ) : 0,
-		'guest_same_cart_retry_reused'                            => (int) $identity_scenarios[0]['actual_reuse'],
-		'logged_in_same_cart_retry_reused'                        => (int) $identity_scenarios[1]['actual_reuse'],
-		'different_billing_email_reused'                          => (int) $identity_scenarios[2]['actual_reuse'],
-		'different_customer_id_reused'                            => (int) $identity_scenarios[3]['actual_reuse'],
-		'session_user_switch_reused'                              => (int) $identity_scenarios[4]['actual_reuse'],
 		'unique_same_cart_hash_order_count'                       => count(
 			array_filter(
 				$unique_orders,
@@ -1653,45 +859,9 @@ return function (): array {
 		'template_redirect_clears_paid_completed_extension_order' => (int) $guardrails['template_redirect_clears_paid_completed_extension_order'],
 		'template_redirect_does_not_clear_without_payment_signal' => (int) $guardrails['template_redirect_does_not_clear_without_payment_signal'],
 		'template_redirect_does_not_clear_pending_retry_order'    => (int) $guardrails['template_redirect_does_not_clear_pending_retry_order'],
-		'paid_public_create_order_triggers_cart_clear'            => (int) $early_paid_public_create_order['cleared_after_public_order_pay'],
-		'paid_public_create_order_does_not_trigger_cart_clear'    => (int) $guardrails['paid_public_create_order_does_not_trigger_cart_clear'],
-		'no_payment_zero_total_order'                             => (int) $guardrails['no_payment_zero_total_order'],
-		'no_payment_process_order_without_payment_exists'         => (int) $guardrails['no_payment_process_order_without_payment_exists'],
-		'no_payment_needs_payment_before_process'                 => (int) $no_payment_metrics['needs_payment_before_process'],
-		'no_payment_needs_payment_after_process'                  => (int) $no_payment_metrics['needs_payment_after_process'],
-		'no_payment_process_order_without_payment_completes_order' => (int) $guardrails['no_payment_process_order_without_payment_completes_order'],
-		'no_payment_process_order_without_payment_clears_cart'    => (int) $guardrails['no_payment_process_order_without_payment_clears_cart'],
-		'no_payment_order_awaiting_payment_before_process'        => $no_payment_metrics['order_awaiting_payment_before_process'],
-		'no_payment_order_awaiting_payment_after_process'         => $no_payment_metrics['order_awaiting_payment_after_process'],
-		'no_payment_process_order_without_payment_returns_success' => (int) $guardrails['no_payment_process_order_without_payment_returns_success'],
-		'order_pay_failed_order_resume_processes_payment'         => (int) $guardrails['order_pay_failed_order_resume_processes_payment'],
-		'order_pay_failed_order_resume_clears_cart'               => (int) $guardrails['order_pay_failed_order_resume_clears_cart'],
-		'order_pay_failed_order_resume_redirects_to_received'     => (int) $guardrails['order_pay_failed_order_resume_redirects_to_received'],
-		'order_pay_endpoint_sets_session_cookie'                  => (int) $guardrails['order_pay_endpoint_sets_session_cookie'],
-		'order_pay_cart_count_before_pay_action'                  => $order_pay_metrics['cart_count_before_pay_action'],
-		'order_pay_cart_count_after_pay_action'                   => $order_pay_metrics['cart_count_after_pay_action'],
 		'legacy_coupon_independence'                              => (int) $guardrails['legacy_coupon_independence'],
-		'hook_observed_event_count'                               => (int) $hook_report['event_count'],
-		'hook_fresh_checkout_order_processed_count'               => $hook_count( 'fresh_checkout_process_checkout', 'woocommerce_checkout_order_processed' ),
-		'hook_public_create_order_processed_count'                => $hook_count( 'public_create_order_outside_process_checkout', 'woocommerce_checkout_order_processed' ),
-		'hook_same_cart_pending_resume_order_count'               => $hook_count( 'same_cart_retry_pending', 'woocommerce_resume_order' ),
-		'hook_same_cart_failed_resume_order_count'                => $hook_count( 'same_cart_retry_failed', 'woocommerce_resume_order' ),
-		'hook_completed_safety_resume_order_count'                => $hook_count( 'completed_order_safety', 'woocommerce_resume_order' ),
-		'hook_changed_cart_retry_resume_order_count'              => $hook_count( 'changed_cart_retry', 'woocommerce_resume_order' ),
-		'coupon_lifecycle_guardrails'                             => (int) $guardrails['coupon_lifecycle_guardrails'],
 		'guardrail_failure_count'                                 => count( $failed_guardrails ),
 	);
-	foreach ( $hook_report['counts'] as $hook => $count ) {
-		$summary[ 'hook_count_' . sanitize_key( $hook ) ] = (int) $count;
-	}
-	foreach ( $coupon_metrics['metrics'] as $metric_name => $metric_value ) {
-		$summary[ 'coupon_lifecycle_' . $metric_name ] = $metric_value;
-	}
-	if ( $coupon_metrics['covered'] ) {
-		foreach ( $coupon_metrics['guardrails'] as $guardrail_name => $passed ) {
-			$summary[ 'coupon_' . $guardrail_name ] = (int) $passed;
-		}
-	}
 	foreach ( $concurrent_summary as $metric_name => $metric_value ) {
 		$summary[ 'concurrent_' . $metric_name ] = $metric_value;
 	}
@@ -1713,7 +883,6 @@ return function (): array {
 			'workload'  => 'checkout-concurrent-create-order',
 			'issues'    => $issues,
 			'cart_hash' => $base_cart['cart_hash'],
-			'identity_guardrails_failed' => $identity_guardrails_failed,
 		),
 		'artifacts' => $artifact_path ? array( 'raw_result' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);

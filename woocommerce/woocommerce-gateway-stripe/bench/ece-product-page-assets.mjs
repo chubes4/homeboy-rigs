@@ -67,6 +67,20 @@ async function changedFilesSinceBase(root, baseRef, paths) {
   return output ? output.split('\n').filter(Boolean) : [];
 }
 
+async function changedWorktreeFiles(root, paths) {
+  try {
+    const output = await git(root, ['status', '--porcelain=v1', '--untracked-files=all', '--', ...paths]);
+    return output
+      ? output
+          .split('\n')
+          .map((line) => line.slice(3).trim())
+          .filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function formatPaths(paths) {
   return paths.map((entry) => `- ${entry}`).join('\n');
 }
@@ -123,11 +137,23 @@ export async function validateStripeEceAssetProvenance(componentPath, options = 
 
   const baseRef = await detectGitBaseRef(componentPath, options.baseRef || '');
   const changedSourceFiles = await changedFilesSinceBase(componentPath, baseRef, ECE_SOURCE_FILES);
+  const changedBuildFiles = await changedFilesSinceBase(componentPath, baseRef, ECE_BUILD_FILES);
+  const worktreeBuildFiles = await changedWorktreeFiles(componentPath, ECE_BUILD_FILES);
+  const locallyRegeneratedBuilds = builds.every((file) => file.mtimeMs > newestSource.mtimeMs + MTIME_TOLERANCE_MS);
+
+  if (baseRef && changedSourceFiles.length > 0 && changedBuildFiles.length === 0 && worktreeBuildFiles.length === 0 && !locallyRegeneratedBuilds) {
+    throw new Error(
+      `Stripe ECE source changed since ${baseRef}, but the measured build artifacts do not appear regenerated or changed:\n${formatPaths(changedSourceFiles)}\nRebuild ${ECE_BUILD_FILES.join(', ')} before tracing candidate performance.`
+    );
+  }
 
   return {
     status: 'pass',
     base_ref: baseRef,
     changed_source_files: changedSourceFiles,
+    changed_build_files: changedBuildFiles,
+    worktree_build_files: worktreeBuildFiles,
+    locally_regenerated_builds: locallyRegeneratedBuilds,
     newest_source: newestSource.path,
     source_files: sources,
     build_files: builds,

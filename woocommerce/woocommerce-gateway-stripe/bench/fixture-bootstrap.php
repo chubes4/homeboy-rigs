@@ -2,7 +2,10 @@
 /**
  * Plain WordPress fixture bootstrap for WooCommerce Stripe benchmark rigs.
  *
- * @package Homeboy_Rigs\WooCommerce_Gateway_Stripe
+ * Require this file from a WP-CLI eval-file or benchmark workload after WordPress,
+ * WooCommerce, and WooCommerce Stripe are loaded. This helper intentionally avoids
+ * PHPUnit globals and test-runner internals so fixture setup can run before timing
+ * starts in an isolated benchmark runtime.
  */
 
 declare(strict_types=1);
@@ -11,11 +14,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	return;
 }
 
-if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
+if ( ! class_exists( 'Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 	/**
 	 * Builds deterministic WooCommerce/Stripe state for benchmark workloads.
 	 */
-	class WC_Stripe_Benchmark_Fixture_Bootstrap {
+	class Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap {
+		/**
+		 * Default fixture arguments.
+		 *
+		 * @var array<string, mixed>
+		 */
 		private const DEFAULT_ARGS = [
 			'currency'                 => 'USD',
 			'product_name'             => 'Stripe Benchmark Product',
@@ -42,6 +50,7 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			$args = array_merge( self::DEFAULT_ARGS, self::env_args(), $args );
 
 			self::assert_runtime_loaded();
+			self::ensure_classic_woocommerce_theme();
 			self::ensure_woocommerce_install_state();
 			self::ensure_store_settings( (string) $args['currency'] );
 
@@ -77,6 +86,7 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 		 * Assert the fixture is ready. Call this immediately before benchmark timing.
 		 *
 		 * @param array<string, mixed> $state Fixture state from bootstrap().
+		 * @return void
 		 */
 		public static function assert_preflight( array $state ): void {
 			self::assert_runtime_loaded();
@@ -86,7 +96,8 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 				throw new RuntimeException( 'Benchmark fixture setup failed: benchmark product is missing, not purchasable, or out of stock.' );
 			}
 
-			$checkout_page = get_post( (int) $state['checkout_page_id'] );
+			$checkout_page_id = (int) $state['checkout_page_id'];
+			$checkout_page    = get_post( $checkout_page_id );
 			if ( ! $checkout_page || 'publish' !== $checkout_page->post_status ) {
 				throw new RuntimeException( 'Benchmark fixture setup failed: checkout page is missing or not published.' );
 			}
@@ -106,17 +117,18 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 
 			$stripe_settings = WC_Stripe_Helper::get_stripe_settings();
-			foreach ( [ 'enabled', 'testmode', 'test_publishable_key', 'test_secret_key' ] as $key ) {
+			$required        = [ 'enabled', 'testmode', 'test_publishable_key', 'test_secret_key' ];
+			foreach ( $required as $key ) {
 				if ( empty( $stripe_settings[ $key ] ) ) {
 					throw new RuntimeException( sprintf( 'Benchmark fixture setup failed: Stripe setting "%s" is empty.', $key ) );
 				}
 			}
 
-			if ( 'yes' !== $stripe_settings['enabled'] || 'yes' !== $stripe_settings['testmode'] || 'yes' !== ( $stripe_settings['payment_request'] ?? '' ) ) {
+			if ( 'yes' !== $stripe_settings['enabled'] || 'yes' !== $stripe_settings['testmode'] || 'yes' !== ( $stripe_settings['express_checkout'] ?? '' ) ) {
 				throw new RuntimeException( 'Benchmark fixture setup failed: Stripe gateway and express checkout must be enabled in test mode.' );
 			}
 
-			$locations = (array) ( $stripe_settings['payment_request_button_locations'] ?? [] );
+			$locations = (array) ( $stripe_settings['express_checkout_button_locations'] ?? [] );
 			foreach ( (array) $state['ece_locations'] as $location ) {
 				if ( ! in_array( $location, $locations, true ) ) {
 					throw new RuntimeException( sprintf( 'Benchmark fixture setup failed: Stripe express checkout must be enabled for "%s".', $location ) );
@@ -129,6 +141,11 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 		}
 
+		/**
+		 * Assert required plugins/classes are loaded.
+		 *
+		 * @return void
+		 */
 		private static function assert_runtime_loaded(): void {
 			$required_classes = [
 				'WooCommerce'       => class_exists( 'WooCommerce' ),
@@ -148,6 +165,11 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 		}
 
+		/**
+		 * Ensure WooCommerce has the minimum install flags/pages needed by checkout.
+		 *
+		 * @return void
+		 */
 		private static function ensure_woocommerce_install_state(): void {
 			if ( class_exists( 'WC_Install' ) ) {
 				WC_Install::create_tables();
@@ -159,6 +181,50 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 		}
 
+		/**
+		 * Force a tiny classic theme so product pages render Woo's form.cart template.
+		 *
+		 * @return void
+		 */
+		private static function ensure_classic_woocommerce_theme(): void {
+			$theme_slug = 'homeboy-stripe-ece-classic';
+			$theme_dir  = WP_CONTENT_DIR . '/themes/' . $theme_slug;
+
+			if ( ! is_dir( $theme_dir ) && ! wp_mkdir_p( $theme_dir ) ) {
+				throw new RuntimeException( 'Benchmark fixture setup failed: could not create classic WooCommerce theme directory.' );
+			}
+
+			file_put_contents(
+				$theme_dir . '/style.css',
+				"/*\nTheme Name: Homeboy Stripe ECE Classic\nVersion: 1.0.0\n*/\n"
+			);
+
+			file_put_contents(
+				$theme_dir . '/functions.php',
+				"<?php\nadd_action( 'after_setup_theme', static function () {\n\tadd_theme_support( 'woocommerce' );\n} );\n"
+			);
+
+			file_put_contents(
+				$theme_dir . '/index.php',
+				"<?php\nget_header();\nif ( have_posts() ) {\n\twhile ( have_posts() ) {\n\t\tthe_post();\n\t\tthe_content();\n\t}\n}\nget_footer();\n"
+			);
+
+			file_put_contents(
+				$theme_dir . '/single-product.php',
+				"<?php\nget_header();\nif ( function_exists( 'woocommerce_content' ) ) {\n\twoocommerce_content();\n}\nget_footer();\n"
+			);
+
+			if ( get_stylesheet() !== $theme_slug ) {
+				switch_theme( 'homeboy-stripe-ece-classic' );
+			}
+		}
+
+		/**
+		 * Ensure deterministic store settings.
+		 *
+		 * @param string $currency Store currency.
+		 * @return void
+		 */
 		private static function ensure_store_settings( string $currency ): void {
 			update_option( 'woocommerce_store_address', '60 29th Street' );
 			update_option( 'woocommerce_store_address_2', '#343' );
@@ -171,6 +237,14 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			update_option( 'woocommerce_coming_soon', 'no' );
 		}
 
+		/**
+		 * Ensure a WooCommerce page option points to a published page.
+		 *
+		 * @param string $option_name WooCommerce page option name.
+		 * @param string $title       Page title.
+		 * @param string $content     Page content.
+		 * @return int Page ID.
+		 */
 		private static function ensure_page( string $option_name, string $title, string $content ): int {
 			$page_id = absint( get_option( $option_name ) );
 			$page    = $page_id ? get_post( $page_id ) : null;
@@ -199,6 +273,14 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			return (int) $page_id;
 		}
 
+		/**
+		 * Ensure the benchmark product exists and is purchasable.
+		 *
+		 * @param string $name  Product name.
+		 * @param string $sku   Product SKU.
+		 * @param string $price Product price.
+		 * @return int Product ID.
+		 */
 		private static function ensure_simple_product( string $name, string $sku, string $price ): int {
 			$product_id = wc_get_product_id_by_sku( $sku );
 			$product    = $product_id ? wc_get_product( $product_id ) : null;
@@ -209,6 +291,7 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 
 			$product->set_name( $name );
+			$product->set_slug( $sku );
 			$product->set_regular_price( $price );
 			$product->set_price( $price );
 			$product->set_manage_stock( false );
@@ -221,6 +304,11 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			return (int) $product->get_id();
 		}
 
+		/**
+		 * Ensure a flat-rate shipping method is available for checkout.
+		 *
+		 * @return array{zone_id:int, rate_id:string}
+		 */
 		private static function ensure_flat_rate_shipping(): array {
 			if ( ! class_exists( 'WC_Shipping_Zones' ) || ! class_exists( 'WC_Shipping_Zone' ) ) {
 				throw new RuntimeException( 'Benchmark fixture setup failed: WooCommerce shipping zones are not available.' );
@@ -237,8 +325,20 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			$shipping_zone = $zone_id ? new WC_Shipping_Zone( $zone_id ) : new WC_Shipping_Zone();
 			if ( ! $zone_id ) {
 				$shipping_zone->set_zone_name( 'Benchmark Everywhere' );
-				$shipping_zone->save();
 			}
+
+			$country_locations = array_map(
+				static function ( string $code ): stdClass {
+					$location       = new stdClass();
+					$location->code = $code;
+					$location->type = 'country';
+
+					return $location;
+				},
+				array_keys( WC()->countries->get_countries() )
+			);
+			$shipping_zone->set_zone_locations( $country_locations );
+			$shipping_zone->save();
 
 			$instance_id = 0;
 			foreach ( $shipping_zone->get_shipping_methods() as $method ) {
@@ -269,6 +369,12 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			];
 		}
 
+		/**
+		 * Configure Stripe test and express checkout settings.
+		 *
+		 * @param array<string, mixed> $args Fixture args.
+		 * @return void
+		 */
 		private static function configure_stripe_settings( array $args ): void {
 			$locations                = array_values( (array) $args['ece_locations'] );
 			$accepted_payment_methods = array_values( (array) $args['accepted_payment_methods'] );
@@ -329,6 +435,13 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			}
 		}
 
+		/**
+		 * Set up a deterministic WooCommerce cart/session.
+		 *
+		 * @param int $product_id Product ID.
+		 * @param int $quantity   Cart quantity.
+		 * @return void
+		 */
 		private static function setup_cart( int $product_id, int $quantity ): void {
 			if ( function_exists( 'wc_load_cart' ) ) {
 				wc_load_cart();
@@ -356,6 +469,11 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			WC()->cart->calculate_totals();
 		}
 
+		/**
+		 * Read optional Stripe settings from environment variables.
+		 *
+		 * @return array<string, string>
+		 */
 		private static function env_args(): array {
 			return [
 				'stripe_publishable_key' => self::env( 'STRIPE_PUBLISHABLE_KEY', 'pk_test_benchmark_fixture' ),
@@ -364,6 +482,13 @@ if ( ! class_exists( 'WC_Stripe_Benchmark_Fixture_Bootstrap' ) ) {
 			];
 		}
 
+		/**
+		 * Get an environment value.
+		 *
+		 * @param string $name    Variable name.
+		 * @param string $default Default value.
+		 * @return string
+		 */
 		private static function env( string $name, string $default ): string {
 			$value = getenv( $name );
 			return false === $value ? $default : (string) $value;

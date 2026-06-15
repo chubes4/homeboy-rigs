@@ -11,6 +11,7 @@ A **rig** is a declarative spec for a reproducible local dev environment: compon
   rigs/<id>/rig.json
   stacks/    # homeboy stack specs
   bench/     # portable bench workloads used by those rigs
+shared/      # reusable rig helper patterns that are not tied to one owner/repo
 ```
 
 Examples:
@@ -24,6 +25,12 @@ WordPress/wordpress-playground/stacks/playground-combined.json
 
 This keeps bench workloads beside the rig that uses them and makes ownership obvious when this repo becomes a shared rig package.
 
+Reusable helper patterns live under `shared/`. The first shared web performance
+pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
+mark feature-not-needed and feature-needed phases, count feature/third-party
+requests before and after the trigger, and emit assertions proving no early
+initialization plus post-trigger success.
+
 ## Install
 
 Install a package subpath with Homeboy's rig package lifecycle:
@@ -32,25 +39,23 @@ Install a package subpath with Homeboy's rig package lifecycle:
 homeboy rig install --all https://github.com/chubes4/homeboy-rigs.git//Automattic/studio
 ```
 
-Stack specs currently need to be copied into `~/.config/homeboy/stacks/` until stack package installation lands:
-
-```bash
-mkdir -p ~/.config/homeboy/stacks
-cp Automattic/studio/stacks/*.json ~/.config/homeboy/stacks/
-cp WordPress/wordpress-playground/stacks/*.json ~/.config/homeboy/stacks/
-```
+Homeboy installs sibling `stacks/*.json` specs from the selected package subpath together with the rig specs. Re-run the same install command after pulling this repo to refresh both rigs and stacks.
 
 ## Lint
 
-Run the repo-local package lint before opening rig package PRs:
+Run Homeboy's package checks through the installed rig before opening rig package PRs:
+
+```bash
+homeboy rig check studio-combined
+```
+
+`homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a PHP-specific syntax pass for PHP bench workloads:
 
 ```bash
 node scripts/lint-rig-packages.mjs
 ```
 
-The lint path scans for unresolved conflict markers, validates JSON specs, and
-runs `php -l` against PHP bench workloads when PHP is available. GitHub Actions
-runs the same script with PHP installed.
+GitHub Actions runs the PHP syntax pass with PHP installed.
 
 ## Automattic/studio
 
@@ -90,6 +95,40 @@ homeboy bench --rig studio-combined --scenario studio-rest-latency-diagnostics -
 ```
 
 Run the CLI-only scenarios first to separate Studio provisioning and Playground startup cost from browser-visible WordPress admin cost. Use `studio-page-timing-matrix` next to sweep multiple wp-admin and frontend URLs in one logged-in browser session. Use `studio-wordpress-admin-scale-sweep` when plugin admin screens need page-profiler diagnostics across one prepared site. Use the focused browser scenarios when a matrix page needs a dedicated trace, use `studio-site-editor-diagnostics` when the signal points at Site Editor readiness, and use `studio-rest-latency-diagnostics` when the signal points at per-request REST latency, WordPress bootstrap time, or browser-vs-WordPress transport overhead.
+
+`studio-many-sites-memory-scroll` is the durable high-cardinality Studio sidebar benchmark. It expects the target Studio checkout to include `tools/metrics/tests/many-sites.test.ts`, seeds a large appdata site list, launches the packaged app, scrolls the sidebar, stress-scrolls, and reports RSS plus responsiveness metrics. Use it for regressions involving many local sites, site icons, sidebar rendering, or high-memory scrolling reports:
+
+```bash
+homeboy bench --rig studio-many-sites-memory-scroll \
+  --scenario studio-many-sites-memory-scroll \
+  --iterations 1 \
+  --shared-state /tmp/studio-many-sites
+```
+
+Useful settings include `many_sites_count`, `many_sites_icon_kb`, `many_sites_running_mode` (`all-stopped`, `half-running`, or `all-running`), `many_sites_runtime` (`playground` or `native-php`), `many_sites_install=0`, `many_sites_package=0`, and `many_sites_memory_sample_interval_ms`.
+
+This rig intentionally incubates memory attribution before promoting anything upstream: the workload writes a `memory_timeline` artifact with phase markers for install, package, and Playwright execution plus process-tree RSS samples grouped by command. The Studio Playwright harness still owns app-specific phase metrics such as launch, bottom-scroll, and stress-scroll RSS; the rig-level timeline helps decide whether future generic process-memory helpers belong in Homeboy Extensions.
+
+Suggested comparison matrix for a suspected many-sites regression:
+
+```bash
+# Fast runtime-only default proof after the app has already been packaged.
+homeboy bench --rig studio-many-sites-memory-scroll \
+  --scenario studio-many-sites-memory-scroll \
+  --setting many_sites_install=0 \
+  --setting many_sites_package=0 \
+  --iterations 1 \
+  --shared-state /tmp/studio-many-sites
+
+# Heavier running-site metadata control without actually starting 1000 servers.
+homeboy bench --rig studio-many-sites-memory-scroll \
+  --scenario studio-many-sites-memory-scroll \
+  --setting many_sites_running_mode=half-running \
+  --setting many_sites_install=0 \
+  --setting many_sites_package=0 \
+  --iterations 1 \
+  --shared-state /tmp/studio-many-sites
+```
 
 `studio-site-editor-preload-diagnostics` injects a focused set of Site Editor REST preloads into a fresh Studio site's `site-editor.php`, loads the Site Editor once, and reports whether watched routes were satisfied from preload/cache or still reached the network. The artifact includes the page profiler's `restWaterfall.preloadDiagnostics` rows so remaining network requests are classified by likely cause, such as `_locale` query mismatches, fetch-all `per_page` rewrites, duplicate/single-use cache consumption, or no matching preload. Set `HOMEBOY_SITE_EDITOR_PRELOAD_DIAGNOSTICS_EXACT_VISIBLE=1` to add exact visible `_locale=user` route variants alongside the default probe preloads.
 
@@ -154,19 +193,25 @@ homeboy rig up studio-agent-claude-ssi
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench
 ```
 
-The site-build workload accepts a runtime namespace for parallel prompt-variant runs. The prompt variant still controls benchmark semantics; `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
+The site-build workload accepts a runtime namespace for parallel Workflow Bench runs. Select canonical Studio Web Workflow Bench scenarios with `studio_workflow_bench_scenario_id` and point `studio_workflow_bench_root`, `STUDIO_WEB_WORKFLOW_BENCH_ROOT`, or `WORKFLOW_BENCH_ROOT` at a Studio Web checkout. Homeboy Rigs consumes the canonical corpus directly; Studio Web owns scenario prompts, categories, proof surfaces, success gates, and matrix selection. `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
 
 ```bash
-HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=restaurant \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/Users/chubes/Developer/studio-web \
+HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-restaurant \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
-HOMEBOY_SETTINGS_STUDIO_SITE_BUILD_PROMPT_VARIANT=saas \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/Users/chubes/Developer/studio-web \
+HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-saas \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
 homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
 wait
 ```
+
+The workload reads `eval/workflow-bench/scenarios/*.json` and `eval/workflow-bench/corpora/*.json` from the configured Studio Web checkout. The default scenario is `homeboy-plain-site-restaurant`.
+
+Source-vs-frontend visual fidelity evidence is captured through WP Codebox `wordpress.visual-compare`. Set `studio_wp_codebox_cli_path`, `HOMEBOY_WP_CODEBOX_CLI`, or `WP_CODEBOX_CLI_PATH` to the WP Codebox CLI entrypoint before running `studio-agent-site-build`; the bench keeps Studio-specific targets and thresholds, while WP Codebox owns screenshots, pixel diffs, DOM/style explanations, and visual evidence artifacts.
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 
@@ -181,7 +226,7 @@ Keep the Studio bench harness layered so each repo owns the smallest stable surf
 - `homeboy-extensions/wordpress` is the future home for generic WordPress and block quality probes once their contracts are stable.
 - `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
 
-Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block theme quality probe from `Extra-Chill/homeboy-extensions#1018`. Fixture plugin install/restore, browser waterfall collection, and trace reporter adoption remain blocked until `Extra-Chill/homeboy-extensions#1132`, `#1131`, and `#1133` land; rigs should not add local fallback shims for those contracts.
+Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block quality probes from `Extra-Chill/homeboy-extensions#1009`; target post metrics remain tracked in `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.
 
 Cleanup should move in small waves:
 
@@ -244,21 +289,26 @@ homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-
 
 ## woocommerce/woocommerce
 
-`rigs/woocommerce-performance/rig.json` runs WooCommerce checkout/shipping cache
-performance workloads against a local WooCommerce monorepo checkout mounted into
-the WP Codebox WordPress bench runtime.
+`rigs/woocommerce-performance/rig.json` runs WooCommerce checkout, shipping,
+catalog, and admin-dashboard performance workloads against a local WooCommerce
+monorepo checkout mounted into the WP Codebox WordPress bench runtime.
 
 ```bash
 homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
 homeboy rig check woocommerce-performance
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
+homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
+homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products
 ```
 
 The runner must provide `~/Developer/woocommerce/plugins/woocommerce`. The rig
 check reports missing checkout, Composer dependency, and generated feature-config
 prerequisites with targeted messages. Use `homeboy rig up` for the safe dependency
-prep path before benchmarking.
+prep path before benchmarking. `checkout-shortcode-place-order-latency` covers
+the shortcode `[woocommerce_checkout]` place-order path from
+https://github.com/chubes4/homeboy-rigs/issues/223 and writes raw JSON under
+`HOMEBOY_BENCH_SHARED_STATE`.
 
 ## woocommerce/woocommerce-gateway-stripe
 

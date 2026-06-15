@@ -1,0 +1,47 @@
+{
+  "id": "studio-many-sites-memory-scroll",
+  "description": "Durable Studio many-sites memory and sidebar scroll benchmark. Runs Studio's in-repo Playwright metrics harness against a configurable large local site list and records RSS, scroll timing, and screenshots.",
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio",
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "settings": {
+            "studio_bench_variant": "many-sites-memory-scroll",
+            "many_sites_count": "1000",
+            "many_sites_icon_kb": "64",
+            "many_sites_running_mode": "all-stopped",
+            "many_sites_runtime": "playground",
+            "many_sites_memory_sample_interval_ms": "1000"
+          }
+        }
+      }
+    }
+  },
+  "bench": {
+    "default_component": "studio"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/studio-many-sites-memory-scroll.bench.mjs",
+        "port_range_size": 10
+      }
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "many-sites bench workload exists",
+        "file": "${package.root}/bench/studio-many-sites-memory-scroll.bench.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Studio many-sites metrics harness exists",
+        "file": "${components.studio.path}/tools/metrics/tests/many-sites.test.ts"
+      }
+    ]
+  }
+}

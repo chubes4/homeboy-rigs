@@ -3,25 +3,44 @@
   "description": "WooCommerce large-merchant performance rig. Uses the WordPress/WP Codebox bench runtime for checkout and shipping cache workloads tied to concrete WooCommerce performance issues.",
   "components": {
     "woocommerce": {
-      "path": "~/Developer/woocommerce/plugins/woocommerce",
-      "checkout_root": "~/Developer/woocommerce",
+      "path": "$HOME/Developer/woocommerce/plugins/woocommerce",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
-          "wp_codebox_prepare_steps": [
-            {
-              "command": "php",
-              "args": ["bin/generate-feature-config.php"]
-            }
-          ],
           "bench_env": {
-            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "core_bacs,core_cheque,core_cod,plugin_stripe,plugin_woopayments,plugin_paypal_payments,plugin_square,plugin_razorpay,plugin_mollie,plugin_klarna",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET": "core_only",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "",
+            "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_DEPENDENCY": "woocommerce-gateway-stripe",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH": "",
+            "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH": "",
             "WC_SHIPPING_CACHE_CART_ITEMS": "40",
             "WC_SHIPPING_CACHE_PACKAGES": "8",
             "WC_SHIPPING_CACHE_WARM_RUNS": "5",
             "WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS": "3",
-            "WC_SHIPPING_CACHE_REHASH_RUNS": "3"
+            "WC_SHIPPING_CACHE_REHASH_RUNS": "3",
+            "WC_REST_BATCH_IMPORT_ITEMS": "25",
+            "WC_REST_BATCH_IMPORT_ATTRIBUTES": "3",
+            "WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE": "8",
+            "WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS": "0",
+            "WC_REST_BATCH_IMPORT_CATALOG_VARIATIONS_PER_PRODUCT": "0",
+            "WC_REST_BATCH_IMPORT_SKU_SHAPE": "unique",
+            "WC_REST_BATCH_IMPORT_SLUG_TITLE_SHAPE": "unique",
+            "WC_REST_BATCH_IMPORT_TERM_MODE": "existing",
+            "WC_REST_BATCH_IMPORT_IMAGE_MODE": "none",
+            "WC_REST_BATCH_IMPORT_IMAGES_PER_PRODUCT": "1",
+            "WC_REST_BATCH_IMPORT_GALLERY_IMAGES_PER_PRODUCT": "0",
+            "WC_REST_BATCH_IMPORT_FOCUS_PHASE": "variation_create",
+            "WC_SHORTCODE_CHECKOUT_PRODUCTS": "150",
+            "WC_SHORTCODE_CHECKOUT_VARIATIONS": "125",
+            "WC_SHORTCODE_CHECKOUT_HISTORICAL_ORDERS": "25",
+            "WC_SHORTCODE_CHECKOUT_PAYMENT_METHODS": "cod,homeboy_synthetic",
+            "WC_CONCURRENT_CHECKOUT_REQUESTS": "2",
+            "WC_CONCURRENT_CHECKOUT_ITERATIONS": "3",
+            "WC_CONCURRENT_CHECKOUT_PAYMENT_MODE": "cod",
+            "WC_ADMIN_DASHBOARD_PRODUCTS": "500",
+            "WC_ADMIN_DASHBOARD_TERMS": "20",
+            "WC_ADMIN_DASHBOARD_PHYSICAL_PERCENT": "100"
           }
         }
       }
@@ -41,30 +60,42 @@
   },
   "bench_workloads": {
     "wordpress": [
+      { "path": "${package.root}/bench/cart-session-overwrite-race.php" },
       { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
       { "path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php" },
-      { "path": "${package.root}/bench/checkout-gateway-profile-readiness.php" },
+      { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
       { "path": "${package.root}/bench/checkout-shipping-cache.php" },
+      { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
-      { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" }
+      { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
+      { "path": "${package.root}/bench/rest-product-batch-import.php" }
     ]
   },
   "bench_profiles": {
     "smoke": [
+      "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
       "checkout-gateway-compatibility-matrix",
-      "checkout-gateway-profile-readiness",
+      "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
-      "layered-nav-catalog-crawl"
+      "layered-nav-catalog-crawl",
+      "rest-product-batch-import"
     ],
     "hot": [
+      "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
       "checkout-gateway-compatibility-matrix",
-      "checkout-gateway-profile-readiness",
+      "checkout-shortcode-place-order-latency",
       "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
-      "layered-nav-catalog-crawl"
+      "layered-nav-catalog-crawl",
+      "rest-product-batch-import"
+    ],
+    "checkout-concurrent": [
+      "checkout-concurrent-create-order"
     ]
   },
   "pipeline": {
@@ -72,51 +103,51 @@
       {
         "kind": "command",
         "label": "WooCommerce runner checkout exists",
-        "command": "test -f \"$HOME/Developer/woocommerce/plugins/woocommerce/woocommerce.php\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce/woocommerce.php. Clone WooCommerce at ~/Developer/woocommerce or provision this path through Homeboy Lab offload before running woocommerce-performance. Core offload trackers: Extra-Chill/homeboy#3474, Extra-Chill/homeboy#3475, Extra-Chill/homeboy#3476.'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir/woocommerce.php. Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path before running woocommerce-performance.\"; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce cart class exists",
-        "command": "test -f \"$HOME/Developer/woocommerce/plugins/woocommerce/includes/class-wc-cart.php\" || { printf '%s\\n' 'Missing WooCommerce cart class: expected ~/Developer/woocommerce/plugins/woocommerce/includes/class-wc-cart.php. Verify the runner checkout is the WooCommerce monorepo plugin directory, not an empty or partial clone.'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/includes/class-wc-cart.php\" || { printf '%s\\n' \"Missing WooCommerce cart class: expected $woocommerce_dir/includes/class-wc-cart.php. Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone.\"; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce shipping class exists",
-        "command": "test -f \"$HOME/Developer/woocommerce/plugins/woocommerce/includes/class-wc-shipping.php\" || { printf '%s\\n' 'Missing WooCommerce shipping class: expected ~/Developer/woocommerce/plugins/woocommerce/includes/class-wc-shipping.php. Verify the runner checkout is the WooCommerce monorepo plugin directory, not an empty or partial clone.'; exit 1; }"
+        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/includes/class-wc-shipping.php\" || { printf '%s\\n' \"Missing WooCommerce shipping class: expected $woocommerce_dir/includes/class-wc-shipping.php. Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone.\"; exit 1; }"
       },
       {
         "kind": "command",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; test -d \"$woocommerce_dir\" || { printf '%s\\n' 'Cannot check WooCommerce Composer dependencies because ~/Developer/woocommerce/plugins/woocommerce is missing. Provision the runner checkout first.'; exit 1; }; test -f \"$woocommerce_dir/vendor/autoload_packages.php\" || command -v composer >/dev/null 2>&1 || { printf '%s\\n' 'Missing WooCommerce Composer dependencies: vendor/autoload_packages.php is absent and composer is not available. Install Composer on the runner, then run: homeboy rig up woocommerce-performance'; exit 1; }"
+        "command": "bash \"${package.root}/tools/woocommerce-composer-dependencies.sh\" check \"${components.woocommerce.path}\""
       },
       {
         "kind": "command",
         "label": "WooCommerce generated feature config exists or can be prepared",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; test -d \"$woocommerce_dir\" || { printf '%s\\n' 'Cannot check WooCommerce generated feature config because ~/Developer/woocommerce/plugins/woocommerce is missing. Provision the runner checkout first.'; exit 1; }; test -f \"$woocommerce_dir/includes/react-admin/feature-config.php\" || { test -f \"$woocommerce_dir/bin/generate-feature-config.php\" && command -v php >/dev/null 2>&1; } || { printf '%s\\n' 'Missing WooCommerce generated feature config: includes/react-admin/feature-config.php is absent. Ensure PHP is available, then run: homeboy rig up woocommerce-performance'; exit 1; }"
+        "command": "bash \"${package.root}/tools/woocommerce-feature-config.sh\" check \"${components.woocommerce.path}\""
       }
     ],
     "up": [
       {
         "kind": "command",
         "label": "Prepare WooCommerce Composer dependencies when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before rig up.'; exit 1; }; if [ -f vendor/autoload_packages.php ]; then printf '%s\\n' 'WooCommerce Composer dependencies already prepared.'; else XDEBUG_MODE=off composer install --no-interaction --no-progress; fi"
+        "command": "bash \"${package.root}/tools/woocommerce-composer-dependencies.sh\" prepare \"${components.woocommerce.path}\" \"rig up\""
       },
       {
         "kind": "command",
         "label": "Generate WooCommerce feature config when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before rig up.'; exit 1; }; if [ -f includes/react-admin/feature-config.php ]; then printf '%s\\n' 'WooCommerce feature config already generated.'; else php bin/generate-feature-config.php; fi"
+        "command": "bash \"${package.root}/tools/woocommerce-feature-config.sh\" prepare \"${components.woocommerce.path}\" \"rig up\""
       }
     ],
     "bench_prepare": [
       {
         "kind": "command",
         "label": "Prepare WooCommerce Composer dependencies when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before bench_prepare.'; exit 1; }; if [ -f vendor/autoload_packages.php ]; then printf '%s\\n' 'WooCommerce Composer dependencies already prepared.'; else XDEBUG_MODE=off composer install --no-interaction --no-progress; fi"
+        "command": "bash \"${package.root}/tools/woocommerce-composer-dependencies.sh\" prepare \"${components.woocommerce.path}\" \"bench_prepare\""
       },
       {
         "kind": "command",
         "label": "Generate WooCommerce feature config when missing",
-        "command": "woocommerce_dir=\"$HOME/Developer/woocommerce/plugins/woocommerce\"; cd \"$woocommerce_dir\" || { printf '%s\\n' 'Missing WooCommerce runner checkout: expected ~/Developer/woocommerce/plugins/woocommerce before bench_prepare.'; exit 1; }; if [ -f includes/react-admin/feature-config.php ]; then printf '%s\\n' 'WooCommerce feature config already generated.'; else php bin/generate-feature-config.php; fi"
+        "command": "bash \"${package.root}/tools/woocommerce-feature-config.sh\" prepare \"${components.woocommerce.path}\" \"bench_prepare\""
       }
     ],
     "down": []

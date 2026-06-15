@@ -102,7 +102,7 @@ function avg(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
-function summarizeProfilerRows(rows) {
+function summarizePriorityBands(rows) {
   const byRequest = new Map();
   for (const row of rows || []) {
     if (!byRequest.has(row.request_id)) {
@@ -111,9 +111,8 @@ function summarizeProfilerRows(rows) {
     byRequest.get(row.request_id).push(row);
   }
 
-  return [...byRequest.values()].map((events) => {
+  return [...byRequest.entries()].map(([requestId, events]) => {
     events.sort((a, b) => (a.t_ms || 0) - (b.t_ms || 0));
-    const last = events[events.length - 1] || {};
     const bands = [];
     for (const start of events.filter((event) => event.event === 'hook.priority_band.start')) {
       const end = events.find(
@@ -123,8 +122,24 @@ function summarizeProfilerRows(rows) {
         bands.push({ hook: start.data?.hook, duration_ms: end.t_ms - start.t_ms });
       }
     }
-    return { uri: last.uri || '', method: last.method || '', duration_ms: last.t_ms || 0, priority_bands: bands };
+    return [requestId, bands];
   });
+}
+
+function summarizeProfilerRows(rows, requestProfiler) {
+  if (typeof requestProfiler?.summarizeWordPressRequestProfilerRows !== 'function') {
+    throw new Error('Homeboy WordPress request profiler must export summarizeWordPressRequestProfilerRows. Update homeboy-extensions.');
+  }
+
+  const summary = requestProfiler.summarizeWordPressRequestProfilerRows(rows || [], { limit: 10000 });
+  const priorityBandsByRequest = new Map(summarizePriorityBands(rows));
+
+  return (summary.requests || []).map((request) => ({
+    uri: request.uri || '',
+    method: request.method || '',
+    duration_ms: request.duration_ms || 0,
+    priority_bands: priorityBandsByRequest.get(request.request_id) || [],
+  }));
 }
 
 function averageBootstrapDeltas(rows) {
@@ -269,7 +284,7 @@ export default async function studioRestLatencyDiagnosticsBench() {
     await sanitizeArtifact(browserResult.artifacts?.network);
 
     const wpSummaries = profileWordPress && profiler?.module?.collectWordPressRequestProfiles
-      ? summarizeProfilerRows(profiler.module.collectWordPressRequestProfiles(sitePath))
+      ? summarizeProfilerRows(profiler.module.collectWordPressRequestProfiles(sitePath), profiler.module)
       : [];
     const bootstrapSummaries = profileWordPress
       ? summarizeWordPressBootstrapTimeline(await collectWordPressBootstrapTimeline(sitePath), { limit: 10000 })

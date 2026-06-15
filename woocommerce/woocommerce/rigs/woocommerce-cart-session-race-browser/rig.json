@@ -1,0 +1,74 @@
+{
+  "id": "woocommerce-cart-session-race-browser",
+  "description": "WP Codebox browser-level two-tab/product-page/cart-page repro rig for WooCommerce cart session overwrite race issue #46483.",
+  "components": {
+    "woocommerce": {
+      "path": "~/Developer/woocommerce",
+      "branch": "trunk",
+      "extensions": {
+        "nodejs": {}
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "woocommerce-cart-session-race-browser:${env.HOMEBOY_SETTINGS_WOOCOMMERCE_CART_RACE_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.woocommerce.path}"
+    ]
+  },
+  "trace": {
+    "default_component": "woocommerce"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/cart-session-overwrite-race.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-cart-session-race",
+        "trace_phase_presets": {
+          "browser-cart-session-race": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "probe:browser.probe.ready",
+            "metrics:cart-session-overwrite-race.metrics.ready"
+          ]
+        },
+        "trace_span_metadata": {
+          "phase.recipe_to_probe": {
+            "category": "browser_probe",
+            "blocking": true
+          },
+          "phase.probe_to_metrics": {
+            "category": "artifact_extraction",
+            "blocking": true
+          }
+        }
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": {
+      "scenario": "cart-session-overwrite-race"
+    },
+    "hot": {
+      "scenario": "cart-session-overwrite-race"
+    },
+    "cart-session-overwrite-race": {
+      "scenario": "cart-session-overwrite-race"
+    }
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "command",
+        "label": "WooCommerce monorepo plugin exists",
+        "command": "woocommerce_root=\"${components.woocommerce.path}\"; test -f \"$woocommerce_root/plugins/woocommerce/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce plugin entrypoint: expected $woocommerce_root/plugins/woocommerce/woocommerce.php. Pass homeboy trace --path /path/to/woocommerce-monorepo or update components.woocommerce.path.\"; exit 1; }"
+      }
+    ],
+    "up": [],
+    "down": []
+  }
+}

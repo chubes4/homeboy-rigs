@@ -1,49 +1,46 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import zlib from 'node:zlib';
+import { spawn } from 'node:child_process';
 
-import { STUDIO_PATH } from './studio-bench.mjs';
-import { asArray, comparisonTargets, safeSlug, stringArray, surfaceUrl } from './fidelity-targets.mjs';
+import { STUDIO_PATH, expandHome, setting } from './studio-bench.mjs';
 import { loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
 export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
-const VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT = 5;
-const VISUAL_PIXELMATCH_THRESHOLD = 0.1;
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-function visualProbeGroups(target) {
-  const hooks = target?.comparison_hooks || {};
-  const layoutProbes = hooks.layout_probes && typeof hooks.layout_probes === 'object' ? hooks.layout_probes : {};
-  const groups = [];
-  const seen = new Set();
-
-  function add(name, selectors) {
-    const normalizedSelectors = stringArray(selectors);
-    if (!normalizedSelectors.length || seen.has(name)) {
-      return;
-    }
-    seen.add(name);
-    groups.push({ name, selectors: normalizedSelectors });
+const VISUAL_COMPARE_THRESHOLD = 0.1;
+const VISUAL_COMPARE_EXPLAIN_SELECTOR_LIMIT = 20;
+function loadFidelityComparisonHelper() {
+  const { module } = loadWordPressLibHelper('fidelity-comparison.js');
+  if (!module) {
+    throw new Error('Homeboy WordPress fidelity comparison helper is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.');
   }
-
-  for (const [name, probe] of Object.entries(layoutProbes)) {
-    add(name, probe?.selectors);
-  }
-
-  add('hero_probe', hooks.hero);
-  add('visible_chrome', hooks.visible_chrome);
-  add('footer_chrome', ['footer', '.site-footer', '[class*=footer]']);
-
-  return groups;
+  return module;
 }
 
-export async function loadVisualSurface(page, url) {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
-  await page.waitForTimeout(300);
+function comparisonTargets(importReport) {
+  return loadFidelityComparisonHelper().comparisonTargets(importReport);
+}
+
+function safeSlug(value, fallback) {
+  return loadFidelityComparisonHelper().safeSlug(value, fallback);
+}
+
+function surfaceUrl(target, surface, reportPath, sitePath) {
+  return loadFidelityComparisonHelper().surfaceUrl(target, surface, reportPath, sitePath);
+}
+
+function visualProbeGroups(target) {
+  return loadFidelityComparisonHelper().visualProbeGroups(target);
+}
+
+function wpCodeboxCliPath() {
+  return expandHome(
+    setting('studio_wp_codebox_cli_path') ||
+      process.env.HOMEBOY_WP_CODEBOX_CLI ||
+      process.env.WP_CODEBOX_CLI_PATH ||
+      ''
+  );
 }
 
 function loadEditorCanvasProbes() {
@@ -63,648 +60,180 @@ async function captureEditorScreenshot(page, url, screenshotPath) {
   });
 }
 
-async function evaluateVisualSurface(page, groups) {
-  return loadEditorCanvasProbes().summarizeVisibleSelectors(page, groups).then((summary) => summary.groups);
-}
-
 function visualSurfaceTotals(groups) {
-  return groups.reduce(
-    (totals, group) => {
-      totals.selector_count += group.selector_count;
-      totals.missing_selector_count += group.missing_selector_count;
-      totals.errored_selector_count += group.errored_selector_count;
-      totals.matched_selector_count += group.matched_selector_count;
-      totals.visible_selector_count += group.visible_selector_count;
-      totals.nonzero_bounding_box_selector_count += group.nonzero_bounding_box_selector_count;
-      return totals;
-    },
-    {
-      selector_count: 0,
-      missing_selector_count: 0,
-      errored_selector_count: 0,
-      matched_selector_count: 0,
-      visible_selector_count: 0,
-      nonzero_bounding_box_selector_count: 0,
-    }
-  );
-}
-
-function visualSelectorSummary(selector) {
-  const firstMatch = selector?.first_match || null;
-  return {
-    count: Number(selector?.count || 0),
-    visible_count: Number(selector?.visible_count || 0),
-    nonzero_bounding_box_count: Number(selector?.nonzero_bounding_box_count || 0),
-    first_bounding_box: firstMatch?.boundingBox || null,
-    first_visible: firstMatch?.visible === true,
-    first_visible_text: firstMatch?.text || '',
-    error: selector?.error || '',
-  };
-}
-
-function visualMismatchReason(sourceSelector, frontendSelector) {
-  if (sourceSelector?.error || frontendSelector?.error) {
-    return 'selector_error';
-  }
-  if (sourceSelector.visible_count === 0 && frontendSelector.visible_count === 0) {
-    return 'missing_on_both_surfaces';
-  }
-  if (sourceSelector.count === 0 && frontendSelector.count === 0) {
-    return 'missing_on_both_surfaces';
-  }
-  if (sourceSelector.count === 0) {
-    return 'missing_from_source_static';
-  }
-  if (frontendSelector.count === 0) {
-    return 'missing_from_wordpress_frontend';
-  }
-
-  const sourceVisible = sourceSelector.visible_count > 0;
-  const frontendVisible = frontendSelector.visible_count > 0;
-  if (sourceVisible !== frontendVisible) {
-    return sourceVisible ? 'hidden_on_wordpress_frontend' : 'hidden_on_source_static';
-  }
-
-  const sourceNonzero = sourceSelector.nonzero_bounding_box_count > 0;
-  const frontendNonzero = frontendSelector.nonzero_bounding_box_count > 0;
-  if (sourceNonzero !== frontendNonzero) {
-    return sourceNonzero ? 'zero_sized_on_wordpress_frontend' : 'zero_sized_on_source_static';
-  }
-
-  return '';
-}
-
-function visualMismatchSeverity(reason) {
-  const severities = {
-    selector_error: 100,
-    missing_from_wordpress_frontend: 90,
-    missing_from_source_static: 80,
-    hidden_on_wordpress_frontend: 60,
-    hidden_on_source_static: 50,
-    zero_sized_on_wordpress_frontend: 40,
-    zero_sized_on_source_static: 30,
-  };
-  return severities[reason] || 0;
-}
-
-function visualGroupMismatchSummary(groupName, mismatches) {
-  const reasons = {};
-  for (const mismatch of mismatches) {
-    reasons[mismatch.reason] = (reasons[mismatch.reason] || 0) + 1;
-  }
-  return {
-    group: groupName,
-    mismatch_count: mismatches.length,
-    reasons,
-    top_selectors: mismatches.slice(0, 5).map((mismatch) => ({
-      selector: mismatch.selector,
-      reason: mismatch.reason,
-      source_count: mismatch.source.count,
-      frontend_count: mismatch.frontend.count,
-      source_visible_count: mismatch.source.visible_count,
-      frontend_visible_count: mismatch.frontend.visible_count,
-    })),
-  };
-}
-
-function visualSelectorComparisonDetail(sourceGroup, sourceSelector, frontendSelector, reason) {
-  return {
-    group: sourceGroup.name,
-    selector: sourceSelector.selector,
-    reason,
-    severity: visualMismatchSeverity(reason),
-    source: visualSelectorSummary(sourceSelector),
-    frontend: visualSelectorSummary(frontendSelector),
-    screenshots: {},
-  };
+  return loadFidelityComparisonHelper().visualSurfaceTotals(groups);
 }
 
 function visualSelectorComparisonDetails(result) {
-  const sourceGroups = result.surfaces.source_static?.probes || [];
-  const frontendGroups = result.surfaces.wordpress_frontend?.probes || [];
-  const frontendGroupsByName = new Map(frontendGroups.map((group) => [group.name, group]));
-  const mismatches = [];
-  const optionalProbeAbsences = [];
-
-  for (const sourceGroup of sourceGroups) {
-    const frontendGroup = frontendGroupsByName.get(sourceGroup.name);
-    if (!frontendGroup) {
-      continue;
-    }
-
-    const frontendSelectors = new Map(frontendGroup.selectors.map((selector) => [selector.selector, selector]));
-    for (const sourceSelector of sourceGroup.selectors) {
-      const frontendSelector = frontendSelectors.get(sourceSelector.selector);
-      if (!frontendSelector) {
-        continue;
-      }
-
-      const reason = visualMismatchReason(sourceSelector, frontendSelector);
-      if (!reason) {
-        continue;
-      }
-
-      const detail = visualSelectorComparisonDetail(sourceGroup, sourceSelector, frontendSelector, reason);
-      if (reason === 'missing_on_both_surfaces') {
-        optionalProbeAbsences.push(detail);
-        continue;
-      }
-
-      mismatches.push(detail);
-    }
-  }
-
-  mismatches.sort(
-    (a, b) => b.severity - a.severity || a.group.localeCompare(b.group) || a.selector.localeCompare(b.selector)
-  );
-  optionalProbeAbsences.sort((a, b) => a.group.localeCompare(b.group) || a.selector.localeCompare(b.selector));
-  return { mismatches, optionalProbeAbsences };
-}
-
-async function captureSelectorScreenshot(page, selector, screenshotPath) {
-  try {
-    const locator = page.locator(selector).first();
-    if ((await locator.count()) === 0) {
-      return '';
-    }
-    await locator.screenshot({ path: screenshotPath, timeout: 5_000 });
-    return screenshotPath;
-  } catch {
-    return '';
-  }
-}
-
-function crc32(buffer) {
-  if (!crc32.table) {
-    crc32.table = Array.from({ length: 256 }, (_, index) => {
-      let value = index;
-      for (let bit = 0; bit < 8; bit++) {
-        value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-      }
-      return value >>> 0;
-    });
-  }
-
-  let crc = 0xffffffff;
-  for (const byte of buffer) {
-    crc = crc32.table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function pngChunk(type, data = Buffer.alloc(0)) {
-  const typeBuffer = Buffer.from(type, 'ascii');
-  const chunk = Buffer.concat([typeBuffer, data]);
-  const output = Buffer.alloc(12 + data.length);
-  output.writeUInt32BE(data.length, 0);
-  typeBuffer.copy(output, 4);
-  data.copy(output, 8);
-  output.writeUInt32BE(crc32(chunk), 8 + data.length);
-  return output;
-}
-
-function decodePng(buffer) {
-  if (!buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
-    throw new Error('Unsupported PNG signature.');
-  }
-
-  let offset = PNG_SIGNATURE.length;
-  let width = 0;
-  let height = 0;
-  let bitDepth = 0;
-  let colorType = 0;
-  const idat = [];
-
-  while (offset < buffer.length) {
-    const length = buffer.readUInt32BE(offset);
-    const type = buffer.toString('ascii', offset + 4, offset + 8);
-    const data = buffer.subarray(offset + 8, offset + 8 + length);
-    offset += 12 + length;
-
-    if (type === 'IHDR') {
-      width = data.readUInt32BE(0);
-      height = data.readUInt32BE(4);
-      bitDepth = data[8];
-      colorType = data[9];
-    } else if (type === 'IDAT') {
-      idat.push(data);
-    } else if (type === 'IEND') {
-      break;
-    }
-  }
-
-  if (bitDepth !== 8 || ![0, 2, 4, 6].includes(colorType)) {
-    throw new Error(`Unsupported PNG format: bitDepth=${bitDepth} colorType=${colorType}.`);
-  }
-
-  const channels = { 0: 1, 2: 3, 4: 2, 6: 4 }[colorType];
-  const bytesPerPixel = channels;
-  const stride = width * channels;
-  const inflated = zlib.inflateSync(Buffer.concat(idat));
-  const data = new Uint8ClampedArray(width * height * 4);
-  let inputOffset = 0;
-  let previous = Buffer.alloc(stride);
-
-  for (let y = 0; y < height; y++) {
-    const filter = inflated[inputOffset++];
-    const row = Buffer.from(inflated.subarray(inputOffset, inputOffset + stride));
-    inputOffset += stride;
-
-    for (let x = 0; x < stride; x++) {
-      const left = x >= bytesPerPixel ? row[x - bytesPerPixel] : 0;
-      const up = previous[x] || 0;
-      const upperLeft = x >= bytesPerPixel ? previous[x - bytesPerPixel] || 0 : 0;
-      let value = row[x];
-
-      if (filter === 1) {
-        value += left;
-      } else if (filter === 2) {
-        value += up;
-      } else if (filter === 3) {
-        value += Math.floor((left + up) / 2);
-      } else if (filter === 4) {
-        const p = left + up - upperLeft;
-        const pa = Math.abs(p - left);
-        const pb = Math.abs(p - up);
-        const pc = Math.abs(p - upperLeft);
-        value += pa <= pb && pa <= pc ? left : pb <= pc ? up : upperLeft;
-      } else if (filter !== 0) {
-        throw new Error(`Unsupported PNG row filter: ${filter}.`);
-      }
-
-      row[x] = value & 0xff;
-    }
-
-    for (let x = 0; x < width; x++) {
-      const source = x * channels;
-      const target = (y * width + x) * 4;
-      if (colorType === 0) {
-        data[target] = row[source];
-        data[target + 1] = row[source];
-        data[target + 2] = row[source];
-        data[target + 3] = 255;
-      } else if (colorType === 2) {
-        data[target] = row[source];
-        data[target + 1] = row[source + 1];
-        data[target + 2] = row[source + 2];
-        data[target + 3] = 255;
-      } else if (colorType === 4) {
-        data[target] = row[source];
-        data[target + 1] = row[source];
-        data[target + 2] = row[source];
-        data[target + 3] = row[source + 1];
-      } else {
-        data[target] = row[source];
-        data[target + 1] = row[source + 1];
-        data[target + 2] = row[source + 2];
-        data[target + 3] = row[source + 3];
-      }
-    }
-
-    previous = row;
-  }
-
-  return { width, height, data };
-}
-
-function encodePng({ width, height, data }) {
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header[8] = 8;
-  header[9] = 6;
-
-  const rows = Buffer.alloc((width * 4 + 1) * height);
-  for (let y = 0; y < height; y++) {
-    const rowOffset = y * (width * 4 + 1);
-    rows[rowOffset] = 0;
-    Buffer.from(data.buffer, data.byteOffset + y * width * 4, width * 4).copy(rows, rowOffset + 1);
-  }
-
-  return Buffer.concat([
-    PNG_SIGNATURE,
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', zlib.deflateSync(rows)),
-    pngChunk('IEND'),
-  ]);
-}
-
-function normalizePng(image, width, height) {
-  if (image.width === width && image.height === height) {
-    return image.data;
-  }
-
-  const normalized = new Uint8ClampedArray(width * height * 4);
-  normalized.fill(255);
-  for (let y = 0; y < image.height; y++) {
-    for (let x = 0; x < image.width; x++) {
-      const source = (y * image.width + x) * 4;
-      const target = (y * width + x) * 4;
-      normalized[target] = image.data[source];
-      normalized[target + 1] = image.data[source + 1];
-      normalized[target + 2] = image.data[source + 2];
-      normalized[target + 3] = image.data[source + 3];
-    }
-  }
-  return normalized;
-}
-
-function comparePixels(sourceData, targetData, diffData) {
-  let mismatched = 0;
-  for (let index = 0; index < sourceData.length; index += 4) {
-    const delta = Math.max(
-      Math.abs(sourceData[index] - targetData[index]),
-      Math.abs(sourceData[index + 1] - targetData[index + 1]),
-      Math.abs(sourceData[index + 2] - targetData[index + 2]),
-      Math.abs(sourceData[index + 3] - targetData[index + 3])
-    );
-
-    if (delta > 26) {
-      mismatched++;
-      diffData[index] = 255;
-      diffData[index + 1] = 0;
-      diffData[index + 2] = 0;
-      diffData[index + 3] = 255;
-    } else {
-      const gray = Math.round((sourceData[index] + sourceData[index + 1] + sourceData[index + 2]) / 3);
-      diffData[index] = gray;
-      diffData[index + 1] = gray;
-      diffData[index + 2] = gray;
-      diffData[index + 3] = 80;
-    }
-  }
-  return mismatched;
+  return loadFidelityComparisonHelper().visualSelectorComparisonDetails(result);
 }
 
 async function comparePngScreenshots(sourcePath, targetPath, diffPath) {
-  const sourceImage = decodePng(await readFile(sourcePath));
-  const targetImage = decodePng(await readFile(targetPath));
-  const width = Math.max(sourceImage.width, targetImage.width);
-  const height = Math.max(sourceImage.height, targetImage.height);
-  const sourceData = normalizePng(sourceImage, width, height);
-  const targetData = normalizePng(targetImage, width, height);
-  const diffData = new Uint8ClampedArray(width * height * 4);
-  const mismatchedPixels = comparePixels(sourceData, targetData, diffData);
-
-  await writeFile(diffPath, encodePng({ width, height, data: diffData }));
-  return {
-    diff_path: diffPath,
-    height,
-    mismatched_pixels: mismatchedPixels,
-    pixel_count: width * height,
-    ratio: width > 0 && height > 0 ? mismatchedPixels / (width * height) : 1,
-    width,
-  };
-}
-
-async function captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug) {
-  if (!mismatches.length) {
-    return;
-  }
-
-  const screenshotsDir = path.join(visualDir, 'mismatch-screenshots');
-  const urls = {
-    source_static: result.surfaces.source_static?.url || '',
-    wordpress_frontend: result.surfaces.wordpress_frontend?.url || '',
-  };
-  const pages = {};
-
-  try {
-    await mkdir(screenshotsDir, { recursive: true });
-    for (const [surface, url] of Object.entries(urls)) {
-      if (!url) {
-        continue;
-      }
-      const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
-      await loadVisualSurface(page, url);
-      pages[surface] = page;
-    }
-
-    for (const [index, mismatch] of mismatches.slice(0, VISUAL_SCREENSHOT_DIAGNOSTIC_LIMIT).entries()) {
-      const screenshotSlug = safeSlug(
-        `${targetSlug}-${index + 1}-${mismatch.group}-${mismatch.selector}`,
-        `mismatch-${index + 1}`
-      );
-      for (const [surface, page] of Object.entries(pages)) {
-        const screenshotPath = path.join(screenshotsDir, `${screenshotSlug}-${surface}.png`);
-        const capturedPath = await captureSelectorScreenshot(page, mismatch.selector, screenshotPath);
-        if (capturedPath) {
-          mismatch.screenshots[surface] = capturedPath;
-        }
-      }
-    }
-  } catch (error) {
-    result.diagnostic_warnings = [
-      ...(result.diagnostic_warnings || []),
-      `mismatch screenshots: ${error instanceof Error ? error.message : String(error)}`,
-    ];
-  } finally {
-    await Promise.all(Object.values(pages).map((page) => page.close().catch(() => {})));
-  }
-}
-
-function loadPixelDiffDependencies() {
-  const playwrightCorePath = path.join(STUDIO_PATH, 'node_modules/playwright-core');
-  const pixelmatch = requireFromBench(path.join(playwrightCorePath, 'lib/third_party/pixelmatch'));
-  const { PNG } = requireFromBench(path.join(playwrightCorePath, 'lib/utilsBundle'));
-  return { pixelmatch, PNG };
-}
-
-function padPngToSize(image, width, height, PNG) {
-  if (image.width === width && image.height === height) {
-    return image;
-  }
-
-  const padded = new PNG({ width, height });
-  padded.data.fill(255);
-  for (let y = 0; y < image.height; y++) {
-    for (let x = 0; x < image.width; x++) {
-      const sourceOffset = (y * image.width + x) * 4;
-      const targetOffset = (y * width + x) * 4;
-      image.data.copy(padded.data, targetOffset, sourceOffset, sourceOffset + 4);
-    }
-  }
-  return padded;
-}
-
-async function compareVisualScreenshots(sourcePath, frontendPath, diffPath) {
-  if (!sourcePath || !frontendPath) {
-    return { pixel_diff_ratio: 0, pixel_diff_pixel_count: 0, pixel_count: 0, diff_artifact: '' };
-  }
-
-  const { pixelmatch, PNG } = loadPixelDiffDependencies();
-  const source = PNG.sync.read(await readFile(sourcePath));
-  const frontend = PNG.sync.read(await readFile(frontendPath));
-  const width = Math.max(source.width, frontend.width);
-  const height = Math.max(source.height, frontend.height);
-  const sourcePixelCount = source.width * source.height;
-  const sourcePadded = padPngToSize(source, width, height, PNG);
-  const frontendPadded = padPngToSize(frontend, width, height, PNG);
-  const diff = new PNG({ width, height });
-  const pixelDiffCount = pixelmatch(sourcePadded.data, frontendPadded.data, diff.data, width, height, {
-    threshold: VISUAL_PIXELMATCH_THRESHOLD,
-  });
-
-  await writeFile(diffPath, PNG.sync.write(diff));
-  return {
-    pixel_diff_ratio: sourcePixelCount > 0 ? pixelDiffCount / sourcePixelCount : 0,
-    pixel_diff_pixel_count: pixelDiffCount,
-    pixel_count: sourcePixelCount,
-    diff_artifact: diffPath,
-  };
+  return loadFidelityComparisonHelper().comparePngScreenshots(sourcePath, targetPath, diffPath);
 }
 
 function buildVisualDiagnostics(results, artifactPath) {
-  const targetSummaries = [];
-  const allMismatches = [];
-  const allOptionalProbeAbsences = [];
-
-  for (const result of results) {
-    const mismatches = asArray(result.diagnostics?.mismatches);
-    const optionalProbeAbsences = asArray(result.diagnostics?.optional_probe_absences);
-    const byGroup = new Map();
-
-    for (const mismatch of mismatches) {
-      if (!byGroup.has(mismatch.group)) {
-        byGroup.set(mismatch.group, []);
-      }
-      byGroup.get(mismatch.group).push(mismatch);
-      allMismatches.push({
-        target: result.source_filename || String(result.wordpress_page_id || ''),
-        ...mismatch,
-      });
-    }
-
-    for (const absence of optionalProbeAbsences) {
-      allOptionalProbeAbsences.push({
-        target: result.source_filename || String(result.wordpress_page_id || ''),
-        ...absence,
-      });
-    }
-
-    targetSummaries.push({
-      source_filename: result.source_filename || '',
-      wordpress_page_id: result.wordpress_page_id || null,
-      mismatch_count: mismatches.length,
-      optional_probe_absent_count: optionalProbeAbsences.length,
-      top_failing_groups: [...byGroup.entries()]
-        .map(([groupName, groupMismatches]) => visualGroupMismatchSummary(groupName, groupMismatches))
-        .sort((a, b) => b.mismatch_count - a.mismatch_count || a.group.localeCompare(b.group))
-        .slice(0, 5),
-      top_failing_selectors: mismatches.slice(0, 10).map((mismatch) => ({
-        group: mismatch.group,
-        selector: mismatch.selector,
-        reason: mismatch.reason,
-        source_count: mismatch.source.count,
-        frontend_count: mismatch.frontend.count,
-        source_first_bounding_box: mismatch.source.first_bounding_box,
-        frontend_first_bounding_box: mismatch.frontend.first_bounding_box,
-        source_first_visible_text: mismatch.source.first_visible_text,
-        frontend_first_visible_text: mismatch.frontend.first_visible_text,
-        screenshots: mismatch.screenshots,
-      })),
-    });
-  }
-
-  const topFailingGroups = new Map();
-  for (const mismatch of allMismatches) {
-    const key = `${mismatch.target || 'target'}:${mismatch.group}`;
-    if (!topFailingGroups.has(key)) {
-      topFailingGroups.set(key, []);
-    }
-    topFailingGroups.get(key).push(mismatch);
-  }
-
-  return {
-    artifact: artifactPath,
-    mismatch_count: allMismatches.length,
-    optional_probe_absent_count: allOptionalProbeAbsences.length,
-    top_failing_groups: [...topFailingGroups.entries()]
-      .map(([, mismatches]) => ({
-        target: mismatches[0]?.target || '',
-        ...visualGroupMismatchSummary(mismatches[0]?.group || '', mismatches),
-      }))
-      .sort((a, b) => b.mismatch_count - a.mismatch_count || a.group.localeCompare(b.group))
-      .slice(0, 10),
-    targets: targetSummaries,
-    mismatches: allMismatches,
-    optional_probe_absences: allOptionalProbeAbsences,
-  };
+  return loadFidelityComparisonHelper().buildVisualDiagnostics(results, artifactPath);
 }
 
 function visualParity(sourceGroups, frontendGroups) {
-  const frontendByName = new Map(frontendGroups.map((group) => [group.name, group]));
-  const groupComparisons = [];
-  let missingSelectorCount = 0;
-  let visibilityMismatchCount = 0;
-  let nonzeroBoundingBoxMismatchCount = 0;
-  let simpleProbeParityMismatchCount = 0;
-  const simpleProbeFamilies = {
-    nav: new Set(['nav_chrome']),
-    footer: new Set(['footer_chrome']),
-    hero: new Set(['hero_region', 'hero_probe']),
-  };
-  const simpleProbeNames = new Set(Object.values(simpleProbeFamilies).flatMap((names) => [...names]));
-  const simpleProbeMismatches = { nav: 0, footer: 0, hero: 0 };
+  return loadFidelityComparisonHelper().visualParity(sourceGroups, frontendGroups);
+}
 
-  for (const sourceGroup of sourceGroups) {
-    const frontendGroup = frontendByName.get(sourceGroup.name);
-    if (!frontendGroup) {
-      continue;
-    }
-
-    const frontendSelectors = new Map(frontendGroup.selectors.map((selector) => [selector.selector, selector]));
-    for (const sourceSelector of sourceGroup.selectors) {
-      const frontendSelector = frontendSelectors.get(sourceSelector.selector);
-      if (!frontendSelector) {
-        continue;
-      }
-
-      const sourceVisible = sourceSelector.visible_count > 0;
-      const frontendVisible = frontendSelector.visible_count > 0;
-      const sourceNonzero = sourceSelector.nonzero_bounding_box_count > 0;
-      const frontendNonzero = frontendSelector.nonzero_bounding_box_count > 0;
-
-      if (sourceSelector.count === 0 || frontendSelector.count === 0) {
-        missingSelectorCount++;
-      }
-      if (sourceVisible !== frontendVisible) {
-        visibilityMismatchCount++;
-      }
-      if (sourceNonzero !== frontendNonzero) {
-        nonzeroBoundingBoxMismatchCount++;
+function explainSelectors(groups) {
+  const selectors = [];
+  const seen = new Set();
+  for (const group of groups) {
+    for (const selector of group.selectors || []) {
+      if (!seen.has(selector)) {
+        seen.add(selector);
+        selectors.push(selector);
       }
     }
+  }
+  return selectors.slice(0, VISUAL_COMPARE_EXPLAIN_SELECTOR_LIMIT);
+}
 
-    const sourceGroupVisible = sourceGroup.visible_selector_count > 0;
-    const frontendGroupVisible = frontendGroup.visible_selector_count > 0;
-    const simpleProbeMismatch = simpleProbeNames.has(sourceGroup.name) && sourceGroupVisible !== frontendGroupVisible;
-    if (simpleProbeMismatch) {
-      simpleProbeParityMismatchCount++;
-      for (const [family, names] of Object.entries(simpleProbeFamilies)) {
-        if (names.has(sourceGroup.name)) {
-          simpleProbeMismatches[family]++;
-        }
-      }
-    }
-
-    groupComparisons.push({
-      name: sourceGroup.name,
-      source_visible: sourceGroupVisible,
-      frontend_visible: frontendGroupVisible,
-      source_nonzero_bounding_box: sourceGroup.nonzero_bounding_box_selector_count > 0,
-      frontend_nonzero_bounding_box: frontendGroup.nonzero_bounding_box_selector_count > 0,
-      simple_probe_parity: simpleProbeNames.has(sourceGroup.name) ? !simpleProbeMismatch : null,
-    });
+async function runWpCodeboxRecipe(recipePath) {
+  const cliPath = wpCodeboxCliPath();
+  if (!cliPath) {
+    throw new Error('Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.');
   }
 
+  const useNode = /\.(?:cjs|mjs|js|ts)$/.test(cliPath);
+  const command = useNode ? process.execPath : cliPath;
+  const args = useNode ? [cliPath, 'recipe-run', '--recipe', recipePath, '--json'] : ['recipe-run', '--recipe', recipePath, '--json'];
+
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    const child = spawn(command, args, { cwd: path.dirname(recipePath), stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`WP Codebox visual compare exited with ${code}; stdout=${stdout.slice(-1000)}; stderr=${stderr.slice(-1000)}`));
+        return;
+      }
+      try {
+        const parsed = JSON.parse(stdout);
+        if (parsed?.success === false) {
+          reject(new Error(parsed?.error?.message || 'WP Codebox visual compare failed.'));
+          return;
+        }
+        resolve(parsed);
+      } catch (error) {
+        reject(new Error(`WP Codebox visual compare returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`));
+      }
+    });
+  });
+}
+
+async function runWpCodeboxVisualCompare(target, visualDir, targetSlug, importReport, sitePath, groups) {
+  const sourceUrl = surfaceUrl(target, 'source_static', importReport.reportPath, sitePath);
+  const candidateUrl = surfaceUrl(target, 'wordpress_frontend', importReport.reportPath, sitePath);
+  if (!sourceUrl || !candidateUrl) {
+    throw new Error('Missing source_static or wordpress_frontend render URL.');
+  }
+
+  const artifactRoot = path.join(visualDir, `${targetSlug}-codebox-artifacts`);
+  const recipePath = path.join(visualDir, `${targetSlug}-visual-compare.recipe.json`);
+  const args = [
+    `source-url=${sourceUrl}`,
+    `candidate-url=${candidateUrl}`,
+    'source-label=source_static',
+    'candidate-label=wordpress_frontend',
+    `viewport=${VISUAL_VIEWPORT.width}x${VISUAL_VIEWPORT.height}`,
+    'full-page=true',
+    'wait-for=load',
+    `threshold=${VISUAL_COMPARE_THRESHOLD}`,
+    'max-explanation-candidates=20',
+    ...explainSelectors(groups).map((selector) => `explain-selector=${selector}`),
+  ];
+  const recipe = {
+    schema: 'wp-codebox/workspace-recipe/v1',
+    workflow: {
+      steps: [{ command: 'wordpress.visual-compare', args }],
+    },
+    artifacts: { directory: artifactRoot },
+  };
+  await mkdir(visualDir, { recursive: true });
+  await writeFile(recipePath, `${JSON.stringify(recipe, null, 2)}\n`);
+
+  const output = await runWpCodeboxRecipe(recipePath);
+  const artifactDirectory = output?.artifacts?.directory || artifactRoot;
+  const summaryPath = path.join(artifactDirectory, 'files', 'browser', 'visual-compare', 'visual-diff.json');
+  const summary = JSON.parse(await readFile(summaryPath, 'utf8'));
+  const explanationRef = summary.files?.visualExplanation || '';
+  const explanation = explanationRef
+    ? JSON.parse(await readFile(path.join(artifactDirectory, explanationRef), 'utf8'))
+    : null;
+
+  return { artifactDirectory, summaryPath, summary, explanation, sourceUrl, candidateUrl };
+}
+
+function visualSelectorProbe(selector, side, explanation) {
+  const focused = (explanation?.selectors || []).find((item) => item.selector === selector)?.[side];
+  const missing = (explanation?.missingSelectors || []).find((item) => item.selector === selector);
+  const matched = Number(focused?.matched ?? (missing ? 0 : 0));
+  const captured = Number(focused?.captured ?? 0);
   return {
-    missing_selector_count: missingSelectorCount,
-    visibility_mismatch_count: visibilityMismatchCount,
-    nonzero_bounding_box_mismatch_count: nonzeroBoundingBoxMismatchCount,
-    simple_probe_parity_mismatch_count: simpleProbeParityMismatchCount,
-    simple_probe_mismatches: simpleProbeMismatches,
-    groups: groupComparisons,
+    selector,
+    count: matched,
+    visible_count: matched > 0 ? 1 : 0,
+    nonzero_bounding_box_count: captured > 0 ? 1 : 0,
+    first_match: null,
+    error: focused?.error || missing?.[`${side}Error`] || '',
+  };
+}
+
+function groupsFromVisualExplanation(groups, side, explanation) {
+  return groups.map((group) => {
+    const selectors = (group.selectors || []).map((selector) => visualSelectorProbe(selector, side, explanation));
+    return {
+      name: group.name,
+      selectors,
+      selector_count: selectors.length,
+      missing_selector_count: selectors.filter((selector) => selector.count === 0).length,
+      errored_selector_count: selectors.filter((selector) => selector.error).length,
+      matched_selector_count: selectors.filter((selector) => selector.count > 0).length,
+      visible_selector_count: selectors.filter((selector) => selector.visible_count > 0).length,
+      nonzero_bounding_box_selector_count: selectors.filter((selector) => selector.nonzero_bounding_box_count > 0).length,
+    };
+  });
+}
+
+function visualCompareSurface(compare, side, groups) {
+  const label = side === 'source' ? 'source_static' : 'wordpress_frontend';
+  const files = compare.summary.files || {};
+  const screenshot = side === 'source' ? files.sourceScreenshot : files.candidateScreenshot;
+  const probes = groupsFromVisualExplanation(groups, side, compare.explanation);
+  return {
+    url: side === 'source' ? compare.sourceUrl : compare.candidateUrl,
+    screenshot: screenshot ? path.join(compare.artifactDirectory, screenshot) : '',
+    probes,
+    totals: visualSurfaceTotals(probes),
+    visual_compare_artifact: compare.summaryPath,
+    visual_explanation_artifact: files.visualExplanation ? path.join(compare.artifactDirectory, files.visualExplanation) : '',
+  };
+}
+
+function visualComparePixelDiff(compare) {
+  const files = compare.summary.files || {};
+  const comparison = compare.summary.comparison || {};
+  return {
+    pixel_diff_ratio: Number(comparison.mismatchRatio || 0),
+    pixel_diff_pixel_count: Number(comparison.mismatchPixels || 0),
+    pixel_count: Number(comparison.totalPixels || 0),
+    diff_artifact: files.diffScreenshot ? path.join(compare.artifactDirectory, files.diffScreenshot) : '',
+    visual_diff_artifact: compare.summaryPath,
+    visual_explanation_artifact: files.visualExplanation ? path.join(compare.artifactDirectory, files.visualExplanation) : '',
+    status: compare.summary.status || '',
   };
 }
 
@@ -752,6 +281,12 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
   if (!targets.length) {
     return emptyVisualComparison(artifactDir, importReport?.error || 'No visual fidelity comparison targets found.');
   }
+  if (!wpCodeboxCliPath()) {
+    return emptyVisualComparison(
+      artifactDir,
+      'Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.'
+    );
+  }
 
   const playwrightPackage = path.join(STUDIO_PATH, 'node_modules/@playwright/test');
   const { chromium } = requireFromBench(playwrightPackage);
@@ -780,31 +315,16 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
         errors: [],
       };
 
-      for (const surface of ['source_static', 'wordpress_frontend']) {
-        const url = surfaceUrl(target, surface, importReport.reportPath, sitePath);
-        const screenshotPath = path.join(visualDir, `${targetSlug}-${surface}.png`);
-        const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: VISUAL_VIEWPORT });
-
-        try {
-          if (!url) {
-            throw new Error(`Missing ${surface} render URL.`);
-          }
-          await loadVisualSurface(page, url);
-          const probeGroups = await evaluateVisualSurface(page, groups);
-          await page.screenshot({ path: screenshotPath, fullPage: true });
-          result.surfaces[surface] = {
-            url,
-            screenshot: screenshotPath,
-            probes: probeGroups,
-            totals: visualSurfaceTotals(probeGroups),
-          };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          result.errors.push(`${surface}: ${message}`);
-          result.surfaces[surface] = { url, screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
-        } finally {
-          await page.close();
-        }
+      let visualCompare = null;
+      try {
+        visualCompare = await runWpCodeboxVisualCompare(target, visualDir, targetSlug, importReport, sitePath, groups);
+        result.surfaces.source_static = visualCompareSurface(visualCompare, 'source', groups);
+        result.surfaces.wordpress_frontend = visualCompareSurface(visualCompare, 'candidate', groups);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push(`wordpress.visual-compare: ${message}`);
+        result.surfaces.source_static = { url: '', screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
+        result.surfaces.wordpress_frontend = { url: '', screenshot: '', probes: [], totals: visualSurfaceTotals([]), error: message };
       }
 
       const editorUrl = surfaceUrl(target, 'wordpress_editor', importReport.reportPath, sitePath);
@@ -854,36 +374,25 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
           path.join(visualDir, `${targetSlug}-wordpress_editor-vs-wordpress_frontend-diff.png`)
         );
       }
-      if (sourceScreenshot && frontendScreenshot) {
-        result.pixel_diffs.source_vs_frontend_diagnostic = await comparePngScreenshots(
-          sourceScreenshot,
-          frontendScreenshot,
-          path.join(visualDir, `${targetSlug}-source_static-vs-wordpress_frontend-diagnostic-diff.png`)
-        );
+      result.pixel_diff = visualCompare
+        ? visualComparePixelDiff(visualCompare)
+        : { pixel_diff_ratio: 0, pixel_diff_pixel_count: 0, pixel_count: 0, diff_artifact: '' };
+      if (visualCompare) {
+        const comparison = visualCompare.summary.comparison || {};
+        result.pixel_diffs.source_vs_frontend_diagnostic = {
+          diff_path: result.pixel_diff?.diff_artifact || '',
+          height: 0,
+          mismatched_pixels: Number(comparison.mismatchPixels || 0),
+          pixel_count: Number(comparison.totalPixels || 0),
+          ratio: Number(comparison.mismatchRatio || 0),
+          width: 0,
+        };
       }
 
       result.parity = visualParity(
         result.surfaces.source_static?.probes || [],
         result.surfaces.wordpress_frontend?.probes || []
       );
-      const pixelDiffPath = path.join(visualDir, `${targetSlug}-pixel-diff.png`);
-      try {
-        result.pixel_diff = await compareVisualScreenshots(
-          result.surfaces.source_static?.screenshot || '',
-          result.surfaces.wordpress_frontend?.screenshot || '',
-          pixelDiffPath
-        );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        result.errors.push(`pixel_diff: ${message}`);
-        result.pixel_diff = {
-          pixel_diff_ratio: 0,
-          pixel_diff_pixel_count: 0,
-          pixel_count: 0,
-          diff_artifact: '',
-          error: message,
-        };
-      }
       const { mismatches, optionalProbeAbsences } = visualSelectorComparisonDetails(result);
       result.diagnostics = {
         mismatch_count: mismatches.length,
@@ -892,7 +401,6 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
         mismatches,
         optional_probe_absences: optionalProbeAbsences,
       };
-      await captureVisualMismatchScreenshots(browser, result, mismatches, visualDir, targetSlug);
       results.push(result);
     }
   } catch (error) {

@@ -45,7 +45,7 @@ function renderReport() {
 		lines.push('- Mode: planned matrix only. No baseline or candidate values are present.');
 	}
 	lines.push('- Timing evidence and shipping-rate call-count evidence are reported separately.');
-	lines.push('- Deterministic expensive shipping-method fixture is pending Extra-Chill/homeboy-extensions#1089.');
+	lines.push('- Deterministic expensive shipping-method fixture support landed in Extra-Chill/homeboy-extensions#1089.');
 	lines.push('- Baseline/candidate export wiring is pending Extra-Chill/homeboy#3516.');
 	lines.push('');
 	lines.push('## Matrix Knobs');
@@ -74,7 +74,7 @@ function renderReport() {
 	lines.push('| Destination/postcode changes | Invalidate cache | Covered by `rehash_*` rows |');
 	lines.push('| Cart contents changes | Invalidate cache | Planned follow-up |');
 	lines.push('| Contents cost, coupon, tax, fee inputs | Validate expected behavior per WooCommerce cache key contract | Planned follow-up |');
-	lines.push('| Expensive deterministic shipping method | Amplify call-count regressions without browser noise | Blocked on Extra-Chill/homeboy-extensions#1089 |');
+	lines.push('| Expensive deterministic shipping method | Amplify call-count regressions without browser noise | Available via Extra-Chill/homeboy-extensions#1089 |');
 	lines.push('');
 	return `${lines.join('\n')}\n`;
 }
