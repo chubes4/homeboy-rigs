@@ -719,6 +719,30 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       ece_cls_sentinel_rect: rectForNode(sentinel),
     };
   };
+  const productContentMetrics = () => {
+    const title = document.querySelector('h1.product_title, .product_title, h1');
+    const price = document.querySelector('.summary .price, p.price, .price');
+    const addToCart = document.querySelector('form.cart button[type="submit"], form.cart .single_add_to_cart_button');
+    const titleRect = rectForNode(title);
+    const priceRect = rectForNode(price);
+    const addToCartRect = rectForNode(addToCart);
+    const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+    const aboveFold = (rect) => !!rect && rect.y >= 0 && rect.y < viewportHeight;
+
+    return {
+      product_title_visible: isVisible(title),
+      product_price_visible: isVisible(price),
+      product_add_to_cart_visible: isVisible(addToCart),
+      product_content_visible: isVisible(title) && isVisible(price) && isVisible(addToCart),
+      product_title_above_fold: aboveFold(titleRect),
+      product_price_above_fold: aboveFold(priceRect),
+      product_add_to_cart_above_fold: aboveFold(addToCartRect),
+      product_content_above_fold: aboveFold(titleRect) && aboveFold(priceRect) && aboveFold(addToCartRect),
+      product_title_rect: titleRect,
+      product_price_rect: priceRect,
+      product_add_to_cart_rect: addToCartRect,
+    };
+  };
   try {
     const layoutShiftObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -750,8 +774,26 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     record('layout_shift_observer_unavailable', { message: error?.message || String(error) });
   }
   const sample = () => {
+    const productMetrics = productContentMetrics();
+    if (productMetrics.product_title_visible) {
+      mark('product_title_visible');
+    }
+    if (productMetrics.product_price_visible) {
+      mark('product_price_visible');
+    }
+    if (productMetrics.product_add_to_cart_visible) {
+      mark('product_add_to_cart_visible');
+    }
+    if (productMetrics.product_content_visible) {
+      mark('product_content_visible');
+    }
+
     const container = document.querySelector('#wc-stripe-express-checkout-element');
     if (!container) {
+      state.latestProduct = {
+        t_ms: elapsed(),
+        ...productMetrics,
+      };
       return;
     }
     mark('container_seen');
@@ -783,7 +825,12 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       button_count: buttons.length,
       visible_button_count: visibleButtons.length,
       container_visible: isVisible(container),
+      ...productMetrics,
       ...trackedContainerMetrics(),
+    };
+    state.latestProduct = {
+      t_ms: state.latest.t_ms,
+      ...productMetrics,
     };
     state.samples.push(state.latest);
   };
@@ -855,6 +902,29 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         const rect = node.getBoundingClientRect();
         return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
       };
+      const productNodes = {
+        title: document.querySelector('h1.product_title, .product_title, h1'),
+        price: document.querySelector('.summary .price, p.price, .price'),
+        add_to_cart: document.querySelector('form.cart button[type="submit"], form.cart .single_add_to_cart_button'),
+      };
+      const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+      const aboveFold = (rect) => !!rect && rect.y >= 0 && rect.y < viewportHeight;
+      const productRects = {
+        title: rectForNode(productNodes.title),
+        price: rectForNode(productNodes.price),
+        add_to_cart: rectForNode(productNodes.add_to_cart),
+      };
+      const productContent = {
+        title_visible: isVisible(productNodes.title),
+        price_visible: isVisible(productNodes.price),
+        add_to_cart_visible: isVisible(productNodes.add_to_cart),
+        content_visible: isVisible(productNodes.title) && isVisible(productNodes.price) && isVisible(productNodes.add_to_cart),
+        title_above_fold: aboveFold(productRects.title),
+        price_above_fold: aboveFold(productRects.price),
+        add_to_cart_above_fold: aboveFold(productRects.add_to_cart),
+        content_above_fold: aboveFold(productRects.title) && aboveFold(productRects.price) && aboveFold(productRects.add_to_cart),
+        rects: productRects,
+      };
       if (!container) {
         return {
           ece_container: false,
@@ -865,6 +935,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           ece_visible_button_count: 0,
           ece_wallet_containers: walletContainers,
           ece_wallet_rects: walletRects,
+          product_content: productContent,
         };
       }
       const iframes = Array.from(container.querySelectorAll('iframe'));
@@ -878,6 +949,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         ece_visible_button_count: buttons.filter(isVisible).length,
         ece_wallet_containers: walletContainers,
         ece_wallet_rects: walletRects,
+        product_content: productContent,
       };
     };
     const interactionSnapshot = (name) => {
@@ -1019,6 +1091,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const eceMountTargetIds = Array.isArray(eceInstrumentation.mount_target_ids) ? eceInstrumentation.mount_target_ids : [];
   const eceMountTargetSelectors = Array.isArray(eceInstrumentation.mount_target_selectors) ? eceInstrumentation.mount_target_selectors : [];
   const renderSamples = renderProbe?.samples || [];
+  const latestProduct = renderProbe?.latestProduct || renderLatest;
+  const finalProductContent = scriptResult?.finalSnapshot?.product_content || {};
   const layoutShifts = Array.isArray(renderProbe?.layoutShifts) ? renderProbe.layoutShifts : [];
   const layoutShiftSourceDetails = layoutShifts.flatMap((entry) =>
     Array.isArray(entry.sources)
@@ -1156,6 +1230,21 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     browser_dom_node_count: browserMetrics.browser_dom_node_count ?? performanceSummary?.final?.dom?.nodes ?? null,
     browser_document_count: performanceSummary?.final?.dom?.documents ?? null,
     browser_js_event_listener_count: cdpMetrics.JSEventListeners ?? null,
+    product_title_visible_ms: numberOrNull(renderMarks.product_title_visible),
+    product_price_visible_ms: numberOrNull(renderMarks.product_price_visible),
+    product_add_to_cart_visible_ms: numberOrNull(renderMarks.product_add_to_cart_visible),
+    product_content_visible_ms: numberOrNull(renderMarks.product_content_visible),
+    product_title_visible: latestProduct.product_title_visible === true || finalProductContent.title_visible === true,
+    product_price_visible: latestProduct.product_price_visible === true || finalProductContent.price_visible === true,
+    product_add_to_cart_visible: latestProduct.product_add_to_cart_visible === true || finalProductContent.add_to_cart_visible === true,
+    product_content_visible: latestProduct.product_content_visible === true || finalProductContent.content_visible === true,
+    product_title_above_fold: latestProduct.product_title_above_fold === true || finalProductContent.title_above_fold === true,
+    product_price_above_fold: latestProduct.product_price_above_fold === true || finalProductContent.price_above_fold === true,
+    product_add_to_cart_above_fold: latestProduct.product_add_to_cart_above_fold === true || finalProductContent.add_to_cart_above_fold === true,
+    product_content_above_fold: latestProduct.product_content_above_fold === true || finalProductContent.content_above_fold === true,
+    product_title_rect: pickRect(latestProduct.product_title_rect, finalProductContent.rects?.title),
+    product_price_rect: pickRect(latestProduct.product_price_rect, finalProductContent.rects?.price),
+    product_add_to_cart_rect: pickRect(latestProduct.product_add_to_cart_rect, finalProductContent.rects?.add_to_cart),
     ece_render_container_seen_ms: numberOrNull(renderMarks.container_seen),
     ece_render_container_visible_ms: numberOrNull(renderMarks.container_visible),
     ece_render_first_child_ms: numberOrNull(renderMarks.first_child),
@@ -1307,6 +1396,10 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         request_summary: requestSummary,
         wallet_fanout_evidence: walletFanoutEvidence,
         grouped_wallet_layout: groupedWalletLayout,
+        product_content: {
+          latest: latestProduct,
+          final: finalProductContent,
+        },
         express_checkout_instrumentation: {
           stripe_factory_calls: Array.isArray(eceInstrumentation.stripe_factory_calls) ? eceInstrumentation.stripe_factory_calls : [],
           elements_calls: Array.isArray(eceInstrumentation.elements_calls) ? eceInstrumentation.elements_calls : [],
@@ -1358,14 +1451,17 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   const groupedLayoutRequired = requireFanoutProof && metrics.ece_instance_count <= 1;
   const groupedLayoutPass = !groupedLayoutRequired || groupedWalletLayout.dimensionsPass;
   const fanoutProofPass = !requireFanoutProof || (walletFanoutEvidence.valid_fanout_proof && groupedLayoutPass);
+  const productContentPass = metrics.product_content_visible && (scenario.layout !== 'below-fold' || metrics.product_content_above_fold);
   const browserProbeCompleted = responses.length > 0 && existsSync(networkPath) && existsSync(performancePath);
-  const pass = fixtureHealth.ok && realWalletAssetHealth.ok && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass && fanoutProofPass;
+  const pass = fixtureHealth.ok && realWalletAssetHealth.ok && productContentPass && browserProbeCompleted && stripeUrls.length > 0 && simulatedClsPass && stripeLoadPass && fanoutProofPass;
   const summaryText = pass
     ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
     : !fixtureHealth.ok
       ? fixtureHealthSummary(fixtureHealth)
       : !realWalletAssetHealth.ok
       ? realWalletAssetHealthSummary(realWalletAssetHealth)
+      : !productContentPass
+      ? `Product visible proof failed: visible=${metrics.product_content_visible}; above-fold=${metrics.product_content_above_fold}; title=${JSON.stringify(metrics.product_title_rect)}; price=${JSON.stringify(metrics.product_price_rect)}; add-to-cart=${JSON.stringify(metrics.product_add_to_cart_rect)}.`
       : !fanoutProofPass
       ? `ECE fan-out proof classified as ${walletFanoutEvidence.classification}; grouped layout valid=${groupedWalletLayout.dimensionsPass}; reason codes=${walletFanoutEvidence.reason_codes.join(',') || 'none'}. Requested ${requestedAcceptedPaymentMethods.join(',')}.`
       : stripeLoadPass
@@ -1404,6 +1500,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     id: 'stripe-load-errors',
     status: stripeLoadPass ? 'pass' : 'fail',
     message: `Recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`,
+  });
+  trace.assertion({
+    id: 'product-content-visible',
+    status: productContentPass ? 'pass' : 'fail',
+    message: `Product visible timing=${metrics.product_content_visible_ms}ms; visible=${metrics.product_content_visible}; above-fold=${metrics.product_content_above_fold}; title=${JSON.stringify(metrics.product_title_rect)}; price=${JSON.stringify(metrics.product_price_rect)}; add-to-cart=${JSON.stringify(metrics.product_add_to_cart_rect)}.`,
   });
   trace.assertion({
     id: 'real-wallet-asset-health',
