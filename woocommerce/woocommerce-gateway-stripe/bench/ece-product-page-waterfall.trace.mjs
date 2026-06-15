@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 
@@ -22,6 +23,8 @@ const eceLocations = process.env.HOMEBOY_WC_STRIPE_ECE_LOCATIONS || 'product';
 const acceptedPaymentMethods = process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_METHODS || 'card,link';
 const probeDuration = process.env.HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION || '7s';
 const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
+const assetCheckMode = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_CHECK || 'strict';
+const assetCheckBaseRef = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_BASE_REF || '';
 const fixtureBootstrapPath = path.join(import.meta.dirname, 'fixture-bootstrap.php');
 const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
@@ -158,6 +161,11 @@ function roundedNumberOrNull(value, places = 4) {
 }
 
 try {
+  const assetProvenance = await validateStripeEceAssetProvenance(componentPath, {
+    mode: assetCheckMode,
+    baseRef: assetCheckBaseRef,
+  });
+
   event('scenario', 'start', {
     component_path: componentPath,
     woocommerce_path: woocommercePath,
@@ -168,6 +176,7 @@ try {
     browser_profile: profileOptions.profile,
     real_wallet_capable: profileOptions.realWalletCapable,
     synthetic_only: profileOptions.syntheticOnly,
+    asset_provenance: assetProvenance,
   });
 
   await writeFile(
@@ -612,6 +621,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           interaction: scenario.interaction,
           description: scenario.description,
         },
+        asset_provenance: assetProvenance,
         browser_profile: profileOptions.profile,
         requested_browser_context: {
           viewport,
@@ -667,6 +677,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       : 'Browser waterfall capture did not observe Stripe network responses.',
     timeline,
     assertions: [
+      {
+        id: 'stripe-ece-asset-provenance',
+        status: assetProvenance.status === 'pass' ? 'pass' : 'skip',
+        message:
+          assetProvenance.status === 'pass'
+            ? `Verified Stripe ECE build artifacts are present and fresh for ${assetProvenance.newest_source}.`
+            : assetProvenance.reason,
+      },
       {
         id: 'stripe-network-observed',
         status: stripeUrls.length > 0 ? 'pass' : 'fail',

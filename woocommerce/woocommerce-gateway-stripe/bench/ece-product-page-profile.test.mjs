@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
+import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 
@@ -188,4 +192,42 @@ test('ECE simulated CLS scripts track root and grouped ECE containers', () => {
   assert.ok(!unreservedScript.includes("].join('\n');"));
   assert.doesNotMatch(unreservedScript, /min-height: 48px/);
   assert.match(reservedScript, /min-height: 48px/);
+});
+
+async function writeStripeEceFixture({ includeBuild = true } = {}) {
+  const root = await mkdtemp(path.join(tmpdir(), 'stripe-ece-assets.'));
+
+  await mkdir(path.join(root, 'client/entrypoints/express-checkout'), { recursive: true });
+  await writeFile(path.join(root, 'client/entrypoints/express-checkout/index.js'), 'window.__ece_fixture = true;\n');
+  await writeFile(path.join(root, 'client/entrypoints/express-checkout/styles.scss'), '.wc-stripe-ece { display: block; }\n');
+
+  if (includeBuild) {
+    await mkdir(path.join(root, 'build'), { recursive: true });
+    await writeFile(path.join(root, 'build/express-checkout.js'), 'window.__ece_fixture_built = true;\n');
+    await writeFile(path.join(root, 'build/express-checkout.css'), '.wc-stripe-ece{display:block}\n');
+    await writeFile(path.join(root, 'build/express-checkout.asset.php'), "<?php return array( 'dependencies' => array(), 'version' => 'fixture' );\n");
+  }
+
+  return root;
+}
+
+test('Stripe ECE asset provenance passes with generated build artifacts', async () => {
+  const root = await writeStripeEceFixture();
+  const result = await validateStripeEceAssetProvenance(root);
+
+  assert.equal(result.status, 'pass');
+  assert.equal(result.newest_source.startsWith('client/entrypoints/express-checkout/'), true);
+  assert.deepEqual(
+    result.build_files.map((file) => file.path),
+    ['build/express-checkout.js', 'build/express-checkout.css', 'build/express-checkout.asset.php']
+  );
+});
+
+test('Stripe ECE asset provenance fails when build artifacts are absent', async () => {
+  const root = await writeStripeEceFixture({ includeBuild: false });
+
+  await assert.rejects(
+    () => validateStripeEceAssetProvenance(root),
+    /Missing build artifact\(s\):\n- build\/express-checkout\.js\n- build\/express-checkout\.css\n- build\/express-checkout\.asset\.php/
+  );
 });
