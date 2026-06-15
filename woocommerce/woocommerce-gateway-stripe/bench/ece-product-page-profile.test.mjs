@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { buildRequestSummary } from './ece-request-summary.mjs';
 import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
@@ -192,6 +193,31 @@ test('ECE simulated CLS scripts track root and grouped ECE containers', () => {
   assert.ok(!unreservedScript.includes("].join('\n');"));
   assert.doesNotMatch(unreservedScript, /min-height: 48px/);
   assert.match(reservedScript, /min-height: 48px/);
+});
+
+test('ECE request summary counts responses by host and type', () => {
+  assert.deepEqual(
+    buildRequestSummary([
+      { url: 'https://example.test/product', resourceType: 'document' },
+      { url: 'https://api.stripe.com/v1/elements/sessions', request: { resourceType: 'fetch' } },
+      { request: { url: 'https://api.stripe.com/v1/payment_methods', resourceType: 'xhr' } },
+      { url: 'not a url', type: 'response' },
+    ]),
+    {
+      total: 4,
+      by_host: {
+        'api.stripe.com': 2,
+        'example.test': 1,
+        unknown: 1,
+      },
+      by_type: {
+        document: 1,
+        fetch: 1,
+        response: 1,
+        xhr: 1,
+      },
+    }
+  );
 });
 
 async function writeStripeEceFixture({ includeBuild = true } = {}) {

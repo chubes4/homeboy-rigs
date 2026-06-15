@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { buildRequestSummary } from './ece-request-summary.mjs';
 import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs';
 import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
@@ -608,6 +609,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_interaction_event_count: interactionEvents.length,
     ece_interaction_succeeded: interactionSucceeded,
   };
+  const requestSummary = buildRequestSummary(responses);
 
   await writeFile(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`);
   await writeFile(
@@ -675,6 +677,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     summary: pass
       ? `Captured Stripe ECE product-page browser waterfall: ${stripeUrls.length} Stripe responses across ${responses.length} total responses.`
       : 'Browser waterfall capture did not observe Stripe network responses.',
+    metrics,
+    request_summary: requestSummary,
     timeline,
     assertions: [
       {
