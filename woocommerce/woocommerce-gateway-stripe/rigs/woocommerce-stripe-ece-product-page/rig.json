@@ -278,6 +278,34 @@
         "woocommerce_stripe_ece_require_fanout_proof": "1"
       }
     },
+    "webperf-stripe-hints-none": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-stripe-hints-none",
+        "woocommerce_stripe_ece_hint_strategy": "none"
+      }
+    },
+    "webperf-stripe-preconnect": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-stripe-preconnect",
+        "woocommerce_stripe_ece_hint_strategy": "stripe-preconnect"
+      }
+    },
+    "webperf-stripe-js-preload": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-stripe-js-preload",
+        "woocommerce_stripe_ece_hint_strategy": "stripe-js-preload"
+      }
+    },
+    "webperf-stripe-deferred-preconnect": {
+      "scenario": "ece-product-page-waterfall",
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "webperf-stripe-deferred-preconnect",
+        "woocommerce_stripe_ece_hint_strategy": "stripe-deferred-preconnect"
+      }
+    },
     "secure-browser": {
       "scenario": "ece-product-page-waterfall",
       "settings": {

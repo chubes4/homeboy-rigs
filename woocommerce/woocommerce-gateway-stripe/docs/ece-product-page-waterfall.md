@@ -34,6 +34,10 @@ Homeboy core reporting change.
 | `webperf-desktop-load` | `load` | none | Normal-ish desktop LCP/FCP/TTFB/load/navigation timing shape. | Use for non-throttled absolute load context, not stable synthetic fan-out deltas. |
 | `webperf-desktop-slow-4g` | `load` | `low-end-mobile-slow-4g` | Stable synthetic third-party response fan-out and relative waterfall deltas. | Desktop rendering is intentionally paired with a slow synthetic throttle; do not present these as normal desktop absolute timings. |
 | `webperf-wallet-fanout` | `load` | `low-end-mobile-slow-4g` | Deterministic ECE create/mount count proof with `card,link,apple_pay,google_pay` requested. | Constructor and mount counts are primary proof; Stripe network/session counters are supporting evidence only. |
+| `webperf-stripe-hints-none` | `load` | `low-end-mobile-slow-4g` | Opt-in no-hint control for Stripe hint experiments. | Use as the baseline for hint comparisons; it does not alter default/fanout profiles. |
+| `webperf-stripe-preconnect` | `load` | `low-end-mobile-slow-4g` | Adds product-page preconnect hints for `https://js.stripe.com`, `https://api.stripe.com`, and `https://m.stripe.network`. | Compare against `webperf-stripe-hints-none` to catch visible-load regressions from connection warming. |
+| `webperf-stripe-js-preload` | `load` | `low-end-mobile-slow-4g` | Adds Stripe origin preconnect hints plus a `https://js.stripe.com/v3/` script preload. | Aggressive preload can compete with critical product-page resources; treat regressions as expected experiment evidence. |
+| `webperf-stripe-deferred-preconnect` | `load` | `low-end-mobile-slow-4g` | Adds Stripe origin preconnect hints and defers Woo Stripe Express Checkout script execution. | Models deferred ECE startup plus connection warming; compare ECE readiness and visible load together. |
 
 Set `woocommerce_stripe_ece_browser_profile=webperf-desktop-load` to keep the
 desktop browser context without synthetic CPU/network throttling. This profile
@@ -76,6 +80,32 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-wallet-fanout.json
 ```
+
+Use the opt-in Stripe hint profiles to compare whether connection warming or
+preloading improves ECE readiness without hurting visible load. These profiles
+all write the active `stripe_hint_strategy`, emitted `stripe_hint_links`, and
+`stripe_defer_express_checkout_script` values into `ece-waterfall-metrics.json`
+and `ece-waterfall-metadata.json`.
+
+```bash
+homeboy trace compare woocommerce-gateway-stripe ece-product-page-waterfall \
+  --rig woocommerce-stripe-ece-product-page \
+  --baseline-profile webperf-stripe-hints-none \
+  --candidate-profile webperf-stripe-preconnect \
+  --repeat 5 \
+  --schedule interleaved \
+  --output /tmp/wc-stripe-ece-preconnect-compare.json
+```
+
+For each run, review `stripe_hint_comparison_signals` first. It groups the
+fields that decide whether a hint strategy helped or regressed the product page:
+
+| Group | Fields |
+| --- | --- |
+| Visible load | `product_content_visible_ms`, `browser_fcp_ms`, `browser_lcp_ms`, `browser_cls` |
+| ECE readiness | `ece_render_container_visible_ms`, `ece_render_first_child_ms`, `ece_render_first_iframe_ms`, `ece_render_first_visible_button_ms`, `ece_rendered_visible_button` |
+| Resources | `network_response_count`, `stripe_response_count`, `browser_resource_count`, `browser_transfer_size_bytes` |
+| Errors | `page_error_count`, `console_message_count`, `stripe_load_page_error_count`, `stripe_elements_session_error_count` |
 
 Set `woocommerce_stripe_ece_browser_profile=secure-browser` to run the same
 Stripe product-page scenario through generic secure/browser-visible upstream
@@ -159,6 +189,12 @@ The stable signals are structural:
   `browser_profile_label`, `browser_profile_caveat`,
   `browser_profile_conclusion`, `browser_wait_for`, and
   `browser_throttle_profile`.
+- Active Stripe hint strategy: `stripe_hint_strategy`, `stripe_hint_links`,
+  `stripe_defer_express_checkout_script`, and grouped
+  `stripe_hint_comparison_signals` for compare reports.
+- Visible product-page timing: `product_content_visible_ms`,
+  `product_title_visible_ms`, `product_summary_visible_ms`, and
+  `product_cart_visible_ms`.
 - WP Codebox web performance metrics when available: `browser_ttfb_ms`,
   `browser_fcp_ms`, `browser_lcp_ms`, and `browser_nav_duration_ms`.
 - Real-wallet evidence classification: `ece_real_wallet_capable` and
