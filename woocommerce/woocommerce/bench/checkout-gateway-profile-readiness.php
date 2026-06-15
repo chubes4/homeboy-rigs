@@ -77,9 +77,9 @@ return function (): array {
 		array(
 			'profile'              => 'plugin_razorpay',
 			'label'                => 'Razorpay for WooCommerce',
-			'plugin'               => 'razorpay',
-			'dependency_slug'      => 'razorpay',
-			'entrypoint'           => 'razorpay/razorpay.php',
+			'plugin'               => 'woo-razorpay',
+			'dependency_slug'      => 'woo-razorpay',
+			'entrypoint'           => 'woo-razorpay/woo-razorpay.php',
 			'source_env'           => array( 'WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PATH' ),
 			'prepared_env'         => array( 'WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PREPARED_PATH' ),
 			'expected_gateway_ids' => array( 'razorpay' ),
