@@ -546,11 +546,13 @@ return function (): array {
 
 	$snapshot = static function (): array {
 		$order_awaiting_payment = WC()->session ? WC()->session->get( 'order_awaiting_payment' ) : null;
+		$checkout_pending_order_id = WC()->session ? WC()->session->get( 'checkout_pending_order_id' ) : null;
 		return array(
 			'cart_items'              => WC()->cart ? WC()->cart->get_cart_contents_count() : null,
 			'cart_total'              => WC()->cart ? (float) WC()->cart->get_total( 'edit' ) : null,
 			'cart_hash'               => WC()->cart ? WC()->cart->get_cart_hash() : null,
 			'order_awaiting_payment'  => $order_awaiting_payment ? absint( $order_awaiting_payment ) : null,
+			'checkout_pending_order_id' => $checkout_pending_order_id ? absint( $checkout_pending_order_id ) : null,
 		);
 	};
 
@@ -627,6 +629,12 @@ return function (): array {
 		$order_ids      = array( $order_id_1, $order_id_2 );
 		$unique_ids     = array_values( array_unique( $order_ids ) );
 		$orders         = array_filter( array_map( 'wc_get_order', $order_ids ) );
+		$create_order_order_awaiting_payment_observations = count(
+			array_filter(
+				array( $after_first['order_awaiting_payment'], $after_second['order_awaiting_payment'] )
+			)
+		);
+		$reused_order_awaiting_payment_branch = 1 === count( $unique_ids ) && in_array( $after_first['order_awaiting_payment'], $unique_ids, true );
 
 		$success_cart = $prepare_cart( $profile['profile'], 'payment-success' );
 		$success_data = $get_checkout_data( $profile['gateway_id'], $success_cart['email'], $profile['profile'], 'payment-success' );
@@ -678,11 +686,13 @@ return function (): array {
 			'duplicate_order_count'               => max( 0, count( $unique_ids ) - 1 ),
 			'duplicate_checkout_attempts'         => count( $order_ids ),
 			'duplicate_reproduced'                => count( $unique_ids ) > 1,
-			'reused_order_awaiting_payment_branch' => 1 === count( $unique_ids ),
+			'reused_order_awaiting_payment_branch' => $reused_order_awaiting_payment_branch,
 			'elapsed_ms'                          => $elapsed_ms,
 			'cart_after_duplicate_attempts'       => $after_second,
 			'order_awaiting_payment_after_first'  => $after_first['order_awaiting_payment'],
 			'order_awaiting_payment_after_second' => $after_second['order_awaiting_payment'],
+			'checkout_pending_order_id_after_first' => $after_first['checkout_pending_order_id'],
+			'checkout_pending_order_id_after_second' => $after_second['checkout_pending_order_id'],
 			'same_cart_hash_order_count'          => count(
 				array_filter(
 					$orders,
@@ -725,7 +735,8 @@ return function (): array {
 
 		$result['metrics'] = array(
 			'available'                                  => 1,
-			'order_awaiting_payment_writes'              => $order_awaiting_payment_write_count,
+			'order_awaiting_payment_writes'              => $create_order_order_awaiting_payment_observations,
+			'manual_order_awaiting_payment_writes'       => $order_awaiting_payment_write_count,
 			'order_awaiting_payment_duplicate_branches'  => $result['duplicate_flow']['reused_order_awaiting_payment_branch'] ? 1 : 0,
 			'duplicate_checkout_attempts'                => $result['duplicate_flow']['duplicate_checkout_attempts'],
 			'duplicate_order_count'                      => $result['duplicate_flow']['duplicate_order_count'],
@@ -786,6 +797,7 @@ return function (): array {
 		'duplicate_checkout_attempts'         => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['duplicate_checkout_attempts'] ?? 0 ), $results ) ),
 		'duplicate_order_count'               => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['duplicate_order_count'] ?? 0 ), $results ) ),
 		'order_awaiting_payment_writes'       => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['order_awaiting_payment_writes'] ?? 0 ), $results ) ),
+		'manual_order_awaiting_payment_writes' => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['manual_order_awaiting_payment_writes'] ?? 0 ), $results ) ),
 		'order_awaiting_payment_branches'     => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['order_awaiting_payment_duplicate_branches'] ?? 0 ), $results ) ),
 		'unexpected_cart_clearing_profiles'   => array_sum( array_map( static fn ( array $result ): int => (int) ( $result['metrics']['unexpected_cart_clearing'] ?? 0 ), $results ) ),
 	);
