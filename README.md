@@ -332,6 +332,29 @@ homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stri
 homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-variation-change
 ```
 
+Use Homeboy's visual compare hook with the WP Codebox provider when collecting
+reviewer-facing parity proof for a PR:
+
+```bash
+homeboy trace compare \
+  --rig woocommerce-stripe-ece-product-page \
+  --baseline-target origin/develop \
+  --candidate <candidate-ref-or-sha> \
+  --schedule interleaved \
+  --repeat 3 \
+  --report markdown \
+  --visual-compare \
+  --visual-compare-provider node \
+  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
+  --visual-threshold 0.1 \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-product-page-proof.md
+```
+
+The provider calls WP Codebox's `wordpress.visual-compare` primitive against the
+baseline/candidate screenshots captured by the trace workload and emits source,
+candidate, diff, JSON diff, and explanation artifacts.
+
 The `smoke` profile keeps the default WP Codebox browser behavior. The optional
 `secure-browser` profile depends on generic upstream preview/profile contracts
 from Extra-Chill/homeboy#3554 and Automattic/wp-codebox#651/#652 and keeps

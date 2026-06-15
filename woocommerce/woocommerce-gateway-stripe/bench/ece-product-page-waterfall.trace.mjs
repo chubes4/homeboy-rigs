@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { buildRequestSummary } from './ece-request-summary.mjs';
+import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs';
 import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { buildEceProfileOptions, setting } from './ece-product-page-profile.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
@@ -29,6 +31,8 @@ const requireFanoutProof = ['1', 'true', 'yes'].includes(
 );
 const probeDuration = process.env.HOMEBOY_WC_STRIPE_ECE_PROBE_DURATION || '7s';
 const viewport = process.env.HOMEBOY_WC_STRIPE_ECE_VIEWPORT || '1366x900';
+const assetCheckMode = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_CHECK || 'strict';
+const assetCheckBaseRef = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_BASE_REF || '';
 const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
 const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
@@ -275,6 +279,11 @@ try {
   });
 
   await prepareStripePlugin(componentPath);
+  const assetProvenance = await validateStripeEceAssetProvenance(componentPath, {
+    mode: assetCheckMode,
+    baseRef: assetCheckBaseRef,
+  });
+  event('fixture', 'stripe_plugin.asset_provenance.ready', assetProvenance);
 
   await writeFile(
     setupFile,
@@ -1228,6 +1237,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   });
   metrics.ece_real_wallet_asset_health_passed = realWalletAssetHealth.ok;
   metrics.ece_real_wallet_asset_health_failure_count = realWalletAssetHealth.failures.length;
+  const requestSummary = buildRequestSummary(responses);
 
   await writeFile(fixtureHealthPath, `${JSON.stringify(fixtureHealth, null, 2)}\n`);
   trace.artifact({ label: 'Fixture health', path: fixtureHealthPath });
@@ -1247,6 +1257,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           interaction: scenario.interaction,
           description: scenario.description,
         },
+        asset_provenance: assetProvenance,
         browser_profile: profileOptions.profile,
         browser_profile_label: profileOptions.profileLabel,
         browser_profile_caveat: profileOptions.profileCaveat,
@@ -1274,6 +1285,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           response_count: elementsSessionResponses.length,
           statuses: elementsSessionStatuses,
         },
+        request_summary: requestSummary,
         wallet_fanout_evidence: walletFanoutEvidence,
         grouped_wallet_layout: groupedWalletLayout,
         express_checkout_instrumentation: {
@@ -1341,6 +1353,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       ? 'Browser waterfall capture did not observe Stripe network responses.'
       : `Browser waterfall capture recorded ${stripeLoadPageErrors.length} Stripe-related page error(s).`;
 
+  trace.assertion({
+    id: 'stripe-ece-asset-provenance',
+    status: assetProvenance.status === 'pass' ? 'pass' : 'skip',
+    message:
+      assetProvenance.status === 'pass'
+        ? `Verified Stripe ECE build artifacts are present and fresh for ${assetProvenance.newest_source}.`
+        : assetProvenance.reason,
+  });
   trace.assertion({
     id: 'fixture-health',
     status: fixtureHealth.ok ? 'pass' : 'fail',

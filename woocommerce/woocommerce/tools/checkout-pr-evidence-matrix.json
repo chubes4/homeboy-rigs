@@ -1,0 +1,443 @@
+{
+  "title": "WooCommerce checkout create_order idempotency evidence matrix",
+  "issue": "https://github.com/chubes4/homeboy-rigs/issues/273",
+  "woocommerce_issue": "https://github.com/woocommerce/woocommerce/issues/62659",
+  "woocommerce_pr": "https://github.com/woocommerce/woocommerce/pull/65588",
+  "review": "https://github.com/woocommerce/woocommerce/pull/65588#pullrequestreview-4488383929",
+  "old_fix_failure_run": "136c2b85-647c-4d85-be13-2c0be175abfd",
+  "status_contract": {
+    "allowed_statuses": ["ready", "passed", "failed", "blocked_dependency_provider", "blocked_credentials", "blocked_external_account", "unsupported_checkout_surface", "build_failed", "missing_gateway", "fatal"],
+    "readiness_issue": "https://github.com/chubes4/homeboy-rigs/issues/295",
+    "safety_gate": "The critical Woo checkout path is not safe until every ready harness/profile row has generated passed artifacts, failed/fatal/missing-gateway rows are resolved, and blocked plugin/account rows are explicitly scoped as non-checkout-pass evidence."
+  },
+  "reusable_capabilities": [
+    {
+      "id": "stripe_gateway_plugin_profile",
+      "title": "Reusable Stripe gateway plugin profile capability",
+      "source": "woocommerce/woocommerce-gateway-stripe",
+      "rig": "woocommerce-stripe-ece-product-page",
+      "merged_prs": [176, 178, 183, 184, 193, 197, 219, 220, 235, 236, 238, 265],
+      "guidance": "Real Stripe checkout coverage should reuse the existing WooCommerce + WooCommerce Stripe mounting and dependency abstractions from the Stripe ECE/product-page rig track. Treat Stripe as a reusable gateway-plugin profile capability for WooCommerce workloads, not as a one-off checkout-matrix setup path."
+    }
+  ],
+  "prerequisites": [
+    {
+      "id": "no_payment_order_pay",
+      "title": "No-payment and order-pay checkout guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/268",
+      "status": "landed"
+    },
+    {
+      "id": "identity",
+      "title": "Customer/session identity guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/269",
+      "status": "landed"
+    },
+    {
+      "id": "hook_sequencing",
+      "title": "Hook sequencing guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/270",
+      "status": "landed"
+    },
+    {
+      "id": "coupon_lifecycle",
+      "title": "Coupon lifecycle guardrails",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/271",
+      "status": "landed"
+    },
+    {
+      "id": "real_gateway_profiles",
+      "title": "Real gateway plugin profile stabilization",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/292",
+      "status": "open"
+    },
+    {
+      "id": "checkout_gateway_profile_readiness",
+      "title": "Checkout gateway profile readiness scenario",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/295",
+      "status": "open"
+    },
+    {
+      "id": "gateway_plugin_discovery_probes",
+      "title": "Gateway plugin discovery and configuration probes",
+      "url": "https://github.com/chubes4/homeboy-rigs/issues/296",
+      "status": "open"
+    },
+    {
+      "id": "gateway_dependency_provider",
+      "title": "Gateway dependency provider materialization fix",
+      "url": "https://github.com/Extra-Chill/homeboy-extensions/issues/1336",
+      "status": "open"
+    }
+  ],
+  "runs": [
+    {
+      "id": "old_pr_shape",
+      "label": "Old PR shape baseline",
+      "woocommerce_ref": "WooCommerce PR #65588 current old-fix shape",
+      "shared_state": "/tmp/woocommerce-checkout-pr-65588-old-shape",
+      "expected": "Fails known guardrails: public create_order writes order_awaiting_payment; legacy coupon independence is not preserved; true concurrent behavior remains unproven. Do not use this as passing evidence."
+    },
+    {
+      "id": "revised_candidate",
+      "label": "Revised checkout candidate",
+      "woocommerce_ref": "replacement branch or revised PR candidate",
+      "shared_state": "/tmp/woocommerce-checkout-pr-65588-revised-candidate",
+      "expected": "Passes public create_order side-effect guardrails and resume behavior without overclaiming true concurrency unless the concurrent scenario passes. Any remaining failures must be scoped in the Woo PR description."
+    }
+  ],
+  "gateway_profiles": [
+    {
+      "profile": "core_bacs",
+      "label": "Direct bank transfer (BACS)",
+      "status": "ready",
+      "artifact": "pending",
+      "scope": "harness readiness; core gateway atomicity proof still requires passed artifacts",
+      "dependency_slug": "woocommerce-core",
+      "entrypoint": "",
+      "expected_gateway_ids": ["bacs"],
+      "discovery_patterns": ["/^bacs$/"],
+      "checkout_surfaces": ["classic"],
+      "credential_boundary": "none",
+      "dummy_config_valid": true,
+      "safe_settings": { "enabled": "yes" },
+      "readiness_boundary": "ready",
+      "status_fields": { "available": true, "build_failed": false, "skipped": false, "blocked": false },
+      "command_profiles": "core_bacs"
+    },
+    {
+      "profile": "core_cheque",
+      "label": "Check payments",
+      "status": "ready",
+      "artifact": "pending",
+      "scope": "harness readiness; core gateway atomicity proof still requires passed artifacts",
+      "dependency_slug": "woocommerce-core",
+      "entrypoint": "",
+      "expected_gateway_ids": ["cheque"],
+      "discovery_patterns": ["/^cheque$/"],
+      "checkout_surfaces": ["classic"],
+      "credential_boundary": "none",
+      "dummy_config_valid": true,
+      "safe_settings": { "enabled": "yes" },
+      "readiness_boundary": "ready",
+      "status_fields": { "available": true, "build_failed": false, "skipped": false, "blocked": false },
+      "command_profiles": "core_cheque"
+    },
+    {
+      "profile": "core_cod",
+      "label": "Cash on delivery",
+      "status": "ready",
+      "artifact": "pending",
+      "scope": "harness readiness; core gateway atomicity proof still requires passed artifacts",
+      "dependency_slug": "woocommerce-core",
+      "entrypoint": "",
+      "expected_gateway_ids": ["cod"],
+      "discovery_patterns": ["/^cod$/"],
+      "checkout_surfaces": ["classic"],
+      "credential_boundary": "none",
+      "dummy_config_valid": true,
+      "safe_settings": { "enabled": "yes", "enable_for_methods": [], "enable_for_virtual": "yes" },
+      "readiness_boundary": "ready",
+      "status_fields": { "available": true, "build_failed": false, "skipped": false, "blocked": false },
+      "command_profiles": "core_cod"
+    },
+    {
+      "profile": "plugin_stripe",
+      "label": "WooCommerce Stripe Gateway",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; not Woo checkout pass/fail evidence",
+      "dependency_slug": "woocommerce-gateway-stripe",
+      "entrypoint": "woocommerce-gateway-stripe/woocommerce-gateway-stripe.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_PREPARED_PATH",
+      "expected_gateway_ids": ["stripe"],
+      "discovery_patterns": ["/^stripe(_|$)/", "/stripe/i"],
+      "checkout_surfaces": ["classic", "blocks", "hosted_fields", "wallet/express"],
+      "credential_boundary": "test_api_keys_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "testmode": "yes", "capture": "yes", "payment_request": "no", "test_publishable_key": "", "test_secret_key": "" },
+      "readiness_boundary": "blocked_credentials",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/292", "https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_stripe"
+    },
+    {
+      "profile": "plugin_woopayments",
+      "label": "WooPayments",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; account credentials may further scope this row after readiness runs",
+      "dependency_slug": "woocommerce-payments",
+      "entrypoint": "woocommerce-payments/woocommerce-payments.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PREPARED_PATH",
+      "expected_gateway_ids": ["woocommerce_payments"],
+      "discovery_patterns": ["/^woocommerce_payments$/"],
+      "checkout_surfaces": ["classic", "blocks", "hosted_fields", "wallet/express", "external_account"],
+      "credential_boundary": "wpcom_connected_account_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "testmode": "yes" },
+      "readiness_boundary": "blocked_external_account",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_woopayments"
+    },
+    {
+      "profile": "plugin_paypal_payments",
+      "label": "WooCommerce PayPal Payments",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; account credentials may further scope this row after readiness runs",
+      "dependency_slug": "woocommerce-paypal-payments",
+      "entrypoint": "woocommerce-paypal-payments/woocommerce-paypal-payments.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PREPARED_PATH",
+      "expected_gateway_ids": ["ppcp-gateway"],
+      "discovery_patterns": ["/^ppcp-/", "/paypal/i"],
+      "checkout_surfaces": ["classic", "blocks", "redirect", "wallet/express", "external_account"],
+      "credential_boundary": "paypal_sandbox_account_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "test_mode": "yes" },
+      "readiness_boundary": "blocked_external_account",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_paypal_payments"
+    },
+    {
+      "profile": "plugin_square",
+      "label": "WooCommerce Square",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; external Square account may further scope this row after readiness runs",
+      "dependency_slug": "woocommerce-square",
+      "entrypoint": "woocommerce-square/woocommerce-square.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_SQUARE_PREPARED_PATH",
+      "expected_gateway_ids": ["square_credit_card"],
+      "discovery_patterns": ["/^square/", "/square/i"],
+      "checkout_surfaces": ["classic", "blocks", "hosted_fields", "external_account"],
+      "credential_boundary": "square_sandbox_account_location_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "environment": "sandbox", "create_customer": "no" },
+      "readiness_boundary": "blocked_external_account",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_square"
+    },
+    {
+      "profile": "plugin_razorpay",
+      "label": "Razorpay for WooCommerce",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; credentials/external account may further scope this row after readiness runs",
+      "dependency_slug": "razorpay",
+      "entrypoint": "razorpay/razorpay.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_RAZORPAY_PREPARED_PATH",
+      "expected_gateway_ids": ["razorpay"],
+      "discovery_patterns": ["/razorpay/i"],
+      "checkout_surfaces": ["classic", "redirect", "hosted_fields"],
+      "credential_boundary": "test_key_id_and_secret_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "testmode": "yes", "key_id": "", "key_secret": "" },
+      "readiness_boundary": "blocked_credentials",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_razorpay"
+    },
+    {
+      "profile": "plugin_mollie",
+      "label": "Mollie Payments for WooCommerce",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; credentials/external account may further scope this row after readiness runs",
+      "dependency_slug": "mollie-payments-for-woocommerce",
+      "entrypoint": "mollie-payments-for-woocommerce/mollie-payments-for-woocommerce.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_MOLLIE_PREPARED_PATH",
+      "expected_gateway_ids": ["mollie_wc_gateway_creditcard", "mollie_wc_gateway_ideal", "mollie_wc_gateway_paypal"],
+      "discovery_patterns": ["/^mollie_wc_gateway_/"],
+      "checkout_surfaces": ["classic", "blocks", "redirect", "external_account"],
+      "credential_boundary": "mollie_test_api_key_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "test_mode": "yes", "test_api_key": "" },
+      "readiness_boundary": "blocked_credentials",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_mollie"
+    },
+    {
+      "profile": "plugin_klarna",
+      "label": "Klarna for WooCommerce",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "scope": "plugin dependency/readiness blocker; credentials/external account may further scope this row after readiness runs",
+      "dependency_slug": "klarna-payments-for-woocommerce",
+      "entrypoint": "klarna-payments-for-woocommerce/klarna-payments-for-woocommerce.php",
+      "source_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PATH",
+      "prepared_path_env": "WC_CHECKOUT_GATEWAY_MATRIX_KLARNA_PREPARED_PATH",
+      "expected_gateway_ids": ["klarna_payments", "kco"],
+      "discovery_patterns": ["/klarna/i", "/^kco$/"],
+      "checkout_surfaces": ["classic", "blocks", "redirect", "external_account"],
+      "credential_boundary": "klarna_test_merchant_credentials_required",
+      "dummy_config_valid": false,
+      "safe_settings": { "enabled": "yes", "testmode": "yes" },
+      "readiness_boundary": "blocked_external_account",
+      "status_fields": { "available": "artifact-dependent", "build_failed": "artifact-dependent", "skipped": true, "blocked": true },
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "command_profiles": "plugin_klarna"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "public_create_order_side_effects",
+      "label": "Public create_order side effects",
+      "status": "ready",
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"core_bacs,core_cheque,core_cod\"}'",
+      "old_fix_expected": "FAIL: public WC_Checkout::create_order() sets order_awaiting_payment before payment processing.",
+      "candidate_expected": "PASS: public create_order() does not set order_awaiting_payment; payment-start paths own that write."
+    },
+    {
+      "id": "sequential_retry_resume",
+      "label": "Sequential retry and resume behavior",
+      "status": "ready",
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"core_bacs,core_cheque,core_cod\"}'",
+      "old_fix_expected": "Mixed: sequential reuse may appear to work only because create_order writes the session branch too early.",
+      "candidate_expected": "PASS: retry/resume uses the intended order_awaiting_payment branch after payment start while preserving carts for failure/cancel paths."
+    },
+    {
+      "id": "true_concurrent_checkout",
+      "label": "True concurrent checkout behavior",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "UNPROVEN/FAIL: old PR description overclaims Closes #62659 without proving the true concurrent duplicate-order path.",
+      "candidate_expected": "PASS only if duplicate_order_count is zero under real concurrent harness evidence; otherwise PR must avoid Closes #62659."
+    },
+    {
+      "id": "no_payment_order_pay",
+      "label": "No-payment and order-pay paths",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL: old shape should expose no-payment/order-pay session or cart side-effect regressions if present.",
+      "candidate_expected": "PASS: no-payment and order-pay flows complete without unintended session side-effect regressions."
+    },
+    {
+      "id": "identity",
+      "label": "Guest, logged-in, and customer identity cases",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL if pending-order reuse crosses billing email, customer ID, or session identity boundaries.",
+      "candidate_expected": "PASS: same-identity retries reuse safely while different billing/customer/session identities do not mutate or reuse the wrong order."
+    },
+    {
+      "id": "coupon_lifecycle",
+      "label": "Coupon lifecycle",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL when coupon reservation/usage state is consumed or leaked across retry, failed, completed, changed-cart, or public create_order paths.",
+      "candidate_expected": "PASS: coupons survive retry/failure/cancel lifecycle where WooCommerce expects cart restoration and independent public create_order calls remain independent."
+    },
+    {
+      "id": "hook_sequencing",
+      "label": "Hook sequencing and counts",
+      "status": "ready",
+      "scenario": "checkout-concurrent-create-order",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state <shared-state>",
+      "old_fix_expected": "FAIL or scoped regression when hook counts show suppressed, duplicated, or misplaced checkout/resume/payment hooks.",
+      "candidate_expected": "PASS: checkout hooks fire once in expected order for create, payment, retry, failure, and cancel paths."
+    },
+    {
+      "id": "core_gateways",
+      "label": "Core gateway profiles",
+      "status": "ready",
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"core_bacs,core_cheque,core_cod\"}'",
+      "old_fix_expected": "FAIL or scoped regressions should be visible in order_awaiting_payment and cart-clearing metrics.",
+      "candidate_expected": "PASS across BACS, cheque, and COD without unexpected cart clearing."
+    },
+    {
+      "id": "real_stripe",
+      "label": "Real Stripe gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/292", "https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_stripe\"}'",
+      "old_fix_expected": "Pending real Stripe dependency-provider stabilization; structured blocked_dependency_provider/build_failed/missing_gateway output is blocker evidence, not checkout pass/fail evidence. Reuse the existing WooCommerce Stripe ECE/product-page mounting abstractions instead of adding checkout-only Stripe setup.",
+      "candidate_expected": "PASS once Stripe dependency materialization is stable as a reusable gateway-plugin profile capability; structured blocked_dependency_provider, build_failed, or missing_gateway output with blockers #292, #295, and #1336 is acceptable until then."
+    },
+    {
+      "id": "real_woopayments",
+      "label": "Real WooPayments gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_woopayments\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; blocked_dependency_provider/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once WooPayments materializes and registers gateway id woocommerce_payments, or remain explicitly scoped with blocked_dependency_provider, blocked_credentials, blocked_external_account, unsupported_checkout_surface, build_failed, missing_gateway, or fatal."
+    },
+    {
+      "id": "real_paypal_payments",
+      "label": "Real WooCommerce PayPal Payments gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_paypal_payments\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; blocked_dependency_provider/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once PayPal Payments materializes and registers gateway id ppcp-gateway, or remain explicitly scoped with blocked_dependency_provider, blocked_credentials, blocked_external_account, unsupported_checkout_surface, build_failed, missing_gateway, or fatal."
+    },
+    {
+      "id": "real_square",
+      "label": "Real WooCommerce Square gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_square\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; blocked_dependency_provider/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Square materializes and registers gateway id square_credit_card, or remain explicitly scoped with blocked_dependency_provider, blocked_credentials, blocked_external_account, unsupported_checkout_surface, build_failed, missing_gateway, or fatal."
+    },
+    {
+      "id": "real_razorpay",
+      "label": "Real Razorpay for WooCommerce gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_razorpay\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; blocked_dependency_provider/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Razorpay materializes and registers gateway id razorpay, or remain explicitly scoped with blocked_dependency_provider, blocked_credentials, blocked_external_account, unsupported_checkout_surface, build_failed, missing_gateway, or fatal."
+    },
+    {
+      "id": "real_mollie",
+      "label": "Real Mollie Payments for WooCommerce gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_mollie\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; blocked_dependency_provider/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Mollie materializes and registers one of mollie_wc_gateway_creditcard, mollie_wc_gateway_ideal, or mollie_wc_gateway_paypal, or remain explicitly scoped with blocked_dependency_provider, blocked_credentials, blocked_external_account, unsupported_checkout_surface, build_failed, missing_gateway, or fatal."
+    },
+    {
+      "id": "real_klarna",
+      "label": "Real Klarna for WooCommerce gateway profile",
+      "status": "blocked_dependency_provider",
+      "artifact": "pending readiness artifact from https://github.com/chubes4/homeboy-rigs/issues/295",
+      "blocked_by": ["https://github.com/chubes4/homeboy-rigs/issues/295", "https://github.com/Extra-Chill/homeboy-extensions/issues/1336"],
+      "scenario": "checkout-gateway-compatibility-matrix",
+      "command": "homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state <shared-state> --setting-json 'bench_env={\"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES\":\"plugin_klarna\"}'",
+      "old_fix_expected": "Pending reusable gateway dependency materialization; blocked_dependency_provider/build_failed output is not payment compatibility evidence.",
+      "candidate_expected": "PASS once Klarna materializes and registers gateway id klarna_payments or kco, or remain explicitly scoped with blocked_dependency_provider, blocked_credentials, blocked_external_account, unsupported_checkout_surface, build_failed, missing_gateway, or fatal."
+    }
+  ]
+}

@@ -75,6 +75,23 @@ plugin build when tracing Stripe browser behavior:
 export HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH=/path/to/woocommerce
 ```
 
+The Stripe plugin mounted into WP Codebox must carry fresh product-page ECE
+frontend build artifacts. Before measurement, the rig prepares the checkout when
+needed and then verifies the rig-specific ECE source entrypoints at
+`client/entrypoints/express-checkout/*` against the WordPress-enqueued artifacts:
+
+- `build/express-checkout.js`
+- `build/express-checkout.css`
+- `build/express-checkout.asset.php`
+
+This prevents candidate PRs that change ECE frontend source from being measured
+against stale or absent built JavaScript/CSS in a raw checkout. Rebuild the
+Stripe plugin frontend assets, or mount a packaged plugin, before running trace
+comparison. Set `HOMEBOY_WC_STRIPE_ECE_ASSET_BASE_REF` when the candidate should
+be compared against a non-default base ref; set
+`HOMEBOY_WC_STRIPE_ECE_ASSET_CHECK=off` only for local diagnostics where stale
+asset measurements are intentionally acceptable.
+
 If `wp-codebox` is not installed on `PATH`, point Homeboy at a built WP Codebox
 CLI:
 
