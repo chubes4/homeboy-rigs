@@ -10,6 +10,7 @@ import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs'
 import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { buildEceProfileOptions, setting } from './ece-product-page-profile.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
+import { summarizeEceReadinessMetrics } from './ece-product-page-readiness-metrics.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 import { runWpCodeboxRecipe } from './ece-product-page-wp-codebox.mjs';
@@ -584,6 +585,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       if (typeof StripeFactory !== 'function' || StripeFactory.__homeboyEceInstrumented) {
         return StripeFactory;
       }
+      mark('stripe_js_available');
       const wrappedFactory = new Proxy(StripeFactory, {
         apply(target, thisArg, stripeArgs) {
           instrumentation.stripe_factory_calls.push({ mode: 'call', t_ms: elapsed(), args: jsonSafe(stripeArgs) });
@@ -1157,6 +1159,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     ece_render_container_seen_ms: numberOrNull(renderMarks.container_seen),
     ece_render_container_visible_ms: numberOrNull(renderMarks.container_visible),
     ece_render_first_child_ms: numberOrNull(renderMarks.first_child),
+    stripe_js_available_ms: numberOrNull(renderMarks.stripe_js_available),
     ece_render_first_iframe_ms: numberOrNull(renderMarks.first_iframe),
     ece_render_first_visible_iframe_ms: numberOrNull(renderMarks.first_visible_iframe),
     ece_render_first_visible_button_ms: numberOrNull(renderMarks.first_visible_button),
@@ -1229,6 +1232,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     metrics[`${prefix}_rendered`] = evidence.rendered;
     metrics[`${prefix}_observed`] = evidence.observed;
   }
+  Object.assign(
+    metrics,
+    summarizeEceReadinessMetrics({
+      metrics,
+      networkEntries: network,
+      walletFanoutEvidence,
+    })
+  );
 
   const realWalletAssetHealth = evaluateEceRealWalletAssetHealth({
     networkEntries: network,
@@ -1284,6 +1295,14 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
         stripe_elements_session: {
           response_count: elementsSessionResponses.length,
           statuses: elementsSessionStatuses,
+        },
+        ece_readiness: {
+          ece_ready_ms: metrics.ece_ready_ms,
+          ece_visible_ms: metrics.ece_visible_ms,
+          ece_first_iframe_ms: metrics.ece_first_iframe_ms,
+          stripe_js_loaded_ms: metrics.stripe_js_loaded_ms,
+          payment_methods: metrics.ece_available_payment_methods,
+          payment_method_details: metrics.ece_available_payment_method_details,
         },
         request_summary: requestSummary,
         wallet_fanout_evidence: walletFanoutEvidence,
