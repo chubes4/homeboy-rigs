@@ -449,7 +449,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       },
     },
     inputs: {
-      extraPlugins: [
+      extra_plugins: [
         { source: woocommercePath, slug: 'woocommerce', activate: true },
         { source: componentPath, slug: 'woocommerce-gateway-stripe', pluginFile: 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php', activate: true },
       ],
