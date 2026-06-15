@@ -23,6 +23,10 @@ scenario IDs reuse the same fixture and add post-load product-page interactions:
 
 Primary metrics:
 
+- `product_content_visible_ms`
+- `product_summary_visible_ms`
+- `add_to_cart_visible_ms`
+- `ece_container_reserved_ms`
 - `ece_render_container_seen_ms`
 - `ece_render_first_child_ms`
 - `ece_render_first_iframe_ms`

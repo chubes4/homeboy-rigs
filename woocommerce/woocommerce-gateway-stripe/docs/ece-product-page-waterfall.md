@@ -201,11 +201,13 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
 The stable signals are structural:
 
 - ECE container, child, iframe, visible iframe, and visible button timing.
-- Product title, price, and add-to-cart visible timing plus above-fold rects:
+- Product title, price, summary, cart, add-to-cart, and content visible timing
+  plus above-fold rects: `product_content_visible_ms`,
   `product_title_visible_ms`, `product_price_visible_ms`,
-  `product_add_to_cart_visible_ms`, `product_content_visible_ms`,
-  `product_content_above_fold`, `product_title_rect`, `product_price_rect`, and
-  `product_add_to_cart_rect`.
+  `product_summary_visible_ms`, `product_cart_visible_ms`,
+  `product_add_to_cart_visible_ms`, `add_to_cart_visible_ms`,
+  `ece_container_reserved_ms`, `product_content_above_fold`,
+  `product_title_rect`, `product_price_rect`, and `product_add_to_cart_rect`.
 - Stripe/Stripe Network response count.
 - Total network response count.
 - Browser document count.
@@ -219,9 +221,6 @@ The stable signals are structural:
 - Active Stripe hint strategy: `stripe_hint_strategy`, `stripe_hint_links`,
   `stripe_defer_express_checkout_script`, and grouped
   `stripe_hint_comparison_signals` for compare reports.
-- Visible product-page timing: `product_content_visible_ms`,
-  `product_title_visible_ms`, `product_summary_visible_ms`, and
-  `product_cart_visible_ms`.
 - WP Codebox web performance metrics when available: `browser_ttfb_ms`,
   `browser_fcp_ms`, `browser_lcp_ms`, and `browser_nav_duration_ms`.
 - Real-wallet evidence classification: `ece_real_wallet_capable` and
@@ -245,14 +244,27 @@ browser scheduling, and third-party Stripe network variance.
 ## Render Timing Instrumentation
 
 The browser probe injects a pre-page observer before WooCommerce or Stripe page
-scripts run. It records the first time the ECE container is seen, becomes
-visible, receives children, receives Stripe iframes, receives visible iframes,
-receives visible buttons, and fires a transition event inside the ECE container.
+scripts run. It records the first time stable product content selectors become
+visible, the first time the ECE container reserves layout space, the first time
+the ECE container is seen, becomes visible, receives children, receives Stripe
+iframes, receives visible iframes, receives visible buttons, and fires a
+transition event inside the ECE container.
 It also records peak child/iframe/button counts because Stripe can add and then
 remove surfaces during wallet eligibility checks.
 
-These fields are written to `ece-waterfall-metrics.json` with the
-`ece_render_*` prefix. The raw observer events are also preserved in
+Product visible-load selectors are rig-owned defaults for the disposable classic
+WooCommerce product fixture:
+
+| Metric | Selectors |
+| --- | --- |
+| `product_content_visible_ms` | `h1.product_title, .product_title, h1`, `.summary .price, p.price, .price`, and `form.cart button[type="submit"], form.cart .single_add_to_cart_button` all visible |
+| `product_summary_visible_ms` | `.summary` |
+| `product_price_visible_ms` | `.summary .price, p.price, .price` |
+| `product_add_to_cart_visible_ms` / `add_to_cart_visible_ms` | `form.cart button[type="submit"], form.cart .single_add_to_cart_button` |
+| `ece_container_reserved_ms` | `#wc-stripe-express-checkout-element` with a non-zero bounding-box height |
+
+These fields are written to `ece-waterfall-metrics.json`; ECE-specific render
+fields keep the `ece_render_*` prefix. The raw observer events are also preserved in
 `ece-waterfall-metadata.json` for debugging false positives or missing marks.
 
 For `webperf-wallet-fanout`, the pre-page script also wraps the Stripe factory,
