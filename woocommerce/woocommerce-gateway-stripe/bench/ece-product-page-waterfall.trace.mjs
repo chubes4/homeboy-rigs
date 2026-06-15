@@ -85,6 +85,13 @@ const metricsPath = path.join(artifactDir, 'ece-waterfall-metrics.json');
 const metadataPath = path.join(artifactDir, 'ece-waterfall-metadata.json');
 const fixtureHealthPath = path.join(artifactDir, 'ece-fixture-health.json');
 const realWalletAssetHealthPath = path.join(artifactDir, 'ece-real-wallet-asset-health.json');
+const productContentSelectors = {
+  title: ['h1.product_title', '.product_title', 'h1'],
+  summary: ['.summary'],
+  price: ['.summary .price', 'p.price', '.price'],
+  cart: ['form.cart'],
+  add_to_cart: ['form.cart button[type="submit"]', 'form.cart .single_add_to_cart_button'],
+};
 
 function event(source, name, data = {}) {
   return trace.mark(name, data, source);
@@ -854,6 +861,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     }
     if (metrics.product_add_to_cart_visible) {
       mark('product_add_to_cart_visible');
+      mark('add_to_cart_visible');
     }
     state.latestProduct = metrics;
     state.productLatest = {
@@ -878,6 +886,9 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       return;
     }
     mark('container_seen');
+    if ((rectForNode(container)?.height ?? 0) > 0) {
+      mark('ece_container_reserved', { rect: rectForNode(container) });
+    }
     if (isVisible(container)) {
       mark('container_visible');
     }
@@ -1291,6 +1302,8 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     product_title_visible_ms: numberOrNull(renderMarks.product_title_visible),
     product_summary_visible_ms: numberOrNull(renderMarks.product_summary_visible),
     product_cart_visible_ms: numberOrNull(renderMarks.product_cart_visible),
+    add_to_cart_visible_ms: numberOrNull(renderMarks.add_to_cart_visible),
+    ece_container_reserved_ms: numberOrNull(renderMarks.ece_container_reserved),
     ece_real_wallet_capable: profileOptions.realWalletCapable,
     ece_synthetic_only: profileOptions.syntheticOnly,
     ece_rendered_visible_button: eceRenderedVisibleButton,
@@ -1496,6 +1509,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           synthetic_only: profileOptions.syntheticOnly,
           required_env: profileOptions.realWalletCapable ? ['STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY', 'HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL'] : [],
         },
+        product_content_selectors: productContentSelectors,
         effective_browser_context: {
           viewport: effectiveViewport,
           is_secure_context: scriptResult?.isSecureContext === true,

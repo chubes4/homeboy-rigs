@@ -771,6 +771,16 @@ test('waterfall recipe passes structural assertions to browser-probe', () => {
   assert.match(traceSource, /ece_instance_count/);
   assert.match(traceSource, /ece_mount_count/);
   assert.match(traceSource, /ece_mount_target_selectors/);
+  assert.match(traceSource, /productContentSelectors/);
+  assert.match(traceSource, /product_content_visible_ms/);
+  assert.match(traceSource, /product_summary_visible_ms/);
+  assert.match(traceSource, /add_to_cart_visible_ms/);
+  assert.match(traceSource, /ece_container_reserved_ms/);
+  assert.match(traceSource, /\.product_title/);
+  assert.match(traceSource, /\.summary/);
+  assert.match(traceSource, /form\.cart/);
+  assert.match(traceSource, /\.single_add_to_cart_button/);
+  assert.match(traceSource, /product_content_selectors/);
   assert.match(traceSource, /id: 'ece-construction-observed'/);
   assert.match(traceSource, /id: 'ece-grouped-wallet-layout'/);
   assert.match(traceSource, /id: 'fixture-health'/);
