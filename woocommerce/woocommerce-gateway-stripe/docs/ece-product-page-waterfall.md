@@ -8,7 +8,7 @@ https://github.com/woocommerce/woocommerce-gateway-stripe/issues/1439.
 
 1. Start a disposable WP Codebox WordPress runtime.
 2. Activate WooCommerce and WooCommerce Stripe.
-3. Run `tests/benchmarks/fixture-bootstrap.php` from the Stripe checkout.
+3. Run the rig-owned `bench/fixture-bootstrap.php` fixture.
 4. Configure Stripe test/ECE settings with product-page ECE enabled.
 5. Create a simple purchasable product.
 6. Open the product page in a browser probe.
@@ -107,6 +107,33 @@ The stable signals are structural:
   `browser_layout_shift_count`, `ece_render_final_container_height`,
   `ece_render_final_wallets_link_height`, and metadata-level layout-shift source
   rectangles for the ECE container/sentinel path.
+
+## Visual Parity
+
+Use Homeboy's trace compare visual hook with Homeboy Extensions' WP Codebox
+provider when a PR needs reviewer-facing visual parity evidence:
+
+```bash
+homeboy trace compare \
+  --rig woocommerce-stripe-ece-product-page \
+  --baseline-target origin/develop \
+  --candidate <candidate-ref-or-sha> \
+  --schedule interleaved \
+  --repeat 3 \
+  --report markdown \
+  --visual-compare \
+  --visual-compare-provider node \
+  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
+  --visual-threshold 0.1 \
+  woocommerce-gateway-stripe ece-product-page-waterfall \
+  --output /tmp/wc-stripe-ece-product-page-proof.md
+```
+
+The ECE workload already captures screenshots through `wordpress.browser-probe`.
+`--visual-compare` pairs the baseline and candidate screenshots, then calls WP
+Codebox's `wordpress.visual-compare` primitive through the provider. The proof
+artifacts include `source.png`, `candidate.png`, `diff.png`, `visual-diff.json`,
+and `visual-explanation.json` for the compared browser variant.
 
 ## Secondary Signals
 
