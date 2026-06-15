@@ -173,7 +173,7 @@ try {
   await writeFile(
     setupFile,
     `<?php
-${(await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '')}
+${(await readFile(fixtureBootstrapPath, 'utf8')).replace(/^<\?php\s*/, '').replace(/declare\(strict_types=1\);\s*/, '')}
 
 $ece_locations = json_decode( '${JSON.stringify(csvToJsonArray(eceLocations))}', true );
 $accepted_payment_methods = json_decode( '${JSON.stringify(csvToJsonArray(acceptedPaymentMethods))}', true );
@@ -449,7 +449,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
       },
     },
     inputs: {
-      extraPlugins: [
+      extra_plugins: [
         { source: woocommercePath, slug: 'woocommerce', activate: true },
         { source: componentPath, slug: 'woocommerce-gateway-stripe', pluginFile: 'woocommerce-gateway-stripe/woocommerce-gateway-stripe.php', activate: true },
       ],
