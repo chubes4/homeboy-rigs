@@ -228,6 +228,10 @@ The stable signals are structural:
 - Deterministic ECE construction fields: `ece_create_call_count`,
   `ece_instance_count`, `ece_mount_count`, `ece_mount_target_ids`,
   `ece_mount_target_selectors`, and `ece_create_payment_methods`.
+- Explicit ECE readiness fields: `ece_ready_ms`, `ece_visible_ms`,
+  `ece_first_iframe_ms`, `stripe_js_loaded_ms`,
+  `ece_available_payment_methods`, and
+  `ece_available_payment_method_details`.
 - Stripe Elements session status/error counts and visible-button outcome.
 - Deterministic CLS fields for simulated profiles: `browser_cls`,
   `browser_layout_shift_count`, `ece_render_final_container_height`,
@@ -264,8 +268,16 @@ WooCommerce product fixture:
 | `ece_container_reserved_ms` | `#wc-stripe-express-checkout-element` with a non-zero bounding-box height |
 
 These fields are written to `ece-waterfall-metrics.json`; ECE-specific render
-fields keep the `ece_render_*` prefix. The raw observer events are also preserved in
-`ece-waterfall-metadata.json` for debugging false positives or missing marks.
+fields keep the `ece_render_*` prefix. The raw observer events are also preserved
+in `ece-waterfall-metadata.json` for debugging false positives or missing marks.
+The trace also promotes shopper-facing readiness fields into
+`ece-waterfall-metrics.json`: `ece_ready_ms` for first usable ECE signal,
+`ece_visible_ms` for visible container timing, `ece_first_iframe_ms` for Stripe
+iframe arrival, `stripe_js_loaded_ms` when Stripe.js load/factory timing is
+observable, and normalized requested/created/rendered/observed payment method
+details. Homeboy trace compare markdown reports include the scalar timing
+metrics in their metric delta table when observed, and the trace assertion
+summary includes the readiness/payment-method snapshot for reviewers.
 
 For `webperf-wallet-fanout`, the pre-page script also wraps the Stripe factory,
 `stripe.elements()`, `elements.create('expressCheckout', ...)`, and each ECE

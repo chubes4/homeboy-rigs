@@ -240,6 +240,9 @@ The wrapper writes:
 - `README.md` with baseline/candidate/profile/preview settings.
 - `ece-product-page-waterfall.compare.json` and `.compare.log`.
 - `ece-product-page-scroll-to-ece.compare.json` and `.compare.log`.
+- `ece-product-page-waterfall.compare.md` and
+  `ece-product-page-scroll-to-ece.compare.md` markdown summaries copied from
+  Homeboy's trace compare `summary.md` artifacts.
 
 Reviewer evidence fields to inspect in each compare artifact:
 
@@ -250,6 +253,10 @@ Reviewer evidence fields to inspect in each compare artifact:
   `ece_render_first_child_ms`, `ece_render_first_iframe_ms`,
   `ece_render_first_visible_iframe_ms`, `ece_render_first_visible_button_ms`,
   and `ece_rendered_visible_button`.
+- ECE readiness UX timing: `ece_ready_ms`, `ece_visible_ms`,
+  `ece_first_iframe_ms`, and `stripe_js_loaded_ms`.
+- ECE payment method availability: `ece_available_payment_methods` and
+  `ece_available_payment_method_details`.
 - Child/iframe/button counts: `ece_render_peak_child_count`,
   `ece_render_peak_iframe_count`, and
   `ece_render_peak_visible_iframe_count`.
