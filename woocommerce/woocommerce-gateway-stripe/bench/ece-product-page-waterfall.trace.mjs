@@ -104,6 +104,10 @@ function csvToJsonArray(value) {
     .filter(Boolean);
 }
 
+function methodListForSummary(methods) {
+  return Array.isArray(methods) && methods.length > 0 ? methods.join(',') : 'none';
+}
+
 function pickRect(...rects) {
   return rects.find((rect) => rect && typeof rect === 'object') || null;
 }
@@ -1666,6 +1670,11 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
     id: 'ece-construction-observed',
     status: observedEceConstruction ? 'pass' : 'fail',
     message: `Observed ${metrics.ece_instance_count} Express Checkout Element create call(s) and ${metrics.ece_mount_count} mount call(s) targeting ${eceMountTargetSelectors.join(', ') || 'no targets'}.`,
+  });
+  trace.assertion({
+    id: 'ece-readiness-timings',
+    status: metrics.ece_ready_ms === null && metrics.ece_visible_ms === null && metrics.ece_first_iframe_ms === null ? 'skip' : 'pass',
+    message: `ECE readiness timings: ece_ready_ms=${metrics.ece_ready_ms ?? 'null'}, ece_visible_ms=${metrics.ece_visible_ms ?? 'null'}, ece_first_iframe_ms=${metrics.ece_first_iframe_ms ?? 'null'}, stripe_js_loaded_ms=${metrics.stripe_js_loaded_ms ?? 'null'}; payment methods requested=${methodListForSummary(metrics.ece_available_payment_methods?.requested)}, created=${methodListForSummary(metrics.ece_available_payment_methods?.created)}, rendered=${methodListForSummary(metrics.ece_available_payment_methods?.rendered)}, observed=${methodListForSummary(metrics.ece_available_payment_methods?.observed)}.`,
   });
   trace.assertion({
     id: 'scenario-interaction',
