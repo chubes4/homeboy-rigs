@@ -54,9 +54,12 @@
   "pipeline": {
     "check": [
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Gutenberg checkout exists",
-        "command": "gutenberg_path=\"${components.gutenberg.path}\"; test -f \"$gutenberg_path/gutenberg.php\" || { printf '%s\n' \"Missing Gutenberg checkout: expected $gutenberg_path/gutenberg.php. Pass --path /path/to/gutenberg or update components.gutenberg.path.\"; exit 1; }"
+        "file": "${components.gutenberg.path}/gutenberg.php",
+        "component": "gutenberg",
+        "component_path_contains": "gutenberg",
+        "remediation": "Pass homeboy trace --path /path/to/gutenberg or update components.gutenberg.path before running gutenberg-pattern-preview-assets."
       },
       {
         "kind": "command",
