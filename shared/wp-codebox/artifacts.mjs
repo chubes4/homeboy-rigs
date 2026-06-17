@@ -1,84 +1,32 @@
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
-function artifactDirectory(output) {
-  return output?.artifacts?.directory || output?.artifactsDir || '';
-}
+const require = createRequire(import.meta.url);
 
-function artifactFiles(output) {
-  const candidates = [
-    output?.artifacts?.files,
-    output?.artifacts?.manifest?.files,
-    output?.manifest?.artifacts?.files,
-    output?.manifest?.files,
-  ];
+function loadArtifactHelper() {
+  const explicit = process.env.HOMEBOY_WP_CODEBOX_ARTIFACT_HELPER;
+  if (explicit) {
+    return require(explicit);
+  }
 
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) {
-      return candidate;
-    }
-    if (candidate && typeof candidate === 'object') {
-      return Object.entries(candidate).map(([name, value]) => (
-        typeof value === 'string'
-          ? { name, path: value }
-          : { name, ...value }
-      ));
+  const manifestPath = process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST;
+  if (manifestPath) {
+    const manifestModule = require(manifestPath);
+    const manifest = typeof manifestModule.getWordPressHelperManifest === 'function'
+      ? manifestModule.getWordPressHelperManifest()
+      : manifestModule.WORDPRESS_HELPER_MANIFEST;
+    if (manifest?.extensionRoot) {
+      return require(path.join(manifest.extensionRoot, 'lib', 'wp-codebox-artifacts.js'));
     }
   }
 
-  return [];
-}
-
-function normalizePathname(value) {
-  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
-}
-
-function manifestEntryPath(entry) {
-  if (!entry || typeof entry !== 'object') {
-    return '';
-  }
-
-  return entry.path || entry.pathname || entry.file || entry.relativePath || entry.relative_path || '';
-}
-
-function manifestEntryMatches(entry, relativePath) {
-  const wanted = normalizePathname(relativePath);
-  const values = [
-    entry?.path,
-    entry?.pathname,
-    entry?.file,
-    entry?.relativePath,
-    entry?.relative_path,
-    entry?.name,
-    entry?.id,
-    entry?.label,
-  ].map(normalizePathname).filter(Boolean);
-
-  return values.some((value) => value === wanted || value.endsWith(`/${wanted}`));
+  return require('homeboy-extension-wordpress/wp-codebox-artifacts');
 }
 
 export function wpCodeboxArtifactPath(output, relativePath) {
-  const directory = artifactDirectory(output);
-  if (!directory) {
-    return '';
-  }
-
-  const entry = artifactFiles(output).find((candidate) => manifestEntryMatches(candidate, relativePath));
-  const entryPath = manifestEntryPath(entry);
-  if (entryPath) {
-    return path.isAbsolute(entryPath) ? entryPath : path.join(directory, entryPath);
-  }
-
-  return path.join(directory, relativePath);
+  return loadArtifactHelper().resolveWpCodeboxManifestArtifactPath(output, relativePath);
 }
 
 export function wpCodeboxBrowserArtifacts(output, names) {
-  const result = {
-    directory: wpCodeboxArtifactPath(output, 'files/browser'),
-  };
-
-  for (const name of names) {
-    result[name] = wpCodeboxArtifactPath(output, `files/browser/${name}`);
-  }
-
-  return result;
+  return loadArtifactHelper().wpCodeboxBrowserArtifacts(output, names);
 }
