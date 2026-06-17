@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { wpCodeboxBrowserArtifacts } from '../../../shared/wp-codebox/artifacts.mjs';
 import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
@@ -686,12 +687,11 @@ try {
 	} );
 
 	const output = JSON.parse( result.stdout );
-	const bundleDir = output.artifacts?.directory;
-	const browserDir = bundleDir ? path.join( bundleDir, 'files', 'browser' ) : '';
-	const summaryPath = browserDir ? path.join( browserDir, 'summary.json' ) : '';
-	const errorsPath = browserDir ? path.join( browserDir, 'errors.jsonl' ) : '';
-	const networkPath = browserDir ? path.join( browserDir, 'network.jsonl' ) : '';
-	const performancePath = browserDir ? path.join( browserDir, 'performance.json' ) : '';
+	const browserArtifacts = wpCodeboxBrowserArtifacts( output, [ 'summary.json', 'errors.jsonl', 'network.jsonl', 'performance.json' ] );
+	const summaryPath = browserArtifacts[ 'summary.json' ];
+	const errorsPath = browserArtifacts[ 'errors.jsonl' ];
+	const networkPath = browserArtifacts[ 'network.jsonl' ];
+	const performancePath = browserArtifacts[ 'performance.json' ];
 	const summary = await readJsonAsync( summaryPath );
 	const pageErrors = await readJsonl( errorsPath );
 	const network = await readJsonl( networkPath );
