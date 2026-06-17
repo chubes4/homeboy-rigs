@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
+import { createRequire } from 'node:module';
+
+const require = createRequire( import.meta.url );
+const { runWpCodeboxRecipe } = require( 'homeboy-extension-wordpress/wp-codebox-recipe-helper' );
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'gutenberg';
@@ -484,7 +487,7 @@ try {
 		maxBuffer: 1024 * 1024 * 50,
 	} );
 
-	const output = JSON.parse( result.stdout );
+	const output = result.json || JSON.parse( result.stdout );
 	const bundleDir = output.artifacts?.directory;
 	const browserDir = bundleDir ? path.join( bundleDir, 'files', 'browser' ) : '';
 	const networkPath = browserDir ? path.join( browserDir, 'network.jsonl' ) : '';
