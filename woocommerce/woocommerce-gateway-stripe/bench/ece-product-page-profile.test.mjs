@@ -433,8 +433,10 @@ test('real-wallet profile carries real-wallet evidence settings without leaking 
     assert.equal(options.throttleProfile, null);
     assert.equal(options.realWalletCapable, true);
     assert.equal(options.syntheticOnly, false);
-    assert.equal(options.stripePublishableKey, 'pk_test_real_fixture');
-    assert.equal(options.stripeSecretKey, 'sk_test_real_fixture');
+    assert.equal(options.stripePublishableKey, null);
+    assert.equal(options.stripeSecretKey, null);
+    assert.equal(options.stripePublishableKeyEnvName, 'STRIPE_PUBLISHABLE_KEY');
+    assert.equal(options.stripeSecretKeyEnvName, 'STRIPE_SECRET_KEY');
     assert.deepEqual(options.runtimePreview, {
       port: 49800,
       bind: '127.0.0.1',
@@ -459,6 +461,16 @@ test('real-wallet profile carries real-wallet evidence settings without leaking 
       }
     }
   }
+});
+
+test('real-wallet workload binds Stripe secrets by environment name instead of serializing values', () => {
+  const source = readFileSync(path.join(__dirname, 'ece-product-page-waterfall.trace.mjs'), 'utf8');
+
+  assert.ok(source.includes("$profile_secret_key_env      = '${stripeSecretKeyEnvName}';"));
+  assert.ok(source.includes('$profile_secret_key          = $profile_secret_key_env ? getenv( $profile_secret_key_env ) : \'\';'));
+  assert.ok(!source.includes('encodedStripeSecretKey'));
+  assert.ok(!source.includes('Buffer.from(profileOptions.stripeSecretKey)'));
+  assert.ok(source.includes('sensitive_env_bound'));
 });
 
 test('wallet fanout classification keeps card-link real-wallet smoke supplemental', () => {
