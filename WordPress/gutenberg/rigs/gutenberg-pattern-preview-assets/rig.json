@@ -56,7 +56,7 @@
       {
         "kind": "command",
         "label": "Gutenberg checkout exists",
-        "command": "test -f \"$HOME/Developer/gutenberg/gutenberg.php\" || { printf '%s\n' 'Missing Gutenberg checkout: expected ~/Developer/gutenberg/gutenberg.php.'; exit 1; }"
+        "command": "gutenberg_path=\"${components.gutenberg.path}\"; test -f \"$gutenberg_path/gutenberg.php\" || { printf '%s\n' \"Missing Gutenberg checkout: expected $gutenberg_path/gutenberg.php. Pass --path /path/to/gutenberg or update components.gutenberg.path.\"; exit 1; }"
       },
       {
         "kind": "command",
