@@ -61,7 +61,7 @@
       {
         "kind": "command",
         "label": "WP Codebox CLI exists",
-        "command": "if [ -n \"${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\" ]; then test -f \"${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\" || { printf '%s\n' \"Configured WP Codebox CLI not found: ${HOMEBOY_WP_CODEBOX_BIN:-${HOMEBOY_SETTINGS_WP_CODEBOX_BIN:-}}\"; exit 1; }; else test -f \"$HOME/Developer/wp-codebox/packages/cli/dist/index.js\" || command -v wp-codebox >/dev/null 2>&1 || { printf '%s\n' 'Missing WP Codebox CLI. Expected ~/Developer/wp-codebox/packages/cli/dist/index.js, wp-codebox on PATH, or HOMEBOY_SETTINGS_WP_CODEBOX_BIN.'; exit 1; }; fi"
+        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       }
     ],
     "down": []
