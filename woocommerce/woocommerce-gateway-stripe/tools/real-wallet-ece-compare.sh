@@ -115,63 +115,32 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-run_compare() {
-  local scenario="$1"
-  local output="$OUTPUT_DIR/${scenario}.compare.json"
-  local log="$OUTPUT_DIR/${scenario}.compare.log"
-  local compare_dir="$OUTPUT_DIR/${scenario}.trace-compare"
-  local markdown="$OUTPUT_DIR/${scenario}.compare.md"
-  local -a command=(
-    homeboy trace compare "$COMPONENT" "$scenario"
-    --rig "$RIG_ID"
-    --baseline-target "$BASELINE_REF"
-    --candidate "$CANDIDATE_REF"
-    --profile real-wallet
-    --repeat "$REPEAT"
-    --schedule interleaved
-    --canonical
-    --output-dir "$compare_dir"
-    --output "$output"
-  )
-
-  printf '\n== %s ==\n' "$scenario"
-  printf 'JSON: %s\n' "$output"
-  printf 'Markdown: %s\n' "$markdown"
-  printf 'Log:  %s\n' "$log"
-  printf 'Command:'
-  printf ' %q' "${command[@]}"
-  printf '\n'
-
-  if [[ "$DRY_RUN" -eq 0 ]]; then
-    "${command[@]}" 2>&1 | tee "$log"
-    if [[ -f "$compare_dir/summary.md" ]]; then
-      cp "$compare_dir/summary.md" "$markdown"
-    fi
-  fi
-}
-
-cat > "$OUTPUT_DIR/README.md" <<EOF
-# Woo Stripe Real-Wallet ECE Compare Evidence
-
-- Baseline: \`$BASELINE_REF\`
-- Candidate: \`$CANDIDATE_REF\`
-- Profile: \`real-wallet\`
-- Repeat: \`$REPEAT\`
-- Schedule: \`interleaved\`
-- Canonical: \`true\`
-- Preview port: \`$PREVIEW_PORT\`
-- Public URL: $PREVIEW_PUBLIC_URL
-
-Review \`ece-product-page-waterfall.compare.json\` and \`ece-product-page-scroll-to-ece.compare.json\` together. Markdown compare summaries are copied to matching \`.compare.md\` files, and command logs live beside each JSON file.
-EOF
+SCENARIOS="ece-product-page-waterfall,ece-product-page-scroll-to-ece"
+LOG_FILE="$OUTPUT_DIR/compare-bundle.log"
+COMMAND=(
+  homeboy trace compare-bundle "$COMPONENT" "$SCENARIOS"
+  --rig "$RIG_ID"
+  --baseline-target "$BASELINE_REF"
+  --candidate "$CANDIDATE_REF"
+  --profile real-wallet
+  --repeat "$REPEAT"
+  --schedule interleaved
+  --canonical
+  --output-dir "$OUTPUT_DIR"
+)
 
 printf 'Evidence directory: %s\n' "$OUTPUT_DIR"
 printf 'Baseline: %s\n' "$BASELINE_REF"
 printf 'Candidate: %s\n' "$CANDIDATE_REF"
 printf 'Repeat/schedule: %s/interleaved\n' "$REPEAT"
 printf 'Preview: localhost:%s -> %s\n' "$PREVIEW_PORT" "$PREVIEW_PUBLIC_URL"
+printf 'Scenarios: %s\n' "$SCENARIOS"
+printf 'Command:'
+printf ' %q' "${COMMAND[@]}"
+printf '\n'
 
-run_compare ece-product-page-waterfall
-run_compare ece-product-page-scroll-to-ece
+if [[ "$DRY_RUN" -eq 0 ]]; then
+  "${COMMAND[@]}" 2>&1 | tee "$LOG_FILE"
+fi
 
 printf '\nEvidence directory: %s\n' "$OUTPUT_DIR"
