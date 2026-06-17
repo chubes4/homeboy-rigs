@@ -194,10 +194,15 @@ or `STRIPE_SECRET_KEY` is absent. It also requires
 HTTP origins and `localhost` are rejected because wallet eligibility requires a
 secure, public browser context.
 
-The real keys are injected only into the disposable WordPress setup step. They
-are not added to CLI arguments or recorded in metrics artifacts. Real-wallet
-artifacts explicitly report `ece_real_wallet_capable: true` and
-`ece_synthetic_only: false`; synthetic profiles report the inverse.
+The real keys are resolved by environment name inside the disposable WordPress
+setup step. The rig does not base64-serialize them into generated setup PHP,
+add them to CLI arguments, or record them in metrics artifacts. Real-wallet
+metadata records `STRIPE_SECRET_KEY` only as a sensitive env-bound input. This
+keeps the rig safer while relying on WP Codebox/Homeboy to provide the declared
+environment to the disposable runtime instead of adding a rig-owned secret
+transport workaround. Real-wallet artifacts explicitly report
+`ece_real_wallet_capable: true` and `ece_synthetic_only: false`; synthetic
+profiles report the inverse.
 
 Real-wallet evidence records:
 

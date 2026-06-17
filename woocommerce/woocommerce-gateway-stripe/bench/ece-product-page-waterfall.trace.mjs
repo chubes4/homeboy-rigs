@@ -37,7 +37,8 @@ const assetCheckMode = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_CHECK || 'strict'
 const assetCheckBaseRef = process.env.HOMEBOY_WC_STRIPE_ECE_ASSET_BASE_REF || '';
 const profileOptions = buildEceProfileOptions();
 const encodedStripePublishableKey = profileOptions.stripePublishableKey ? Buffer.from(profileOptions.stripePublishableKey).toString('base64') : '';
-const encodedStripeSecretKey = profileOptions.stripeSecretKey ? Buffer.from(profileOptions.stripeSecretKey).toString('base64') : '';
+const stripePublishableKeyEnvName = profileOptions.stripePublishableKeyEnvName || '';
+const stripeSecretKeyEnvName = profileOptions.stripeSecretKeyEnvName || '';
 const stripeHintLinksJson = JSON.stringify(profileOptions.hintLinks || []);
 const encodedStripeHintLinks = Buffer.from(stripeHintLinksJson).toString('base64');
 const deferExpressCheckoutScript = profileOptions.deferExpressCheckoutScript === true;
@@ -315,8 +316,10 @@ $fixture_args = array(
 	'ece_locations'            => $ece_locations,
 	'accepted_payment_methods' => $accepted_payment_methods,
 );
-$profile_publishable_key = base64_decode( '${encodedStripePublishableKey}', true );
-$profile_secret_key      = base64_decode( '${encodedStripeSecretKey}', true );
+$profile_publishable_key_env = '${stripePublishableKeyEnvName}';
+$profile_secret_key_env      = '${stripeSecretKeyEnvName}';
+$profile_publishable_key     = $profile_publishable_key_env ? getenv( $profile_publishable_key_env ) : base64_decode( '${encodedStripePublishableKey}', true );
+$profile_secret_key          = $profile_secret_key_env ? getenv( $profile_secret_key_env ) : '';
 if ( $profile_publishable_key ) {
 	$fixture_args['stripe_publishable_key'] = $profile_publishable_key;
 }
@@ -326,7 +329,7 @@ if ( $profile_secret_key ) {
 
 $state = Homeboy_WC_Stripe_Benchmark_Fixture_Bootstrap::bootstrap( $fixture_args );
 
-if ( ${profileOptions.stripePublishableKey || profileOptions.stripeSecretKey ? 'true' : 'false'} ) {
+if ( ${profileOptions.stripePublishableKey || stripePublishableKeyEnvName || stripeSecretKeyEnvName ? 'true' : 'false'} ) {
 	$stripe_settings = get_option( 'woocommerce_stripe_settings', array() );
 	if ( ! is_array( $stripe_settings ) ) {
 		$stripe_settings = array();
@@ -1513,6 +1516,7 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
           real_wallet_capable: profileOptions.realWalletCapable,
           synthetic_only: profileOptions.syntheticOnly,
           required_env: profileOptions.realWalletCapable ? ['STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY', 'HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL'] : [],
+          sensitive_env_bound: profileOptions.realWalletCapable ? ['STRIPE_SECRET_KEY'] : [],
         },
         product_content_selectors: productContentSelectors,
         effective_browser_context: {
