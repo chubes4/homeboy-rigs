@@ -1,23 +1,13 @@
 #!/usr/bin/env node
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const issues = [
-	'https://github.com/woocommerce/woocommerce/issues/26569',
-	'https://github.com/woocommerce/woocommerce/issues/32055',
-	'https://github.com/woocommerce/woocommerce/issues/49259',
-];
-
-const plannedMatrix = [
-	{ cartItems: 40, packages: 1, totalChurnRuns: 3, profile: 'smoke' },
-	{ cartItems: 40, packages: 8, totalChurnRuns: 3, profile: 'smoke' },
-	{ cartItems: 200, packages: 8, totalChurnRuns: 5, profile: 'hot' },
-	{ cartItems: 200, packages: 40, totalChurnRuns: 5, profile: 'hot' },
-	{ cartItems: 1000, packages: 40, totalChurnRuns: 5, profile: 'hot' },
-];
-
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const defaultMatrixPath = resolve(__dirname, 'checkout-shipping-cache-matrix.json');
 const args = parseArgs(process.argv.slice(2));
+const matrix = readJson(args.matrix || defaultMatrixPath);
 const baselineRuns = readRuns(args.baseline || args.input);
 const candidateRuns = readRuns(args.candidate);
 const hasComparison = baselineRuns.length > 0 && candidateRuns.length > 0;
@@ -27,11 +17,11 @@ process.stdout.write(renderReport());
 
 function renderReport() {
 	const lines = [];
-	lines.push('# WooCommerce Shipping Cache Matrix Report');
+	lines.push(`# ${matrix.title}`);
 	lines.push('');
 	lines.push('## Issue Links');
 	lines.push('');
-	for (const issue of issues) {
+	for (const issue of matrix.issues || []) {
 		lines.push(`- ${issue}`);
 	}
 	lines.push('');
@@ -44,17 +34,17 @@ function renderReport() {
 	} else {
 		lines.push('- Mode: planned matrix only. No baseline or candidate values are present.');
 	}
-	lines.push('- Timing evidence and shipping-rate call-count evidence are reported separately.');
-	lines.push('- Deterministic expensive shipping-method fixture support landed in Extra-Chill/homeboy-extensions#1089.');
-	lines.push('- Baseline/candidate export wiring is pending Extra-Chill/homeboy#3516.');
+	for (const note of matrix.status_notes || []) {
+		lines.push(`- ${note}`);
+	}
 	lines.push('');
 	lines.push('## Matrix Knobs');
 	lines.push('');
 	lines.push('| Profile | Cart items | Packages | Total churn runs | Command settings |');
 	lines.push('|---|---:|---:|---:|---|');
-	for (const row of plannedMatrix) {
-		const settings = `bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"${row.cartItems}","WC_SHIPPING_CACHE_PACKAGES":"${row.packages}","WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS":"${row.totalChurnRuns}"}`;
-		lines.push(`| ${row.profile} | ${row.cartItems} | ${row.packages} | ${row.totalChurnRuns} | \`${settings}\` |`);
+	for (const row of matrix.matrix_knobs || []) {
+		const settings = `bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"${row.cart_items}","WC_SHIPPING_CACHE_PACKAGES":"${row.packages}","WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS":"${row.total_churn_runs}"}`;
+		lines.push(`| ${row.profile} | ${row.cart_items} | ${row.packages} | ${row.total_churn_runs} | \`${settings}\` |`);
 	}
 	lines.push('');
 	lines.push('## Timing Evidence');
@@ -69,12 +59,9 @@ function renderReport() {
 	lines.push('');
 	lines.push('| Control | Expected cache behavior | Current coverage |');
 	lines.push('|---|---|---|');
-	lines.push('| Warm repeat, unchanged package hash | Stay cached | Covered by `warm_*` rows |');
-	lines.push('| Package subtotal/total-only churn | Should stay cached if shipping inputs are unchanged | Covered by `total_churn_*` rows; sharpening tracked in homeboy-rigs#166 |');
-	lines.push('| Destination/postcode changes | Invalidate cache | Covered by `rehash_*` rows |');
-	lines.push('| Cart contents changes | Invalidate cache | Planned follow-up |');
-	lines.push('| Contents cost, coupon, tax, fee inputs | Validate expected behavior per WooCommerce cache key contract | Planned follow-up |');
-	lines.push('| Expensive deterministic shipping method | Amplify call-count regressions without browser noise | Available via Extra-Chill/homeboy-extensions#1089 |');
+	for (const control of matrix.controls || []) {
+		lines.push(`| ${control.control} | ${control.expected_cache_behavior} | ${control.current_coverage} |`);
+	}
 	lines.push('');
 	return `${lines.join('\n')}\n`;
 }
@@ -84,7 +71,7 @@ function renderTimingTable() {
 		return [
 			'| Status | Cart items | Packages | Cold ms | Warm p50 ms | Total churn p50 ms | Rehash p50 ms |',
 			'|---|---:|---:|---:|---:|---:|---:|',
-			...plannedMatrix.map((row) => `| pending | ${row.cartItems} | ${row.packages} |  |  |  |  |`),
+			...(matrix.matrix_knobs || []).map((row) => `| pending | ${row.cart_items} | ${row.packages} |  |  |  |  |`),
 		];
 	}
 
@@ -111,7 +98,7 @@ function renderCallTable() {
 		return [
 			'| Status | Cart items | Packages | Cold rate calls | Warm rate calls | Total churn rate calls | Rehash rate calls |',
 			'|---|---:|---:|---:|---:|---:|---:|',
-			...plannedMatrix.map((row) => `| pending | ${row.cartItems} | ${row.packages} |  |  |  |  |`),
+			...(matrix.matrix_knobs || []).map((row) => `| pending | ${row.cart_items} | ${row.packages} |  |  |  |  |`),
 		];
 	}
 
@@ -180,6 +167,13 @@ function readdirSafe(directory) {
 	}
 }
 
+function readJson(path) {
+	if (!existsSync(path)) {
+		throw new Error(`Matrix file does not exist: ${path}`);
+	}
+	return JSON.parse(readFileSync(path, 'utf8'));
+}
+
 function pairRuns(baseline, candidate) {
 	return candidate.map((candidateRun, index) => ({
 		baseline: baseline[index] || { metrics: {}, label: 'missing-baseline' },
@@ -207,7 +201,7 @@ function parseArgs(rawArgs) {
 	const parsed = {};
 	for (let i = 0; i < rawArgs.length; i++) {
 		const arg = rawArgs[i];
-		if (arg === '--input' || arg === '--baseline' || arg === '--candidate') {
+		if (arg === '--input' || arg === '--baseline' || arg === '--candidate' || arg === '--matrix') {
 			parsed[arg.slice(2)] = rawArgs[++i];
 		}
 	}

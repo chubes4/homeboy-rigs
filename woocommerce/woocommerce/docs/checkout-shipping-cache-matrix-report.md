@@ -10,6 +10,12 @@ Generate the current report shape locally:
 node woocommerce/woocommerce/tools/checkout-shipping-cache-matrix-report.mjs
 ```
 
+The domain matrix lives in
+`woocommerce/woocommerce/tools/checkout-shipping-cache-matrix.json`; the report
+script only renders that data plus optional workload artifacts. This keeps the
+Woo-specific matrix shape close to the future Homeboy core evidence-matrix
+primitive without depending on unreleased core.
+
 Generate from one shared-state directory:
 
 ```bash
