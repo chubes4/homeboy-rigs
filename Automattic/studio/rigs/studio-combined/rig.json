@@ -308,7 +308,7 @@
         "trace_guardrails": [
           {
             "label": "Playground Web trace checkout exists",
-            "file": "/Users/chubes/Developer/wordpress-playground@investigate-preinstalled-sqlite-template/package.json"
+            "file": "${components.wordpress-playground.path}/package.json"
           }
         ]
       },
@@ -468,33 +468,27 @@
         "contains": "http://127.0.0.1:9724/studio-dev/"
       },
       {
-        "kind": "patch",
-        "component": "wordpress-playground",
-        "file": "packages/php-wasm/compile/php-wasm-dns-polyfill/dns_polyfill.c",
-        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
-        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback */\n#ifndef TSRMLS_CC\n#define TSRMLS_CC\n#endif\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
-        "op": "verify",
-        "label": "TSRMLS_CC fallback patched (dns_polyfill.c)"
+        "kind": "check",
+        "label": "Upstream TSRMLS fallback present (dns_polyfill.c, WordPress/wordpress-playground#3512)",
+        "file": "${components.wordpress-playground.path}/packages/php-wasm/compile/php-wasm-dns-polyfill/dns_polyfill.c",
+        "contains": "#define TSRMLS_DC"
       },
       {
-        "kind": "patch",
-        "component": "wordpress-playground",
-        "file": "packages/php-wasm/compile/php-post-message-to-js/post_message_to_js.c",
-        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
-        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback */\n#ifndef TSRMLS_CC\n#define TSRMLS_CC\n#endif\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
-        "op": "verify",
-        "label": "TSRMLS_CC fallback patched (post_message_to_js.c)"
+        "kind": "check",
+        "label": "Upstream TSRMLS fallback present (post_message_to_js.c, WordPress/wordpress-playground#3512)",
+        "file": "${components.wordpress-playground.path}/packages/php-wasm/compile/php-post-message-to-js/post_message_to_js.c",
+        "contains": "#define TSRMLS_DC"
       },
       {
         "kind": "check",
         "label": "Compiled jspi glue has proc_open VFS-cwd fix",
-        "command": "test \"$(grep -c 'cwdstr = null' ~/Developer/studio/node_modules/@php-wasm/node-8-3/jspi/php_8_3.js)\" -ge 3",
+        "command": "test \"$(grep -c 'cwdstr = null' \"${components.studio.path}/node_modules/@php-wasm/node-8-3/jspi/php_8_3.js\")\" -ge 3",
         "expect_exit": 0
       },
       {
         "kind": "check",
         "label": "Compiled asyncify glue has proc_open VFS-cwd fix",
-        "command": "test \"$(grep -c 'cwdstr = null' ~/Developer/studio/node_modules/@php-wasm/node-8-3/asyncify/php_8_3.js)\" -ge 3",
+        "command": "test \"$(grep -c 'cwdstr = null' \"${components.studio.path}/node_modules/@php-wasm/node-8-3/asyncify/php_8_3.js\")\" -ge 3",
         "expect_exit": 0
       },
       {
@@ -569,26 +563,6 @@
         "label": "Rebase Playground onto upstream/trunk"
       },
       {
-        "kind": "patch",
-        "component": "wordpress-playground",
-        "file": "packages/php-wasm/compile/php-wasm-dns-polyfill/dns_polyfill.c",
-        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
-        "after": "#define TSRMLS_CC",
-        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback (DC/C/D missing upstream) */\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
-        "op": "apply",
-        "label": "Apply TSRMLS_DC/C/D fallback (dns_polyfill.c)"
-      },
-      {
-        "kind": "patch",
-        "component": "wordpress-playground",
-        "file": "packages/php-wasm/compile/php-post-message-to-js/post_message_to_js.c",
-        "marker": "PHP-WASM-COMBINED-FIXES TSRMLS fallback",
-        "after": "#define TSRMLS_CC",
-        "content": "/* PHP-WASM-COMBINED-FIXES TSRMLS fallback (DC/C/D missing upstream) */\n#ifndef TSRMLS_DC\n#define TSRMLS_DC\n#endif\n#ifndef TSRMLS_C\n#define TSRMLS_C\n#endif\n#ifndef TSRMLS_D\n#define TSRMLS_D\n#endif\n",
-        "op": "apply",
-        "label": "Apply TSRMLS_DC/C/D fallback (post_message_to_js.c)"
-      },
-      {
         "kind": "command",
         "label": "Compile PHP-WASM 8.3 (JSPI variant)",
         "command": "node packages/php-wasm/compile/build.js --PLATFORM=node --PHP_VERSION=8.3 --WITH_JSPI=yes",
@@ -629,7 +603,7 @@
       {
         "kind": "command",
         "label": "Rewire Studio package.jsons to local tarballs",
-        "command": "VER=$(jq -r '.version' ~/Developer/wordpress-playground/lerna.json); for pkg in apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json; do PACKAGE_BASE_URL=http://127.0.0.1:9724/studio-dev PACKAGE_VERSION=$VER bash ~/Developer/wordpress-playground/packages/playground/test-built-npm-packages/use-local-packages.sh \"$pkg\"; done",
+        "command": "VER=$(jq -r '.version' \"${components.wordpress-playground.path}/lerna.json\"); for pkg in apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json; do PACKAGE_BASE_URL=http://127.0.0.1:9724/studio-dev PACKAGE_VERSION=$VER bash \"${components.wordpress-playground.path}/packages/playground/test-built-npm-packages/use-local-packages.sh\" \"$pkg\"; done",
         "cwd": "${components.studio.path}"
       },
       {

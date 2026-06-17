@@ -29,7 +29,7 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 ## Install
 
 ```bash
-homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
 homeboy rig check woocommerce-performance
 ```
 

@@ -115,7 +115,7 @@ export HOMEBOY_WP_CODEBOX_BIN=/path/to/wp-codebox/packages/cli/dist/index.js
 ## Install
 
 ```bash
-homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
 homeboy rig check woocommerce-stripe-ece-product-page
 ```
 

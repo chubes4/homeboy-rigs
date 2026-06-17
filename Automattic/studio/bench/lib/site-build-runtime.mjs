@@ -37,22 +37,9 @@ function envPath(key) {
 export async function createStudioBenchRuntime(sharedState = SHARED_STATE) {
   const helperPath = envPath('HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER');
   if (!helperPath) {
-    const artifactDir = path.join(sharedState, 'studio-agent-site-build-artifacts');
-    return {
-      invocationId: '',
-      artifactDir,
-      siteRoot: path.join(artifactDir, 'sites'),
-      stateDir: '',
-      cliConfigDir: '',
-      appDataDir: '',
-      processManagerHome: '',
-      tmpDir: '',
-      portBase: null,
-      portMax: null,
-      env: {},
-      async prepareDirs() {},
-      assertPort() {},
-    };
+    throw new Error(
+      'Studio site-build requires HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER for isolated state, appdata, temp dirs, and port ranges.'
+    );
   }
 
   const { resolveHomeboyInvocationRuntime } = await import(helperPath);

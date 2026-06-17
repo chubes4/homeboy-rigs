@@ -8,8 +8,11 @@ const root = process.argv[2] ? join(process.cwd(), process.argv[2]) : process.cw
 const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
 const rigFiles = [];
+const portableSourceFiles = [];
 const failures = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
+const personalPathPrefix = '/Users/' + 'chubes/';
+const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -31,6 +34,10 @@ function walk(directory) {
 
     if (entry.isFile() && entry.name === 'rig.json') {
       rigFiles.push(join(directory, entry.name));
+    }
+
+    if (entry.isFile() && /\.(json|mjs|js)$/.test(entry.name)) {
+      portableSourceFiles.push(join(directory, entry.name));
     }
   }
 }
@@ -58,6 +65,19 @@ function lintRigPortability(file) {
 
   if (rel === 'chubes4/isolated-block-editor/rigs/isolated-block-editor/rig.json' && contents.includes('/var/lib/datamachine')) {
     failures.push(`${rel}: isolated-block-editor must use the component path or shared node_modules setting instead of /var/lib/datamachine`);
+  }
+}
+
+function lintPortableSource(file) {
+  const rel = relative(root, file);
+  const contents = readFileSync(file, 'utf8');
+
+  if (contents.includes(personalPathPrefix)) {
+    failures.push(`${rel}: use $HOME, homedir(), component paths, or settings instead of hard-coded /Users/chubes paths`);
+  }
+
+  if (contents.includes(tsrmlsPatchMarker)) {
+    failures.push(`${rel}: TSRMLS fallback defines are owned by WordPress/wordpress-playground#3512; do not patch Playground source in rigs`);
   }
 }
 
@@ -105,6 +125,7 @@ function lintGeneratedStudioModelRigs() {
 walk(root);
 
 rigFiles.forEach(lintRigPortability);
+portableSourceFiles.forEach(lintPortableSource);
 lintGeneratedStudioModelRigs();
 
 reportFailures();
@@ -121,3 +142,4 @@ reportFailures();
 console.log('Rig package lint passed.');
 console.log(`- PHP syntax: ${phpFiles.length} file(s)`);
 console.log(`- rig portability: ${rigFiles.length} rig(s)`);
+console.log(`- portable source paths: ${portableSourceFiles.length} file(s)`);

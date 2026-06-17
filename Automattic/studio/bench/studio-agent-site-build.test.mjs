@@ -184,20 +184,16 @@ test('site-build rejects unknown Workflow Bench scenario IDs', async () => {
   await rm(tempDir, { recursive: true, force: true });
 });
 
-test('bench runtime falls back to shared-state artifacts without invocation helper', async () => {
+test('bench runtime requires the Homeboy invocation helper', async () => {
   await withEnv(
     {
       HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER: undefined,
     },
     async () => {
-      const runtime = await createStudioBenchRuntime('/tmp/shared-state');
-
-      assert.equal(runtime.invocationId, '');
-      assert.equal(runtime.artifactDir, '/tmp/shared-state/studio-agent-site-build-artifacts');
-      assert.equal(runtime.siteRoot, '/tmp/shared-state/studio-agent-site-build-artifacts/sites');
-      assert.deepEqual(runtime.env, {});
-      assert.equal(runtime.portBase, null);
-      assert.equal(runtime.portMax, null);
+      await assert.rejects(
+        () => createStudioBenchRuntime('/tmp/shared-state'),
+        /HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER.*isolated state/
+      );
     }
   );
 });

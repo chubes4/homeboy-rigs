@@ -196,12 +196,12 @@ homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build -
 The site-build workload accepts a runtime namespace for parallel Workflow Bench runs. Select canonical Studio Web Workflow Bench scenarios with `studio_workflow_bench_scenario_id` and point `studio_workflow_bench_root`, `STUDIO_WEB_WORKFLOW_BENCH_ROOT`, or `WORKFLOW_BENCH_ROOT` at a Studio Web checkout. Homeboy Rigs consumes the canonical corpus directly; Studio Web owns scenario prompts, categories, proof surfaces, success gates, and matrix selection. `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
 
 ```bash
-STUDIO_WEB_WORKFLOW_BENCH_ROOT=/Users/chubes/Developer/studio-web \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=$HOME/Developer/studio-web \
 HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-restaurant \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
-STUDIO_WEB_WORKFLOW_BENCH_ROOT=/Users/chubes/Developer/studio-web \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=$HOME/Developer/studio-web \
 HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-saas \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
 homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
@@ -284,7 +284,7 @@ node scripts/generate-studio-agent-model-rigs.mjs --check
 
 ## WordPress/wordpress-playground
 
-`stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs.
+`stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs. TSRMLS fallback defines are owned upstream by WordPress/wordpress-playground#3512; `studio-combined` checks for that upstream source instead of patching Playground files at rig runtime.
 
 `rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the local `~/Developer/wordpress-playground` checkout. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
 
@@ -301,7 +301,7 @@ catalog, and admin-dashboard performance workloads against a local WooCommerce
 monorepo checkout mounted into the WP Codebox WordPress bench runtime.
 
 ```bash
-homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
 homeboy rig check woocommerce-performance
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
@@ -324,7 +324,7 @@ Express Checkout Element browser waterfall trace against a local WooCommerce
 Stripe checkout plus a packaged WooCommerce dependency.
 
 ```bash
-homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
 homeboy rig check woocommerce-stripe-ece-product-page
 homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall --output /tmp/wc-stripe-ece-waterfall.json
 ```
@@ -406,7 +406,7 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
 - **Package directories** use the owning repo's fully qualified name. Cross-repo rigs live under the product/workflow owner.
 - **Bench workloads** live beside their owning rig and use `${package.root}` so installed rig packages resolve their own portable workload files.
 - **Branches** in `components.<id>.branch` document the expected branch — rigs don't currently enforce branch state, but the field hints to humans reading the spec.
-- **Patches** carry a unique marker string (`PHP-WASM-COMBINED-FIXES TSRMLS fallback`, etc.) that identifies the patch in the file. Marker-based idempotency means re-running `up` is safe.
+- **Patches** carry a unique marker string that identifies the patch in the file. Marker-based idempotency means re-running `up` is safe.
 - **External services** (`kind: external`) are processes the rig didn't spawn — the rig only knows how to *stop* them via `discover.pattern`. Use this for stale daemons that need recycling after a build.
 
 ## What does NOT belong here

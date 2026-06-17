@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -8,11 +9,13 @@ function defaultPluginPath(envName, repoName) {
   if (process.env[envName]) {
     return process.env[envName];
   }
-  const studioPluginPath = path.join('/Users/chubes/Studio/intelligence-chubes4/wp-content/plugins', repoName);
+  const studioPluginDir = process.env.HOMEBOY_STUDIO_WORDPRESS_PLUGIN_DIR || '';
+  const studioPluginPath = studioPluginDir ? path.join(studioPluginDir, repoName) : '';
   if (existsSync(studioPluginPath)) {
     return studioPluginPath;
   }
-  return path.join('/Users/chubes/Developer', repoName);
+  const workspaceRoot = process.env.HOMEBOY_PLUGIN_WORKSPACE_ROOT || path.join(homedir(), 'Developer');
+  return path.join(workspaceRoot, repoName);
 }
 
 process.env.HOMEBOY_WORDPRESS_PAGE_PROFILE_ID ||= 'datamachine-pipelines-scale';

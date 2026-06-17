@@ -9,7 +9,7 @@ The workload mounts the local Gutenberg checkout plus a generated fixture plugin
 Install locally:
 
 ```sh
-homeboy rig install /Users/chubes/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
 ```
 
 Run the baseline repro:
