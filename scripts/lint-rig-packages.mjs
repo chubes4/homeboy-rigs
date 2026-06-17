@@ -9,6 +9,7 @@ const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencod
 const phpFiles = [];
 const rigFiles = [];
 const failures = [];
+const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -89,9 +90,22 @@ function reportFailures() {
   process.exit(1);
 }
 
+function lintGeneratedStudioModelRigs() {
+  if (!existsSync(studioModelRigGenerator)) {
+    return;
+  }
+
+  const result = spawnSync('node', [studioModelRigGenerator, '--check'], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+    failures.push(`Studio agent model rig generation check failed${output ? `: ${output}` : ''}`);
+  }
+}
+
 walk(root);
 
 rigFiles.forEach(lintRigPortability);
+lintGeneratedStudioModelRigs();
 
 reportFailures();
 

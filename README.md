@@ -273,6 +273,13 @@ WooCommerce site-generation benchmarks are tracked as future work until the Stud
 
 `rigs/studio-agent-claude-ssi/rig.json` and `rigs/studio-agent-gpt55-ssi/rig.json` are paired bench rigs for Studio agent-runtime and SSI site-build A/B checks across models. `rigs/studio-agent-claude-trunk/rig.json` remains available for trunk-vs-SSI comparisons. They share `bench/studio-agent-runtime.bench.mjs`, `bench/studio-agent-site-build.bench.mjs`, and `bench/studio-bfb-write-path.bench.mjs`.
 
+Those model-comparison rigs are generated from `rigs/studio-agent-model-comparison.variants.json` so the shared workload and pipeline configuration has one repo-local source of truth while Homeboy still consumes ordinary `rig.json` files. Update the variant data, then run:
+
+```bash
+node scripts/generate-studio-agent-model-rigs.mjs
+node scripts/generate-studio-agent-model-rigs.mjs --check
+```
+
 `stacks/studio-combined.json` rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.
 
 ## WordPress/wordpress-playground
