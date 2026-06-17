@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const root = process.argv[2] ? join(process.cwd(), process.argv[2]) : process.cwd();
 const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
+const rigFiles = [];
 const failures = [];
 
 if (!existsSync(root)) {
@@ -26,6 +27,36 @@ function walk(directory) {
     if (entry.isFile() && entry.name.endsWith('.php')) {
       phpFiles.push(join(directory, entry.name));
     }
+
+    if (entry.isFile() && entry.name === 'rig.json') {
+      rigFiles.push(join(directory, entry.name));
+    }
+  }
+}
+
+function lintRigPortability(file) {
+  const rel = relative(root, file);
+  const contents = readFileSync(file, 'utf8');
+  let rig;
+
+  try {
+    rig = JSON.parse(contents);
+  } catch (error) {
+    failures.push(`${rel}: invalid JSON: ${error.message}`);
+    return;
+  }
+
+  const pipelineCommands = Object.values(rig.pipeline || {})
+    .flatMap((steps) => Array.isArray(steps) ? steps : [])
+    .map((step) => step.command || '')
+    .join('\n');
+
+  if (rel.startsWith('WordPress/gutenberg/rigs/') && /\$HOME\/Developer\/gutenberg|~\/Developer\/gutenberg/.test(pipelineCommands)) {
+    failures.push(`${rel}: Gutenberg rig checks must reference ${'${components.gutenberg.path}'} instead of a hard-coded personal checkout path`);
+  }
+
+  if (rel === 'chubes4/isolated-block-editor/rigs/isolated-block-editor/rig.json' && contents.includes('/var/lib/datamachine')) {
+    failures.push(`${rel}: isolated-block-editor must use the component path or shared node_modules setting instead of /var/lib/datamachine`);
   }
 }
 
@@ -46,7 +77,23 @@ function hasPhp() {
   }
 }
 
+function reportFailures() {
+  if (failures.length === 0) {
+    return;
+  }
+
+  console.error('Rig package lint failed:');
+  for (const failure of failures) {
+    console.error(`- ${failure}`);
+  }
+  process.exit(1);
+}
+
 walk(root);
+
+rigFiles.forEach(lintRigPortability);
+
+reportFailures();
 
 if (!hasPhp()) {
   console.warn(`PHP not found; skipped syntax checks for ${phpFiles.length} PHP file(s).`);
@@ -55,13 +102,8 @@ if (!hasPhp()) {
 
 phpFiles.forEach(lintPhp);
 
-if (failures.length > 0) {
-  console.error('Rig package PHP syntax lint failed:');
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
-  }
-  process.exit(1);
-}
+reportFailures();
 
-console.log('Rig package PHP syntax lint passed.');
+console.log('Rig package lint passed.');
 console.log(`- PHP syntax: ${phpFiles.length} file(s)`);
+console.log(`- rig portability: ${rigFiles.length} rig(s)`);
