@@ -32,21 +32,21 @@ const playwright = require(require.resolve('playwright', { paths: [STUDIO_PATH] 
 const { findLatestBuild, parseElectronApp } = require(
   require.resolve('electron-playwright-helpers', { paths: [STUDIO_PATH] })
 );
-const { createTraceRecorder } = await import(pathToFileURL(path.join(HELPER_DIR, 'timeline.mjs')).href);
+const { createTraceWorkload } = await import(pathToFileURL(path.join(HELPER_DIR, 'timeline.mjs')).href);
 const { captureTraceEventText, pollHttp: helperPollHttp, pollJsonFile } = await import(
   pathToFileURL(path.join(HELPER_DIR, 'probes.mjs')).href
 );
 
-const recorder = createTraceRecorder({
+const trace = createTraceWorkload({
   componentId: COMPONENT_ID,
   scenarioId: SCENARIO_ID,
   resultsFile: RESULTS_FILE,
 });
-recorder.timestampMs = () => Math.round(performance.now() - recorder.start);
+trace.recorder.timestampMs = () => Math.round(performance.now() - trace.recorder.start);
 const seenCliMessages = new Set();
 
 function event(source, name, data = {}) {
-  return recorder.recordEvent(source, name, data);
+  return trace.event(source, name, data);
 }
 
 function eventNameFromCliMessage(message) {
@@ -426,11 +426,11 @@ async function pollCliConfig(cliConfigPath, siteName, timeoutMs) {
 }
 
 function assertion(id, ok, message) {
-  return recorder.recordCheck(id, ok, message);
+  return trace.check(id, ok, message);
 }
 
 function addArtifact(label, filePath) {
-  recorder.addArtifact(label, filePath);
+  trace.artifact(label, filePath);
 }
 
 async function captureArtifacts(mainWindow, mainProcessLog, suffix = '') {
@@ -460,7 +460,12 @@ async function captureArtifacts(mainWindow, mainProcessLog, suffix = '') {
 }
 
 async function writeResults(status, summary, failure) {
-  await recorder.writeTraceResults({ status, summary, failure });
+  if (status === 'pass') {
+    await trace.pass({}, { summary });
+    return;
+  }
+
+  await trace.fail(failure, {}, { status, summary });
 }
 
 async function waitFor(locator, eventName, timeout = 120_000) {
