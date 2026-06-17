@@ -1,18 +1,15 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify( execFile );
+import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'gutenberg';
 const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || 'notes-unsaved-attachment';
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join( tmpdir(), 'gutenberg-notes-unsaved-attachment-artifacts' );
-const wpCodeboxBin = process.env.HOMEBOY_WP_CODEBOX_BIN || process.env.HOMEBOY_SETTINGS_WP_CODEBOX_BIN || path.join( process.env.HOME || '', 'Developer/wp-codebox/packages/cli/dist/index.js' );
 const wpVersion = process.env.HOMEBOY_GUTENBERG_NOTES_WP_VERSION || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_WP_VERSION || '7.0';
 const knownCases = new Set( [ 'orphan', 'saved-anchor', 'autosave-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'matrix' ] );
 const profileCase = process.env.HOMEBOY_TRACE_PROFILE || process.env.HOMEBOY_PROFILE || '';
@@ -50,14 +47,6 @@ function timestampMs() {
 
 function event( source, name, data = {} ) {
 	timeline.push( { t_ms: timestampMs(), source, event: name, data } );
-}
-
-function wpCodeboxCommand() {
-	if ( wpCodeboxBin.endsWith( '.js' ) || wpCodeboxBin.endsWith( '.cjs' ) || wpCodeboxBin.endsWith( '.mjs' ) ) {
-		return { command: 'node', args: [ wpCodeboxBin ] };
-	}
-
-	return { command: wpCodeboxBin, args: [] };
 }
 
 async function readJsonAsync( pathname ) {
@@ -689,12 +678,12 @@ try {
 
 	await writeFile( recipeFile, `${ JSON.stringify( recipe, null, 2 ) }\n` );
 
-	event( 'wp_codebox', 'recipe.start', { recipe_file: recipeFile } );
-	const { command, args } = wpCodeboxCommand();
-	const result = await execFileAsync( command, [ ...args, 'recipe-run', '--recipe', recipeFile, '--artifacts', codeboxArtifacts, '--json' ], {
-		maxBuffer: 1024 * 1024 * 50,
+	const result = await runWpCodeboxRecipe( {
+		recipeFile,
+		artifactsDir: codeboxArtifacts,
+		outputFile,
+		event,
 	} );
-	await writeFile( outputFile, result.stdout );
 
 	const output = JSON.parse( result.stdout );
 	const bundleDir = output.artifacts?.directory;

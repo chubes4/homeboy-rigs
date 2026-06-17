@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
@@ -19,18 +19,41 @@ import { wpCodeboxBin, wpCodeboxCommand } from './ece-product-page-wp-codebox.mj
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test('WP Codebox helper centralizes binary resolution', () => {
-  assert.equal(wpCodeboxBin({}), 'wp-codebox');
-  assert.equal(wpCodeboxBin({ HOMEBOY_SETTINGS_WP_CODEBOX_BIN: '/tmp/wp-codebox-settings.js' }), '/tmp/wp-codebox-settings.js');
-  assert.equal(
-    wpCodeboxBin({
-      HOMEBOY_WP_CODEBOX_BIN: '/tmp/wp-codebox-env.mjs',
-      HOMEBOY_SETTINGS_WP_CODEBOX_BIN: '/tmp/wp-codebox-settings.js',
-    }),
-    '/tmp/wp-codebox-env.mjs'
-  );
+  const helperDir = mkdtempSync(path.join(tmpdir(), 'homeboy-wp-codebox-helper-'));
+  const helperPath = path.join(helperDir, 'wp-codebox-recipe-helper.cjs');
+  writeFileSync(helperPath, `
+module.exports = {
+  wpCodeboxBin({ env = process.env } = {}) {
+    return env.HOMEBOY_WP_CODEBOX_BIN || env.HOMEBOY_SETTINGS_WP_CODEBOX_BIN || env.WP_CODEBOX_BIN || 'wp-codebox';
+  },
+  wpCodeboxCommand(bin = 'wp-codebox') {
+    return /\\.(?:js|cjs|mjs)$/.test(bin) ? { command: process.execPath, args: [bin] } : { command: bin, args: [] };
+  },
+};
+`);
+  const previous = process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
 
-  assert.deepEqual(wpCodeboxCommand('/tmp/wp-codebox.mjs'), { command: 'node', args: ['/tmp/wp-codebox.mjs'] });
-  assert.deepEqual(wpCodeboxCommand('wp-codebox'), { command: 'wp-codebox', args: [] });
+  try {
+    process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = helperPath;
+    assert.equal(wpCodeboxBin({}), 'wp-codebox');
+    assert.equal(wpCodeboxBin({ HOMEBOY_SETTINGS_WP_CODEBOX_BIN: '/tmp/wp-codebox-settings.js' }), '/tmp/wp-codebox-settings.js');
+    assert.equal(
+      wpCodeboxBin({
+        HOMEBOY_WP_CODEBOX_BIN: '/tmp/wp-codebox-env.mjs',
+        HOMEBOY_SETTINGS_WP_CODEBOX_BIN: '/tmp/wp-codebox-settings.js',
+      }),
+      '/tmp/wp-codebox-env.mjs'
+    );
+
+    assert.deepEqual(wpCodeboxCommand('/tmp/wp-codebox.mjs'), { command: process.execPath, args: ['/tmp/wp-codebox.mjs'] });
+    assert.deepEqual(wpCodeboxCommand('wp-codebox'), { command: 'wp-codebox', args: [] });
+  } finally {
+    if (previous === undefined) {
+      delete process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
+    } else {
+      process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = previous;
+    }
+  }
 });
 
 test('default smoke profile preserves browser probe defaults', () => {
