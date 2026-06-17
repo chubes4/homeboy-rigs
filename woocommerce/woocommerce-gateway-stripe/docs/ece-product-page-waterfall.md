@@ -164,8 +164,11 @@ Set `woocommerce_stripe_ece_browser_profile=real-wallet` or use
 `--profile real-wallet` to collect real-wallet-capable ECE evidence. This
 profile refuses to run unless `STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`,
 and an HTTPS public `HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL` are present.
-The keys are written only into the temporary WordPress setup script for the
-disposable run.
+The keys are resolved by environment name inside the disposable WordPress setup
+step; the rig does not base64-serialize the secret key into generated PHP or
+record it in metadata. This depends on WP Codebox/Homeboy propagating the
+declared environment into the disposable runtime rather than adding a rig-owned
+secret transport workaround.
 
 ```bash
 export STRIPE_PUBLISHABLE_KEY=pk_test_...
