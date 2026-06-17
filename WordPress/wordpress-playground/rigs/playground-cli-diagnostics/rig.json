@@ -13,6 +13,11 @@
   "bench": {
     "default_component": "wordpress-playground"
   },
+  "resources": {
+    "paths": [
+      "${components.wordpress-playground.path}"
+    ]
+  },
   "bench_workloads": {
     "nodejs": [
       "${package.root}/bench/playground-cli-runphp-errors.bench.mjs"
@@ -21,6 +26,12 @@
   "pipeline": {
     "up": [
       {
+        "kind": "check",
+        "label": "npm available",
+        "command": "command -v npm >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
         "kind": "command",
         "label": "Install Playground dependencies",
         "cwd": "${components.wordpress-playground.path}",
@@ -28,6 +39,12 @@
       }
     ],
     "check": [
+      {
+        "kind": "check",
+        "label": "npm available",
+        "command": "command -v npm >/dev/null 2>&1",
+        "expect_exit": 0
+      },
       {
         "kind": "check",
         "label": "Playground checkout exists",

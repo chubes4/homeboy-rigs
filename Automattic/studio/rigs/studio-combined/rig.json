@@ -36,6 +36,18 @@
     }
   },
 
+  "resources": {
+    "ports": [9724],
+    "paths": [
+      "${components.studio.path}",
+      "${components.wordpress-playground.path}"
+    ],
+    "process_patterns": [
+      "wordpress-server-child.mjs",
+      "playground-server-child.mjs"
+    ]
+  },
+
   "symlinks": [
     {
       "link": "~/.local/bin/studio",
@@ -423,16 +435,16 @@
     "diagnostic-seeded-sqlite-db": {
       "setup": [
         {
-          "command": "test -f /tmp/studio-template-probe/seed.ht.sqlite"
+          "command": "test -n \"$HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH\" && test -f \"$HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH\""
         }
       ],
       "env": {
-        "STUDIO_TRACE_SEED_DB_PATH": "/tmp/studio-template-probe/seed.ht.sqlite"
+        "STUDIO_TRACE_SEED_DB_PATH": "${env.HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH}"
       },
       "artifacts": [
         {
           "label": "diagnostic seed SQLite DB",
-          "path": "/tmp/studio-template-probe/seed.ht.sqlite"
+          "path": "${env.HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH}"
         }
       ]
     }
@@ -440,6 +452,30 @@
 
   "pipeline": {
     "check": [
+      {
+        "kind": "check",
+        "label": "Node.js available",
+        "command": "command -v node >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "npm available",
+        "command": "command -v npm >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "npx available",
+        "command": "command -v npx >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "jq available",
+        "command": "command -v jq >/dev/null 2>&1",
+        "expect_exit": 0
+      },
       {
         "kind": "check",
         "label": "Docker daemon running",
@@ -507,8 +543,8 @@
       },
       {
         "kind": "check",
-        "label": "Live proc_open end-to-end (the truth)",
-        "command": "site_path=${STUDIO_PROC_OPEN_CHECK_SITE_PATH:-$HOME/Studio/intelligence-chubes4}; rm -f /tmp/_studio_rig_check_marker && out=$(studio wp --path \"$site_path\" eval '$h = proc_open(\"touch /tmp/_studio_rig_check_marker && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f /tmp/_studio_rig_check_marker && echo \"$out\" | grep -q ok",
+        "label": "Live proc_open end-to-end (optional configured Studio site)",
+        "command": "site_path=${STUDIO_PROC_OPEN_CHECK_SITE_PATH:-${HOMEBOY_SETTINGS_STUDIO_PROC_OPEN_CHECK_SITE_PATH:-}}; if [ -z \"$site_path\" ]; then printf '%s\\n' 'Skipping live proc_open check; set STUDIO_PROC_OPEN_CHECK_SITE_PATH or HOMEBOY_SETTINGS_STUDIO_PROC_OPEN_CHECK_SITE_PATH.'; exit 0; fi; marker_dir=$(mktemp -d \"${TMPDIR:-/tmp}/studio-rig-check.XXXXXX\") && marker=$marker_dir/marker && trap 'rm -rf \"$marker_dir\"' EXIT && export STUDIO_PROC_OPEN_CHECK_MARKER=\"$marker\" && out=$(studio wp --path \"$site_path\" eval '$marker = getenv(\"STUDIO_PROC_OPEN_CHECK_MARKER\"); $h = proc_open(\"touch \" . escapeshellarg($marker) . \" && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f \"$marker\" && echo \"$out\" | grep -q ok",
         "expect_exit": 0
       }
     ],

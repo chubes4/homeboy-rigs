@@ -38,6 +38,7 @@ function rigFromVariant(variant, shared) {
         },
       },
     },
+    resources: shared.resources,
     bench: shared.bench,
     bench_workloads: shared.bench_workloads,
     pipeline: shared.pipeline,
