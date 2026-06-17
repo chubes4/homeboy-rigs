@@ -27,8 +27,8 @@ return function (): array {
 		WC()->countries = new WC_Countries();
 	}
 
-	$cart_items  = max( 1, min( 1000, (int) ( getenv( 'WC_SHIPPING_CACHE_CART_ITEMS' ) ?: 40 ) ) );
-	$packages    = max( 1, min( $cart_items, (int) ( getenv( 'WC_SHIPPING_CACHE_PACKAGES' ) ?: 8 ) ) );
+	$cart_items       = max( 1, min( 1000, (int) ( getenv( 'WC_SHIPPING_CACHE_CART_ITEMS' ) ?: 40 ) ) );
+	$packages         = max( 1, min( $cart_items, (int) ( getenv( 'WC_SHIPPING_CACHE_PACKAGES' ) ?: 8 ) ) );
 	$warm_runs        = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_WARM_RUNS' ) ?: 5 ) ) );
 	$total_churn_runs = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS' ) ?: 3 ) ) );
 	$rehash_runs      = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_REHASH_RUNS' ) ?: 3 ) ) );
@@ -38,6 +38,8 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/issues/32055',
 		'https://github.com/woocommerce/woocommerce/issues/26569',
 	);
+	$ignored_hash_fields_filter = 'woocommerce_shipping_package_hash_ignored_fields';
+	$synthetic_unknown_key      = 'homeboy_synthetic_unknown_package_key';
 
 	wp_set_current_user( 1 );
 	update_option( 'woocommerce_store_address', '123 Performance Way' );
@@ -95,8 +97,8 @@ return function (): array {
 		WC_Cache_Helper::get_transient_version( 'shipping', true );
 	}
 
-	$product_ids    = array();
-	$cart_contents  = array();
+	$product_ids   = array();
+	$cart_contents = array();
 	for ( $i = 0; $i < $cart_items; $i++ ) {
 		$product = new WC_Product_Simple();
 		$product->set_name( 'Homeboy Shipping Cache Product ' . $run_id . ' #' . ( $i + 1 ) );
@@ -113,8 +115,8 @@ return function (): array {
 		$product->set_manage_stock( false );
 		$product->set_stock_status( 'instock' );
 		$product->save();
-		$product_ids[]           = $product->get_id();
-		$cart_item_key           = 'homeboy_' . $i;
+		$product_ids[]                    = $product->get_id();
+		$cart_item_key                    = 'homeboy_' . $i;
 		$cart_contents[ $cart_item_key ] = array(
 			'key'               => $cart_item_key,
 			'product_id'        => $product->get_id(),
@@ -157,8 +159,11 @@ return function (): array {
 		);
 	};
 
-	$total_churn_step = 0;
-	$split_packages   = static function ( array $cart_packages ) use ( $packages, &$total_churn_step ): array {
+	$current_phase = array(
+		'field' => '',
+		'step'  => 0,
+	);
+	$split_packages = static function ( array $cart_packages ) use ( $packages, &$current_phase, $synthetic_unknown_key, $flat_rate_instance_id ): array {
 		$base_package = $cart_packages[0] ?? array();
 		$contents     = array_values( $base_package['contents'] ?? array() );
 		if ( empty( $contents ) ) {
@@ -173,16 +178,56 @@ return function (): array {
 			foreach ( $chunk as $item_index => $item ) {
 				$package['contents'][ 'homeboy_' . $index . '_' . $item_index ] = $item;
 			}
-			$package['homeboy_package_index'] = $index;
-			if ( $total_churn_step > 0 ) {
-				$package['subtotal'] = (float) ( 100 + $index + $total_churn_step );
-				$package['total']    = (float) ( 200 + $index + $total_churn_step );
+			$step                             = (int) $current_phase['step'];
+			$package['package_id']             = 'homeboy-package-' . $index;
+			$package['package_name']           = 'Homeboy Package ' . ( $index + 1 );
+			$package['package_index']          = $index;
+			$package['homeboy_package_index']  = $index;
+			$package['subtotal']               = (float) array_sum( wp_list_pluck( $package['contents'], 'line_subtotal' ) );
+			$package['total']                  = (float) array_sum( wp_list_pluck( $package['contents'], 'line_total' ) );
+
+			switch ( $current_phase['field'] ) {
+				case 'subtotal':
+					$package['subtotal'] += (float) ( $step + $index + 1 );
+					break;
+				case 'total':
+					$package['total'] += (float) ( $step + $index + 1 );
+					break;
+				case 'package_id':
+					$package['package_id'] .= '-churn-' . $step;
+					break;
+				case 'package_name':
+					$package['package_name'] .= ' Churn ' . $step;
+					break;
+				case 'rates':
+					$package['rates'] = array(
+						'homeboy_prefilled_rate' => new WC_Shipping_Rate( 'homeboy_prefilled_rate_' . $step . '_' . $index, 'Prefilled Homeboy Rate', '7.00', array(), 'flat_rate', $flat_rate_instance_id ),
+					);
+					break;
+				case 'package_index':
+					$package['package_index']         = $index + $step;
+					$package['homeboy_package_index'] = $index + $step;
+					break;
+				case 'contents_cost':
+					$package['contents_cost'] = (float) $package['contents_cost'] + $step + $index + 1;
+					break;
+				case 'destination_postcode':
+					$package['destination']['postcode'] = '942' . str_pad( (string) ( $step + $index ), 2, '0', STR_PAD_LEFT );
+					break;
+				case 'unknown_package_key':
+					$package[ $synthetic_unknown_key ] = 'default-invalidates-' . $step . '-' . $index;
+					break;
+				case 'ignored_unknown_package_key':
+					$package[ $synthetic_unknown_key ] = 'filter-ignored-' . $step . '-' . $index;
+					break;
 			}
+
 			$split[] = $package;
 		}
 
 		return $split;
 	};
+
 	$rate_calculation_calls = 0;
 	$count_rate_calculation = static function () use ( &$rate_calculation_calls ): void {
 		++$rate_calculation_calls;
@@ -213,9 +258,9 @@ return function (): array {
 		return $keys;
 	};
 
-	$measure_shipping = static function ( string $label ) use ( $base_shipping_packages, $split_packages, $session_cache_keys, &$rate_calculation_calls ): array {
+	$measure_shipping = static function ( string $label, string $phase_type = 'control', string $churn_field = '' ) use ( $base_shipping_packages, $split_packages, $session_cache_keys, &$rate_calculation_calls ): array {
 		$rate_calls_before = $rate_calculation_calls;
-		$shipping_packages  = $split_packages( $base_shipping_packages() );
+		$shipping_packages = $split_packages( $base_shipping_packages() );
 		$before            = microtime( true );
 		$packages          = WC()->shipping()->calculate_shipping( $shipping_packages );
 		$elapsed           = ( microtime( true ) - $before ) * 1000;
@@ -233,10 +278,13 @@ return function (): array {
 
 		return array(
 			'label'                  => $label,
+			'phase_type'             => $phase_type,
+			'churn_field'            => $churn_field,
 			'elapsed_ms'             => $elapsed,
 			'package_count'          => count( $packages ),
 			'rate_count'             => $rates,
 			'rate_calculation_calls' => $rate_calls_delta,
+			'cache_invalidated'      => $rate_calls_delta > 0,
 			'session_cache_keys'     => $session_cache_keys(),
 		);
 	};
@@ -244,25 +292,62 @@ return function (): array {
 	$rows = array();
 
 	$clear_shipping_cache();
-	$rows[] = $measure_shipping( 'cold' );
+	$rows[] = $measure_shipping( 'cold', 'control' );
 
+	$current_phase = array( 'field' => '', 'step' => 0 );
 	for ( $i = 0; $i < $warm_runs; $i++ ) {
-		$rows[] = $measure_shipping( 'warm_' . ( $i + 1 ) );
+		$rows[] = $measure_shipping( 'warm_' . ( $i + 1 ), 'warm_cache' );
 	}
 
+	$churn_fields = array( 'subtotal', 'total', 'package_id', 'package_name', 'rates', 'package_index' );
+	foreach ( $churn_fields as $field ) {
+		for ( $i = 0; $i < $total_churn_runs; $i++ ) {
+			$current_phase = array( 'field' => $field, 'step' => $i + 1 );
+			$label_prefix  = 'total' === $field ? 'total_field_churn' : $field . '_churn';
+			$rows[]        = $measure_shipping( $label_prefix . '_' . ( $i + 1 ), 'field_churn', $field );
+		}
+	}
+
+	// Preserve the historical aggregate total_churn_* row family for dashboards that already consume it.
 	for ( $i = 0; $i < $total_churn_runs; $i++ ) {
-		$total_churn_step = $i + 1;
-		$rows[]           = $measure_shipping( 'total_churn_' . ( $i + 1 ) );
+		$current_phase = array( 'field' => 'total', 'step' => $i + 1 );
+		$rows[]        = $measure_shipping( 'total_churn_' . ( $i + 1 ), 'legacy_total_churn', 'total' );
 	}
 
-	$total_churn_step = 0;
+	$guardrail_fields = array( 'destination_postcode', 'contents_cost', 'unknown_package_key' );
+	foreach ( $guardrail_fields as $field ) {
+		for ( $i = 0; $i < $rehash_runs; $i++ ) {
+			$current_phase = array( 'field' => $field, 'step' => $i + 1 );
+			if ( 'destination_postcode' === $field && WC()->customer ) {
+				WC()->customer->set_shipping_postcode( '941' . str_pad( (string) ( 10 + $i ), 2, '0', STR_PAD_LEFT ) );
+				WC()->customer->save();
+			}
+			$rows[] = $measure_shipping( $field . '_rehash_' . ( $i + 1 ), 'real_input_guardrail', $field );
+		}
+	}
 
+	// Preserve the historical rehash_* row family while keeping it backed by a real shipping input.
 	for ( $i = 0; $i < $rehash_runs; $i++ ) {
-		WC()->customer->set_shipping_postcode( '941' . str_pad( (string) ( 10 + $i ), 2, '0', STR_PAD_LEFT ) );
-		WC()->customer->save();
-		$rows[] = $measure_shipping( 'rehash_' . ( $i + 1 ) );
+		$current_phase = array( 'field' => 'destination_postcode', 'step' => $i + 101 );
+		if ( WC()->customer ) {
+			WC()->customer->set_shipping_postcode( '943' . str_pad( (string) ( 10 + $i ), 2, '0', STR_PAD_LEFT ) );
+			WC()->customer->save();
+		}
+		$rows[] = $measure_shipping( 'rehash_' . ( $i + 1 ), 'real_rehash', 'destination_postcode' );
 	}
 
+	$ignore_synthetic_key = static function ( array $ignored ) use ( $synthetic_unknown_key ): array {
+		$ignored[] = $synthetic_unknown_key;
+		return array_values( array_unique( $ignored ) );
+	};
+	add_filter( $ignored_hash_fields_filter, $ignore_synthetic_key );
+	for ( $i = 0; $i < $total_churn_runs; $i++ ) {
+		$current_phase = array( 'field' => 'ignored_unknown_package_key', 'step' => $i + 1 );
+		$rows[]        = $measure_shipping( 'filter_ignored_unknown_package_key_' . ( $i + 1 ), 'filter_extension_guardrail', $synthetic_unknown_key );
+	}
+	remove_filter( $ignored_hash_fields_filter, $ignore_synthetic_key );
+
+	$current_phase = array( 'field' => '', 'step' => 0 );
 	remove_action( 'woocommerce_before_get_rates_for_package', $count_rate_calculation );
 
 	$percentile = static function ( array $values, float $percentile ): float {
@@ -291,6 +376,15 @@ return function (): array {
 		}
 		return $calls;
 	};
+	$phase_metrics = static function ( array $rows, string $prefix ) use ( $only_elapsed, $percentile, $sum_rate_calls ): array {
+		$values = $only_elapsed( $rows, $prefix );
+		return array(
+			'runs'                   => count( $values ),
+			'shipping_p50_ms'        => $percentile( $values, 0.50 ),
+			'shipping_max_ms'        => empty( $values ) ? 0 : max( $values ),
+			'rate_calculation_calls' => $sum_rate_calls( $rows, $prefix ),
+		);
+	};
 
 	$cold_row           = $rows[0];
 	$warm_values        = $only_elapsed( $rows, 'warm_' );
@@ -301,31 +395,55 @@ return function (): array {
 	$total_churn_p50    = $percentile( $total_churn_values, 0.50 );
 	$rehash_p50         = $percentile( $rehash_values, 0.50 );
 	$final_cache        = $session_cache_keys();
-	$summary            = array(
-		'success_rate'              => 1,
-		'cart_items'                => $cart_items,
-		'configured_package_target' => $packages,
-		'actual_package_count'      => (int) $cold_row['package_count'],
-		'shipping_rate_count'       => (int) $cold_row['rate_count'],
-		'warm_runs'                 => $warm_runs,
-		'total_churn_runs'          => $total_churn_runs,
-		'rehash_runs'               => $rehash_runs,
-		'cold_shipping_ms'          => (float) $cold_row['elapsed_ms'],
-		'cold_rate_calculation_calls' => (int) $cold_row['rate_calculation_calls'],
-		'warm_shipping_p50_ms'      => $warm_p50,
-		'warm_shipping_p95_ms'      => $warm_p95,
-		'warm_shipping_max_ms'      => empty( $warm_values ) ? 0 : max( $warm_values ),
-		'warm_rate_calculation_calls' => $sum_rate_calls( $rows, 'warm_' ),
-		'total_churn_shipping_p50_ms' => $total_churn_p50,
-		'total_churn_shipping_max_ms' => empty( $total_churn_values ) ? 0 : max( $total_churn_values ),
-		'total_churn_rate_calculation_calls' => $sum_rate_calls( $rows, 'total_churn_' ),
-		'rehash_shipping_p50_ms'    => $rehash_p50,
-		'rehash_shipping_max_ms'    => empty( $rehash_values ) ? 0 : max( $rehash_values ),
-		'rehash_rate_calculation_calls' => $sum_rate_calls( $rows, 'rehash_' ),
-		'warm_to_cold_ratio'        => (float) $cold_row['elapsed_ms'] > 0 ? $warm_p50 / (float) $cold_row['elapsed_ms'] : 0,
-		'total_churn_to_warm_ratio' => $warm_p50 > 0 ? $total_churn_p50 / $warm_p50 : 0,
-		'rehash_to_warm_ratio'      => $warm_p50 > 0 ? $rehash_p50 / $warm_p50 : 0,
-		'session_cache_key_count'   => count( $final_cache ),
+	$per_churn_metrics  = array();
+	foreach ( array_merge( $churn_fields, $guardrail_fields, array( 'filter_ignored_unknown_package_key' ) ) as $field ) {
+		$prefix = 'filter_ignored_unknown_package_key' === $field ? 'filter_ignored_unknown_package_key_' : $field . '_churn_';
+		if ( 'total' === $field ) {
+			$prefix = 'total_field_churn_';
+		}
+		if ( in_array( $field, $guardrail_fields, true ) ) {
+			$prefix = $field . '_rehash_';
+		}
+		$per_churn_metrics[ $field ] = $phase_metrics( $rows, $prefix );
+	}
+	$summary = array(
+		'success_rate'                         => 1,
+		'cart_items'                           => $cart_items,
+		'configured_package_target'            => $packages,
+		'actual_package_count'                 => (int) $cold_row['package_count'],
+		'shipping_rate_count'                  => (int) $cold_row['rate_count'],
+		'warm_runs'                            => $warm_runs,
+		'total_churn_runs'                     => $total_churn_runs,
+		'rehash_runs'                          => $rehash_runs,
+		'cold_shipping_ms'                     => (float) $cold_row['elapsed_ms'],
+		'cold_rate_calculation_calls'          => (int) $cold_row['rate_calculation_calls'],
+		'warm_shipping_p50_ms'                 => $warm_p50,
+		'warm_shipping_p95_ms'                 => $warm_p95,
+		'warm_shipping_max_ms'                 => empty( $warm_values ) ? 0 : max( $warm_values ),
+		'warm_rate_calculation_calls'          => $sum_rate_calls( $rows, 'warm_' ),
+		'total_churn_shipping_p50_ms'          => $total_churn_p50,
+		'total_churn_shipping_max_ms'          => empty( $total_churn_values ) ? 0 : max( $total_churn_values ),
+		'total_churn_rate_calculation_calls'   => $sum_rate_calls( $rows, 'total_churn_' ),
+		'rehash_shipping_p50_ms'               => $rehash_p50,
+		'rehash_shipping_max_ms'               => empty( $rehash_values ) ? 0 : max( $rehash_values ),
+		'rehash_rate_calculation_calls'        => $sum_rate_calls( $rows, 'rehash_' ),
+		'warm_to_cold_ratio'                   => (float) $cold_row['elapsed_ms'] > 0 ? $warm_p50 / (float) $cold_row['elapsed_ms'] : 0,
+		'total_churn_to_warm_ratio'            => $warm_p50 > 0 ? $total_churn_p50 / $warm_p50 : 0,
+		'rehash_to_warm_ratio'                 => $warm_p50 > 0 ? $rehash_p50 / $warm_p50 : 0,
+		'session_cache_key_count'              => count( $final_cache ),
+		'per_churn_metrics'                    => $per_churn_metrics,
+		'subtotal_churn_rate_calculation_calls' => $per_churn_metrics['subtotal']['rate_calculation_calls'],
+		'total_field_churn_rate_calculation_calls' => $per_churn_metrics['total']['rate_calculation_calls'],
+		'package_id_churn_rate_calculation_calls' => $per_churn_metrics['package_id']['rate_calculation_calls'],
+		'package_name_churn_rate_calculation_calls' => $per_churn_metrics['package_name']['rate_calculation_calls'],
+		'rates_churn_rate_calculation_calls'   => $per_churn_metrics['rates']['rate_calculation_calls'],
+		'package_index_churn_rate_calculation_calls' => $per_churn_metrics['package_index']['rate_calculation_calls'],
+		'destination_postcode_rehash_rate_calculation_calls' => $per_churn_metrics['destination_postcode']['rate_calculation_calls'],
+		'contents_cost_rehash_rate_calculation_calls' => $per_churn_metrics['contents_cost']['rate_calculation_calls'],
+		'unknown_package_key_rehash_rate_calculation_calls' => $per_churn_metrics['unknown_package_key']['rate_calculation_calls'],
+		'filter_ignored_unknown_package_key_rate_calculation_calls' => $per_churn_metrics['filter_ignored_unknown_package_key']['rate_calculation_calls'],
+		'ignored_hash_fields_filter'           => $ignored_hash_fields_filter,
+		'synthetic_unknown_package_key'        => $synthetic_unknown_key,
 	);
 
 	$artifact_path = '';
@@ -355,11 +473,12 @@ return function (): array {
 	return array(
 		'metrics'   => $summary,
 		'metadata'  => array(
-			'runner'       => 'wp-codebox',
-			'workload'     => 'checkout-shipping-cache',
-			'issues'       => $issues,
-			'zone_id'      => $zone->get_id(),
-			'product_seed' => 'simple-physical',
+			'runner'                     => 'wp-codebox',
+			'workload'                   => 'checkout-shipping-cache',
+			'issues'                     => $issues,
+			'zone_id'                    => $zone->get_id(),
+			'product_seed'               => 'simple-physical',
+			'ignored_hash_fields_filter' => $ignored_hash_fields_filter,
 		),
 		'artifacts' => $artifact_path ? array( 'raw_result' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);
