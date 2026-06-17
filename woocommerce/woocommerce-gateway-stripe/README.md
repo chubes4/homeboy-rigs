@@ -65,18 +65,27 @@ Secondary noisy metrics:
 The rig owns its benchmark fixture at `bench/fixture-bootstrap.php`; the target
 Stripe checkout does not need benchmark fixture files.
 
-For `homeboy rig check`, use `HOMEBOY_WC_STRIPE_COMPONENT_PATH` when the target
-Stripe checkout is a worktree instead of `~/Developer/woocommerce-gateway-stripe`:
+For `homeboy rig check`, update `components.woocommerce-gateway-stripe.path` in
+`rigs/woocommerce-stripe-ece-product-page/rig.json` when the target Stripe
+checkout is a worktree instead of `~/Developer/woocommerce-gateway-stripe`:
 
-```bash
-export HOMEBOY_WC_STRIPE_COMPONENT_PATH=/path/to/woocommerce-gateway-stripe-worktree
+```json
+"components": {
+  "woocommerce-gateway-stripe": {
+    "path": "/path/to/woocommerce-gateway-stripe-worktree"
+  }
+}
 ```
 
 The rig also needs a WooCommerce plugin directory. Prefer a packaged WooCommerce
 plugin build when tracing Stripe browser behavior:
 
-```bash
-export HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH=/path/to/woocommerce
+```json
+"components": {
+  "woocommerce": {
+    "path": "/path/to/woocommerce"
+  }
+}
 ```
 
 The Stripe plugin mounted into WP Codebox must carry fresh product-page ECE

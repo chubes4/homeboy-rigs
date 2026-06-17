@@ -5,6 +5,10 @@
     "woocommerce-gateway-stripe": {
       "path": "~/Developer/woocommerce-gateway-stripe",
       "branch": "develop"
+    },
+    "woocommerce": {
+      "path": "$HOME/Developer/woocommerce/plugins/woocommerce",
+      "branch": "trunk"
     }
   },
   "resources": {
@@ -188,19 +192,25 @@
   "pipeline": {
     "check": [
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Stripe checkout exists",
-        "command": "stripe_path=\"${HOMEBOY_WC_STRIPE_COMPONENT_PATH:-$HOME/Developer/woocommerce-gateway-stripe}\"; test -f \"$stripe_path/woocommerce-gateway-stripe.php\" || { printf '%s\\n' \"Missing WooCommerce Stripe checkout: expected $stripe_path/woocommerce-gateway-stripe.php. Set HOMEBOY_WC_STRIPE_COMPONENT_PATH for rig checks or pass --path for trace runs.\"; exit 1; }"
+        "file": "${components.woocommerce-gateway-stripe.path}/woocommerce-gateway-stripe.php",
+        "component": "woocommerce-gateway-stripe",
+        "component_path_contains": "woocommerce-gateway-stripe",
+        "remediation": "Set components.woocommerce-gateway-stripe.path or pass --path for trace runs."
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Rig-owned Stripe fixture exists",
-        "command": "test -f \"${package.root}/bench/fixture-bootstrap.php\" || { printf '%s\\n' \"Missing rig-owned Stripe benchmark fixture at ${package.root}/bench/fixture-bootstrap.php.\"; exit 1; }"
+        "file": "${package.root}/bench/fixture-bootstrap.php"
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "WooCommerce dependency plugin exists",
-        "command": "woocommerce_path=\"${HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH:-$HOME/Developer/woocommerce/plugins/woocommerce}\"; test -f \"$woocommerce_path/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce dependency plugin: expected $woocommerce_path/woocommerce.php. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory before running this rig.\"; exit 1; }"
+        "file": "${components.woocommerce.path}/woocommerce.php",
+        "component": "woocommerce",
+        "component_path_contains": "plugins/woocommerce",
+        "remediation": "Set components.woocommerce.path to a packaged WooCommerce plugin directory before running this rig."
       },
       {
         "kind": "command",

@@ -101,53 +101,82 @@
   "pipeline": {
     "check": [
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "WooCommerce runner checkout exists",
-        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce runner checkout: expected $woocommerce_dir/woocommerce.php. Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path before running woocommerce-performance.\"; exit 1; }"
+        "file": "${components.woocommerce.path}/woocommerce.php",
+        "component": "woocommerce",
+        "component_path_contains": "plugins/woocommerce",
+        "remediation": "Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path before running woocommerce-performance."
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "WooCommerce cart class exists",
-        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/includes/class-wc-cart.php\" || { printf '%s\\n' \"Missing WooCommerce cart class: expected $woocommerce_dir/includes/class-wc-cart.php. Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone.\"; exit 1; }"
+        "file": "${components.woocommerce.path}/includes/class-wc-cart.php",
+        "remediation": "Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone."
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "WooCommerce shipping class exists",
-        "command": "woocommerce_dir=\"${components.woocommerce.path}\"; test -f \"$woocommerce_dir/includes/class-wc-shipping.php\" || { printf '%s\\n' \"Missing WooCommerce shipping class: expected $woocommerce_dir/includes/class-wc-shipping.php. Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone.\"; exit 1; }"
+        "file": "${components.woocommerce.path}/includes/class-wc-shipping.php",
+        "remediation": "Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone."
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
-        "command": "bash \"${package.root}/tools/woocommerce-composer-dependencies.sh\" check \"${components.woocommerce.path}\""
+        "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
+        "cwd": "${components.woocommerce.path}",
+        "prepare_command": "XDEBUG_MODE=off composer install --no-interaction --no-progress",
+        "prepare_phases": ["up", "bench_prepare"],
+        "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "WooCommerce generated feature config exists or can be prepared",
-        "command": "bash \"${package.root}/tools/woocommerce-feature-config.sh\" check \"${components.woocommerce.path}\""
+        "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
+        "cwd": "${components.woocommerce.path}",
+        "prepare_command": "php bin/generate-feature-config.php",
+        "prepare_phases": ["up", "bench_prepare"],
+        "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
     ],
     "up": [
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Prepare WooCommerce Composer dependencies when missing",
-        "command": "bash \"${package.root}/tools/woocommerce-composer-dependencies.sh\" prepare \"${components.woocommerce.path}\" \"rig up\""
+        "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
+        "cwd": "${components.woocommerce.path}",
+        "prepare_command": "XDEBUG_MODE=off composer install --no-interaction --no-progress",
+        "prepare_phases": ["up"],
+        "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Generate WooCommerce feature config when missing",
-        "command": "bash \"${package.root}/tools/woocommerce-feature-config.sh\" prepare \"${components.woocommerce.path}\" \"rig up\""
+        "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
+        "cwd": "${components.woocommerce.path}",
+        "prepare_command": "php bin/generate-feature-config.php",
+        "prepare_phases": ["up"],
+        "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
     ],
     "bench_prepare": [
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Prepare WooCommerce Composer dependencies when missing",
-        "command": "bash \"${package.root}/tools/woocommerce-composer-dependencies.sh\" prepare \"${components.woocommerce.path}\" \"bench_prepare\""
+        "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
+        "cwd": "${components.woocommerce.path}",
+        "prepare_command": "XDEBUG_MODE=off composer install --no-interaction --no-progress",
+        "prepare_phases": ["bench_prepare"],
+        "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
       {
-        "kind": "command",
+        "kind": "requirement",
         "label": "Generate WooCommerce feature config when missing",
-        "command": "bash \"${package.root}/tools/woocommerce-feature-config.sh\" prepare \"${components.woocommerce.path}\" \"bench_prepare\""
+        "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
+        "cwd": "${components.woocommerce.path}",
+        "prepare_command": "php bin/generate-feature-config.php",
+        "prepare_phases": ["bench_prepare"],
+        "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
     ],
     "down": []
