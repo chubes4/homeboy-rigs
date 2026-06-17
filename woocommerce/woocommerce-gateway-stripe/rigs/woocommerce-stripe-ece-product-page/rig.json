@@ -215,7 +215,7 @@
       {
         "kind": "command",
         "label": "WP Codebox CLI available",
-        "command": "if [ -n \"${HOMEBOY_WP_CODEBOX_BIN:-}\" ]; then test -f \"$HOMEBOY_WP_CODEBOX_BIN\" || { printf '%s\\n' \"HOMEBOY_WP_CODEBOX_BIN is set but not found: $HOMEBOY_WP_CODEBOX_BIN\"; exit 1; }; else command -v wp-codebox >/dev/null 2>&1 || { printf '%s\\n' 'Missing wp-codebox CLI. Install WP Codebox or set HOMEBOY_WP_CODEBOX_BIN to packages/cli/dist/index.js.'; exit 1; }; fi"
+        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       }
     ],
     "up": [],
