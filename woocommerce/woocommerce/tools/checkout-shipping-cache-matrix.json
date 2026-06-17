@@ -1,0 +1,76 @@
+{
+  "schema": "homeboy-rigs.evidence-matrix.v1",
+  "title": "WooCommerce Shipping Cache Matrix Report",
+  "issues": [
+    "https://github.com/woocommerce/woocommerce/issues/26569",
+    "https://github.com/woocommerce/woocommerce/issues/32055",
+    "https://github.com/woocommerce/woocommerce/issues/49259"
+  ],
+  "status_notes": [
+    "Timing evidence and shipping-rate call-count evidence are reported separately.",
+    "Deterministic expensive shipping-method fixture support landed in Extra-Chill/homeboy-extensions#1089.",
+    "Baseline/candidate export wiring is pending Extra-Chill/homeboy#3516."
+  ],
+  "matrix_knobs": [
+    { "cart_items": 40, "packages": 1, "total_churn_runs": 3, "profile": "smoke" },
+    { "cart_items": 40, "packages": 8, "total_churn_runs": 3, "profile": "smoke" },
+    { "cart_items": 200, "packages": 8, "total_churn_runs": 5, "profile": "hot" },
+    { "cart_items": 200, "packages": 40, "total_churn_runs": 5, "profile": "hot" },
+    { "cart_items": 1000, "packages": 40, "total_churn_runs": 5, "profile": "hot" }
+  ],
+  "evidence_sections": [
+    {
+      "id": "timing",
+      "title": "Timing Evidence",
+      "metrics": [
+        "cold_shipping_ms",
+        "warm_shipping_p50_ms",
+        "total_churn_shipping_p50_ms",
+        "rehash_shipping_p50_ms"
+      ]
+    },
+    {
+      "id": "call_count",
+      "title": "Call-Count Evidence",
+      "metrics": [
+        "cold_rate_calculation_calls",
+        "warm_rate_calculation_calls",
+        "total_churn_rate_calculation_calls",
+        "rehash_rate_calculation_calls"
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "control": "Warm repeat, unchanged package hash",
+      "expected_cache_behavior": "Stay cached",
+      "current_coverage": "Covered by `warm_*` rows"
+    },
+    {
+      "control": "Package subtotal/total-only churn",
+      "expected_cache_behavior": "Should stay cached if shipping inputs are unchanged",
+      "current_coverage": "Covered by `total_churn_*` rows; sharpening tracked in homeboy-rigs#166"
+    },
+    {
+      "control": "Destination/postcode changes",
+      "expected_cache_behavior": "Invalidate cache",
+      "current_coverage": "Covered by `rehash_*` rows"
+    },
+    {
+      "control": "Cart contents changes",
+      "expected_cache_behavior": "Invalidate cache",
+      "current_coverage": "Planned follow-up"
+    },
+    {
+      "control": "Contents cost, coupon, tax, fee inputs",
+      "expected_cache_behavior": "Validate expected behavior per WooCommerce cache key contract",
+      "current_coverage": "Planned follow-up"
+    },
+    {
+      "control": "Expensive deterministic shipping method",
+      "expected_cache_behavior": "Amplify call-count regressions without browser noise",
+      "current_coverage": "Available via Extra-Chill/homeboy-extensions#1089"
+    }
+  ],
+  "follow_up_primitive": "Homeboy core evidence-matrix primitive that accepts a matrix definition, baseline/candidate artifact selectors, metric sections, delta policies, and Markdown/JSON renderers."
+}
