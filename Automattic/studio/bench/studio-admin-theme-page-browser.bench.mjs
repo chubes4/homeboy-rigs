@@ -25,7 +25,7 @@ if (!REDACTION_HELPER) {
   throw new Error('HOMEBOY_NODEJS_BENCH_REDACTION is required');
 }
 
-const { runBrowserPageScenario } = await import(BROWSER_HELPER);
+const { buildBrowserBenchResult, runBrowserPageScenario } = await import(BROWSER_HELPER);
 const { createBenchArtifactContext } = await import(ARTIFACT_CONTEXT_HELPER);
 const { sanitizeArtifactFile } = await import(REDACTION_HELPER);
 
@@ -153,7 +153,7 @@ export default async function studioAdminThemePageBrowserBench() {
       throw new Error(`Browser trace/screenshot artifacts missing; raw_result=${artifactFile}`);
     }
 
-    return {
+    return buildBrowserBenchResult({
       metrics: {
         success_rate: 1,
         elapsed_ms: totalElapsedMs,
@@ -165,12 +165,12 @@ export default async function studioAdminThemePageBrowserBench() {
         total_elapsed_ms: totalElapsedMs,
         ...browserResult.metrics,
       },
+      rawResultArtifact,
       artifacts: {
-        raw_result: rawResultArtifact,
         site_path: sitePath,
         ...browserResult.artifacts,
       },
-    };
+    });
   } finally {
     if (!stop) {
       stop = await stopSite(sitePath);
