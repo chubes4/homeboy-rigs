@@ -228,6 +228,8 @@ Keep the Studio bench harness layered so each repo owns the smallest stable surf
 
 Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block quality probes from `Extra-Chill/homeboy-extensions#1009`; target post metrics remain tracked in `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.
 
+WP Codebox artifact consumers should resolve files through `shared/wp-codebox/artifacts.mjs` instead of parsing `artifacts.directory/files/...` at each call site. The helper consumes artifact file manifests when WP Codebox/Homeboy expose them and keeps one temporary fallback for the current `files/browser/*` bundle layout until that manifest contract is stable upstream.
+
 Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, and rig check pipelines should call `shared/wp-codebox/check-cli.sh` instead of duplicating `command -v wp-codebox`, local checkout guesses, or env-var precedence. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, and command-scoped filesystem assertions; keep local helpers small until Homeboy/Homeboy Extensions exposes those contracts.
 
 Cleanup should move in small waves:

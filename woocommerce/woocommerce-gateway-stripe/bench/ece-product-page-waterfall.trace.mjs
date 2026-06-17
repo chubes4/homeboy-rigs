@@ -14,6 +14,7 @@ import { summarizeEceReadinessMetrics } from './ece-product-page-readiness-metri
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 import { runWpCodeboxRecipe } from './ece-product-page-wp-codebox.mjs';
+import { wpCodeboxBrowserArtifacts } from '../../../shared/wp-codebox/artifacts.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -1159,13 +1160,13 @@ if ( ! get_permalink( (int) $state['product_id'] ) ) {
   event('wordpress', 'fixture.ready');
 
   const output = JSON.parse(result.stdout);
-  const bundleDir = output.artifacts?.directory;
-  const browserDir = bundleDir ? path.join(bundleDir, 'files', 'browser') : '';
-  const networkPath = browserDir ? path.join(browserDir, 'network.jsonl') : '';
-  const summaryPath = browserDir ? path.join(browserDir, 'summary.json') : '';
-  const performancePath = browserDir ? path.join(browserDir, 'performance.json') : '';
-  const consolePath = browserDir ? path.join(browserDir, 'console.jsonl') : '';
-  const errorsPath = browserDir ? path.join(browserDir, 'errors.jsonl') : '';
+  const browserArtifacts = wpCodeboxBrowserArtifacts(output, ['network.jsonl', 'summary.json', 'performance.json', 'console.jsonl', 'errors.jsonl']);
+  const browserDir = browserArtifacts.directory;
+  const networkPath = browserArtifacts['network.jsonl'];
+  const summaryPath = browserArtifacts['summary.json'];
+  const performancePath = browserArtifacts['performance.json'];
+  const consolePath = browserArtifacts['console.jsonl'];
+  const errorsPath = browserArtifacts['errors.jsonl'];
   const htmlPath = await findBrowserHtmlPath(browserDir);
   const network = await readJsonl(networkPath);
   const consoleMessages = await readJsonl(consolePath);
