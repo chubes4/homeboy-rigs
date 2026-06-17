@@ -61,6 +61,8 @@ GitHub Actions runs the PHP syntax pass with PHP installed.
 
 `rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
 
+The rig declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
+
 ```bash
 homeboy rig check studio-combined
 homeboy rig up studio-combined
@@ -185,6 +187,8 @@ Canonical Studio create-site trace spans, pending Homeboy's trace span summary s
 | `ready_to_state` | `probe.http_ready` | `probe.site_details_running_true` |
 | `state_to_ui` | `probe.site_details_running_true` | `ui.site.running_visible` |
 | `submit_to_running` | `ui.create_site.submit_clicked` | `ui.site.running_visible` |
+
+The optional `diagnostic-seeded-sqlite-db` trace experiment no longer assumes a seed database under `/tmp`; set `HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH=/path/to/seed.ht.sqlite` when using that experiment. The optional live `proc_open` check also requires `STUDIO_PROC_OPEN_CHECK_SITE_PATH` or `HOMEBOY_SETTINGS_STUDIO_PROC_OPEN_CHECK_SITE_PATH`, so package checks do not assume Chris's local Studio site path.
 
 The Studio agent site-build rigs are model/substrate-specific. Use `studio-agent-claude-ssi` or `studio-agent-gpt55-ssi` for current Static Site Importer site-build runs, and `studio-agent-claude-trunk` as the trunk reference.
 

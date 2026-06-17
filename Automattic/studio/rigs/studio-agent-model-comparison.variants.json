@@ -4,6 +4,11 @@
     "bench": {
       "default_component": "studio"
     },
+    "resources": {
+      "paths": [
+        "${components.studio.path}"
+      ]
+    },
     "bench_workloads": {
       "nodejs": [
         "${package.root}/bench/studio-agent-runtime.bench.mjs",
@@ -16,6 +21,12 @@
     },
     "pipeline": {
       "up": [
+        {
+          "kind": "check",
+          "label": "npm available",
+          "command": "command -v npm >/dev/null 2>&1",
+          "expect_exit": 0
+        },
         {
           "kind": "command",
           "label": "Install Studio dependencies",
@@ -30,6 +41,12 @@
         }
       ],
       "check": [
+        {
+          "kind": "check",
+          "label": "npm available",
+          "command": "command -v npm >/dev/null 2>&1",
+          "expect_exit": 0
+        },
         {
           "kind": "check",
           "label": "Studio CLI eval runner built",

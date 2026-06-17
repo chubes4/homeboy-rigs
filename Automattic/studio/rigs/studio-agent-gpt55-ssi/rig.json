@@ -13,6 +13,11 @@
       }
     }
   },
+  "resources": {
+    "paths": [
+      "${components.studio.path}"
+    ]
+  },
   "bench": {
     "default_component": "studio"
   },
@@ -29,6 +34,12 @@
   "pipeline": {
     "up": [
       {
+        "kind": "check",
+        "label": "npm available",
+        "command": "command -v npm >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
         "kind": "command",
         "label": "Install Studio dependencies",
         "cwd": "${components.studio.path}",
@@ -42,6 +53,12 @@
       }
     ],
     "check": [
+      {
+        "kind": "check",
+        "label": "npm available",
+        "command": "command -v npm >/dev/null 2>&1",
+        "expect_exit": 0
+      },
       {
         "kind": "check",
         "label": "Studio CLI eval runner built",
