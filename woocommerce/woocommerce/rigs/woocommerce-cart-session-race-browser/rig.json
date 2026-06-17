@@ -63,9 +63,9 @@
   "pipeline": {
     "check": [
       {
-        "kind": "command",
+        "kind": "check",
         "label": "WooCommerce monorepo plugin exists",
-        "command": "woocommerce_root=\"${components.woocommerce.path}\"; test -f \"$woocommerce_root/plugins/woocommerce/woocommerce.php\" || { printf '%s\\n' \"Missing WooCommerce plugin entrypoint: expected $woocommerce_root/plugins/woocommerce/woocommerce.php. Pass homeboy trace --path /path/to/woocommerce-monorepo or update components.woocommerce.path.\"; exit 1; }"
+        "file": "${components.woocommerce.path}/plugins/woocommerce/woocommerce.php"
       }
     ],
     "up": [],
