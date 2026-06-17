@@ -1,7 +1,23 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+
+const WORKLOAD_UTILS = process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS;
+
+if (!WORKLOAD_UTILS) {
+  throw new Error('HOMEBOY_NODEJS_WORKLOAD_UTILS is required');
+}
+
+const {
+  artifactDir: nodeArtifactDir,
+  expandHome,
+  metric,
+  redactText,
+  runNode,
+  safeResult: nodeSafeResult,
+  sanitizeArtifactFile,
+  setting,
+} = await import(WORKLOAD_UTILS);
 
 const RESULT_PREFIX = 'EVAL_RUNNER_RESULT_FILE=';
 
@@ -12,126 +28,33 @@ if (!STUDIO_PATH) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
 }
 
-export function setting(key) {
-  try {
-    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
-    if (settings && typeof settings[key] === 'string') {
-      return settings[key];
-    }
-  } catch {
-    // Ignore malformed settings and fall back to direct env/debug defaults.
-  }
+export { expandHome, metric, setting };
 
-  return process.env[`HOMEBOY_SETTINGS_${key.toUpperCase()}`] || '';
+export function artifactDir(name, sharedState = SHARED_STATE) {
+  return nodeArtifactDir(name, { sharedState });
 }
 
 export function variant() {
   return setting('studio_bench_variant') || path.basename(STUDIO_PATH);
 }
 
-export function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
-}
-
-export function expandHome(value) {
-  if (!value) {
-    return value;
-  }
-  if (value === '~') {
-    return os.homedir();
-  }
-  if (value.startsWith('~/')) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
-}
-
 export function redact(text) {
-  return String(text || '')
-    .replace(/("adminPassword"\s*:\s*")[^"]+(")/g, '$1[redacted]$2')
-    .replace(/(--admin-password\s+)\S+/g, '$1[redacted]')
-    .replace(/(autoLoginUrl"?\s*[:=]\s*"?)[^"\s,}]+/gi, '$1[redacted]')
-    .replace(/([?&](?:token|password|key|nonce)=)[^&#\s]+/gi, '$1[redacted]');
+  return redactText(String(text || ''), { replacement: '[redacted]' });
+}
+
+export function safeResult(result) {
+  return nodeSafeResult(result, { redaction: { replacement: '[redacted]' } });
 }
 
 export async function sanitizeArtifact(artifact) {
   if (!artifact || typeof artifact.path !== 'string') {
     return;
   }
-  await writeFile(artifact.path, redact(await readFile(artifact.path, 'utf8')));
-}
-
-export function safeResult(result) {
-  if (!result) {
-    return result;
-  }
-  return {
-    code: result.code,
-    elapsedMs: result.elapsedMs,
-    stdout: redact(result.stdout),
-    stderr: redact(result.stderr),
-  };
-}
-
-export function artifactDir(name, sharedState = SHARED_STATE) {
-  return path.join(sharedState, name);
+  await sanitizeArtifactFile(artifact.path, { profile: 'web', replacement: '[redacted]' });
 }
 
 export function run(args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const started = Date.now();
-    let settled = false;
-    let stdout = '';
-    let stderr = '';
-    const child = spawn(process.execPath, args, {
-      cwd: options.cwd || STUDIO_PATH,
-      env: { ...process.env, ...(options.env || {}) },
-    });
-
-    const timer = options.timeoutMs
-      ? setTimeout(() => {
-          if (settled) {
-            return;
-          }
-          settled = true;
-          child.kill('SIGKILL');
-          reject(
-            new Error(
-              `${args.join(' ')} timed out after ${options.timeoutMs}ms; stdout=${stdout.slice(-1000)}; stderr=${stderr.slice(-1000)}`
-            )
-          );
-        }, options.timeoutMs)
-      : undefined;
-
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', (error) => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      reject(error);
-    });
-    child.on('close', (code) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      if (timer) {
-        clearTimeout(timer);
-      }
-      const elapsedMs = Date.now() - started;
-      if (code !== 0 && options.allowFailure !== true) {
-        reject(new Error(`${args.join(' ')} exited ${code}; stderr=${stderr.slice(0, 1500)}`));
-        return;
-      }
-      resolve({ code, stdout, stderr, elapsedMs });
-    });
-  });
+  return runNode(args, { cwd: STUDIO_PATH, ...options });
 }
 
 export async function runCli(args, options = {}) {

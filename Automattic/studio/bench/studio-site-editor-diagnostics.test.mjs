@@ -6,6 +6,58 @@ import test from 'node:test';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
 
+const workloadUtilsDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-node-workload-utils-'));
+const workloadUtilsPath = path.join(workloadUtilsDir, 'workload-utils.mjs');
+await writeFile(workloadUtilsPath, `
+import { readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+export function artifactDir(name, options = {}) {
+  return path.join(options.sharedState || process.env.HOMEBOY_BENCH_SHARED_STATE || os.tmpdir(), name);
+}
+
+export function expandHome(value) {
+  if (!value) return value;
+  if (value === '~') return os.homedir();
+  if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2));
+  return value;
+}
+
+export function metric(value, fallback = 0) {
+  const number = Number(value ?? fallback);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+export function redactText(value, options = {}) {
+  const replacement = options.replacement || '[redacted]';
+  return String(value || '').replace(/([?&](?:token|password|key|nonce)=)[^&#\\s]+/gi, '$1' + replacement);
+}
+
+export async function sanitizeArtifactFile(file, options = {}) {
+  await writeFile(file, redactText(await readFile(file, 'utf8'), options));
+  return { path: file };
+}
+
+export function safeResult(result) {
+  if (!result) return result;
+  return { ...result, stdout: redactText(result.stdout), stderr: redactText(result.stderr) };
+}
+
+export function setting(key, fallback = '') {
+  try {
+    const settings = JSON.parse(process.env.HOMEBOY_SETTINGS_JSON || '{}');
+    if (settings && settings[key] !== undefined && settings[key] !== null) return String(settings[key]);
+  } catch {}
+  return process.env['HOMEBOY_SETTINGS_' + String(key).toUpperCase()] || fallback;
+}
+
+export function runNode() {
+  throw new Error('runNode is not used by these unit tests.');
+}
+`);
+process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS ||= workloadUtilsPath;
+
 const DEFAULT_RESOURCE_INCLUDE = Object.freeze([
   '/wp-json/',
   '?rest_route=',

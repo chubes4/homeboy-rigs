@@ -222,8 +222,8 @@ Mixed-source prompt variants such as `astro-docs-content-collection`, `markdown-
 Keep the Studio bench harness layered so each repo owns the smallest stable surface it can support:
 
 - `homeboy-rigs` owns Studio-specific workloads, prompts, and experimental harness wiring while APIs are still moving.
-- `homeboy-extensions/nodejs` is the future home for generic Node and browser benchmark utilities once those helpers are reusable outside Studio.
-- `homeboy-extensions/wordpress` is the future home for generic WordPress and block quality probes once their contracts are stable.
+- `homeboy-extensions/nodejs` owns generic Node benchmark settings, command, artifact, and redaction helpers used by Studio workloads.
+- `homeboy-extensions/wordpress` owns generic WordPress helper discovery, WP Codebox recipe execution, and block quality probes once their contracts are stable.
 - `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
 
 Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block quality probes from `Extra-Chill/homeboy-extensions#1009`; target post metrics remain tracked in `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.

@@ -1,66 +1,36 @@
-import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
 
-export function wpCodeboxBin(env = process.env) {
-  const explicit = env.HOMEBOY_WP_CODEBOX_BIN || env.HOMEBOY_SETTINGS_WP_CODEBOX_BIN;
+function loadRecipeHelper() {
+  const explicit = process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
   if (explicit) {
-    return explicit;
+    return require(explicit);
   }
 
-  const checkoutBin = path.join(env.HOME || '', 'Developer/wp-codebox/packages/cli/dist/index.js');
-  return existsSync(checkoutBin) ? checkoutBin : 'wp-codebox';
+  const manifestPath = process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST;
+  if (manifestPath) {
+    const manifestModule = require(manifestPath);
+    const manifest = typeof manifestModule.getWordPressHelperManifest === 'function'
+      ? manifestModule.getWordPressHelperManifest()
+      : manifestModule.WORDPRESS_HELPER_MANIFEST;
+    if (manifest?.extensionRoot) {
+      return require(path.join(manifest.extensionRoot, 'lib', 'wp-codebox-recipe-helper.js'));
+    }
+  }
+
+  return require('homeboy-extension-wordpress/wp-codebox-recipe-helper');
+}
+
+export function wpCodeboxBin(env = process.env) {
+  return loadRecipeHelper().wpCodeboxBin({ env });
 }
 
 export function wpCodeboxCommand(bin = wpCodeboxBin()) {
-  if (/\.(?:js|cjs|mjs)$/.test(bin)) {
-    return { command: 'node', args: [bin] };
-  }
-
-  return { command: bin, args: [] };
+  return loadRecipeHelper().wpCodeboxCommand(bin);
 }
 
-export async function runWpCodeboxRecipe({
-  recipeFile,
-  artifactsDir,
-  outputFile,
-  recipeRunArgs = [],
-  event,
-  maxBuffer = 1024 * 1024 * 50,
-}) {
-  const { command, args } = wpCodeboxCommand();
-  const commandArgs = [
-    ...args,
-    'recipe-run',
-    '--recipe',
-    recipeFile,
-    '--artifacts',
-    artifactsDir,
-    ...recipeRunArgs,
-    '--json',
-  ];
-
-  event?.('wp_codebox', 'recipe.start', { recipe_file: recipeFile, artifacts_dir: artifactsDir });
-
-  try {
-    const result = await execFileAsync(command, commandArgs, { maxBuffer });
-    await writeFile(outputFile, result.stdout);
-    event?.('wp_codebox', 'recipe.done', { output_file: outputFile, artifacts_dir: artifactsDir });
-    return result;
-  } catch (error) {
-    if (typeof error?.stdout === 'string' && error.stdout) {
-      await writeFile(outputFile, error.stdout);
-    }
-
-    event?.('wp_codebox', 'recipe.failed', {
-      output_file: outputFile,
-      artifacts_dir: artifactsDir,
-      exit_code: error?.code ?? null,
-    });
-    throw error;
-  }
+export async function runWpCodeboxRecipe(options) {
+  return loadRecipeHelper().runWpCodeboxRecipe(options);
 }

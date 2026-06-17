@@ -1,10 +1,10 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { spawn } from 'node:child_process';
 
 import { STUDIO_PATH, expandHome, setting } from './studio-bench.mjs';
 import { loadWordPressLibHelper } from './wordpress-helper-discovery.mjs';
+import { runWpCodeboxRecipe as runWordPressRecipe } from '../../../../shared/wp-codebox/recipe.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
 export const VISUAL_VIEWPORT = { width: 1440, height: 1100 };
@@ -94,44 +94,23 @@ function explainSelectors(groups) {
   return selectors.slice(0, VISUAL_COMPARE_EXPLAIN_SELECTOR_LIMIT);
 }
 
-async function runWpCodeboxRecipe(recipePath) {
+async function runWpCodeboxRecipe(recipePath, artifactsDir) {
   const cliPath = wpCodeboxCliPath();
   if (!cliPath) {
     throw new Error('Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.');
   }
 
-  const useNode = /\.(?:cjs|mjs|js|ts)$/.test(cliPath);
-  const command = useNode ? process.execPath : cliPath;
-  const args = useNode ? [cliPath, 'recipe-run', '--recipe', recipePath, '--json'] : ['recipe-run', '--recipe', recipePath, '--json'];
-
-  return new Promise((resolve, reject) => {
-    let stdout = '';
-    let stderr = '';
-    const child = spawn(command, args, { cwd: path.dirname(recipePath), stdio: ['ignore', 'pipe', 'pipe'] });
-    child.stdout.on('data', (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on('data', (chunk) => {
-      stderr += String(chunk);
-    });
-    child.on('error', reject);
-    child.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`WP Codebox visual compare exited with ${code}; stdout=${stdout.slice(-1000)}; stderr=${stderr.slice(-1000)}`));
-        return;
-      }
-      try {
-        const parsed = JSON.parse(stdout);
-        if (parsed?.success === false) {
-          reject(new Error(parsed?.error?.message || 'WP Codebox visual compare failed.'));
-          return;
-        }
-        resolve(parsed);
-      } catch (error) {
-        reject(new Error(`WP Codebox visual compare returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`));
-      }
-    });
+  const result = await runWordPressRecipe({
+    recipeFile: recipePath,
+    artifactsDir,
+    bin: cliPath,
+    cwd: path.dirname(recipePath),
   });
+  const parsed = result.json || JSON.parse(result.stdout);
+  if (parsed?.success === false) {
+    throw new Error(parsed?.error?.message || 'WP Codebox visual compare failed.');
+  }
+  return parsed;
 }
 
 async function runWpCodeboxVisualCompare(target, visualDir, targetSlug, importReport, sitePath, groups) {
@@ -165,7 +144,7 @@ async function runWpCodeboxVisualCompare(target, visualDir, targetSlug, importRe
   await mkdir(visualDir, { recursive: true });
   await writeFile(recipePath, `${JSON.stringify(recipe, null, 2)}\n`);
 
-  const output = await runWpCodeboxRecipe(recipePath);
+  const output = await runWpCodeboxRecipe(recipePath, artifactRoot);
   const artifactDirectory = output?.artifacts?.directory || artifactRoot;
   const summaryPath = path.join(artifactDirectory, 'files', 'browser', 'visual-compare', 'visual-diff.json');
   const summary = JSON.parse(await readFile(summaryPath, 'utf8'));
