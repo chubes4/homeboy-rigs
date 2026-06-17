@@ -18,239 +18,61 @@
   "trace": {
     "default_component": "woocommerce-gateway-stripe"
   },
+  "trace_workload_defaults": {
+    "nodejs": {
+      "check_groups": [],
+      "port_range_size": 1,
+      "trace_default_phase_preset": "browser-waterfall",
+      "trace_phase_presets": {
+        "browser-waterfall": [
+          "start:scenario.start",
+          "recipe:wp_codebox.recipe.start",
+          "setup:wordpress.fixture.ready",
+          "probe:browser.probe.ready",
+          "metrics:waterfall.metrics.ready"
+        ]
+      },
+      "trace_span_metadata": {
+        "phase.recipe_to_setup": {
+          "category": "runtime_setup",
+          "blocking": true
+        },
+        "phase.setup_to_probe": {
+          "category": "browser_probe",
+          "blocking": true
+        },
+        "phase.probe_to_metrics": {
+          "category": "artifact_extraction",
+          "blocking": true
+        }
+      }
+    }
+  },
   "trace_workloads": {
     "nodejs": [
       {
-        "path": "${package.root}/bench/ece-product-page-waterfall.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-waterfall.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-scroll-to-ece.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-scroll-to-ece.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-below-fold-load.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-below-fold-load.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-below-fold-scroll-to-ece.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-below-fold-scroll-to-ece.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-quantity-change.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-quantity-change.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-variation-change.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-variation-change.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-simulated-cls.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-simulated-cls.trace.mjs"
       },
       {
-        "path": "${package.root}/bench/ece-product-page-simulated-cls-reserved.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-waterfall",
-        "trace_phase_presets": {
-          "browser-waterfall": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "setup:wordpress.fixture.ready",
-            "probe:browser.probe.ready",
-            "metrics:waterfall.metrics.ready"
-          ]
-        },
-        "trace_span_metadata": {
-          "phase.recipe_to_setup": {
-            "category": "runtime_setup",
-            "blocking": true
-          },
-          "phase.setup_to_probe": {
-            "category": "browser_probe",
-            "blocking": true
-          },
-          "phase.probe_to_metrics": {
-            "category": "artifact_extraction",
-            "blocking": true
-          }
-        }
+        "path": "${package.root}/bench/ece-product-page-simulated-cls-reserved.trace.mjs"
       }
     ]
   },
