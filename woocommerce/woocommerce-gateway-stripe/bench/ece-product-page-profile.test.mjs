@@ -10,13 +10,39 @@ import { buildRequestSummary } from './ece-request-summary.mjs';
 import { validateStripeEceAssetProvenance } from './ece-product-page-assets.mjs';
 import { evaluateEceRealWalletAssetHealth, realWalletAssetHealthSummary } from './ece-product-page-asset-health.mjs';
 import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-page-fixture-health.mjs';
-import { buildEceProfileOptions } from './ece-product-page-profile.mjs';
 import { summarizeEceReadinessMetrics } from './ece-product-page-readiness-metrics.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceProductPageScenarioIds, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, ECE_FANOUT_REVIEWER_READY, ECE_FANOUT_SUPPLEMENTAL, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
 import { wpCodeboxBin, wpCodeboxCommand } from './ece-product-page-wp-codebox.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const workloadUtilsDir = mkdtempSync(path.join(tmpdir(), 'homeboy-node-workload-utils-'));
+const workloadUtilsPath = path.join(workloadUtilsDir, 'workload-utils.mjs');
+writeFileSync(workloadUtilsPath, `
+export function settings(env = process.env) {
+  try {
+    const parsed = JSON.parse(env.HOMEBOY_SETTINGS_JSON || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setting(key, fallback = '', options = {}) {
+  const env = options.env || process.env;
+  const resolved = settings(env);
+  if (Object.hasOwn(resolved, key) && resolved[key] !== undefined && resolved[key] !== null) {
+    return String(resolved[key]);
+  }
+
+  const envKey = (options.prefix || 'HOMEBOY_SETTINGS_') + String(key).toUpperCase();
+  return env[envKey] !== undefined ? env[envKey] : fallback;
+}
+`);
+process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS ||= workloadUtilsPath;
+
+const { buildEceProfileOptions, setting } = await import('./ece-product-page-profile.mjs');
 
 test('WP Codebox helper centralizes binary resolution', () => {
   const helperDir = mkdtempSync(path.join(tmpdir(), 'homeboy-wp-codebox-helper-'));
@@ -192,10 +218,12 @@ test('Stripe hint experiment profiles are opt-in and expose active hint strategy
 
 test('manual hint strategy setting can override browser profile defaults', () => {
   const previous = {
+    HOMEBOY_SETTINGS_JSON: process.env.HOMEBOY_SETTINGS_JSON,
     HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY: process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY,
     HOMEBOY_WC_STRIPE_ECE_HINT_STRATEGY: process.env.HOMEBOY_WC_STRIPE_ECE_HINT_STRATEGY,
   };
 
+  delete process.env.HOMEBOY_SETTINGS_JSON;
   process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY = 'stripe-preconnect';
 
   try {
@@ -214,13 +242,37 @@ test('manual hint strategy setting can override browser profile defaults', () =>
   }
 });
 
+test('settings helper uses Homeboy JSON settings before HOMEBOY_SETTINGS env vars', () => {
+  const previous = {
+    HOMEBOY_SETTINGS_JSON: process.env.HOMEBOY_SETTINGS_JSON,
+    HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY: process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY,
+  };
+
+  process.env.HOMEBOY_SETTINGS_JSON = JSON.stringify({ woocommerce_stripe_ece_hint_strategy: 'stripe-js-preload' });
+  process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_HINT_STRATEGY = 'stripe-preconnect';
+
+  try {
+    assert.equal(setting('woocommerce_stripe_ece_hint_strategy', 'none'), 'stripe-js-preload');
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});
+
 test('webperf wallet fanout profile supplies a non-secret synthetic publishable key', () => {
   const previous = {
+    HOMEBOY_SETTINGS_JSON: process.env.HOMEBOY_SETTINGS_JSON,
     HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF: process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF,
     HOMEBOY_WC_STRIPE_REQUIRE_FANOUT_PROOF: process.env.HOMEBOY_WC_STRIPE_REQUIRE_FANOUT_PROOF,
     HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY: process.env.HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY,
   };
 
+  delete process.env.HOMEBOY_SETTINGS_JSON;
   process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_STRIPE_ECE_REQUIRE_FANOUT_PROOF = '1';
   process.env.HOMEBOY_WC_STRIPE_SYNTHETIC_PUBLISHABLE_KEY = 'pk_test_custom_synthetic_fixture';
 
