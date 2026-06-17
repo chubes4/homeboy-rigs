@@ -1,12 +1,18 @@
 {
   "id": "isolated-block-editor",
-  "description": "Isolated Block Editor maintenance rig. Runs the build and unit test checks used when shaving IBE toward modern Gutenberg APIs. Worktree-friendly: if node_modules is missing, temporarily symlinks shared node_modules for the command duration.",
+  "description": "Isolated Block Editor maintenance rig. Runs the build and unit test checks used when shaving IBE toward modern Gutenberg APIs. Worktree-friendly: if node_modules is missing, borrows the primary checkout's node_modules through Homeboy shared-path primitives.",
   "components": {
     "isolated-block-editor": {
       "path": "~/Developer/isolated-block-editor",
       "branch": "trunk"
     }
   },
+  "shared_paths": [
+    {
+      "link": "${components.isolated-block-editor.path}/node_modules",
+      "target": "~/Developer/isolated-block-editor/node_modules"
+    }
+  ],
   "pipeline": {
     "up": [
       {
@@ -16,9 +22,13 @@
         "contains": "@chubes4/isolated-block-editor"
       },
       {
-        "kind": "command",
-        "label": "Shared node_modules is available",
-        "command": "component_path=\"${components.isolated-block-editor.path}\"; case \"$component_path\" in '~'/*) component_path=\"$HOME/${component_path#~/}\" ;; esac; shared_node_modules=\"${HOMEBOY_SHARED_NODE_MODULES_PATH:-${HOMEBOY_SETTINGS_SHARED_NODE_MODULES_PATH:-$component_path/node_modules}}\"; case \"$shared_node_modules\" in '~'/*) shared_node_modules=\"$HOME/${shared_node_modules#~/}\" ;; esac; test -x \"$shared_node_modules/.bin/babel\" || { printf '%s\n' \"Missing Babel binary: expected $shared_node_modules/.bin/babel. Set HOMEBOY_SHARED_NODE_MODULES_PATH or HOMEBOY_SETTINGS_SHARED_NODE_MODULES_PATH.\"; exit 1; }"
+        "kind": "shared-path",
+        "op": "ensure"
+      },
+      {
+        "kind": "check",
+        "label": "Babel binary is available",
+        "file": "${components.isolated-block-editor.path}/node_modules/.bin/babel"
       }
     ],
     "check": [
@@ -29,21 +39,36 @@
         "contains": "@chubes4/isolated-block-editor"
       },
       {
-        "kind": "command",
-        "label": "Shared node_modules is available",
-        "command": "component_path=\"${components.isolated-block-editor.path}\"; case \"$component_path\" in '~'/*) component_path=\"$HOME/${component_path#~/}\" ;; esac; shared_node_modules=\"${HOMEBOY_SHARED_NODE_MODULES_PATH:-${HOMEBOY_SETTINGS_SHARED_NODE_MODULES_PATH:-$component_path/node_modules}}\"; case \"$shared_node_modules\" in '~'/*) shared_node_modules=\"$HOME/${shared_node_modules#~/}\" ;; esac; test -x \"$shared_node_modules/.bin/babel\" || { printf '%s\n' \"Missing Babel binary: expected $shared_node_modules/.bin/babel. Set HOMEBOY_SHARED_NODE_MODULES_PATH or HOMEBOY_SETTINGS_SHARED_NODE_MODULES_PATH.\"; exit 1; }"
+        "kind": "shared-path",
+        "op": "ensure"
+      },
+      {
+        "kind": "shared-path",
+        "op": "verify"
+      },
+      {
+        "kind": "check",
+        "label": "Babel binary is available",
+        "file": "${components.isolated-block-editor.path}/node_modules/.bin/babel"
       },
       {
         "kind": "command",
         "label": "npm run build",
-        "command": "bash \"${package.root}/../../shared/node/with-shared-node-modules.sh\" \"${components.isolated-block-editor.path}\" npm run build"
+        "cwd": "${components.isolated-block-editor.path}",
+        "command": "npm run build"
       },
       {
         "kind": "command",
         "label": "npm test -- --runInBand",
-        "command": "bash \"${package.root}/../../shared/node/with-shared-node-modules.sh\" \"${components.isolated-block-editor.path}\" npm test -- --runInBand"
+        "cwd": "${components.isolated-block-editor.path}",
+        "command": "npm test -- --runInBand"
       }
     ],
-    "down": []
+    "down": [
+      {
+        "kind": "shared-path",
+        "op": "cleanup"
+      }
+    ]
   }
 }
