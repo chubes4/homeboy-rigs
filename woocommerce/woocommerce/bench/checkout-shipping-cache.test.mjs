@@ -21,8 +21,7 @@ test('package_index churn does not mutate the rig-only helper key', () => {
   assert.doesNotMatch(packageIndexCase, /homeboy_package_index/);
 });
 
-test('unknown package key guardrails still use the synthetic key', () => {
+test('unknown package key guardrail still uses the synthetic key', () => {
   assert.match(caseBody('unknown_package_key'), /\$package\[ \$synthetic_unknown_key \]/);
-  assert.match(caseBody('ignored_unknown_package_key'), /\$package\[ \$synthetic_unknown_key \]/);
-  assert.match(workload, /add_filter\( \$ignored_hash_fields_filter, \$ignore_synthetic_key \)/);
+  assert.doesNotMatch(workload, /woocommerce_shipping_package_hash_ignored_fields/);
 });
