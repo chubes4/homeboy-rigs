@@ -106,8 +106,6 @@
         "kind": "requirement",
         "label": "WooCommerce runner checkout exists",
         "file": "${components.woocommerce.path}/woocommerce.php",
-        "component": "woocommerce",
-        "component_path_contains": "plugins/woocommerce",
         "remediation": "Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path before running woocommerce-performance."
       },
       {
