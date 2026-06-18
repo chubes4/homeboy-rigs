@@ -124,7 +124,7 @@
         "kind": "requirement",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
         "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
-        "prepare_command": "woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=\"${components.woocommerce.path}/../..\"; fi; XDEBUG_MODE=off composer --working-dir=\"$woocommerce_source_root\" install --no-interaction --no-progress",
+        "prepare_command": "woocommerce_plugin_source=\"${components.woocommerce.path}\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; XDEBUG_MODE=off composer --working-dir=\"$woocommerce_plugin_source\" install --no-interaction --no-progress",
         "prepare_phases": ["up", "bench_prepare"],
         "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
@@ -142,7 +142,7 @@
         "kind": "requirement",
         "label": "Prepare WooCommerce Composer dependencies when missing",
         "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
-        "prepare_command": "woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=\"${components.woocommerce.path}/../..\"; fi; XDEBUG_MODE=off composer --working-dir=\"$woocommerce_source_root\" install --no-interaction --no-progress",
+        "prepare_command": "woocommerce_plugin_source=\"${components.woocommerce.path}\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; XDEBUG_MODE=off composer --working-dir=\"$woocommerce_plugin_source\" install --no-interaction --no-progress",
         "prepare_phases": ["up"],
         "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
@@ -160,7 +160,7 @@
         "kind": "requirement",
         "label": "Prepare WooCommerce Composer dependencies when missing",
         "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
-        "prepare_command": "woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=\"${components.woocommerce.path}/../..\"; fi; XDEBUG_MODE=off composer --working-dir=\"$woocommerce_source_root\" install --no-interaction --no-progress",
+        "prepare_command": "woocommerce_plugin_source=\"${components.woocommerce.path}\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; XDEBUG_MODE=off composer --working-dir=\"$woocommerce_plugin_source\" install --no-interaction --no-progress",
         "prepare_phases": ["bench_prepare"],
         "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
