@@ -9,7 +9,7 @@ return function (): array {
 		$woocommerce_entrypoint = WP_PLUGIN_DIR . '/woocommerce/woocommerce.php';
 		if ( ! file_exists( $woocommerce_entrypoint ) ) {
 			throw new RuntimeException( 'WooCommerce plugin entrypoint is not mounted.' );
-		}
+			}
 		require_once $woocommerce_entrypoint;
 	}
 
@@ -38,8 +38,7 @@ return function (): array {
 		'https://github.com/woocommerce/woocommerce/issues/32055',
 		'https://github.com/woocommerce/woocommerce/issues/26569',
 	);
-	$ignored_hash_fields_filter = 'woocommerce_shipping_package_hash_ignored_fields';
-	$synthetic_unknown_key      = 'homeboy_synthetic_unknown_package_key';
+	$synthetic_unknown_key = 'homeboy_synthetic_unknown_package_key';
 
 	wp_set_current_user( 1 );
 	update_option( 'woocommerce_store_address', '123 Performance Way' );
@@ -205,8 +204,7 @@ return function (): array {
 					);
 					break;
 				case 'package_index':
-					$package['package_index']         = $index + $step;
-					$package['homeboy_package_index'] = $index + $step;
+					$package['package_index'] = $index + $step;
 					break;
 				case 'contents_cost':
 					$package['contents_cost'] = (float) $package['contents_cost'] + $step + $index + 1;
@@ -217,10 +215,7 @@ return function (): array {
 				case 'unknown_package_key':
 					$package[ $synthetic_unknown_key ] = 'default-invalidates-' . $step . '-' . $index;
 					break;
-				case 'ignored_unknown_package_key':
-					$package[ $synthetic_unknown_key ] = 'filter-ignored-' . $step . '-' . $index;
-					break;
-			}
+		}
 
 			$split[] = $package;
 		}
@@ -336,17 +331,6 @@ return function (): array {
 		$rows[] = $measure_shipping( 'rehash_' . ( $i + 1 ), 'real_rehash', 'destination_postcode' );
 	}
 
-	$ignore_synthetic_key = static function ( array $ignored ) use ( $synthetic_unknown_key ): array {
-		$ignored[] = $synthetic_unknown_key;
-		return array_values( array_unique( $ignored ) );
-	};
-	add_filter( $ignored_hash_fields_filter, $ignore_synthetic_key );
-	for ( $i = 0; $i < $total_churn_runs; $i++ ) {
-		$current_phase = array( 'field' => 'ignored_unknown_package_key', 'step' => $i + 1 );
-		$rows[]        = $measure_shipping( 'filter_ignored_unknown_package_key_' . ( $i + 1 ), 'filter_extension_guardrail', $synthetic_unknown_key );
-	}
-	remove_filter( $ignored_hash_fields_filter, $ignore_synthetic_key );
-
 	$current_phase = array( 'field' => '', 'step' => 0 );
 	remove_action( 'woocommerce_before_get_rates_for_package', $count_rate_calculation );
 
@@ -396,8 +380,8 @@ return function (): array {
 	$rehash_p50         = $percentile( $rehash_values, 0.50 );
 	$final_cache        = $session_cache_keys();
 	$per_churn_metrics  = array();
-	foreach ( array_merge( $churn_fields, $guardrail_fields, array( 'filter_ignored_unknown_package_key' ) ) as $field ) {
-		$prefix = 'filter_ignored_unknown_package_key' === $field ? 'filter_ignored_unknown_package_key_' : $field . '_churn_';
+	foreach ( array_merge( $churn_fields, $guardrail_fields ) as $field ) {
+		$prefix = $field . '_churn_';
 		if ( 'total' === $field ) {
 			$prefix = 'total_field_churn_';
 		}
@@ -441,8 +425,6 @@ return function (): array {
 		'destination_postcode_rehash_rate_calculation_calls' => $per_churn_metrics['destination_postcode']['rate_calculation_calls'],
 		'contents_cost_rehash_rate_calculation_calls' => $per_churn_metrics['contents_cost']['rate_calculation_calls'],
 		'unknown_package_key_rehash_rate_calculation_calls' => $per_churn_metrics['unknown_package_key']['rate_calculation_calls'],
-		'filter_ignored_unknown_package_key_rate_calculation_calls' => $per_churn_metrics['filter_ignored_unknown_package_key']['rate_calculation_calls'],
-		'ignored_hash_fields_filter'           => $ignored_hash_fields_filter,
 		'synthetic_unknown_package_key'        => $synthetic_unknown_key,
 	);
 
@@ -478,7 +460,6 @@ return function (): array {
 			'issues'                     => $issues,
 			'zone_id'                    => $zone->get_id(),
 			'product_seed'               => 'simple-physical',
-			'ignored_hash_fields_filter' => $ignored_hash_fields_filter,
 		),
 		'artifacts' => $artifact_path ? array( 'raw_result' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);
