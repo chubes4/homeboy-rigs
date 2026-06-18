@@ -205,8 +205,7 @@ return function (): array {
 					);
 					break;
 				case 'package_index':
-					$package['package_index']         = $index + $step;
-					$package['homeboy_package_index'] = $index + $step;
+					$package['package_index'] = $index + $step;
 					break;
 				case 'contents_cost':
 					$package['contents_cost'] = (float) $package['contents_cost'] + $step + $index + 1;
