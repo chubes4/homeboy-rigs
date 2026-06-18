@@ -132,7 +132,7 @@
         "kind": "requirement",
         "label": "WooCommerce generated feature config exists or can be prepared",
         "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
-        "prepare_command": "woocommerce_plugin_source=\"${components.woocommerce.path}\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; php \"$woocommerce_plugin_source/bin/generate-feature-config.php\"",
+        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; php \"$woocommerce_component_source/bin/generate-feature-config.php\"; woocommerce_plugin_source=\"$woocommerce_component_source\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; if [ \"$woocommerce_plugin_source\" != \"$woocommerce_component_source\" ]; then php \"$woocommerce_plugin_source/bin/generate-feature-config.php\"; fi",
         "prepare_phases": ["up", "bench_prepare"],
         "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
@@ -150,7 +150,7 @@
         "kind": "requirement",
         "label": "Generate WooCommerce feature config when missing",
         "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
-        "prepare_command": "woocommerce_plugin_source=\"${components.woocommerce.path}\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; php \"$woocommerce_plugin_source/bin/generate-feature-config.php\"",
+        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; php \"$woocommerce_component_source/bin/generate-feature-config.php\"; woocommerce_plugin_source=\"$woocommerce_component_source\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; if [ \"$woocommerce_plugin_source\" != \"$woocommerce_component_source\" ]; then php \"$woocommerce_plugin_source/bin/generate-feature-config.php\"; fi",
         "prepare_phases": ["up"],
         "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
@@ -168,7 +168,7 @@
         "kind": "requirement",
         "label": "Generate WooCommerce feature config when missing",
         "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
-        "prepare_command": "woocommerce_plugin_source=\"${components.woocommerce.path}\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; php \"$woocommerce_plugin_source/bin/generate-feature-config.php\"",
+        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; php \"$woocommerce_component_source/bin/generate-feature-config.php\"; woocommerce_plugin_source=\"$woocommerce_component_source\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\" ]; then woocommerce_plugin_source=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -n \"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\" ]; then woocommerce_plugin_source=\"$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH\"; fi; fi; if [ \"$woocommerce_plugin_source\" != \"$woocommerce_component_source\" ]; then php \"$woocommerce_plugin_source/bin/generate-feature-config.php\"; fi",
         "prepare_phases": ["bench_prepare"],
         "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
