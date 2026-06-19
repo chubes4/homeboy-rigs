@@ -1,0 +1,47 @@
+{
+  "id": "generated-rest-request-cases",
+  "source": "config",
+  "rest_request_cases": [
+    {
+      "id": "gutenberg-block-patterns",
+      "method": "GET",
+      "path": "/wp/v2/block-patterns/patterns",
+      "params": { "context": "view" },
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-block-pattern-categories",
+      "method": "GET",
+      "path": "/wp/v2/block-patterns/categories",
+      "params": { "context": "view" },
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-block-directory-search",
+      "method": "GET",
+      "path": "/wp/v2/block-directory/search",
+      "params": { "term": "paragraph" },
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-templates",
+      "method": "GET",
+      "path": "/wp/v2/templates",
+      "params": { "context": "view" },
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-template-parts",
+      "method": "GET",
+      "path": "/wp/v2/template-parts",
+      "params": { "context": "view" },
+      "capture-response": true
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "generated-rest-request-cases",
+    "coverage_shape": "generated safe Gutenberg REST request cases",
+    "manifest": "manifests/rest-route-coverage.json"
+  }
+}

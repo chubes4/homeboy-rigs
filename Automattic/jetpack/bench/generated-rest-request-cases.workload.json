@@ -1,0 +1,42 @@
+{
+  "id": "generated-rest-request-cases",
+  "source": "config",
+  "rest_request_cases": [
+    {
+      "id": "jetpack-site",
+      "method": "GET",
+      "path": "/jetpack/v4/site",
+      "capture-response": true
+    },
+    {
+      "id": "jetpack-modules",
+      "method": "GET",
+      "path": "/jetpack/v4/modules",
+      "capture-response": true
+    },
+    {
+      "id": "jetpack-settings",
+      "method": "GET",
+      "path": "/jetpack/v4/settings",
+      "capture-response": true
+    },
+    {
+      "id": "jetpack-connection",
+      "method": "GET",
+      "path": "/jetpack/v4/connection",
+      "capture-response": true
+    },
+    {
+      "id": "wpcom-publicize-services",
+      "method": "GET",
+      "path": "/wpcom/v2/publicize/services",
+      "capture-response": true
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "generated-rest-request-cases",
+    "coverage_shape": "generated safe Jetpack REST request cases",
+    "manifest": "manifests/rest-route-coverage.json"
+  }
+}

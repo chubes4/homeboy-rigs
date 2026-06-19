@@ -18,6 +18,12 @@ Run the route inventory workload:
 homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
 ```
 
+Run the currently executable full-surface profile. It is intentionally limited to workload-backed REST route inventory until generated REST cases, DB inventory/profiling, external HTTP guardrails, and browser request coverage have concrete workload files:
+
+```sh
+homeboy bench --rig gutenberg-api-route-inventory --profile full-surface --iterations 1 --shared-state /tmp/gutenberg-full-surface
+```
+
 The coverage manifest lives at `manifests/rest-route-coverage.json`. It keeps
 Gutenberg-specific route grouping in this rig package so upstream primitives can
 stay generic.

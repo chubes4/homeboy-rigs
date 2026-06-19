@@ -1,0 +1,23 @@
+{
+  "id": "rest-db-query-profile",
+  "source": "config",
+  "run": [
+    {
+      "type": "rest-db-query-profiler",
+      "metric-prefix": "rest_db_query_profile",
+      "sampleLimit": 50,
+      "queryLengthLimit": 500,
+      "rest_request_cases": [
+        { "id": "gutenberg-block-patterns", "method": "GET", "path": "/wp/v2/block-patterns/patterns", "params": { "context": "view" } },
+        { "id": "gutenberg-block-pattern-categories", "method": "GET", "path": "/wp/v2/block-patterns/categories", "params": { "context": "view" } },
+        { "id": "gutenberg-templates", "method": "GET", "path": "/wp/v2/templates", "params": { "context": "view" } }
+      ]
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "rest-db-query-profile",
+    "coverage_shape": "Gutenberg REST request DB query profile",
+    "manifest": "manifests/full-surface-coverage.json"
+  }
+}

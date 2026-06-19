@@ -1,0 +1,59 @@
+{
+  "id": "jetpack-browser-coverage",
+  "description": "WP Codebox browser-actions request coverage for Jetpack dashboard, connection, modules, and settings admin surfaces.",
+  "components": {
+    "jetpack": {
+      "path": "~/Developer/jetpack/projects/plugins/jetpack",
+      "branch": "trunk"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "jetpack-browser-coverage:${env.HOMEBOY_SETTINGS_JETPACK_BROWSER_COVERAGE_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.jetpack.path}"
+    ]
+  },
+  "trace": {
+    "default_component": "jetpack"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/jetpack-browser-coverage.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-request-coverage",
+        "trace_phase_presets": {
+          "browser-request-coverage": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "actions:browser.actions.ready"
+          ]
+        }
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": ["jetpack-browser-coverage"],
+    "full-surface": ["jetpack-browser-coverage"]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Jetpack plugin checkout exists",
+        "file": "${components.jetpack.path}/jetpack.php",
+        "component": "jetpack",
+        "component_path_contains": "jetpack"
+      },
+      {
+        "kind": "command",
+        "label": "WP Codebox CLI exists",
+        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
+      }
+    ],
+    "down": []
+  }
+}

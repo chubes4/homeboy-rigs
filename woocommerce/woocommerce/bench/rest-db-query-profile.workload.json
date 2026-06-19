@@ -1,0 +1,23 @@
+{
+  "id": "rest-db-query-profile",
+  "source": "config",
+  "run": [
+    {
+      "type": "rest-db-query-profiler",
+      "metric-prefix": "rest_db_query_profile",
+      "sampleLimit": 50,
+      "queryLengthLimit": 500,
+      "rest_request_cases": [
+        { "id": "woocommerce-store-products", "method": "GET", "path": "/wc/store/v1/products", "params": { "per_page": 1 } },
+        { "id": "woocommerce-store-cart", "method": "GET", "path": "/wc/store/v1/cart" },
+        { "id": "woocommerce-v3-products", "method": "GET", "path": "/wc/v3/products", "params": { "per_page": 1 } }
+      ]
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "rest-db-query-profile",
+    "coverage_shape": "WooCommerce Store API and REST API DB query profile",
+    "manifest": "manifests/full-surface-coverage.json"
+  }
+}

@@ -1,0 +1,5 @@
+[
+  { "kind": "navigate", "url": "/product/homeboy-browser-coverage-product/", "waitFor": "load" },
+  { "kind": "waitFor", "selector": "body", "timeout": "30s" },
+  { "kind": "screenshot", "name": "woocommerce-product" }
+]

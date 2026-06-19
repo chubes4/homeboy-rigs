@@ -24,6 +24,7 @@
       ],
       "expected_workloads": [
         "woocommerce-rest-route-inventory",
+        "woocommerce-external-http-guardrail",
         "rest-product-batch-import",
         "checkout-shipping-cache",
         "layered-nav-count-cache"

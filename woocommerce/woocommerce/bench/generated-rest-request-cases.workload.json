@@ -1,0 +1,45 @@
+{
+  "id": "generated-rest-request-cases",
+  "source": "config",
+  "rest_request_cases": [
+    {
+      "id": "woocommerce-store-products",
+      "method": "GET",
+      "path": "/wc/store/v1/products",
+      "params": { "per_page": 1 },
+      "capture-response": true
+    },
+    {
+      "id": "woocommerce-store-cart",
+      "method": "GET",
+      "path": "/wc/store/v1/cart",
+      "capture-response": true
+    },
+    {
+      "id": "woocommerce-v3-products",
+      "method": "GET",
+      "path": "/wc/v3/products",
+      "params": { "per_page": 1 },
+      "capture-response": true
+    },
+    {
+      "id": "woocommerce-v3-orders",
+      "method": "GET",
+      "path": "/wc/v3/orders",
+      "params": { "per_page": 1 },
+      "capture-response": true
+    },
+    {
+      "id": "woocommerce-admin-options",
+      "method": "GET",
+      "path": "/wc-admin/options",
+      "capture-response": true
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "generated-rest-request-cases",
+    "coverage_shape": "generated safe WooCommerce Store API, REST API, and admin REST request cases",
+    "manifest": "manifests/full-surface-coverage.json"
+  }
+}

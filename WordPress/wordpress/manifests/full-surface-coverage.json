@@ -28,6 +28,8 @@
     "browser_requests": {
       "coverage_goal": "all_document_fetch_xhr_websocket_asset_requests_for_editor_and_frontend_flows",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
+      "trace_workload": "bench/wordpress-core-browser-coverage.trace.mjs",
+      "rig": "rigs/wordpress-core-browser-coverage/rig.json",
       "scenarios": ["front_page", "post_editor", "site_editor", "media_library"]
     }
   },

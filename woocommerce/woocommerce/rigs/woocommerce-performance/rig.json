@@ -71,7 +71,11 @@
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
       { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
       { "path": "${package.root}/bench/woocommerce-rest-route-inventory.php" },
-      { "path": "${package.root}/bench/rest-product-batch-import.php" }
+      { "path": "${package.root}/bench/rest-product-batch-import.php" },
+      { "path": "${package.root}/bench/woocommerce-external-http-guardrail.php" },
+      { "path": "${package.root}/bench/generated-rest-request-cases.workload.json" },
+      { "path": "${package.root}/bench/rest-db-query-profile.workload.json" },
+      { "path": "${package.root}/bench/db-inventory.workload.json" }
     ]
   },
   "bench_profiles": {
@@ -85,7 +89,11 @@
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "woocommerce-rest-route-inventory",
-      "rest-product-batch-import"
+      "rest-product-batch-import",
+      "woocommerce-external-http-guardrail",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
     ],
     "hot": [
       "cart-session-overwrite-race",
@@ -97,10 +105,32 @@
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
       "woocommerce-rest-route-inventory",
-      "rest-product-batch-import"
+      "rest-product-batch-import",
+      "woocommerce-external-http-guardrail",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
     ],
     "api-coverage": [
-      "woocommerce-rest-route-inventory"
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile"
+    ],
+    "full-surface": [
+      "cart-session-overwrite-race",
+      "checkout-concurrent-create-order",
+      "checkout-gateway-compatibility-matrix",
+      "checkout-shortcode-place-order-latency",
+      "checkout-shipping-cache",
+      "admin-dashboard-physical-products-query",
+      "layered-nav-count-cache",
+      "layered-nav-catalog-crawl",
+      "woocommerce-rest-route-inventory",
+      "rest-product-batch-import",
+      "woocommerce-external-http-guardrail",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
     ],
     "checkout-concurrent": [
       "checkout-concurrent-create-order"

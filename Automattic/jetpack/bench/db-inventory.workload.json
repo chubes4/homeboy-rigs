@@ -1,0 +1,18 @@
+{
+  "id": "db-inventory",
+  "source": "config",
+  "run": [
+    {
+      "type": "db-inventory",
+      "metric-prefix": "db_inventory",
+      "include-columns": true,
+      "include-indexes": true
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "db-inventory",
+    "coverage_shape": "Jetpack fixture database table, row, column, and index inventory",
+    "manifest": "manifests/full-surface-coverage.json"
+  }
+}

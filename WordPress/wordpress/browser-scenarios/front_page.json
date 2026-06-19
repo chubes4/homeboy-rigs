@@ -1,0 +1,5 @@
+[
+  { "kind": "navigate", "url": "/", "waitFor": "load" },
+  { "kind": "waitFor", "selector": "body", "timeout": "20s" },
+  { "kind": "screenshot", "name": "wordpress-core-front-page" }
+]

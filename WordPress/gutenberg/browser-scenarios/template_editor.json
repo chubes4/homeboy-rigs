@@ -1,0 +1,5 @@
+[
+  { "kind": "navigate", "url": "/wp-admin/site-editor.php?postType=wp_template", "waitFor": "load" },
+  { "kind": "waitFor", "selector": "body", "timeout": "30s" },
+  { "kind": "screenshot", "name": "gutenberg-template-editor" }
+]
