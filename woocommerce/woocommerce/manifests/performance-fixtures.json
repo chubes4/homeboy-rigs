@@ -1,0 +1,32 @@
+{
+  "id": "woocommerce-performance-fixtures",
+  "schema": "homeboy-rigs/wordpress-performance-fixtures/v1",
+  "property": "woocommerce/woocommerce",
+  "description": "Fixture profiles for WooCommerce large-merchant performance runs that exercise catalog, cart, checkout, and REST batch surfaces.",
+  "profiles": [
+    {
+      "id": "large-catalog-checkout-small",
+      "description": "Bounded local fixture for route inventory, generated REST cases, DB query profiling, and checkout/shipping cache workloads.",
+      "entities": {
+        "products": 500,
+        "variations_per_variable_product": 12,
+        "attributes": 6,
+        "terms_per_attribute": 20,
+        "shipping_zones": 4,
+        "shipping_methods_per_zone": 3,
+        "historical_orders": 50
+      },
+      "route_groups": [
+        "catalog",
+        "cart-checkout",
+        "admin"
+      ],
+      "expected_workloads": [
+        "woocommerce-rest-route-inventory",
+        "rest-product-batch-import",
+        "checkout-shipping-cache",
+        "layered-nav-count-cache"
+      ]
+    }
+  ]
+}
