@@ -3,6 +3,7 @@
   "schema": "homeboy-rigs/wordpress-performance-fixtures/v1",
   "property": "Automattic/jetpack",
   "description": "Fixture profiles for Jetpack API performance runs that exercise connection, module settings, and site data REST surfaces.",
+  "full_surface_coverage_manifest": "manifests/full-surface-coverage.json",
   "profiles": [
     {
       "id": "connected-site-small",

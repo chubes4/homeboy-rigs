@@ -1,0 +1,33 @@
+{
+  "schema": "homeboy-rigs/wordpress-full-surface-coverage/v1",
+  "property": "WordPress/gutenberg",
+  "description": "Coverage targets for Gutenberg across editor REST, database schema impact, server requests, and browser requests.",
+  "requires_primitives": [
+    "wordpress-rest-route-matrix",
+    "wordpress-rest-request-cases",
+    "wordpress-rest-db-query-profiler",
+    "wordpress-db-inventory",
+    "wordpress-external-http-guardrail",
+    "browser-request-capture"
+  ],
+  "surfaces": {
+    "rest_api": {
+      "manifest": "manifests/rest-route-coverage.json",
+      "budget_manifest": "manifests/rest-route-budgets.json",
+      "coverage_goal": "all_registered_editor_routes_and_generated_safe_cases"
+    },
+    "database": {
+      "coverage_goal": "all_tables_rows_columns_indexes_after_editor_fixture_setup",
+      "inventory_artifact": "homeboy/wordpress-db-inventory/v1",
+      "query_profile_artifact": "homeboy/wordpress-rest-db-query-profile/v1"
+    },
+    "server_requests": {
+      "coverage_goal": "all_outbound_http_hosts_and_blocked_unapproved_requests",
+      "guardrail": "wordpress-external-http-guardrail"
+    },
+    "browser_requests": {
+      "coverage_goal": "all_editor_bootstrap_fetch_xhr_websocket_asset_requests",
+      "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"]
+    }
+  }
+}
