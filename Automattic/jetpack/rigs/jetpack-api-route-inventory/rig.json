@@ -1,0 +1,55 @@
+{
+  "id": "jetpack-api-route-inventory",
+  "description": "Jetpack REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
+  "components": {
+    "jetpack": {
+      "path": "~/Developer/jetpack/projects/plugins/jetpack",
+      "branch": "trunk",
+      "extensions": {
+        "wordpress": {
+          "wp_codebox_wordpress_version": "7.0",
+          "wp_codebox_source_root": "~/Developer/jetpack",
+          "wp_codebox_source_subpath": "projects/plugins/jetpack"
+        }
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "jetpack-api-route-inventory:${env.HOMEBOY_SETTINGS_JETPACK_API_INVENTORY_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.jetpack.path}"
+    ]
+  },
+  "bench": {
+    "default_component": "jetpack",
+    "warmup_iterations": 0
+  },
+  "bench_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/bench/jetpack-rest-route-inventory.php" }
+    ]
+  },
+  "bench_profiles": {
+    "smoke": [
+      "jetpack-rest-route-inventory"
+    ],
+    "api-coverage": [
+      "jetpack-rest-route-inventory"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Jetpack plugin checkout exists",
+        "file": "${components.jetpack.path}/jetpack.php",
+        "component": "jetpack",
+        "component_path_contains": "jetpack",
+        "remediation": "Pass homeboy bench --path /path/to/jetpack/projects/plugins/jetpack or update components.jetpack.path before running jetpack-api-route-inventory."
+      }
+    ],
+    "down": []
+  }
+}

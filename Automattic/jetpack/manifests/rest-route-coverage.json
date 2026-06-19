@@ -1,0 +1,44 @@
+{
+  "id": "jetpack-rest-route-coverage",
+  "property": "Automattic/jetpack",
+  "description": "Initial Jetpack REST route inventory coverage shape for API performance primitive adapters.",
+  "route_prefixes": [
+    "/jetpack/v4/",
+    "/jetpack/v4/connection",
+    "/jetpack/v4/modules",
+    "/jetpack/v4/site",
+    "/jetpack/v4/settings",
+    "/wpcom/v2/"
+  ],
+  "coverage_groups": [
+    {
+      "id": "connection",
+      "description": "Connection and identity endpoints that affect Jetpack bootstrap flows.",
+      "route_prefixes": [
+        "/jetpack/v4/connection"
+      ]
+    },
+    {
+      "id": "module-settings",
+      "description": "Module and settings endpoints used by wp-admin Jetpack screens.",
+      "route_prefixes": [
+        "/jetpack/v4/modules",
+        "/jetpack/v4/settings"
+      ]
+    },
+    {
+      "id": "site-data",
+      "description": "Site-level Jetpack and WPCOM compatibility endpoints.",
+      "route_prefixes": [
+        "/jetpack/v4/site",
+        "/wpcom/v2/"
+      ]
+    }
+  ],
+  "future_primitives": [
+    "route inventory",
+    "route coverage diff",
+    "authenticated REST latency matrix",
+    "query profiling"
+  ]
+}

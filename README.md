@@ -302,6 +302,45 @@ homeboy rig check playground-cli-diagnostics
 homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1 --shared-state /tmp/playground-cli-diagnostics
 ```
 
+## WordPress/wordpress
+
+`rigs/wordpress-core-api-route-inventory/rig.json` is a lightweight WordPress
+core REST route inventory scaffold. It records registered route metadata and a
+property-owned coverage grouping manifest without executing API requests, so
+future generic HBX/WP Codebox API primitives can consume the same route shape.
+
+```bash
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress
+homeboy rig check wordpress-core-api-route-inventory
+homeboy bench --rig wordpress-core-api-route-inventory --scenario wordpress-core-rest-route-inventory --iterations 1 --shared-state /tmp/wordpress-core-api-inventory
+```
+
+## WordPress/gutenberg
+
+`rigs/gutenberg-api-route-inventory/rig.json` extends the existing Gutenberg
+package with a REST route inventory scaffold for editor-data, dynamic-rendering,
+and experimental route groups. It keeps Gutenberg route grouping in
+`manifests/rest-route-coverage.json` and does not run a browser or heavy
+benchmark workload.
+
+```bash
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig check gutenberg-api-route-inventory
+homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
+```
+
+## Automattic/jetpack
+
+`rigs/jetpack-api-route-inventory/rig.json` is the initial Jetpack REST route
+inventory scaffold. It records registered Jetpack/WPCOM-compatible route
+metadata and keeps Jetpack-specific coverage groups beside the rig package.
+
+```bash
+homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/Automattic/jetpack
+homeboy rig check jetpack-api-route-inventory
+homeboy bench --rig jetpack-api-route-inventory --scenario jetpack-rest-route-inventory --iterations 1 --shared-state /tmp/jetpack-api-inventory
+```
+
 ## woocommerce/woocommerce
 
 `rigs/woocommerce-performance/rig.json` runs WooCommerce checkout, shipping,

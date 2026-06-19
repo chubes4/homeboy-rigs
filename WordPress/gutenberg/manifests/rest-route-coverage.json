@@ -1,0 +1,42 @@
+{
+  "id": "gutenberg-rest-route-coverage",
+  "property": "WordPress/gutenberg",
+  "description": "Initial Gutenberg REST route inventory coverage shape for API performance primitive adapters.",
+  "route_prefixes": [
+    "/wp/v2/block-directory",
+    "/wp/v2/block-patterns",
+    "/wp/v2/block-renderer",
+    "/wp/v2/global-styles",
+    "/wp/v2/navigation",
+    "/wp/v2/templates",
+    "/wp/v2/template-parts",
+    "/__experimental"
+  ],
+  "coverage_groups": [
+    {
+      "id": "editor-data",
+      "description": "Editor REST surfaces that commonly affect Site Editor and post editor readiness.",
+      "route_prefixes": [
+        "/wp/v2/block-patterns",
+        "/wp/v2/global-styles",
+        "/wp/v2/navigation",
+        "/wp/v2/templates",
+        "/wp/v2/template-parts"
+      ]
+    },
+    {
+      "id": "dynamic-rendering",
+      "description": "Server-rendered block and directory endpoints that can later consume latency/query primitives.",
+      "route_prefixes": [
+        "/wp/v2/block-directory",
+        "/wp/v2/block-renderer"
+      ]
+    }
+  ],
+  "future_primitives": [
+    "route inventory",
+    "route coverage diff",
+    "authenticated REST latency matrix",
+    "query profiling"
+  ]
+}
