@@ -3,6 +3,7 @@
   "schema": "homeboy-rigs/wordpress-performance-fixtures/v1",
   "property": "WordPress/gutenberg",
   "description": "Fixture profiles for Gutenberg API performance runs that exercise editor bootstrap and dynamic rendering REST surfaces.",
+  "full_surface_coverage_manifest": "manifests/full-surface-coverage.json",
   "profiles": [
     {
       "id": "editor-bootstrap-small",

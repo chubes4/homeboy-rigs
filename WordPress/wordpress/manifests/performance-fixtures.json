@@ -3,6 +3,7 @@
   "schema": "homeboy-rigs/wordpress-performance-fixtures/v1",
   "property": "WordPress/wordpress",
   "description": "Fixture profiles for WordPress core API performance runs that exercise content, editor bootstrap, and diagnostics REST surfaces.",
+  "full_surface_coverage_manifest": "manifests/full-surface-coverage.json",
   "profiles": [
     {
       "id": "content-editor-small",
