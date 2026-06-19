@@ -1,0 +1,55 @@
+{
+  "id": "gutenberg-api-route-inventory",
+  "description": "Gutenberg REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
+  "components": {
+    "gutenberg": {
+      "path": "~/Developer/gutenberg",
+      "branch": "trunk",
+      "extensions": {
+        "wordpress": {
+          "wp_codebox_wordpress_version": "7.0",
+          "wp_codebox_source_root": "~/Developer/gutenberg",
+          "wp_codebox_source_subpath": "."
+        }
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "gutenberg-api-route-inventory:${env.HOMEBOY_SETTINGS_GUTENBERG_API_INVENTORY_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.gutenberg.path}"
+    ]
+  },
+  "bench": {
+    "default_component": "gutenberg",
+    "warmup_iterations": 0
+  },
+  "bench_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/bench/gutenberg-rest-route-inventory.php" }
+    ]
+  },
+  "bench_profiles": {
+    "smoke": [
+      "gutenberg-rest-route-inventory"
+    ],
+    "api-coverage": [
+      "gutenberg-rest-route-inventory"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Gutenberg checkout exists",
+        "file": "${components.gutenberg.path}/gutenberg.php",
+        "component": "gutenberg",
+        "component_path_contains": "gutenberg",
+        "remediation": "Pass homeboy bench --path /path/to/gutenberg or update components.gutenberg.path before running gutenberg-api-route-inventory."
+      }
+    ],
+    "down": []
+  }
+}

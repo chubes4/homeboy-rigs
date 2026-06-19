@@ -1,0 +1,48 @@
+{
+  "id": "wordpress-core-api-route-inventory",
+  "description": "WordPress core REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
+  "components": {
+    "wordpress": {
+      "path": "~/Developer/wordpress-develop",
+      "branch": "trunk"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "wordpress-core-api-route-inventory:${env.HOMEBOY_SETTINGS_WORDPRESS_CORE_API_INVENTORY_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.wordpress.path}"
+    ]
+  },
+  "bench": {
+    "default_component": "wordpress",
+    "warmup_iterations": 0
+  },
+  "bench_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/bench/wordpress-core-rest-route-inventory.php" }
+    ]
+  },
+  "bench_profiles": {
+    "smoke": [
+      "wordpress-core-rest-route-inventory"
+    ],
+    "api-coverage": [
+      "wordpress-core-rest-route-inventory"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "WordPress core checkout exists",
+        "file": "${components.wordpress.path}/src/wp-includes/rest-api.php",
+        "component": "wordpress",
+        "component_path_contains": "wordpress",
+        "remediation": "Pass homeboy bench --path /path/to/wordpress-develop or update components.wordpress.path before running wordpress-core-api-route-inventory."
+      }
+    ],
+    "down": []
+  }
+}
