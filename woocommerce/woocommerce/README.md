@@ -129,6 +129,7 @@ homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
+homeboy bench --rig woocommerce-performance --profile api-coverage --iterations 1 --shared-state /tmp/woocommerce-api-coverage
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
 ```
 
@@ -191,6 +192,13 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 - `layered-nav-catalog-crawl` uses real `filter_*` request combinations and
   renders the layered-nav widget list path for each request shape, measuring
   the same transient growth through a crawler/catalog-traffic-shaped path.
+- `woocommerce-rest-route-inventory` loads WooCommerce in the WP Codebox bench
+  runtime, registers REST routes, calls `rest_get_server()->get_routes()`, and
+  writes a shared-state JSON inventory of WooCommerce route paths, methods,
+  argument names/required flags, and callback summaries. It classifies registered
+  routes into `wc/v*`, `wc/store*`, `wc-admin`, `wc-analytics`, and `wc_other` so
+  future API performance scenarios can start from full route coverage instead of
+  hand-picked endpoints.
 
 ## Metrics
 
@@ -230,6 +238,9 @@ The first slice reports:
 - `final_transient_entry_count`, `max_transient_entry_count`,
   `final_serialized_value_bytes`, and `cache_exceeded_limit` for layered-nav
   count cache growth.
+- `total_route_count`, `woocommerce_route_count`, `wc_rest_route_count`,
+  `wc_store_route_count`, `wc_admin_route_count`, `wc_analytics_route_count`, and
+  `wc_other_route_count` for the first full WooCommerce API coverage primitive.
 - `direct_has_physical_products_ms`, `dashboard_setup_widget_ms`,
   `matching_query_elapsed_ms`, `matching_query_count`, `total_query_count`,
   seeded product/term counts, physical/virtual split, onboarding state, and

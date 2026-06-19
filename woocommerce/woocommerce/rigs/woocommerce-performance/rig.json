@@ -70,6 +70,7 @@
       { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
       { "path": "${package.root}/bench/layered-nav-count-cache.php" },
       { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
+      { "path": "${package.root}/bench/woocommerce-rest-route-inventory.php" },
       { "path": "${package.root}/bench/rest-product-batch-import.php" }
     ]
   },
@@ -83,6 +84,7 @@
       "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
+      "woocommerce-rest-route-inventory",
       "rest-product-batch-import"
     ],
     "hot": [
@@ -94,7 +96,11 @@
       "admin-dashboard-physical-products-query",
       "layered-nav-count-cache",
       "layered-nav-catalog-crawl",
+      "woocommerce-rest-route-inventory",
       "rest-product-batch-import"
+    ],
+    "api-coverage": [
+      "woocommerce-rest-route-inventory"
     ],
     "checkout-concurrent": [
       "checkout-concurrent-create-order"
