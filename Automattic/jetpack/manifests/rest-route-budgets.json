@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/wordpress-rest-route-matrix-budgets/v1",
+  "type": "wordpress-rest-route-matrix-budgets",
+  "defaults": {
+    "maxDurationMs": 400,
+    "maxQueryCount": 45,
+    "allowedStatuses": [200, 201, 204, 401, 403, 404]
+  },
+  "namespaces": [
+    { "namespace": "jetpack/v4", "maxDurationMs": 450, "maxQueryCount": 50 },
+    { "namespace": "wpcom/v2", "maxDurationMs": 500, "maxQueryCount": 55 }
+  ],
+  "routes": [
+    { "route": "/jetpack/v4/connection", "method": "GET", "maxDurationMs": 600, "maxQueryCount": 65 },
+    { "route": "/jetpack/v4/modules", "method": "GET", "maxDurationMs": 450, "maxQueryCount": 50 }
+  ]
+}
