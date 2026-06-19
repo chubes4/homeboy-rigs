@@ -45,5 +45,6 @@
     "authenticated REST latency matrix",
     "query profiling"
   ],
-  "fixture_manifest": "manifests/performance-fixtures.json"
+  "fixture_manifest": "manifests/performance-fixtures.json",
+  "budget_manifest": "manifests/rest-route-budgets.json"
 }

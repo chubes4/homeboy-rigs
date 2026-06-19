@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/wordpress-rest-route-matrix-budgets/v1",
+  "type": "wordpress-rest-route-matrix-budgets",
+  "defaults": {
+    "maxDurationMs": 300,
+    "maxQueryCount": 40,
+    "allowedStatuses": [200, 201, 204, 401, 403, 404]
+  },
+  "namespaces": [
+    { "namespace": "wp/v2", "maxDurationMs": 250, "maxQueryCount": 35 },
+    { "namespace": "__experimental", "maxDurationMs": 400, "maxQueryCount": 50 }
+  ],
+  "routes": [
+    { "route": "/wp/v2/block-renderer", "method": "GET", "maxDurationMs": 500, "maxQueryCount": 60 },
+    { "route": "/wp/v2/templates", "method": "GET", "maxDurationMs": 350, "maxQueryCount": 45 }
+  ]
+}

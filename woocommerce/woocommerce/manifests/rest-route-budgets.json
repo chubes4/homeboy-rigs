@@ -1,0 +1,20 @@
+{
+  "schema": "homeboy/wordpress-rest-route-matrix-budgets/v1",
+  "type": "wordpress-rest-route-matrix-budgets",
+  "defaults": {
+    "maxDurationMs": 500,
+    "maxQueryCount": 60,
+    "allowedStatuses": [200, 201, 204, 400, 401, 403, 404]
+  },
+  "namespaces": [
+    { "namespace": "wc/v3", "maxDurationMs": 650, "maxQueryCount": 75 },
+    { "namespace": "wc/store/v1", "maxDurationMs": 450, "maxQueryCount": 55 },
+    { "namespace": "wc-admin", "maxDurationMs": 700, "maxQueryCount": 80 }
+  ],
+  "routes": [
+    { "route": "/wc/v3/products", "method": "GET", "maxDurationMs": 800, "maxQueryCount": 90 },
+    { "route": "/wc/v3/products/batch", "method": "POST", "maxDurationMs": 1500, "maxQueryCount": 160 },
+    { "route": "/wc/store/v1/cart", "method": "GET", "maxDurationMs": 350, "maxQueryCount": 45 },
+    { "route": "/wc/store/v1/checkout", "method": "POST", "maxDurationMs": 900, "maxQueryCount": 100 }
+  ]
+}
