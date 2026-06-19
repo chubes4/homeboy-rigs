@@ -3,7 +3,7 @@
   "description": "WooCommerce large-merchant performance rig. Uses the WordPress/WP Codebox bench runtime for checkout and shipping cache workloads tied to concrete WooCommerce performance issues.",
   "components": {
     "woocommerce": {
-      "path": "$HOME/Developer/woocommerce/plugins/woocommerce",
+      "path": "~/Developer/woocommerce/plugins/woocommerce",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
