@@ -1,0 +1,30 @@
+{
+  "id": "jetpack-performance-fixtures",
+  "schema": "homeboy-rigs/wordpress-performance-fixtures/v1",
+  "property": "Automattic/jetpack",
+  "description": "Fixture profiles for Jetpack API performance runs that exercise connection, module settings, and site data REST surfaces.",
+  "profiles": [
+    {
+      "id": "connected-site-small",
+      "description": "Small Jetpack-enabled site shape for route inventory, generated REST cases, and DB query profiling.",
+      "entities": {
+        "posts": 12,
+        "pages": 4,
+        "media": 6,
+        "enabled_modules": [
+          "stats",
+          "publicize",
+          "related-posts"
+        ]
+      },
+      "route_groups": [
+        "connection",
+        "module-settings",
+        "site-data"
+      ],
+      "expected_workloads": [
+        "jetpack-rest-route-inventory"
+      ]
+    }
+  ]
+}

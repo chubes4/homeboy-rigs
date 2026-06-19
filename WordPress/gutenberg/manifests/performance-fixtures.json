@@ -1,0 +1,27 @@
+{
+  "id": "gutenberg-performance-fixtures",
+  "schema": "homeboy-rigs/wordpress-performance-fixtures/v1",
+  "property": "WordPress/gutenberg",
+  "description": "Fixture profiles for Gutenberg API performance runs that exercise editor bootstrap and dynamic rendering REST surfaces.",
+  "profiles": [
+    {
+      "id": "editor-bootstrap-small",
+      "description": "Small authenticated editor data set for route inventory, generated REST cases, and DB query profiling.",
+      "entities": {
+        "posts": 12,
+        "pages": 6,
+        "patterns": 8,
+        "navigation_menus": 2,
+        "templates": 6,
+        "template_parts": 8
+      },
+      "route_groups": [
+        "editor-data",
+        "dynamic-rendering"
+      ],
+      "expected_workloads": [
+        "gutenberg-rest-route-inventory"
+      ]
+    }
+  ]
+}
