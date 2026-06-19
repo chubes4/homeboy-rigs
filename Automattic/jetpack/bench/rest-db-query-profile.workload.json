@@ -1,0 +1,23 @@
+{
+  "id": "rest-db-query-profile",
+  "source": "config",
+  "run": [
+    {
+      "type": "rest-db-query-profiler",
+      "metric-prefix": "rest_db_query_profile",
+      "sampleLimit": 50,
+      "queryLengthLimit": 500,
+      "rest_request_cases": [
+        { "id": "jetpack-site", "method": "GET", "path": "/jetpack/v4/site" },
+        { "id": "jetpack-modules", "method": "GET", "path": "/jetpack/v4/modules" },
+        { "id": "jetpack-settings", "method": "GET", "path": "/jetpack/v4/settings" }
+      ]
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "rest-db-query-profile",
+    "coverage_shape": "Jetpack REST request DB query profile",
+    "manifest": "manifests/full-surface-coverage.json"
+  }
+}

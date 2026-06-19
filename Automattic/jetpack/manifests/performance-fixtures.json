@@ -24,7 +24,8 @@
         "site-data"
       ],
       "expected_workloads": [
-        "jetpack-rest-route-inventory"
+        "jetpack-rest-route-inventory",
+        "jetpack-external-http-guardrail"
       ]
     }
   ]

@@ -1,0 +1,59 @@
+{
+  "id": "woocommerce-browser-coverage",
+  "description": "WP Codebox browser-actions request coverage for WooCommerce shop, product, cart, checkout, orders admin, products admin, and analytics admin surfaces.",
+  "components": {
+    "woocommerce": {
+      "path": "$HOME/Developer/woocommerce/plugins/woocommerce",
+      "branch": "trunk"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "woocommerce-browser-coverage:${env.HOMEBOY_SETTINGS_WOOCOMMERCE_BROWSER_COVERAGE_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.woocommerce.path}"
+    ]
+  },
+  "trace": {
+    "default_component": "woocommerce"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
+        "check_groups": [],
+        "port_range_size": 1,
+        "trace_default_phase_preset": "browser-request-coverage",
+        "trace_phase_presets": {
+          "browser-request-coverage": [
+            "start:scenario.start",
+            "recipe:wp_codebox.recipe.start",
+            "actions:browser.actions.ready"
+          ]
+        }
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": ["woocommerce-browser-coverage"],
+    "full-surface": ["woocommerce-browser-coverage"]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "WooCommerce plugin checkout exists",
+        "file": "${components.woocommerce.path}/woocommerce.php",
+        "component": "woocommerce",
+        "component_path_contains": "woocommerce"
+      },
+      {
+        "kind": "command",
+        "label": "WP Codebox CLI exists",
+        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
+      }
+    ],
+    "down": []
+  }
+}

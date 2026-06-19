@@ -2,7 +2,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 const root = process.argv[2] ? join(process.cwd(), process.argv[2]) : process.cwd();
 const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
@@ -69,6 +69,51 @@ function lintRigPortability(file) {
 
   if (/WP Codebox CLI/.test(pipelineCommands) && /command -v wp-codebox|Developer\/wp-codebox|HOMEBOY_WP_CODEBOX_BIN/.test(pipelineCommands)) {
     failures.push(`${rel}: use shared/wp-codebox/check-cli.sh instead of duplicating WP Codebox CLI discovery in rig commands`);
+  }
+
+  lintBenchProfiles(rel, rig);
+}
+
+function workloadIdFromPath(path) {
+  return basename(path)
+    .replace(/\.workload\.json$/, '')
+    .replace(/\.bench\.mjs$/, '')
+    .replace(/\.php$/, '')
+    .replace(/\.mjs$/, '')
+    .replace(/\.js$/, '')
+    .replace(/\.json$/, '');
+}
+
+function lintBenchProfiles(rel, rig) {
+  if (!rig.bench_profiles) {
+    return;
+  }
+
+  const workloadIds = new Set();
+  for (const workloads of Object.values(rig.bench_workloads || {})) {
+    if (!Array.isArray(workloads)) {
+      continue;
+    }
+
+    for (const workload of workloads) {
+      const path = typeof workload === 'string' ? workload : workload?.path;
+      if (path) {
+        workloadIds.add(workloadIdFromPath(path));
+      }
+    }
+  }
+
+  for (const [profile, workloadRefs] of Object.entries(rig.bench_profiles)) {
+    if (!Array.isArray(workloadRefs)) {
+      failures.push(`${rel}: bench profile ${profile} must be an array of workload ids`);
+      continue;
+    }
+
+    for (const workloadRef of workloadRefs) {
+      if (!workloadIds.has(workloadRef)) {
+        failures.push(`${rel}: bench profile ${profile} references ${workloadRef}, but bench_workloads does not declare a matching workload file`);
+      }
+    }
   }
 }
 

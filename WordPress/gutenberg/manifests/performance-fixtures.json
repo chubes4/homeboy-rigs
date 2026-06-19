@@ -21,7 +21,8 @@
         "dynamic-rendering"
       ],
       "expected_workloads": [
-        "gutenberg-rest-route-inventory"
+        "gutenberg-rest-route-inventory",
+        "gutenberg-external-http-guardrail"
       ]
     }
   ]

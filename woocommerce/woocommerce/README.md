@@ -130,8 +130,11 @@ homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-
 homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --profile api-coverage --iterations 1 --shared-state /tmp/woocommerce-api-coverage
+homeboy bench --rig woocommerce-performance --profile full-surface --iterations 1 --shared-state /tmp/woocommerce-full-surface
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
 ```
+
+The `full-surface` profile is executable because every listed workload ID is backed by a concrete `bench_workloads.wordpress` file declaration. It covers the existing WooCommerce REST route inventory and large-merchant workload suite, but DB inventory/profiling, generated REST cases, external HTTP guardrails, and browser request coverage remain planned primitives until concrete workload files exist.
 
 `homeboy bench --rig woocommerce-performance` runs through Homeboy Extensions'
 `wordpress.bench` / WP Codebox backend. WP Codebox owns the disposable WordPress

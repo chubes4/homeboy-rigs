@@ -28,15 +28,32 @@
   },
   "bench_workloads": {
     "wordpress": [
-      { "path": "${package.root}/bench/jetpack-rest-route-inventory.php" }
+      { "path": "${package.root}/bench/jetpack-rest-route-inventory.php" },
+      { "path": "${package.root}/bench/jetpack-external-http-guardrail.php" },
+      { "path": "${package.root}/bench/generated-rest-request-cases.workload.json" },
+      { "path": "${package.root}/bench/rest-db-query-profile.workload.json" },
+      { "path": "${package.root}/bench/db-inventory.workload.json" }
     ]
   },
   "bench_profiles": {
     "smoke": [
-      "jetpack-rest-route-inventory"
+      "jetpack-rest-route-inventory",
+      "jetpack-external-http-guardrail",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
     ],
     "api-coverage": [
-      "jetpack-rest-route-inventory"
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile"
+    ],
+    "full-surface": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "jetpack-external-http-guardrail",
+      "rest-db-query-profile",
+      "db-inventory"
     ]
   },
   "pipeline": {

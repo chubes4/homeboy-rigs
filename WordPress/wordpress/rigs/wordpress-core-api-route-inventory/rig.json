@@ -21,15 +21,32 @@
   },
   "bench_workloads": {
     "wordpress": [
-      { "path": "${package.root}/bench/wordpress-core-rest-route-inventory.php" }
+      { "path": "${package.root}/bench/wordpress-core-rest-route-inventory.php" },
+      { "path": "${package.root}/bench/wordpress-core-external-http-guardrail.php" },
+      { "path": "${package.root}/bench/generated-rest-request-cases.workload.json" },
+      { "path": "${package.root}/bench/rest-db-query-profile.workload.json" },
+      { "path": "${package.root}/bench/db-inventory.workload.json" }
     ]
   },
   "bench_profiles": {
     "smoke": [
-      "wordpress-core-rest-route-inventory"
+      "wordpress-core-rest-route-inventory",
+      "wordpress-core-external-http-guardrail",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
     ],
     "api-coverage": [
-      "wordpress-core-rest-route-inventory"
+      "wordpress-core-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile"
+    ],
+    "full-surface": [
+      "wordpress-core-rest-route-inventory",
+      "generated-rest-request-cases",
+      "wordpress-core-external-http-guardrail",
+      "rest-db-query-profile",
+      "db-inventory"
     ]
   },
   "pipeline": {

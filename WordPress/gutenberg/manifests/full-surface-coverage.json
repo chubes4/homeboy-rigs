@@ -28,6 +28,8 @@
     "browser_requests": {
       "coverage_goal": "all_editor_bootstrap_fetch_xhr_websocket_asset_requests",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
+      "trace_workload": "bench/gutenberg-browser-coverage.trace.mjs",
+      "rig": "rigs/gutenberg-browser-coverage/rig.json",
       "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"]
     }
   },

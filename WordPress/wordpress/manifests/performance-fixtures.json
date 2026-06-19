@@ -22,7 +22,8 @@
         "diagnostics"
       ],
       "expected_workloads": [
-        "wordpress-core-rest-route-inventory"
+        "wordpress-core-rest-route-inventory",
+        "wordpress-core-external-http-guardrail"
       ]
     }
   ]
