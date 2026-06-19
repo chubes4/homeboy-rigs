@@ -8,7 +8,7 @@
     "wordpress-rest-db-query-profiler",
     "wordpress-db-inventory",
     "wordpress-external-http-guardrail",
-    "browser-request-capture"
+    "browser-request-coverage"
   ],
   "surfaces": {
     "rest_api": {
@@ -27,7 +27,16 @@
     },
     "browser_requests": {
       "coverage_goal": "all_wp_admin_jetpack_screen_fetch_xhr_websocket_asset_requests",
+      "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
       "scenarios": ["dashboard", "connection", "modules", "settings"]
+    }
+  },
+  "coverage_profiles": {
+    "full-surface": {
+      "rest_api": ["jetpack-rest-route-inventory", "generated-rest-request-cases"],
+      "database": ["db-inventory", "rest-db-query-profiler"],
+      "server_requests": ["external-http-guardrail"],
+      "browser_requests": ["dashboard", "connection", "modules", "settings"]
     }
   }
 }
