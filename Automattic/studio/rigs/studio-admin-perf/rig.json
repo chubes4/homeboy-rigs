@@ -1,0 +1,68 @@
+{
+  "id": "studio-admin-perf",
+  "description": "Focused Studio admin performance rig for WordPress admin page and REST latency evidence without the wordpress-playground component dependency.",
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio",
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "settings": {
+            "studio_bench_variant": "admin-perf"
+          }
+        }
+      }
+    }
+  },
+  "bench": {
+    "default_component": "studio"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/studio-admin-theme-page.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-dashboard-browser.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-page-timing-matrix.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-rest-latency-diagnostics.bench.mjs"
+      }
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "admin theme page bench exists",
+        "file": "${package.root}/bench/studio-admin-theme-page.bench.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "admin theme page browser bench exists",
+        "file": "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "dashboard browser bench exists",
+        "file": "${package.root}/bench/studio-dashboard-browser.bench.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "page timing matrix bench exists",
+        "file": "${package.root}/bench/studio-page-timing-matrix.bench.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "REST latency diagnostics bench exists",
+        "file": "${package.root}/bench/studio-rest-latency-diagnostics.bench.mjs"
+      }
+    ]
+  }
+}
