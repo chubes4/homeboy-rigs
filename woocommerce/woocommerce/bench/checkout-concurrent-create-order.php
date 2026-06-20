@@ -43,6 +43,31 @@ return function (): array {
 
 	global $wpdb;
 
+	$db_server_info = method_exists( $wpdb, 'db_server_info' ) ? (string) $wpdb->db_server_info() : '';
+	$is_sqlite      = ( defined( 'DB_ENGINE' ) && 'sqlite' === DB_ENGINE )
+		|| ( defined( 'DATABASE_TYPE' ) && 'sqlite' === DATABASE_TYPE )
+		|| false !== stripos( $db_server_info, 'sqlite' );
+	if ( $is_sqlite ) {
+		// Preserve Woo's delete_items() semantics while avoiding MySQL-only DELETE JOIN syntax.
+		add_filter(
+			'query',
+			static function ( string $query ): string {
+				if ( ! preg_match( '/^DELETE\s+itemmeta\s+FROM\s+(\S+)\s+as\s+itemmeta\s+INNER\s+JOIN\s+(\S+)\s+as\s+items\s+WHERE\s+itemmeta\.order_item_id\s*=\s*items\.order_item_id\s+AND\s+items\.order_id\s*=\s*(\d+)(?:\s+AND\s+items\.order_item_type\s*=\s*(\'[^\']*\'))?$/i', $query, $matches ) ) {
+					return $query;
+				}
+
+				$type_clause = isset( $matches[4] ) ? ' AND order_item_type = ' . $matches[4] : '';
+				return sprintf(
+					'DELETE FROM %s WHERE order_item_id IN (SELECT order_item_id FROM %s WHERE order_id = %d%s)',
+					$matches[1],
+					$matches[2],
+					(int) $matches[3],
+					$type_clause
+				);
+			}
+		);
+	}
+
 	$run_id = 'woocommerce-checkout-concurrent-create-order-' . getmypid() . '-' . time() . '-' . wp_generate_password( 6, false );
 	$issues = array(
 		'https://github.com/woocommerce/woocommerce/issues/14541',
@@ -66,6 +91,9 @@ return function (): array {
 	update_option( 'woocommerce_enable_guest_checkout', 'yes' );
 	update_option( 'woocommerce_enable_coupons', 'yes' );
 	update_option( 'woocommerce_enable_checkout_login_reminder', 'no' );
+	foreach ( array( 'new_order', 'cancelled_order', 'failed_order', 'customer_processing_order', 'customer_completed_order', 'customer_failed_order', 'customer_refunded_order', 'customer_on_hold_order' ) as $email_id ) {
+		add_filter( 'woocommerce_email_enabled_' . $email_id, '__return_false' );
+	}
 	update_option(
 		'woocommerce_cod_settings',
 		array(

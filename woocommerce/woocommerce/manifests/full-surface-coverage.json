@@ -35,8 +35,8 @@
   "coverage_profiles": {
     "full-surface": {
       "rest_api": ["woocommerce-rest-route-inventory", "generated-rest-request-cases"],
-      "database": ["db-inventory", "rest-db-query-profiler"],
-      "server_requests": ["external-http-guardrail"],
+      "database": ["db-inventory", "rest-db-query-profile"],
+      "server_requests": ["woocommerce-external-http-guardrail"],
       "browser_requests": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
     }
   }
