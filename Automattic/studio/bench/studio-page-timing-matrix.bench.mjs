@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
@@ -27,12 +27,36 @@ const DEFAULT_PATHS = [
   '/',
   '/sample-page/',
   '/wp-admin/index.php',
-  '/wp-admin/plugins.php',
-  '/wp-admin/themes.php',
-  '/wp-admin/theme-install.php',
   '/wp-admin/edit.php',
   '/wp-admin/post-new.php',
+  '/wp-admin/edit.php?post_type=page',
+  '/wp-admin/post-new.php?post_type=page',
+  '/wp-admin/upload.php',
+  '/wp-admin/media-new.php',
+  '/wp-admin/edit-comments.php',
+  '/wp-admin/plugins.php',
+  '/wp-admin/plugin-install.php',
+  '/wp-admin/update-core.php',
+  '/wp-admin/themes.php',
+  '/wp-admin/theme-install.php',
+  '/wp-admin/customize.php',
+  '/wp-admin/widgets.php',
+  '/wp-admin/nav-menus.php',
   '/wp-admin/site-editor.php',
+  '/wp-admin/users.php',
+  '/wp-admin/user-new.php',
+  '/wp-admin/profile.php',
+  '/wp-admin/tools.php',
+  '/wp-admin/import.php',
+  '/wp-admin/export.php',
+  '/wp-admin/site-health.php',
+  '/wp-admin/options-general.php',
+  '/wp-admin/options-writing.php',
+  '/wp-admin/options-reading.php',
+  '/wp-admin/options-discussion.php',
+  '/wp-admin/options-media.php',
+  '/wp-admin/options-permalink.php',
+  '/wp-admin/options-privacy.php',
 ];
 
 const NETWORK_IDLE_PROBE_TIMEOUT_MS = 1000;
@@ -50,6 +74,14 @@ async function siteStatus(sitePath) {
 
 async function stopSite(sitePath) {
   return stopStudioSite(sitePath, { timeoutMs: 90000 });
+}
+
+async function cleanupSite(sitePath) {
+  if (keepGeneratedSite()) {
+    return;
+  }
+
+  await rm(sitePath, { recursive: true, force: true });
 }
 
 function configuredPaths() {
@@ -73,6 +105,16 @@ function configuredPaths() {
   }
 
   return normalizeConfiguredPaths(raw.split(/[,\n]/).map((value) => value.trim()).filter(Boolean));
+}
+
+function browserLaunchOptions() {
+  const executablePath = setting('studio_browser_executable_path') || process.env.STUDIO_BROWSER_EXECUTABLE_PATH || '';
+  return executablePath ? { executablePath } : {};
+}
+
+function keepGeneratedSite() {
+  const value = setting('studio_page_timing_keep_site') || process.env.STUDIO_PAGE_TIMING_KEEP_SITE || '';
+  return ['1', 'true', 'yes'].includes(String(value).trim().toLowerCase());
 }
 
 function normalizeConfiguredPaths(values) {
@@ -232,6 +274,7 @@ function summarizePage(page, siteUrl) {
 export default async function studioPageTimingMatrixBench() {
   const currentVariant = variant();
   const pathConfig = configuredPaths();
+  const keepSite = keepGeneratedSite();
   let paths = [...pathConfig.paths];
   const runId = `${currentVariant}-page-timing-matrix-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const artifactDir = path.join(studioArtifactDir('studio-page-timing-matrix-artifacts'), runId);
@@ -262,6 +305,7 @@ export default async function studioPageTimingMatrixBench() {
       trace: true,
       screenshot: true,
       waitForNetworkIdle: false,
+      launchOptions: browserLaunchOptions(),
       action: async ({ page, mark }) => {
         await page.goto(status.autoLoginUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
@@ -458,7 +502,7 @@ export default async function studioPageTimingMatrixBench() {
       },
       artifacts: {
         raw_result: artifactFile,
-        site_path: sitePath,
+        ...(keepSite ? { site_path: sitePath } : {}),
         ...browserResult.artifacts,
       },
     };
@@ -466,5 +510,6 @@ export default async function studioPageTimingMatrixBench() {
     if (!stop) {
       stop = await stopSite(sitePath);
     }
+    await cleanupSite(sitePath);
   }
 }
