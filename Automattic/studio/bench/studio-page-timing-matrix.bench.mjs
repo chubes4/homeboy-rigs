@@ -99,6 +99,11 @@ function configuredPaths() {
   return normalizeConfiguredPaths(raw.split(/[,\n]/).map((value) => value.trim()).filter(Boolean));
 }
 
+function browserLaunchOptions() {
+  const executablePath = setting('studio_browser_executable_path') || process.env.STUDIO_BROWSER_EXECUTABLE_PATH || '';
+  return executablePath ? { executablePath } : {};
+}
+
 function normalizeConfiguredPaths(values) {
   return {
     paths: values.filter((value) => value !== 'admin-menu'),
@@ -286,6 +291,7 @@ export default async function studioPageTimingMatrixBench() {
       trace: true,
       screenshot: true,
       waitForNetworkIdle: false,
+      launchOptions: browserLaunchOptions(),
       action: async ({ page, mark }) => {
         await page.goto(status.autoLoginUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
