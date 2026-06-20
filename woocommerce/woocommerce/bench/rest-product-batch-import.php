@@ -398,6 +398,43 @@ return function (): array {
 	);
 	$active_query_profile = null;
 	$active_http_profile  = null;
+	$active_phase_profile = null;
+	$active_phase_stack   = array();
+	$profile_phase_current = static function () use ( &$active_phase_stack ): string {
+		$active_phase = end( $active_phase_stack );
+		return is_array( $active_phase ) ? (string) $active_phase['phase'] : 'outside_dispatch';
+	};
+	$profile_phase_enter = static function ( string $phase ) use ( &$active_phase_profile, &$active_phase_stack ): void {
+		if ( null === $active_phase_profile ) {
+			return;
+		}
+
+		$active_phase_stack[] = array(
+			'phase'      => $phase,
+			'started_at' => microtime( true ),
+		);
+		$active_phase_profile['spans'][ $phase ]['count'] = ( $active_phase_profile['spans'][ $phase ]['count'] ?? 0 ) + 1;
+	};
+	$profile_phase_exit = static function ( string $phase ) use ( &$active_phase_profile, &$active_phase_stack ): void {
+		if ( null === $active_phase_profile ) {
+			return;
+		}
+
+		$span = array_pop( $active_phase_stack );
+		if ( ! is_array( $span ) || $phase !== (string) $span['phase'] ) {
+			return;
+		}
+
+		$active_phase_profile['spans'][ $phase ]['elapsed_ms'] = ( $active_phase_profile['spans'][ $phase ]['elapsed_ms'] ?? 0 ) + ( ( microtime( true ) - (float) $span['started_at'] ) * 1000 );
+	};
+	$profile_phase_event = static function ( string $event ) use ( &$active_phase_profile, $profile_phase_current ): void {
+		if ( null === $active_phase_profile ) {
+			return;
+		}
+
+		$phase = $profile_phase_current();
+		$active_phase_profile['events'][ $phase ][ $event ] = ( $active_phase_profile['events'][ $phase ][ $event ] ?? 0 ) + 1;
+	};
 	$profile_http_request = static function ( $response, string $context, string $class, array $parsed_args, string $url ) use ( &$active_http_profile ): void {
 		if ( null === $active_http_profile ) {
 			return;
@@ -411,7 +448,7 @@ return function (): array {
 		$active_http_profile['hosts'][ $host ] = ( $active_http_profile['hosts'][ $host ] ?? 0 ) + 1;
 	};
 	add_action( 'http_api_debug', $profile_http_request, 10, 5 );
-	$profile_query        = static function ( string $query ) use ( &$active_query_profile, $wpdb ): void {
+	$profile_query        = static function ( string $query ) use ( &$active_query_profile, $wpdb, $profile_phase_current ): void {
 		if ( null === $active_query_profile ) {
 			return;
 		}
@@ -430,11 +467,14 @@ return function (): array {
 		}
 
 		$active_query_profile['operations'][ $operation ] = ( $active_query_profile['operations'][ $operation ] ?? 0 ) + 1;
+		$profile_phase = $profile_phase_current();
+		$active_query_profile['phase_queries'][ $profile_phase ] = ( $active_query_profile['phase_queries'][ $profile_phase ] ?? 0 ) + 1;
 		foreach ( $tables as $table ) {
 			$table_key = str_replace( $wpdb->prefix, '', $table );
 			$active_query_profile['tables'][ $table_key ] = ( $active_query_profile['tables'][ $table_key ] ?? 0 ) + 1;
 			$operation_table = $operation . ':' . $table_key;
 			$active_query_profile['operation_tables'][ $operation_table ] = ( $active_query_profile['operation_tables'][ $operation_table ] ?? 0 ) + 1;
+			$active_query_profile['phase_operation_tables'][ $profile_phase ][ $operation_table ] = ( $active_query_profile['phase_operation_tables'][ $profile_phase ][ $operation_table ] ?? 0 ) + 1;
 		}
 		if ( preg_match_all( "/option_name\s*=\s*'([^']+)'/i", $query, $option_matches ) ) {
 			foreach ( $option_matches[1] as $option_name ) {
@@ -489,6 +529,7 @@ return function (): array {
 			$category = 'post_write_read';
 		}
 		$active_query_profile['categories'][ $category ] = ( $active_query_profile['categories'][ $category ] ?? 0 ) + 1;
+		$active_query_profile['phase_categories'][ $profile_phase ][ $category ] = ( $active_query_profile['phase_categories'][ $profile_phase ][ $category ] ?? 0 ) + 1;
 
 		if ( 'action_scheduler' === $category ) {
 			$table_key = str_replace( $wpdb->prefix, '', $tables[0] ?? '' );
@@ -688,43 +729,48 @@ return function (): array {
 	add_filter( 'woocommerce_product_data_store', $shared_product_data_store_filter );
 	add_filter( 'woocommerce_product-variation_data_store', $shared_variation_data_store_filter );
 
-	add_action( 'woocommerce_delete_product_transients', static function () use ( &$counters ): void { ++$counters['product_transient_clears']; } );
-	add_action( 'woocommerce_rest_insert_product_object', static function () use ( &$counters ): void { ++$counters['rest_product_inserts']; } );
-	add_action( 'woocommerce_new_product', static function () use ( &$counters ): void { ++$counters['new_products']; } );
-	add_action( 'woocommerce_update_product', static function () use ( &$counters ): void { ++$counters['updated_products']; } );
-	add_action( 'woocommerce_new_product_variation', static function () use ( &$counters ): void { ++$counters['new_variations']; } );
-	add_action( 'woocommerce_update_product_variation', static function () use ( &$counters ): void { ++$counters['updated_variations']; } );
-	add_action( 'woocommerce_variable_product_sync', static function () use ( &$counters ): void { ++$counters['variable_product_syncs']; } );
+	add_action( 'woocommerce_before_product_object_save', static function () use ( $profile_phase_enter ): void { $profile_phase_enter( 'product_save' ); }, 1 );
+	add_action( 'woocommerce_after_product_object_save', static function () use ( $profile_phase_exit ): void { $profile_phase_exit( 'product_save' ); }, PHP_INT_MAX );
+	add_action( 'woocommerce_delete_product_transients', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['product_transient_clears']; $profile_phase_event( 'transient_invalidation' ); } );
+	add_action( 'woocommerce_rest_insert_product_object', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['rest_product_inserts']; $profile_phase_event( 'rest_insert_product_object' ); } );
+	add_action( 'woocommerce_new_product', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['new_products']; $profile_phase_event( 'new_product' ); } );
+	add_action( 'woocommerce_update_product', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['updated_products']; $profile_phase_event( 'update_product' ); } );
+	add_action( 'woocommerce_new_product_variation', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['new_variations']; $profile_phase_event( 'new_product_variation' ); } );
+	add_action( 'woocommerce_update_product_variation', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['updated_variations']; $profile_phase_event( 'update_product_variation' ); } );
+	add_action( 'woocommerce_variable_product_sync', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['variable_product_syncs']; $profile_phase_event( 'variable_product_sync' ); } );
 	add_action(
 		'added_post_meta',
-		static function ( $meta_id, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts ): void {
+		static function ( $meta_id, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts, $profile_phase_event ): void {
 			++$counters['added_post_meta'];
 			$meta_hook_counts['added'][ $meta_key ] = ( $meta_hook_counts['added'][ $meta_key ] ?? 0 ) + 1;
+			$profile_phase_event( 'added_post_meta' );
 		},
 		10,
 		3
 	);
 	add_action(
 		'updated_post_meta',
-		static function ( $meta_id, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts ): void {
+		static function ( $meta_id, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts, $profile_phase_event ): void {
 			++$counters['updated_post_meta'];
 			$meta_hook_counts['updated'][ $meta_key ] = ( $meta_hook_counts['updated'][ $meta_key ] ?? 0 ) + 1;
+			$profile_phase_event( 'updated_post_meta' );
 		},
 		10,
 		3
 	);
 	add_action(
 		'deleted_post_meta',
-		static function ( $meta_ids, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts ): void {
+		static function ( $meta_ids, $post_id, $meta_key ) use ( &$counters, &$meta_hook_counts, $profile_phase_event ): void {
 			$counters['deleted_post_meta'] += is_array( $meta_ids ) ? count( $meta_ids ) : 1;
 			$meta_hook_counts['deleted'][ $meta_key ] = ( $meta_hook_counts['deleted'][ $meta_key ] ?? 0 ) + ( is_array( $meta_ids ) ? count( $meta_ids ) : 1 );
+			$profile_phase_event( 'deleted_post_meta' );
 		},
 		10,
 		3
 	);
-	add_action( 'save_post_product', static function () use ( &$counters ): void { ++$counters['save_post_product']; } );
-	add_action( 'save_post_product_variation', static function () use ( &$counters ): void { ++$counters['save_post_product_variation']; } );
-	add_action( 'clean_post_cache', static function () use ( &$counters ): void { ++$counters['clean_post_cache']; } );
+	add_action( 'save_post_product', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['save_post_product']; $profile_phase_event( 'save_post_product' ); } );
+	add_action( 'save_post_product_variation', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['save_post_product_variation']; $profile_phase_event( 'save_post_product_variation' ); } );
+	add_action( 'clean_post_cache', static function () use ( &$counters, $profile_phase_event ): void { ++$counters['clean_post_cache']; $profile_phase_event( 'clean_post_cache' ); } );
 	$count_pending_actions = static function (): int {
 		if ( ! function_exists( 'as_get_scheduled_actions' ) || ! class_exists( 'ActionScheduler_Store' ) ) {
 			return 0;
@@ -740,10 +786,11 @@ return function (): array {
 	};
 	$pending_action_count_before = $count_pending_actions();
 
-	$dispatch_batch = static function ( string $route, array $payload ) use ( $wpdb, &$counters, &$meta_hook_counts, &$active_query_profile, &$active_http_profile ): array {
+	$dispatch_batch = static function ( string $route, array $payload ) use ( $wpdb, &$counters, &$meta_hook_counts, &$active_query_profile, &$active_http_profile, &$active_phase_profile, &$active_phase_stack, $profile_phase_enter, $profile_phase_exit ): array {
 		$counter_before       = $counters;
 		$meta_hook_before     = $meta_hook_counts;
 		$query_before         = (int) $wpdb->num_queries;
+		$active_phase_stack   = array();
 		$active_query_profile = array(
 			'operations'       => array_fill_keys( array( 'select', 'insert', 'update', 'delete', 'replace', 'other' ), 0 ),
 			'tables'           => array(),
@@ -753,22 +800,34 @@ return function (): array {
 			'option_names'     => array(),
 			'meta_keys'        => array(),
 			'meta_key_operations' => array(),
+			'phase_queries'    => array(),
+			'phase_categories' => array(),
+			'phase_operation_tables' => array(),
 			'signatures'       => array(),
 		);
 		$active_http_profile  = array(
 			'request_count' => 0,
 			'hosts'         => array(),
 		);
+		$active_phase_profile = array(
+			'spans'  => array(),
+			'events' => array(),
+		);
 		$request              = new WP_REST_Request( 'POST', $route );
 		$request->set_header( 'Content-Type', 'application/json' );
 		$request->set_body_params( $payload );
 		$started  = microtime( true );
+		$profile_phase_enter( 'rest_dispatch' );
 		$response = rest_get_server()->dispatch( $request );
+		$profile_phase_exit( 'rest_dispatch' );
 		$elapsed  = ( microtime( true ) - $started ) * 1000;
 		$query_profile = $active_query_profile;
 		$http_profile  = $active_http_profile;
+		$phase_profile = $active_phase_profile;
 		$active_query_profile = null;
 		$active_http_profile  = null;
+		$active_phase_profile = null;
+		$active_phase_stack   = array();
 		$data     = $response->get_data();
 		$status   = (int) $response->get_status();
 
@@ -800,8 +859,19 @@ return function (): array {
 		arsort( $query_profile['option_names'] );
 		arsort( $query_profile['meta_keys'] );
 		arsort( $query_profile['meta_key_operations'] );
+		arsort( $query_profile['phase_queries'] );
 		arsort( $query_profile['signatures'] );
 		arsort( $http_profile['hosts'] );
+		foreach ( $query_profile['phase_categories'] as &$phase_categories ) {
+			arsort( $phase_categories );
+			$phase_categories = array_slice( $phase_categories, 0, 30, true );
+		}
+		unset( $phase_categories );
+		foreach ( $query_profile['phase_operation_tables'] as &$phase_operation_tables ) {
+			arsort( $phase_operation_tables );
+			$phase_operation_tables = array_slice( $phase_operation_tables, 0, 30, true );
+		}
+		unset( $phase_operation_tables );
 		$query_profile['tables']           = array_slice( $query_profile['tables'], 0, 20, true );
 		$query_profile['operation_tables'] = array_slice( $query_profile['operation_tables'], 0, 30, true );
 		$query_profile['categories']       = array_slice( $query_profile['categories'], 0, 30, true );
@@ -809,6 +879,7 @@ return function (): array {
 		$query_profile['option_names']     = array_slice( $query_profile['option_names'], 0, 30, true );
 		$query_profile['meta_keys']        = array_slice( $query_profile['meta_keys'], 0, 30, true );
 		$query_profile['meta_key_operations'] = array_slice( $query_profile['meta_key_operations'], 0, 40, true );
+		$query_profile['phase_queries']    = array_slice( $query_profile['phase_queries'], 0, 20, true );
 		$query_profile['signatures']       = array_slice( $query_profile['signatures'], 0, 20, true );
 		$http_profile['hosts']            = array_slice( $http_profile['hosts'], 0, 10, true );
 
@@ -820,6 +891,7 @@ return function (): array {
 			'counter_delta' => $counter_delta,
 			'meta_hook_delta' => $meta_hook_delta,
 			'query_profile' => $query_profile,
+			'phase_profile' => $phase_profile,
 			'http_profile'  => $http_profile,
 			'data'          => $data,
 		);
@@ -1575,6 +1647,18 @@ return function (): array {
 	$profile_value = static function ( array $row, string $section, string $key ): int {
 		return (int) ( $row['query_profile'][ $section ][ $key ] ?? 0 );
 	};
+	$phase_span_value = static function ( array $row, string $phase, string $key ): float {
+		return (float) ( $row['phase_profile']['spans'][ $phase ][ $key ] ?? 0 );
+	};
+	$phase_query_value = static function ( array $row, string $phase ): int {
+		return (int) ( $row['query_profile']['phase_queries'][ $phase ] ?? 0 );
+	};
+	$phase_category_value = static function ( array $row, string $phase, string $category ): int {
+		return (int) ( $row['query_profile']['phase_categories'][ $phase ][ $category ] ?? 0 );
+	};
+	$phase_event_value = static function ( array $row, string $phase, string $event ): int {
+		return (int) ( $row['phase_profile']['events'][ $phase ][ $event ] ?? 0 );
+	};
 	$profile_total = static function ( array $profile_rows, string $section, string $key ) use ( $profile_value ): int {
 		$total = 0;
 		foreach ( $profile_rows as $profile_row ) {
@@ -1868,6 +1952,19 @@ return function (): array {
 		'simple_create_profile_slug_lookup_queries' => $profile_value( $simple_create_result, 'categories', 'slug_lookup' ),
 		'simple_create_profile_lookup_table_queries' => $profile_value( $simple_create_result, 'categories', 'lookup_table' ),
 		'simple_create_profile_term_lookup_queries' => $profile_value( $simple_create_result, 'categories', 'term_lookup' ),
+		'simple_create_phase_rest_dispatch_ms' => $phase_span_value( $simple_create_result, 'rest_dispatch', 'elapsed_ms' ),
+		'simple_create_phase_product_save_ms' => $phase_span_value( $simple_create_result, 'product_save', 'elapsed_ms' ),
+		'simple_create_phase_product_save_count' => $phase_span_value( $simple_create_result, 'product_save', 'count' ),
+		'simple_create_phase_rest_dispatch_queries' => $phase_query_value( $simple_create_result, 'rest_dispatch' ),
+		'simple_create_phase_product_save_queries' => $phase_query_value( $simple_create_result, 'product_save' ),
+		'simple_create_phase_product_save_meta_insert_queries' => $phase_category_value( $simple_create_result, 'product_save', 'meta_insert' ),
+		'simple_create_phase_product_save_meta_update_queries' => $phase_category_value( $simple_create_result, 'product_save', 'meta_update' ),
+		'simple_create_phase_product_save_meta_read_queries' => $phase_category_value( $simple_create_result, 'product_save', 'meta_read' ),
+		'simple_create_phase_product_save_term_lookup_queries' => $phase_category_value( $simple_create_result, 'product_save', 'term_lookup' ),
+		'simple_create_phase_product_save_lookup_table_queries' => $phase_category_value( $simple_create_result, 'product_save', 'lookup_table' ),
+		'simple_create_phase_product_save_transient_option_queries' => $phase_category_value( $simple_create_result, 'product_save', 'transient_option' ),
+		'simple_create_phase_product_save_transient_invalidations' => $phase_event_value( $simple_create_result, 'product_save', 'transient_invalidation' ),
+		'simple_create_phase_product_save_clean_post_cache_events' => $phase_event_value( $simple_create_result, 'product_save', 'clean_post_cache' ),
 		'simple_create_profile_select_posts_queries' => $profile_value( $simple_create_result, 'operation_tables', 'select:posts' ),
 		'simple_create_profile_select_postmeta_queries' => $profile_value( $simple_create_result, 'operation_tables', 'select:postmeta' ),
 		'simple_create_profile_insert_postmeta_queries' => $profile_value( $simple_create_result, 'operation_tables', 'insert:postmeta' ),
