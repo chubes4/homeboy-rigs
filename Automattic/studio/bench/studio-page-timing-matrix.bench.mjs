@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import {
@@ -76,6 +76,14 @@ async function stopSite(sitePath) {
   return stopStudioSite(sitePath, { timeoutMs: 90000 });
 }
 
+async function cleanupSite(sitePath) {
+  if (keepGeneratedSite()) {
+    return;
+  }
+
+  await rm(sitePath, { recursive: true, force: true });
+}
+
 function configuredPaths() {
   const raw = setting('studio_page_timing_paths') || process.env.STUDIO_PAGE_TIMING_PATHS || '';
   if (!raw.trim()) {
@@ -102,6 +110,11 @@ function configuredPaths() {
 function browserLaunchOptions() {
   const executablePath = setting('studio_browser_executable_path') || process.env.STUDIO_BROWSER_EXECUTABLE_PATH || '';
   return executablePath ? { executablePath } : {};
+}
+
+function keepGeneratedSite() {
+  const value = setting('studio_page_timing_keep_site') || process.env.STUDIO_PAGE_TIMING_KEEP_SITE || '';
+  return ['1', 'true', 'yes'].includes(String(value).trim().toLowerCase());
 }
 
 function normalizeConfiguredPaths(values) {
@@ -261,6 +274,7 @@ function summarizePage(page, siteUrl) {
 export default async function studioPageTimingMatrixBench() {
   const currentVariant = variant();
   const pathConfig = configuredPaths();
+  const keepSite = keepGeneratedSite();
   let paths = [...pathConfig.paths];
   const runId = `${currentVariant}-page-timing-matrix-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const artifactDir = path.join(studioArtifactDir('studio-page-timing-matrix-artifacts'), runId);
@@ -488,7 +502,7 @@ export default async function studioPageTimingMatrixBench() {
       },
       artifacts: {
         raw_result: artifactFile,
-        site_path: sitePath,
+        ...(keepSite ? { site_path: sitePath } : {}),
         ...browserResult.artifacts,
       },
     };
@@ -496,5 +510,6 @@ export default async function studioPageTimingMatrixBench() {
     if (!stop) {
       stop = await stopSite(sitePath);
     }
+    await cleanupSite(sitePath);
   }
 }
