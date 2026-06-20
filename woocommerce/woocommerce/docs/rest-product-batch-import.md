@@ -163,6 +163,15 @@ These scenarios are labeled in the JSON artifact under
 - `simple_create_profile_slug_lookup_queries`
 - `simple_create_profile_lookup_table_queries`
 - `simple_create_profile_term_lookup_queries`
+- `simple_create_phase_rest_dispatch_ms`
+- `simple_create_phase_product_save_ms`
+- `simple_create_phase_product_save_queries`
+- `simple_create_phase_product_save_meta_insert_queries`
+- `simple_create_phase_product_save_meta_update_queries`
+- `simple_create_phase_product_save_term_lookup_queries`
+- `simple_create_phase_product_save_lookup_table_queries`
+- `simple_create_phase_product_save_transient_option_queries`
+- `simple_create_phase_product_save_transient_invalidations`
 - `scenario_reentrant_save_post_product`
 - `scenario_shared_product_data_store`
 - `scenario_preexisting_internal_meta`
