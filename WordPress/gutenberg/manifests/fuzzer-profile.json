@@ -1,0 +1,68 @@
+{
+  "schema": "homeboy-rigs/gutenberg-fuzzer-profile/v1",
+  "property": "WordPress/gutenberg",
+  "description": "Rig-owned Gutenberg fuzzer profile analogous to Woo full-surface coverage. It composes REST route coverage, wp-admin/editor page coverage, block editor load/action probes, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting without adding Gutenberg-specific logic to Homeboy core or Homeboy Extensions.",
+  "source_manifests": {
+    "full_surface": "manifests/full-surface-coverage.json",
+    "rest_routes": "manifests/rest-route-coverage.json",
+    "rest_budgets": "manifests/rest-route-budgets.json",
+    "fixtures": "manifests/performance-fixtures.json"
+  },
+  "execution": {
+    "bench_rig": "gutenberg-api-route-inventory",
+    "bench_profile": "fuzzer",
+    "trace_rig": "gutenberg-browser-coverage",
+    "trace_profile": "fuzzer"
+  },
+  "surfaces": {
+    "rest_route_coverage": {
+      "workloads": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
+      "target_manifest": "manifests/rest-route-coverage.json",
+      "gap_rule": "Report registered Gutenberg-facing routes that do not have generated safe request cases."
+    },
+    "wp_admin_editor_pages": {
+      "trace_workload": "bench/gutenberg-browser-coverage.trace.mjs",
+      "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"],
+      "gap_rule": "Report target scenarios missing browser request coverage artifacts or failing readiness steps."
+    },
+    "block_editor_load_action_probes": {
+      "scenario_files": [
+        "browser-scenarios/post_editor.json",
+        "browser-scenarios/site_editor.json",
+        "browser-scenarios/template_editor.json",
+        "browser-scenarios/patterns.json"
+      ],
+      "captures": ["steps", "console", "errors", "network", "html", "screenshot", "dom-snapshot"],
+      "gap_rule": "Report editor screens that load but produce failed browser actions, browser errors, or no request coverage."
+    },
+    "db_query_profile_hooks": {
+      "workloads": ["db-inventory", "rest-db-query-profile"],
+      "budget_manifest": "manifests/rest-route-budgets.json",
+      "gap_rule": "Report covered routes without query profiles and query profiles that exceed Gutenberg route budgets."
+    },
+    "server_request_guardrails": {
+      "workloads": ["gutenberg-external-http-guardrail"],
+      "allowed_hosts": ["api.wordpress.org"],
+      "gap_rule": "Report unapproved outbound hosts touched by Gutenberg editor/library probes."
+    }
+  },
+  "coverage_gap_report": {
+    "schema": "homeboy-rigs/gutenberg-fuzzer-coverage-gap/v1",
+    "inputs": [
+      "REST route inventory artifact",
+      "generated REST request case artifact",
+      "REST DB query profile artifact",
+      "DB inventory artifact",
+      "external HTTP guardrail artifact",
+      "browser request coverage artifact"
+    ],
+    "sections": [
+      "rest_routes_without_cases",
+      "admin_editor_scenarios_without_browser_coverage",
+      "covered_routes_without_query_profiles",
+      "budget_regressions",
+      "unapproved_external_hosts",
+      "open_fixture_or_primitive_gaps"
+    ]
+  }
+}

@@ -37,6 +37,7 @@
   },
   "trace_profiles": {
     "smoke": ["gutenberg-browser-coverage"],
+    "fuzzer": ["gutenberg-browser-coverage"],
     "full-surface": ["gutenberg-browser-coverage"]
   },
   "pipeline": {

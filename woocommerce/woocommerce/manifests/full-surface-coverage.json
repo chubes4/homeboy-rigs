@@ -8,7 +8,8 @@
     "wordpress-rest-db-query-profiler",
     "wordpress-db-inventory",
     "wordpress-external-http-guardrail",
-    "browser-request-coverage"
+    "browser-request-coverage",
+    "wordpress-authenticated-admin-page-coverage"
   ],
   "surfaces": {
     "rest_api": {
@@ -30,6 +31,12 @@
       "trace_workload": "bench/woocommerce-browser-coverage.trace.mjs",
       "rig": "rigs/woocommerce-browser-coverage/rig.json",
       "scenarios": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
+    },
+    "authenticated_admin_pages": {
+      "coverage_goal": "bounded_safe_wp_admin_and_woo_admin_menu_submenu_get_pages_as_admin_and_shop_manager",
+      "coverage_artifact": "homeboy/woocommerce-admin-page-coverage/v1",
+      "workload": "bench/admin-page-coverage.php",
+      "rig": "rigs/woocommerce-performance/rig.json"
     }
   },
   "coverage_profiles": {
@@ -37,6 +44,7 @@
       "rest_api": ["woocommerce-rest-route-inventory", "generated-rest-request-cases"],
       "database": ["db-inventory", "rest-db-query-profile"],
       "server_requests": ["woocommerce-external-http-guardrail"],
+      "authenticated_admin_pages": ["admin-page-coverage"],
       "browser_requests": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
     }
   }
