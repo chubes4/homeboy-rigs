@@ -1110,13 +1110,38 @@ return function (): array {
 		}
 
 		$placeholders = implode( ',', array_fill( 0, count( $product_ids ), '%d' ) );
-		$rows         = $wpdb->get_results(
+		$meta_rows    = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT post_id, meta_key, COUNT(*) AS row_count, GROUP_CONCAT(meta_value ORDER BY meta_id SEPARATOR ' | ') AS values_seen FROM {$wpdb->postmeta} WHERE post_id IN ($placeholders) GROUP BY post_id, meta_key HAVING row_count > 1 ORDER BY post_id ASC, meta_key ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT post_id, meta_key, meta_value FROM {$wpdb->postmeta} WHERE post_id IN ($placeholders) ORDER BY post_id ASC, meta_key ASC, meta_id ASC", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				$product_ids
 			),
 			ARRAY_A
 		);
+		$groups       = array();
+		foreach ( $meta_rows as $row ) {
+			$key = (int) $row['post_id'] . ':' . (string) $row['meta_key'];
+			if ( ! isset( $groups[ $key ] ) ) {
+				$groups[ $key ] = array(
+					'post_id'     => (int) $row['post_id'],
+					'meta_key'    => (string) $row['meta_key'],
+					'values_seen' => array(),
+				);
+			}
+			$groups[ $key ]['values_seen'][] = (string) $row['meta_value'];
+		}
+
+		$rows = array();
+		foreach ( $groups as $group ) {
+			$row_count = count( $group['values_seen'] );
+			if ( $row_count > 1 ) {
+				$rows[] = array(
+					'post_id'     => $group['post_id'],
+					'meta_key'    => $group['meta_key'],
+					'row_count'   => $row_count,
+					'values_seen' => implode( ' | ', $group['values_seen'] ),
+				);
+			}
+		}
 
 		return array_map(
 			static function ( array $row ): array {
