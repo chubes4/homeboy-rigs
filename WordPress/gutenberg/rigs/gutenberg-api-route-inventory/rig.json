@@ -48,6 +48,13 @@
       "generated-rest-request-cases",
       "rest-db-query-profile"
     ],
+    "fuzzer": [
+      "gutenberg-rest-route-inventory",
+      "generated-rest-request-cases",
+      "gutenberg-external-http-guardrail",
+      "rest-db-query-profile",
+      "db-inventory"
+    ],
     "full-surface": [
       "gutenberg-rest-route-inventory",
       "generated-rest-request-cases",

@@ -33,11 +33,34 @@
       "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"]
     }
   },
+  "coverage_gap_reporting": {
+    "inputs": [
+      "gutenberg-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "gutenberg-external-http-guardrail",
+      "gutenberg-browser-coverage"
+    ],
+    "compare": {
+      "rest_routes": "registered Gutenberg-facing route inventory minus generated safe request cases",
+      "admin_editor_pages": "manifest browser scenarios minus captured browser request coverage scenarios",
+      "database": "fixture DB inventory plus REST query profiles per covered route",
+      "external_http": "observed outbound HTTP hosts minus approved Gutenberg hosts"
+    },
+    "report_shape": "homeboy-rigs/gutenberg-fuzzer-coverage-gap/v1"
+  },
   "coverage_profiles": {
+    "fuzzer": {
+      "rest_api": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
+      "database": ["db-inventory", "rest-db-query-profile"],
+      "server_requests": ["gutenberg-external-http-guardrail"],
+      "browser_requests": ["post_editor", "site_editor", "template_editor", "patterns"]
+    },
     "full-surface": {
       "rest_api": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
-      "database": ["db-inventory", "rest-db-query-profiler"],
-      "server_requests": ["external-http-guardrail"],
+      "database": ["db-inventory", "rest-db-query-profile"],
+      "server_requests": ["gutenberg-external-http-guardrail"],
       "browser_requests": ["post_editor", "site_editor", "template_editor", "patterns"]
     }
   }

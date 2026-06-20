@@ -129,12 +129,13 @@ homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
 homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
+homeboy bench --rig woocommerce-performance --scenario admin-page-coverage --iterations 1 --shared-state /tmp/woocommerce-admin-page-coverage
 homeboy bench --rig woocommerce-performance --profile api-coverage --iterations 1 --shared-state /tmp/woocommerce-api-coverage
 homeboy bench --rig woocommerce-performance --profile full-surface --iterations 1 --shared-state /tmp/woocommerce-full-surface
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
 ```
 
-The `full-surface` profile is executable because every listed workload ID is backed by a concrete `bench_workloads.wordpress` file declaration. It covers the existing WooCommerce REST route inventory and large-merchant workload suite, but DB inventory/profiling, generated REST cases, external HTTP guardrails, and browser request coverage remain planned primitives until concrete workload files exist.
+The `full-surface` profile is executable because every listed workload ID is backed by a concrete `bench_workloads.wordpress` file declaration. It covers the existing WooCommerce REST route inventory, bounded authenticated admin page coverage, DB inventory/profiling, generated REST cases, external HTTP guardrails, and the large-merchant workload suite. Browser request coverage remains a separate trace rig until it can run as a concrete WordPress bench workload.
 
 `homeboy bench --rig woocommerce-performance` runs through Homeboy Extensions'
 `wordpress.bench` / WP Codebox backend. WP Codebox owns the disposable WordPress
@@ -202,6 +203,12 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   routes into `wc/v*`, `wc/store*`, `wc-admin`, `wc-analytics`, and `wc_other` so
   future API performance scenarios can start from full route coverage instead of
   hand-picked endpoints.
+- `admin-page-coverage` enumerates registered wp-admin menu and submenu URLs,
+  skips known unsafe creation/install/update/export/action targets, then visits
+  the bounded safe GET set as admin and shop manager through the disposable WP
+  Codebox HTTP runtime. It records HTTP status, redirects when visible, request
+  timing, PHP notices/errors observed by a temporary runtime-only MU plugin, DB
+  query counts and query shapes when available, and explicit skipped reasons.
 
 ## Metrics
 
@@ -244,6 +251,10 @@ The first slice reports:
 - `total_route_count`, `woocommerce_route_count`, `wc_rest_route_count`,
   `wc_store_route_count`, `wc_admin_route_count`, `wc_analytics_route_count`, and
   `wc_other_route_count` for the first full WooCommerce API coverage primitive.
+- `enumerated_admin_url_count`, `visited_admin_url_count`, `total_visit_count`,
+  `skipped_unsafe_count`, `http_error_count`, `request_error_count`,
+  `php_error_notice_count`, `max_query_count`, and `avg_query_count` for bounded
+  authenticated wp-admin/Woo admin page coverage.
 - `direct_has_physical_products_ms`, `dashboard_setup_widget_ms`,
   `matching_query_elapsed_ms`, `matching_query_count`, `total_query_count`,
   seeded product/term counts, physical/virtual split, onboarding state, and
