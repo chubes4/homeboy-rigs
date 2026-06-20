@@ -66,6 +66,9 @@ return function (): array {
 	update_option( 'woocommerce_enable_guest_checkout', 'yes' );
 	update_option( 'woocommerce_enable_coupons', 'yes' );
 	update_option( 'woocommerce_enable_checkout_login_reminder', 'no' );
+	foreach ( array( 'new_order', 'cancelled_order', 'failed_order', 'customer_processing_order', 'customer_completed_order', 'customer_failed_order', 'customer_refunded_order', 'customer_on_hold_order' ) as $email_id ) {
+		add_filter( 'woocommerce_email_enabled_' . $email_id, '__return_false' );
+	}
 	update_option(
 		'woocommerce_cod_settings',
 		array(
