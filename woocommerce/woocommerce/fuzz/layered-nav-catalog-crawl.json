@@ -73,7 +73,7 @@
         {
           "name": "raw_result",
           "path": "layered-nav-catalog-crawl/raw_result.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -98,13 +98,20 @@
       "transient-entry-cap-guardrail"
     ]
   },
+  "proof_contracts": [
+    {
+      "id": "catalog-layered-nav-transient-growth",
+      "description": "Artifact must include crawled facet URLs, product archive coverage, transient entry counts before/after, and cap guardrail pass/fail classification.",
+      "required_artifact": "raw_result"
+    }
+  ],
   "artifacts": {
     "expected": [
       {
         "name": "raw_result",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }
