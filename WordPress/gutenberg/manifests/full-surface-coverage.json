@@ -28,7 +28,7 @@
     "browser_requests": {
       "coverage_goal": "all_editor_bootstrap_fetch_xhr_websocket_asset_requests",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
-      "trace_workload": "bench/gutenberg-browser-coverage.trace.mjs",
+      "fuzz_workloads": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
       "rig": "rigs/gutenberg-browser-coverage/rig.json",
       "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"]
     }
@@ -52,10 +52,11 @@
   },
   "coverage_profiles": {
     "fuzzer": {
-      "rest_api": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
-      "database": ["db-inventory", "rest-db-query-profile"],
-      "server_requests": ["gutenberg-external-http-guardrail"],
-      "browser_requests": ["post_editor", "site_editor", "template_editor", "patterns"]
+      "rest_api": ["gutenberg-rest-route-fuzz", "gutenberg-rest-request-cases-fuzz"],
+      "database": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
+      "server_requests": ["gutenberg-external-http-guardrail-fuzz"],
+      "browser_requests": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
+      "block_rendering": ["block-rendering-coverage"]
     },
     "full-surface": {
       "rest_api": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],

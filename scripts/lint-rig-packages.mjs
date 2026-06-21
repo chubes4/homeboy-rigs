@@ -10,6 +10,7 @@ const phpFiles = [];
 const rigFiles = [];
 const jsonFiles = [];
 const portableSourceFiles = [];
+const fuzzManifestValidators = [];
 const failures = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
 const personalPathPrefix = '/Users/' + 'chubes/';
@@ -43,6 +44,10 @@ function walk(directory) {
 
     if (entry.isFile() && /\.(json|mjs|js)$/.test(entry.name)) {
       portableSourceFiles.push(join(directory, entry.name));
+    }
+
+    if (entry.isFile() && entry.name === 'validate-fuzz-manifests.mjs') {
+      fuzzManifestValidators.push(join(directory, entry.name));
     }
   }
 }
@@ -249,6 +254,16 @@ function lintGeneratedStudioModelRigs() {
   }
 }
 
+function lintFuzzManifestValidators() {
+  for (const validator of fuzzManifestValidators) {
+    const result = spawnSync('node', [validator], { encoding: 'utf8' });
+    if (result.status !== 0) {
+      const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+      failures.push(`${relative(root, validator)} failed${output ? `: ${output}` : ''}`);
+    }
+  }
+}
+
 walk(root);
 
 const wordpressPluginFuzzWorkloadIdsByPackageRoot = collectWordPressPluginFuzzWorkloadIds();
@@ -256,6 +271,7 @@ const wordpressPluginFuzzWorkloadIdsByPackageRoot = collectWordPressPluginFuzzWo
 rigFiles.forEach((file) => lintRigPortability(file, wordpressPluginFuzzWorkloadIdsByPackageRoot));
 portableSourceFiles.forEach(lintPortableSource);
 lintGeneratedStudioModelRigs();
+lintFuzzManifestValidators();
 
 reportFailures();
 

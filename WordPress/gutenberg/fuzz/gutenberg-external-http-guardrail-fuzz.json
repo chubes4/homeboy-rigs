@@ -1,0 +1,36 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-external-http-guardrail-fuzz",
+  "label": "Gutenberg external HTTP guardrail coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["gutenberg-api", "wordpress-http-api", "performance-guardrails"],
+  "operations": ["external-http-host-inventory", "unapproved-host-blocking"],
+  "case_budget": 30,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/gutenberg-external-http-guardrail.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/gutenberg-external-http-guardrail.php", "entry": "gutenberg-external-http-guardrail" },
+  "cases": [
+    {
+      "case_id": "gutenberg-external-http-guardrail-fuzz:default",
+      "surface_ids": ["gutenberg-api", "wordpress-http-api", "performance-guardrails"],
+      "operations": ["external-http-host-inventory", "unapproved-host-blocking"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-external-http-guardrail.php", "type=php"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=external_http_guardrail"] }]
+      },
+      "artifacts": [{ "name": "external_http_guardrail", "path": "gutenberg-external-http-guardrail/external_http_guardrail.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 30, "max_duration_seconds": 300 },
+  "coverage": { "surface_ids": ["gutenberg-api", "wordpress-http-api", "performance-guardrails"], "operations": ["external-http-host-inventory", "unapproved-host-blocking"] },
+  "artifacts": { "expected": [{ "name": "external_http_guardrail", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

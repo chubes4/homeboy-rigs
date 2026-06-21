@@ -1,0 +1,41 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-rest-request-cases-fuzz",
+  "label": "Generated Gutenberg REST request cases",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"],
+  "operations": ["generated-rest-case-plan", "request-case-execution"],
+  "case_budget": 120,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "entry": "generated-rest-request-cases"
+  },
+  "cases": [
+    {
+      "case_id": "gutenberg-rest-request-cases-fuzz:default",
+      "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"],
+      "operations": ["generated-rest-case-plan", "request-case-execution"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/generated-rest-request-cases.workload.json", "type=json"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_request_cases"] }]
+      },
+      "artifacts": [{ "name": "rest_request_cases", "path": "generated-rest-request-cases/rest_request_cases.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 120, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"], "operations": ["generated-rest-case-plan", "request-case-execution"] },
+  "artifacts": { "expected": [{ "name": "rest_request_cases", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}
