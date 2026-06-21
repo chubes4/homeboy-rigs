@@ -9,6 +9,7 @@ const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencod
 const phpFiles = [];
 const rigFiles = [];
 const jsonFiles = [];
+const fuzzWorkloadFiles = [];
 const portableSourceFiles = [];
 const failures = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
@@ -39,6 +40,10 @@ function walk(directory) {
 
     if (entry.isFile() && entry.name.endsWith('.json')) {
       jsonFiles.push(join(directory, entry.name));
+
+      if (directory.split('/').includes('fuzz')) {
+        fuzzWorkloadFiles.push(join(directory, entry.name));
+      }
     }
 
     if (entry.isFile() && /\.(json|mjs|js)$/.test(entry.name)) {
@@ -318,6 +323,52 @@ function lintPortableSource(file) {
   }
 }
 
+function lintFuzzWorkload(file) {
+  const rel = relative(root, file);
+  let workload;
+
+  try {
+    workload = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (error) {
+    failures.push(`${rel}: invalid JSON: ${error.message}`);
+    return;
+  }
+
+  if (workload.schema !== 'homeboy/fuzz-workload/v1') {
+    failures.push(`${rel}: fuzz workload schema must be homeboy/fuzz-workload/v1`);
+  }
+
+  for (const field of ['id', 'label', 'safety_class']) {
+    if (typeof workload[field] !== 'string' || workload[field].length === 0) {
+      failures.push(`${rel}: fuzz workload must define non-empty string field ${field}`);
+    }
+  }
+
+  for (const field of ['surface_ids', 'operations', 'cases']) {
+    if (!Array.isArray(workload[field]) || workload[field].length === 0) {
+      failures.push(`${rel}: fuzz workload must define non-empty array field ${field}`);
+    }
+  }
+
+  if (!workload.target || typeof workload.target.type !== 'string') {
+    failures.push(`${rel}: fuzz workload must define target.type`);
+  }
+
+  if (!workload.metadata || typeof workload.metadata.kind !== 'string') {
+    failures.push(`${rel}: fuzz workload must define metadata.kind`);
+  }
+
+  if (workload.limits) {
+    if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
+      failures.push(`${rel}: limits.max_cases must be a positive integer`);
+    }
+
+    if (!Number.isInteger(workload.limits.max_duration_seconds) || workload.limits.max_duration_seconds < 1) {
+      failures.push(`${rel}: limits.max_duration_seconds must be a positive integer`);
+    }
+  }
+}
+
 function lintPhp(file) {
   const result = spawnSync('php', ['-l', file], { encoding: 'utf8' });
   if (result.status !== 0) {
@@ -364,6 +415,7 @@ walk(root);
 const fuzzWorkloadsByPackageRoot = collectFuzzWorkloads();
 
 rigFiles.forEach((file) => lintRigPortability(file, fuzzWorkloadsByPackageRoot));
+fuzzWorkloadFiles.forEach(lintFuzzWorkload);
 portableSourceFiles.forEach(lintPortableSource);
 lintGeneratedStudioModelRigs();
 
@@ -381,4 +433,5 @@ reportFailures();
 console.log('Rig package lint passed.');
 console.log(`- PHP syntax: ${phpFiles.length} file(s)`);
 console.log(`- rig portability: ${rigFiles.length} rig(s)`);
+console.log(`- fuzz workloads: ${fuzzWorkloadFiles.length} workload(s)`);
 console.log(`- portable source paths: ${portableSourceFiles.length} file(s)`);

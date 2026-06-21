@@ -1,0 +1,30 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "hooks-cron-options",
+  "label": "WordPress Core hooks, cron, options, transients, and rewrite coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-rewrites"],
+  "operations": ["hook-inventory", "cron-inventory", "option-inventory", "transient-inventory", "rewrite-rule-inventory"],
+  "case_budget": 120,
+  "duration_budget_seconds": 900,
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "hooks-cron-options" },
+  "cases": [
+    {
+      "case_id": "hooks-cron-options:runtime-state-inventory",
+      "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-rewrites"],
+      "operations": ["hook-inventory", "cron-inventory", "option-inventory", "transient-inventory", "rewrite-rule-inventory"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["cron=default", "permalinks=postname", "transients=core-safe"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=runtime_state"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=hooks_cron_options"] }]
+      },
+      "artifacts": [{ "name": "hooks_cron_options", "path": "hooks-cron-options/hooks_cron_options.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 120, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-rewrites"], "operations": ["hook-inventory", "cron-inventory", "option-inventory", "transient-inventory", "rewrite-rule-inventory"] },
+  "artifacts": { "expected": [{ "name": "hooks_cron_options", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

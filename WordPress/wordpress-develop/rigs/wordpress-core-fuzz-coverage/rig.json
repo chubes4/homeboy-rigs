@@ -1,0 +1,70 @@
+{
+  "id": "wordpress-core-fuzz-coverage",
+  "description": "WordPress Core coverage/fuzz rig suite using generic Homeboy fuzz workload manifests and no bench fallback.",
+  "components": {
+    "wordpress-develop": {
+      "path": "~/Developer/wordpress-develop",
+      "branch": "trunk",
+      "extensions": {
+        "wordpress": {
+          "wp_codebox_wordpress_version": "latest",
+          "wp_codebox_source_root": "~/Developer/wordpress-develop",
+          "wp_codebox_source_subpath": "src"
+        }
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "wordpress-core-fuzz-coverage:${env.HOMEBOY_SETTINGS_WORDPRESS_CORE_FUZZ_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.wordpress-develop.path}"
+    ]
+  },
+  "fuzz": {
+    "default_component": "wordpress-develop",
+    "schema": "homeboy/fuzz-workload/v1",
+    "manifest": "${package.root}/manifests/fuzzer-profile.json"
+  },
+  "fuzz_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/fuzz/rest-api.json" },
+      { "path": "${package.root}/fuzz/db-inventory-query-profile.json" },
+      { "path": "${package.root}/fuzz/admin-page-coverage.json" },
+      { "path": "${package.root}/fuzz/hooks-cron-options.json" },
+      { "path": "${package.root}/fuzz/content-types-taxonomies.json" },
+      { "path": "${package.root}/fuzz/media-users.json" },
+      { "path": "${package.root}/fuzz/performance-surfaces.json" }
+    ]
+  },
+  "fuzz_profiles": {
+    "smoke": [
+      "rest-api",
+      "db-inventory-query-profile",
+      "admin-page-coverage"
+    ],
+    "fuzzer": [
+      "rest-api",
+      "db-inventory-query-profile",
+      "admin-page-coverage",
+      "hooks-cron-options",
+      "content-types-taxonomies",
+      "media-users",
+      "performance-surfaces"
+    ],
+    "full-surface": [
+      "rest-api",
+      "db-inventory-query-profile",
+      "admin-page-coverage",
+      "hooks-cron-options",
+      "content-types-taxonomies",
+      "media-users",
+      "performance-surfaces"
+    ]
+  },
+  "pipeline": {
+    "check": [],
+    "down": []
+  }
+}

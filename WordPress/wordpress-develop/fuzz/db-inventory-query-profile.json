@@ -1,0 +1,30 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "db-inventory-query-profile",
+  "label": "WordPress Core DB inventory and query profile",
+  "safety_class": "read_only",
+  "surface_ids": ["wordpress-core-database", "wordpress-core-rest-routes"],
+  "operations": ["db-inventory", "rest-query-profile", "query-shape-attribution"],
+  "case_budget": 100,
+  "duration_budget_seconds": 900,
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "db-inventory-query-profile" },
+  "cases": [
+    {
+      "case_id": "db-inventory-query-profile:core-tables-and-rest-cases",
+      "surface_ids": ["wordpress-core-database", "wordpress-core-rest-routes"],
+      "operations": ["db-inventory", "rest-query-profile", "query-shape-attribution"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=20", "comments=20", "media=5", "terms=8"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=database", "rest_cases=${package.root}/manifests/rest-route-coverage.json"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=db_inventory_query_profile"] }]
+      },
+      "artifacts": [{ "name": "db_inventory_query_profile", "path": "db-inventory-query-profile/db_inventory_query_profile.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 100, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["wordpress-core-database", "wordpress-core-rest-routes"], "operations": ["db-inventory", "rest-query-profile", "query-shape-attribution"] },
+  "artifacts": { "expected": [{ "name": "db_inventory_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

@@ -1,0 +1,30 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "media-users",
+  "label": "WordPress Core media, users, roles, and capabilities coverage",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["wordpress-core-media", "wordpress-core-users", "wordpress-core-roles-capabilities"],
+  "operations": ["attachment-fixture-matrix", "image-metadata-inventory", "user-role-inventory", "capability-boundary-classification", "rest-permission-checks"],
+  "case_budget": 140,
+  "duration_budget_seconds": 1200,
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "media-users" },
+  "cases": [
+    {
+      "case_id": "media-users:permissions-and-metadata",
+      "surface_ids": ["wordpress-core-media", "wordpress-core-users", "wordpress-core-roles-capabilities"],
+      "operations": ["attachment-fixture-matrix", "image-metadata-inventory", "user-role-inventory", "capability-boundary-classification", "rest-permission-checks"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["media=8", "users=administrator,editor,author,contributor,subscriber", "posts=10"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=media_users"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=media_users"] }]
+      },
+      "artifacts": [{ "name": "media_users", "path": "media-users/media_users.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 140, "max_duration_seconds": 1200 },
+  "coverage": { "surface_ids": ["wordpress-core-media", "wordpress-core-users", "wordpress-core-roles-capabilities"], "operations": ["attachment-fixture-matrix", "image-metadata-inventory", "user-role-inventory", "capability-boundary-classification", "rest-permission-checks"] },
+  "artifacts": { "expected": [{ "name": "media_users", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

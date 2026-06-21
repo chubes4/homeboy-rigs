@@ -1,0 +1,30 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "content-types-taxonomies",
+  "label": "WordPress Core post type, status, taxonomy, term, and permalink coverage",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks"],
+  "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution"],
+  "case_budget": 160,
+  "duration_budget_seconds": 1200,
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "content-types-taxonomies" },
+  "cases": [
+    {
+      "case_id": "content-types-taxonomies:registration-and-resolution",
+      "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks"],
+      "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=25", "pages=8", "terms=12", "menus=2", "permalinks=plain,postname"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=content_registration"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=content_types_taxonomies"] }]
+      },
+      "artifacts": [{ "name": "content_types_taxonomies", "path": "content-types-taxonomies/content_types_taxonomies.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 160, "max_duration_seconds": 1200 },
+  "coverage": { "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks"], "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution"] },
+  "artifacts": { "expected": [{ "name": "content_types_taxonomies", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

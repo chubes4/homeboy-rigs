@@ -1,0 +1,36 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "rest-api",
+  "label": "WordPress Core REST API coverage",
+  "safety_class": "mixed_read_isolated_mutation",
+  "surface_ids": ["wordpress-core-rest-routes"],
+  "operations": ["rest-route-inventory", "generated-rest-case-plan", "request-case-execution", "permission-boundary-classification"],
+  "case_budget": 250,
+  "duration_budget_seconds": 1200,
+  "metadata": {
+    "kind": "wordpress-core-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "coverage_manifest": "${package.root}/manifests/rest-route-coverage.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/rest-route-coverage.json", "entry": "rest-api" },
+  "cases": [
+    {
+      "case_id": "rest-api:inventory-and-safe-cases",
+      "surface_ids": ["wordpress-core-rest-routes"],
+      "operations": ["rest-route-inventory", "generated-rest-case-plan", "request-case-execution"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=5", "pages=3", "media=2", "users=2", "terms=4"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["manifest=${package.root}/manifests/rest-route-coverage.json", "surface=rest_api"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_api_coverage"] }]
+      },
+      "artifacts": [{ "name": "rest_api_coverage", "path": "rest-api/rest_api_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "mixed_read_isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 250, "max_duration_seconds": 1200 },
+  "coverage": { "surface_ids": ["wordpress-core-rest-routes"], "operations": ["rest-route-inventory", "generated-rest-case-plan", "request-case-execution", "permission-boundary-classification"] },
+  "artifacts": { "expected": [{ "name": "rest_api_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}
