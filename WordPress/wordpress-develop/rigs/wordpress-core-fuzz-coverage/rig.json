@@ -32,6 +32,7 @@
       { "path": "${package.root}/fuzz/rest-api.json" },
       { "path": "${package.root}/fuzz/db-inventory-query-profile.json" },
       { "path": "${package.root}/fuzz/admin-page-coverage.json" },
+      { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
       { "path": "${package.root}/fuzz/hooks-cron-options.json" },
       { "path": "${package.root}/fuzz/content-types-taxonomies.json" },
       { "path": "${package.root}/fuzz/media-users.json" },
@@ -42,12 +43,14 @@
     "smoke": [
       "rest-api",
       "db-inventory-query-profile",
-      "admin-page-coverage"
+      "admin-page-coverage",
+      "frontend-rendering-request-coverage"
     ],
     "fuzzer": [
       "rest-api",
       "db-inventory-query-profile",
       "admin-page-coverage",
+      "frontend-rendering-request-coverage",
       "hooks-cron-options",
       "content-types-taxonomies",
       "media-users",
@@ -57,6 +60,7 @@
       "rest-api",
       "db-inventory-query-profile",
       "admin-page-coverage",
+      "frontend-rendering-request-coverage",
       "hooks-cron-options",
       "content-types-taxonomies",
       "media-users",

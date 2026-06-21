@@ -92,6 +92,10 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
 
 function packageRootForRig(file) {
   const rel = relative(root, file);
+  if (rel.startsWith('rigs/')) {
+    return root;
+  }
+
   const rigsIndex = rel.indexOf('/rigs/');
 
   if (rigsIndex === -1) {
@@ -103,6 +107,10 @@ function packageRootForRig(file) {
 
 function packageRootForFuzzWorkload(file) {
   const rel = relative(root, file);
+  if (rel.startsWith('fuzz/')) {
+    return root;
+  }
+
   const fuzzIndex = rel.indexOf('/fuzz/');
 
   if (fuzzIndex === -1) {

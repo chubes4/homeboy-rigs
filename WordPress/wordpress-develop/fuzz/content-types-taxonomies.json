@@ -3,8 +3,8 @@
   "id": "content-types-taxonomies",
   "label": "WordPress Core post type, status, taxonomy, term, and permalink coverage",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks"],
-  "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution"],
+  "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks", "wordpress-core-posts", "wordpress-core-pages"],
+  "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution", "post-list-rendering", "page-list-rendering", "post-editor-readiness", "page-editor-readiness"],
   "case_budget": 160,
   "duration_budget_seconds": 1200,
   "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
@@ -13,18 +13,18 @@
   "cases": [
     {
       "case_id": "content-types-taxonomies:registration-and-resolution",
-      "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks"],
-      "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution"],
+      "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks", "wordpress-core-posts", "wordpress-core-pages"],
+      "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution", "post-list-rendering", "page-list-rendering", "post-editor-readiness", "page-editor-readiness"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=25", "pages=8", "terms=12", "menus=2", "permalinks=plain,postname"] }],
         "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=content_registration"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=content_types_taxonomies"] }]
       },
-      "artifacts": [{ "name": "content_types_taxonomies", "path": "content-types-taxonomies/content_types_taxonomies.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
-      "metadata": { "safety_class": "isolated_mutation" }
+      "artifacts": [{ "name": "content_types_taxonomies", "path": "content-types-taxonomies/content_types_taxonomies.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy-rigs/wordpress-core-content-types-taxonomies/v1" } }],
+      "metadata": { "safety_class": "isolated_mutation", "scenarios": ["posts-list", "post-editor", "pages-list", "page-editor", "frontend-post-render", "frontend-page-render"], "skipped_reason_codes": ["destructive_bulk_action", "nonce_required", "permission_boundary"] }
     }
   ],
   "limits": { "max_cases": 160, "max_duration_seconds": 1200 },
-  "coverage": { "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks"], "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution"] },
-  "artifacts": { "expected": [{ "name": "content_types_taxonomies", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": { "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks", "wordpress-core-posts", "wordpress-core-pages"], "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution", "post-list-rendering", "page-list-rendering", "post-editor-readiness", "page-editor-readiness"] },
+  "artifacts": { "expected": [{ "name": "content_types_taxonomies", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true, "schema": "homeboy-rigs/wordpress-core-content-types-taxonomies/v1" }] }
 }

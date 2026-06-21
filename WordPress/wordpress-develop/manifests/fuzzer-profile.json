@@ -5,7 +5,8 @@
   "source_manifests": {
     "full_surface": "manifests/full-surface-coverage.json",
     "rest_routes": "manifests/rest-route-coverage.json",
-    "performance_surfaces": "manifests/performance-surfaces.json"
+    "performance_surfaces": "manifests/performance-surfaces.json",
+    "hooks_cron_options": "manifests/hooks-cron-options.json"
   },
   "execution": {
     "rig": "wordpress-core-fuzz-coverage",
@@ -30,6 +31,7 @@
       "autoloaded_options_and_cron_outliers",
       "content_registration_gaps",
       "media_and_user_permission_gaps",
+      "runtime_state_artifact_gaps",
       "performance_surfaces_without_observations",
       "open_runner_primitive_gaps"
     ]

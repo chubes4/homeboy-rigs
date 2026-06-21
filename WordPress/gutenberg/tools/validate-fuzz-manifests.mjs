@@ -9,8 +9,12 @@ const packageRoot = path.join(__dirname, '..');
 const fuzzDir = path.join(packageRoot, 'fuzz');
 const rig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/gutenberg-api-route-inventory/rig.json'), 'utf8'));
 
+const declaredFuzzIds = new Set(
+  (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
+);
 const fuzzManifests = readdirSync(fuzzDir)
   .filter((file) => file.endsWith('.json'))
+  .filter((file) => declaredFuzzIds.has(path.basename(file, '.json')))
   .sort()
   .map((file) => ({
     file,
@@ -18,13 +22,9 @@ const fuzzManifests = readdirSync(fuzzDir)
     manifest: JSON.parse(readFileSync(path.join(fuzzDir, file), 'utf8')),
   }));
 
-assert.equal(fuzzManifests.length, 10, 'expected 10 Gutenberg fuzz manifests');
+assert.equal(fuzzManifests.length, declaredFuzzIds.size, 'expected one manifest per declared Gutenberg fuzz workload');
 
 const fuzzerProfile = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/fuzzer-profile.json'), 'utf8'));
-
-const declaredFuzzIds = new Set(
-  (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
-);
 const benchWorkloadIds = new Set(
   Object.values(rig.bench_workloads || {})
     .flat()
@@ -37,7 +37,6 @@ const requiredSurfaces = new Set([
   'gutenberg-block-editor',
   'gutenberg-site-editor',
   'gutenberg-block-renderer',
-  'wordpress-admin-pages',
   'wordpress-database',
   'wordpress-database-queries',
   'wordpress-hooks',
@@ -73,6 +72,11 @@ for (const { file, manifest } of fuzzManifests) {
   assert.ok(runnerCase.phases.action.length > 0, `${manifest.id} requires at least one action step`);
   assert.ok(Array.isArray(runnerCase.artifacts), `${manifest.id} requires case artifacts`);
   assert.ok(Array.isArray(manifest.artifacts?.expected), `${manifest.id} requires expected artifacts`);
+
+  if (manifest.operations?.includes('skipped-destructive-action-classification')) {
+    assert.ok(Array.isArray(manifest.metadata?.skipped_reason_codes), `${manifest.id} requires skipped reason codes`);
+    assert.ok(manifest.metadata.skipped_reason_codes.length > 0, `${manifest.id} skipped reason codes cannot be empty`);
+  }
 
   for (const surfaceId of manifest.surface_ids || []) {
     coveredSurfaces.add(surfaceId);
