@@ -29,11 +29,14 @@ homeboy rig check gutenberg-api-route-inventory
 homeboy rig check gutenberg-browser-coverage
 ```
 
-Run the fuzzer manifests through the WordPress extension runner:
+Inspect and run fuzzer manifests through Homeboy's generic fuzz command:
 
 ```sh
-homeboy fuzz --rig gutenberg-api-route-inventory --runner wordpress --shared-state /tmp/gutenberg-fuzzer
+homeboy fuzz list --rig gutenberg-api-route-inventory
+homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
+
+Run heavy campaigns through the offloaded Lab path and use persisted `homeboy runs` artifacts as proof; listing workloads does not prove execution.
 
 ## Gap Report Contract
 

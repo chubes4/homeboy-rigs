@@ -16,6 +16,7 @@ const failures = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
 const personalPathPrefix = '/Users/' + 'chubes/';
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
+const homeboyFuzzSafetyClasses = new Set(['read_only', 'idempotent', 'isolated_mutation', 'destructive']);
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -192,6 +193,10 @@ function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
     }
   }
 
+  if (typeof workload.safety_class === 'string' && !homeboyFuzzSafetyClasses.has(workload.safety_class)) {
+    failures.push(`${rel}: ${context} safety_class must be one of ${[...homeboyFuzzSafetyClasses].join(', ')}`);
+  }
+
   if (!workload.metadata || typeof workload.metadata !== 'object' || Array.isArray(workload.metadata)) {
     failures.push(`${rel}: ${context} must declare metadata`);
   }
@@ -355,6 +360,10 @@ function lintFuzzWorkload(file) {
     if (typeof workload[field] !== 'string' || workload[field].length === 0) {
       failures.push(`${rel}: fuzz workload must define non-empty string field ${field}`);
     }
+  }
+
+  if (typeof workload.safety_class === 'string' && !homeboyFuzzSafetyClasses.has(workload.safety_class)) {
+    failures.push(`${rel}: fuzz workload safety_class must be one of ${[...homeboyFuzzSafetyClasses].join(', ')}`);
   }
 
   for (const field of ['surface_ids', 'operations', 'cases']) {

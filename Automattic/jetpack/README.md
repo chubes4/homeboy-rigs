@@ -17,11 +17,14 @@ homeboy rig check jetpack-api-route-inventory
 homeboy rig check jetpack-browser-coverage
 ```
 
-Run fuzz workloads only through the fuzz runner surface once available in the target Homeboy install. Do not use `homeboy bench` as a fallback for these coverage manifests.
+Run fuzz workloads only through the generic fuzz command in target Homeboy installs that expose it. Do not use `homeboy bench` as a fallback for these coverage manifests.
 
 ```sh
-homeboy fuzz --rig jetpack-api-route-inventory --workload jetpack-rest-route-inventory
+homeboy fuzz list --rig jetpack-api-route-inventory
+homeboy fuzz run --rig jetpack-api-route-inventory --workload jetpack-rest-route-inventory --run-id jetpack-rest-route-inventory --seed 1 --max-duration 10m
 ```
+
+Use offloaded Lab runners for proof campaigns. Listing workloads confirms declarations only; P status requires persisted `homeboy fuzz run` artifacts.
 
 The coverage manifests live under `manifests/`, with executable/declarative fuzz workload manifests under `fuzz/`. REST cases declare permission classifications for public, local-authenticated, administrator, connected-site, and WP.com-dependent boundaries. DB inventory declares Jetpack table prefixes plus module/options state. External HTTP guardrail probes block `.invalid` synthetic hosts, declare `public-api.wordpress.com` as the WP.com allowlisted boundary, and still disallow real external service calls in the fixture.
 
