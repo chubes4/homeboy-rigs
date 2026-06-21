@@ -1,0 +1,53 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-cron-sync-actions",
+  "label": "Jetpack cron and sync action inventory",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"],
+  "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "rollback-safe-cron-mutation"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "network_policy": "block_all_synthetic_external_requests",
+    "artifact_expectations": {
+      "required": ["cron_events", "sync_actions", "queue_option_deltas", "rollback_rows"],
+      "optional": ["blocked_dispatch_attempts", "serialized_action_samples", "skipped_actions"]
+    }
+  },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "wordpress-plugin-cron-sync-actions" },
+  "cases": [
+    {
+      "case_id": "jetpack-cron-sync-actions:default",
+      "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"],
+      "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "rollback-safe-cron-mutation"],
+      "inputs": {
+        "cron_hooks": ["jetpack_clean_nonces", "jetpack_sync_cron", "jetpack_sync_full_cron", "jetpack_v2_heartbeat", "jetpack_scan_refresh_states_event"],
+        "synthetic_actions": ["post_save", "option_update", "comment_status", "module_toggle", "user_update"],
+        "queue_options": ["jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started", "jetpack_sync_settings_sync_wait_time"],
+        "remote_dispatch": false,
+        "restore_original_values": true,
+        "rollback_required": true,
+        "force_http_guardrail": true
+      },
+      "phases": {
+        "setup": [
+          { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] },
+          { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }
+        ],
+        "action": [{ "command": "wordpress.inventory-plugin-cron-sync-actions", "args": ["remote_dispatch=false", "restore_original_values=true", "rollback_required=true", "force_http_guardrail=true"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=cron_sync_actions"] }]
+      },
+      "artifacts": [{ "name": "cron_sync_actions", "path": "jetpack-cron-sync-actions/cron_sync_actions.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "rollback-safe-cron-mutation"] },
+  "artifacts": { "expected": [{ "name": "cron_sync_actions", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}
