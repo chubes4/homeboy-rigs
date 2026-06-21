@@ -168,10 +168,11 @@ add_action( "shutdown", function () {
 		}
 		$url = $normalize_admin_url( $page );
 		$candidates[ $url ] = array(
-			'label'  => isset( $item[0] ) ? wp_strip_all_tags( (string) $item[0] ) : '',
-			'source' => $source,
-			'page'   => $page,
-			'url'    => $url,
+			'label'      => isset( $item[0] ) ? wp_strip_all_tags( (string) $item[0] ) : '',
+			'capability' => isset( $item[1] ) ? (string) $item[1] : '',
+			'source'     => $source,
+			'page'       => $page,
+			'url'        => $url,
 		);
 	};
 	foreach ( $menu as $item ) {
@@ -224,16 +225,22 @@ add_action( "shutdown", function () {
 				$visits[] = array_merge( $target, array( 'role' => $role, 'status' => 'error', 'error' => $response->get_error_message(), 'elapsed_ms' => $elapsed ) );
 				continue;
 			}
-			$visits[] = array_merge(
+			$status_code = (int) wp_remote_retrieve_response_code( $response );
+			$visit       = array_merge(
 				$target,
 				array(
 					'role'        => $role,
 					'status'      => 'visited',
-					'status_code' => wp_remote_retrieve_response_code( $response ),
+					'status_code' => $status_code,
 					'final_url'   => wp_remote_retrieve_header( $response, 'x-redirect-by' ) ? wp_remote_retrieve_header( $response, 'location' ) : '',
 					'elapsed_ms'  => $elapsed,
 				)
 			);
+			if ( 403 === $status_code && 'shop_manager' === $role && isset( $target['capability'] ) && '' !== $target['capability'] && ! user_can( (int) $role_data['user_id'], (string) $target['capability'] ) ) {
+				$visit['status'] = 'skipped';
+				$visit['reasons'] = array( 'permission_boundary' );
+			}
+			$visits[] = $visit;
 		}
 	}
 
@@ -245,10 +252,12 @@ add_action( "shutdown", function () {
 	delete_option( $log_option );
 	delete_option( $log_option . '_expected' );
 
-	$status_counts = array_count_values( array_map( static fn( array $visit ): string => (string) $visit['status'], $visits ) );
-	$http_errors   = array_filter( $visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
-	$php_errors    = 0;
-	$query_counts  = array();
+	$status_counts              = array_count_values( array_map( static fn( array $visit ): string => (string) $visit['status'], $visits ) );
+	$measured_visits            = array_filter( $visits, static fn( array $visit ): bool => 'skipped' !== (string) $visit['status'] );
+	$http_errors                = array_filter( $measured_visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
+	$permission_boundary_skips  = array_filter( $visits, static fn( array $visit ): bool => 'skipped' === (string) $visit['status'] && in_array( 'permission_boundary', (array) ( $visit['reasons'] ?? array() ), true ) );
+	$php_errors                 = 0;
+	$query_counts               = array();
 	foreach ( $request_logs as $record ) {
 		$php_errors += count( (array) ( $record['php_errors'] ?? array() ) );
 		if ( isset( $record['query_count'] ) ) {
@@ -257,12 +266,13 @@ add_action( "shutdown", function () {
 	}
 
 	$summary = array(
-		'success_rate'              => count( $visits ) > 0 ? ( count( $visits ) - count( $http_errors ) - ( $status_counts['error'] ?? 0 ) ) / count( $visits ) : 0,
+		'success_rate'              => count( $measured_visits ) > 0 ? ( count( $measured_visits ) - count( $http_errors ) - ( $status_counts['error'] ?? 0 ) ) / count( $measured_visits ) : 0,
 		'total_elapsed_ms'          => ( microtime( true ) - $started ) * 1000,
 		'enumerated_admin_url_count' => count( $candidates ),
 		'visited_admin_url_count'    => count( $targets ),
 		'total_visit_count'          => count( $visits ),
 		'skipped_unsafe_count'       => count( $skipped ),
+		'skipped_permission_count'   => count( $permission_boundary_skips ),
 		'http_error_count'           => count( $http_errors ),
 		'request_error_count'        => $status_counts['error'] ?? 0,
 		'php_error_notice_count'     => $php_errors,
