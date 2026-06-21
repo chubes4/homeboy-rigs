@@ -23,7 +23,7 @@ Run fuzz workloads only through the fuzz runner surface once available in the ta
 homeboy fuzz --rig jetpack-api-route-inventory --workload jetpack-rest-route-inventory
 ```
 
-The coverage manifests live under `manifests/`, with executable/declarative fuzz workload manifests under `fuzz/`. External HTTP guardrail probes use `.invalid` synthetic hosts and an empty allowlist so no real external service calls are expected.
+The coverage manifests live under `manifests/`, with executable/declarative fuzz workload manifests under `fuzz/`. REST cases declare permission classifications for public, local-authenticated, administrator, connected-site, and WP.com-dependent boundaries. DB inventory declares Jetpack table prefixes plus module/options state. External HTTP guardrail probes block `.invalid` synthetic hosts, declare `public-api.wordpress.com` as the WP.com allowlisted boundary, and still disallow real external service calls in the fixture.
 
 Current D/E-only additions that still need `homeboy fuzz run` artifacts before P:
 
