@@ -14,7 +14,7 @@ Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narro
 | Project | API | DB | Admin | External HTTP | Hooks / cron / options | Frontend / rendering | Performance-related fuzz |
 |---|---|---|---|---|---|---|---|
 | WooCommerce | D/E/P partial | D/E/P partial | D/E/P partial | D/E | D/E/P partial | D/E/P partial | D/E/P partial |
-| WordPress Core | D/E | D/E | D/E partial | D/E | D/E | D/E partial | D/E partial |
+| WordPress Core | D/E | D/E | D/E | D/E | D/E | D/E | D/E partial |
 | Gutenberg | D/E | D/E | D/E | D/E | D/E | D/E/P partial | D/E/P partial |
 | Jetpack | D/E | D/E | D/E | D/E | D/E | D/E | D/E partial |
 
@@ -36,11 +36,11 @@ Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narro
 |---|---|---|---|
 | API | D/E | `WordPress/wordpress/manifests/rest-route-coverage.json`, `bench/wordpress-core-rest-route-inventory.php`, `bench/generated-rest-request-cases.workload.json` | Route inventory and generated safe REST cases are executable. No committed proof bundle is linked yet. |
 | DB | D/E | `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json` | Inventory and REST query profile primitives are present. Core-specific schema/query proof is pending. |
-| Admin | D/E partial | `WordPress/wordpress-develop/fuzz/admin-page-coverage.json`, `browser-scenarios/post_editor.json`, `site_editor.json`, `media_library.json`, `rigs/wordpress-core-browser-coverage/rig.json` | Safe admin-page enumeration is declared as a Core fuzz workload, and browser scenarios cover editor/admin-like flows. Proof artifacts are pending. |
+| Admin | D/E | `WordPress/wordpress-develop/fuzz/admin-page-coverage.json`, `browser-scenarios/posts_list.json`, `post_editor.json`, `pages_list.json`, `page_editor.json`, `site_editor.json`, `media_library.json`, `media_new.json`, `users_list.json`, `profile.json`, `rigs/wordpress-core-browser-coverage/rig.json` | Safe Woo-equivalent Core wp-admin menu/submenu enumeration is declared with administrator/editor/author/contributor/subscriber role boundaries, skipped destructive reason codes, query attribution, and a required artifact contract. Proof artifacts are pending. |
 | External HTTP | D/E | `bench/wordpress-core-external-http-guardrail.php` | Guardrail executable exists; proof artifacts are pending. |
-| Hooks / cron / options | D/E | `WordPress/wordpress-develop/fuzz/hooks-cron-options.json`, `manifests/fuzzer-profile.json`, `rigs/wordpress-core-fuzz-coverage/rig.json` | Hooks, cron events, options, transients, and rewrite-rule inventory are declared as fuzz workloads. Proof artifacts are pending. |
-| Frontend / rendering | D/E partial | `browser-scenarios/front_page.json`, editor scenarios, `bench/wordpress-core-browser-coverage.trace.mjs` | Front page and editor browser request coverage are executable. Rendering correctness and visual comparison are not claimed. |
-| Performance-related fuzz | D/E partial | `WordPress/wordpress-develop/fuzz/performance-surfaces.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | The full-surface profile declares representative bootstrap, REST, admin, editor, cron, media, query, timing, query-count, and asset observations, but no targeted core performance bug proof is linked. |
+| Hooks / cron / options | D/E | `WordPress/wordpress-develop/fuzz/hooks-cron-options.json`, `manifests/hooks-cron-options.json`, `manifests/fuzzer-profile.json`, `rigs/wordpress-core-fuzz-coverage/rig.json` | Hook inventory, cron scheduling, autoloaded options, transients, and rewrite rules are declared with required proof artifact names. Proof artifacts are pending before P. |
+| Frontend / rendering | D/E | `WordPress/wordpress-develop/fuzz/frontend-rendering-request-coverage.json`, `browser-scenarios/front_page.json`, posts/pages/media/users scenarios, `bench/wordpress-core-browser-coverage.trace.mjs` | Frontend request/rendering coverage is declared for front page, singular posts/pages, archive, search, feed, attachment, and browser request capture. Rendering correctness and visual comparison are not claimed. |
+| Performance-related fuzz | D/E partial | `WordPress/wordpress-develop/fuzz/performance-surfaces.json`, `manifests/performance-surfaces.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | The full-surface profile declares representative frontend, REST, admin, editor, cron, media, option/autoload, request-timing, query-count, and asset observations, but no targeted core performance bug proof is linked. |
 
 ## Gutenberg
 
@@ -68,7 +68,7 @@ Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narro
 
 ## Pending Cross-Project Work
 
-- Core admin safe-page enumeration and hook/cron/options inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
+- Core admin safe-page enumeration, frontend rendering/request coverage, and hook/cron/options inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
 - Jetpack module option/table inventory, sync/cron action coverage, rollback-safe mutation rows, and public-module frontend scenarios are D/E; they still need proof artifacts before P.
 - All four projects need durable proof bundles or linked run artifacts before the full-surface rows can move from `D/E` to `P`.
 - Visual rendering correctness remains outside this matrix unless a workload explicitly uses WP Codebox visual comparison or another reviewer-facing visual artifact.

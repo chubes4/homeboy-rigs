@@ -3,28 +3,46 @@
   "id": "admin-page-coverage",
   "label": "WordPress Core admin page coverage",
   "safety_class": "read_only",
-  "surface_ids": ["wordpress-core-admin-pages"],
-  "operations": ["admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution"],
+  "surface_ids": ["wordpress-core-admin-pages", "wordpress-core-role-boundaries"],
+  "operations": ["safe-admin-page-enumeration", "admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution", "skipped-destructive-classification"],
   "case_budget": 90,
   "duration_budget_seconds": 1200,
-  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "metadata": {
+    "kind": "wordpress-core-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "admin_enumeration_contract": "WooCommerce admin-page coverage equivalent for safe Core wp-admin GET screens",
+    "destructive_policy": "skip-and-report"
+  },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "admin-page-coverage" },
   "cases": [
     {
       "case_id": "admin-page-coverage:core-menu-pages",
-      "surface_ids": ["wordpress-core-admin-pages"],
-      "operations": ["admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution"],
+      "surface_ids": ["wordpress-core-admin-pages", "wordpress-core-role-boundaries"],
+      "operations": ["safe-admin-page-enumeration", "admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution", "skipped-destructive-classification"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["administrator=1", "editor=1", "posts=10", "media=3"] }],
-        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=admin_pages", "paths=/wp-admin/index.php,/wp-admin/edit.php,/wp-admin/post-new.php,/wp-admin/upload.php,/wp-admin/themes.php,/wp-admin/plugins.php,/wp-admin/users.php,/wp-admin/options-general.php,/wp-admin/site-editor.php"] }],
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["administrator=1", "editor=1", "author=1", "contributor=1", "subscriber=1", "posts=12", "pages=6", "media=4"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=admin_pages", "enumeration=registered-menu-and-submenu", "roles=administrator,editor,author,contributor,subscriber", "paths=/wp-admin/index.php,/wp-admin/edit.php,/wp-admin/edit.php?post_type=page,/wp-admin/post-new.php,/wp-admin/post-new.php?post_type=page,/wp-admin/upload.php,/wp-admin/media-new.php,/wp-admin/users.php,/wp-admin/user-new.php,/wp-admin/profile.php,/wp-admin/themes.php,/wp-admin/plugins.php,/wp-admin/options-general.php,/wp-admin/site-editor.php"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=admin_page_coverage"] }]
       },
-      "artifacts": [{ "name": "admin_page_coverage", "path": "admin-page-coverage/admin_page_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
-      "metadata": { "safety_class": "read_only" }
+      "artifacts": [{ "name": "admin_page_coverage", "path": "admin-page-coverage/admin_page_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy-rigs/wordpress-core-admin-page-coverage/v1" } }],
+      "metadata": {
+        "safety_class": "read_only",
+        "safe_methods": ["GET"],
+        "role_boundaries": ["administrator", "editor", "author", "contributor", "subscriber"],
+        "expected_visit_fields": ["role", "capability", "page", "url", "status", "status_code", "elapsed_ms", "query_count", "php_errors"],
+        "skipped_reason_codes": ["creation_install_update_or_export_screen", "unsafe_query_arg_action", "unsafe_query_arg_action2", "unsafe_query_arg_delete", "unsafe_query_arg_trash", "unsafe_query_arg_untrash", "unsafe_query_arg_activate", "unsafe_query_arg_deactivate", "nonce_required", "permission_boundary", "setup_or_onboarding_screen"],
+        "artifact_contract": {
+          "schema": "homeboy-rigs/wordpress-core-admin-page-coverage/v1",
+          "required_fields": ["schema", "summary", "visits", "skipped", "request_logs", "query_attribution", "role_boundary_summary"],
+          "summary_fields": ["visited_count", "skipped_count", "permission_skip_count", "http_error_count", "php_error_count", "distinct_query_shape_count", "top_slow_visited_pages", "top_query_count_pages"]
+        }
+      }
     }
   ],
   "limits": { "max_cases": 90, "max_duration_seconds": 1200 },
-  "coverage": { "surface_ids": ["wordpress-core-admin-pages"], "operations": ["admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution"] },
-  "artifacts": { "expected": [{ "name": "admin_page_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": { "surface_ids": ["wordpress-core-admin-pages", "wordpress-core-role-boundaries"], "operations": ["safe-admin-page-enumeration", "admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution", "skipped-destructive-classification"] },
+  "artifacts": { "expected": [{ "name": "admin_page_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true, "schema": "homeboy-rigs/wordpress-core-admin-page-coverage/v1" }] }
 }

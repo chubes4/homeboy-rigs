@@ -2,13 +2,24 @@
   "schema": "homeboy-rigs/wordpress-core-performance-surfaces/v1",
   "property": "WordPress/wordpress-develop",
   "surfaces": [
-    { "id": "front-page-bootstrap", "kind": "frontend", "paths": ["/"], "signals": ["ttfb", "query_count", "object_cache_groups", "enqueued_assets"] },
-    { "id": "rest-posts-list", "kind": "rest", "paths": ["/wp-json/wp/v2/posts?per_page=5"], "signals": ["ttfb", "query_count", "response_bytes"] },
-    { "id": "admin-dashboard", "kind": "admin", "paths": ["/wp-admin/index.php"], "signals": ["ready_time", "query_count", "admin_notices", "requests"] },
-    { "id": "post-editor", "kind": "editor", "paths": ["/wp-admin/post-new.php"], "signals": ["ready_time", "rest_preloads", "editor_assets", "long_tasks"] },
-    { "id": "site-editor", "kind": "editor", "paths": ["/wp-admin/site-editor.php"], "signals": ["ready_time", "rest_preloads", "editor_assets", "long_tasks"] },
-    { "id": "media-library-grid", "kind": "admin", "paths": ["/wp-admin/upload.php?mode=grid"], "signals": ["ready_time", "rest_requests", "image_metadata_queries"] },
-    { "id": "cron-spawn", "kind": "server", "paths": ["wp-cron.php"], "signals": ["scheduled_event_count", "spawn_time", "lock_state"] },
-    { "id": "options-autoload", "kind": "database", "paths": ["wp_options"], "signals": ["autoload_count", "autoload_bytes", "largest_options"] }
-  ]
+    { "id": "front-page-bootstrap", "kind": "frontend", "paths": ["/"], "signals": ["request_timing", "query_count", "object_cache_groups", "enqueued_assets", "response_bytes"] },
+    { "id": "single-post-render", "kind": "frontend", "paths": ["/?p=${fixture.post_id}"], "signals": ["request_timing", "query_count", "template_resolution", "enqueued_assets"] },
+    { "id": "archive-query-render", "kind": "frontend", "paths": ["/category/${fixture.category_slug}/"], "signals": ["request_timing", "query_count", "main_query_shape", "enqueued_assets"] },
+    { "id": "search-results-render", "kind": "frontend", "paths": ["/?s=fixture"], "signals": ["request_timing", "query_count", "main_query_shape", "response_bytes"] },
+    { "id": "rest-posts-list", "kind": "rest", "paths": ["/wp-json/wp/v2/posts?per_page=5"], "signals": ["request_timing", "query_count", "response_bytes", "rest_fields"] },
+    { "id": "rest-media-list", "kind": "rest", "paths": ["/wp-json/wp/v2/media?per_page=5"], "signals": ["request_timing", "query_count", "response_bytes", "image_metadata_queries"] },
+    { "id": "admin-dashboard", "kind": "admin", "paths": ["/wp-admin/index.php"], "signals": ["request_timing", "ready_time", "query_count", "admin_notices", "asset_requests"] },
+    { "id": "admin-posts-list", "kind": "admin", "paths": ["/wp-admin/edit.php"], "signals": ["request_timing", "ready_time", "query_count", "list_table_queries", "asset_requests"] },
+    { "id": "post-editor", "kind": "editor", "paths": ["/wp-admin/post-new.php"], "signals": ["request_timing", "ready_time", "query_count", "rest_preloads", "editor_assets", "long_tasks"] },
+    { "id": "site-editor", "kind": "editor", "paths": ["/wp-admin/site-editor.php"], "signals": ["request_timing", "ready_time", "query_count", "rest_preloads", "editor_assets", "long_tasks"] },
+    { "id": "media-library-grid", "kind": "admin", "paths": ["/wp-admin/upload.php?mode=grid"], "signals": ["request_timing", "ready_time", "query_count", "rest_requests", "image_metadata_queries", "asset_requests"] },
+    { "id": "cron-spawn", "kind": "server", "paths": ["wp-cron.php"], "signals": ["request_timing", "query_count", "scheduled_event_count", "spawn_time", "lock_state"] },
+    { "id": "options-autoload", "kind": "database", "paths": ["wp_options"], "signals": ["query_count", "autoload_count", "autoload_bytes", "largest_options"] }
+  ],
+  "observation_contract": {
+    "required_signals": ["request_timing", "query_count"],
+    "browser_signals": ["asset_requests", "enqueued_assets", "long_tasks", "ready_time"],
+    "server_signals": ["query_count", "object_cache_groups", "response_bytes"],
+    "expected_artifact": "performance_surfaces.json"
+  }
 }

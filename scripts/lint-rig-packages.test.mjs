@@ -49,6 +49,8 @@ function fuzzWorkload(overrides = {}) {
     id: 'generic-fuzz',
     label: 'Generic fuzz workload',
     safety_class: 'read_only',
+    surface_ids: ['generic-surface'],
+    operations: ['generic-operation'],
     metadata: { kind: 'generic-fuzz' },
     target: { type: 'generic' },
     workload: {
@@ -75,6 +77,18 @@ test('accepts generic declared fuzz workloads', () => {
   });
 
   const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('accepts package root linting from a direct package directory', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(join(directory, 'Vendor', 'product'));
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });

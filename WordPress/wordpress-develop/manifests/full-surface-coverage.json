@@ -8,6 +8,7 @@
     "wordpress-rest-db-query-profiler",
     "wordpress-db-inventory",
     "wordpress-admin-page-coverage",
+    "wordpress-frontend-rendering-request-coverage",
     "wordpress-hook-inventory",
     "wordpress-cron-inventory",
     "wordpress-option-inventory",
@@ -16,9 +17,9 @@
     "wordpress-performance-observation"
   ],
   "coverage_profiles": {
-    "smoke": ["rest-api", "db-inventory-query-profile", "admin-page-coverage"],
-    "fuzzer": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "hooks-cron-options", "content-types-taxonomies", "media-users", "performance-surfaces"],
-    "full-surface": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "hooks-cron-options", "content-types-taxonomies", "media-users", "performance-surfaces"]
+    "smoke": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage"],
+    "fuzzer": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options", "content-types-taxonomies", "media-users", "performance-surfaces"],
+    "full-surface": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options", "content-types-taxonomies", "media-users", "performance-surfaces"]
   },
   "coverage_gap_reporting": {
     "report_shape": "homeboy-rigs/wordpress-core-fuzzer-coverage-gap/v1",
@@ -26,6 +27,7 @@
       "rest_api": "registered core REST routes minus generated safe request cases",
       "database": "core table inventory plus query profiles per covered REST case",
       "admin_pages": "manifest admin pages minus captured readiness and query attribution artifacts",
+      "frontend_rendering": "front page, singular, archive, search, feed, attachment, and request coverage artifacts minus captured rendering/readiness rows",
       "runtime_state": "registered hooks, cron events, rewrite rules, autoloaded options, and transients minus inventory rows",
       "content": "registered post types, statuses, taxonomies, terms, and permalink structures minus inventory rows",
       "media_users": "attachment, user, role, and capability surfaces minus permission coverage rows",
