@@ -23,6 +23,17 @@ return function (): array {
 		WC()->init();
 	}
 
+	$admin_asset_registries = array_merge(
+		glob( WP_PLUGIN_DIR . '/woocommerce/assets/client/admin/wp-admin-scripts/*.asset.php' ) ?: array(),
+		glob( WP_PLUGIN_DIR . '/woocommerce/assets/client/admin/wp-admin-scripts/*.min.asset.php' ) ?: array()
+	);
+	if ( empty( $admin_asset_registries ) ) {
+		throw new RuntimeException( 'WooCommerce admin asset registries are missing; build WooCommerce admin assets before running admin page coverage.' );
+	}
+	if ( ! is_readable( WP_PLUGIN_DIR . '/woocommerce/vendor/automattic/jetpack-connection/dist/jetpack-connection.js' ) ) {
+		throw new RuntimeException( 'WooCommerce Jetpack connection build output is missing; install/build WooCommerce dependencies before running admin page coverage.' );
+	}
+
 	$run_id     = 'woocommerce-admin-page-coverage-' . getmypid() . '-' . time();
 	$token      = wp_generate_password( 24, false, false );
 	$limit      = max( 1, min( 100, (int) ( getenv( 'WC_ADMIN_PAGE_COVERAGE_LIMIT' ) ?: 50 ) ) );
