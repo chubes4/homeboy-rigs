@@ -6,6 +6,7 @@ import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workload = readFileSync(path.join(__dirname, 'checkout-shipping-cache.php'), 'utf8');
+const performanceRig = JSON.parse(readFileSync(path.join(__dirname, '../rigs/woocommerce-performance/rig.json'), 'utf8'));
 
 function caseBody(name) {
   const match = workload.match(new RegExp(`case '${name}':[\\s\\S]*?\\n\\s*break;`));
@@ -24,4 +25,12 @@ test('package_index churn does not mutate the rig-only helper key', () => {
 test('unknown package key guardrail still uses the synthetic key', () => {
   assert.match(caseBody('unknown_package_key'), /\$package\[ \$synthetic_unknown_key \]/);
   assert.doesNotMatch(workload, /woocommerce_shipping_package_hash_ignored_fields/);
+});
+
+test('performance rig enables mixed destination package shape without adding runs', () => {
+  const benchEnv = performanceRig.components.woocommerce.extensions.wordpress.bench_env;
+  assert.equal(benchEnv.WC_SHIPPING_CACHE_PACKAGE_SHAPE, 'mixed_destination');
+  assert.match(workload, /WC_SHIPPING_CACHE_PACKAGE_SHAPE/);
+  assert.match(workload, /array\( 'balanced', 'mixed_destination' \)/);
+  assert.match(workload, /'package_shape'\s*=>\s*\$package_shape/);
 });
