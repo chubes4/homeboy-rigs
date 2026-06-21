@@ -127,6 +127,54 @@ add_action( "shutdown", function () {
 		return admin_url( 'admin.php?page=' . rawurlencode( $page ) );
 	};
 
+	$safe_skip_reason_codes = array(
+		'creation_install_update_or_export_screen',
+		'unsafe_query_arg_action',
+		'unsafe_query_arg_action2',
+		'unsafe_query_arg_delete',
+		'unsafe_query_arg_trash',
+		'unsafe_query_arg_untrash',
+		'unsafe_query_arg_activate',
+		'unsafe_query_arg_deactivate',
+		'setup_or_onboarding_screen',
+		'role_unavailable',
+		'permission_boundary',
+	);
+	$role_expectations = array(
+		'administrator' => array(
+			'user_role'             => 'administrator',
+			'expected_safe_statuses' => array( 200, 301, 302 ),
+			'boundary'              => 'administrator should reach every enumerated safe GET target in this workload unless the target itself redirects.',
+		),
+		'shop_manager'  => array(
+			'user_role'             => 'shop_manager',
+			'expected_safe_statuses' => array( 200, 301, 302, 403 ),
+			'boundary'              => 'shop manager 403 responses are expected only when the target capability is unavailable to shop_manager and are classified as permission_boundary skips.',
+		),
+	);
+	$enumeration_contract = array(
+		'schema'                 => 'homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1',
+		'sources'                => array( 'global $menu', 'global $submenu' ),
+		'methods'                => array( 'GET' ),
+		'roles'                  => $role_expectations,
+		'skip_reason_codes'      => $safe_skip_reason_codes,
+		'destructive_reason_codes' => array(
+			'creation_install_update_or_export_screen',
+			'unsafe_query_arg_action',
+			'unsafe_query_arg_action2',
+			'unsafe_query_arg_delete',
+			'unsafe_query_arg_trash',
+			'unsafe_query_arg_untrash',
+			'unsafe_query_arg_activate',
+			'unsafe_query_arg_deactivate',
+		),
+		'artifact_expectations'  => array(
+			'schema'       => 'homeboy-rigs/woocommerce-admin-page-coverage/v1',
+			'shared_state' => 'woocommerce-admin-page-coverage/<run_id>.json',
+		'required'     => array( 'contract', 'targets', 'visits', 'skipped', 'request_logs', 'query_attribution', 'metrics' ),
+		),
+	);
+
 	$unsafe_reasons = static function ( string $url ): array {
 		$parts = wp_parse_url( $url );
 		$path  = isset( $parts['path'] ) ? basename( $parts['path'] ) : '';
@@ -199,7 +247,7 @@ add_action( "shutdown", function () {
 	}
 
 	$roles = array(
-		'admin' => array( 'user_id' => (int) $admin_user_id, 'cookie' => $build_cookie_header( (int) $admin_user_id ) ),
+		'administrator' => array( 'user_id' => (int) $admin_user_id, 'cookie' => $build_cookie_header( (int) $admin_user_id ) ),
 	);
 	if ( $shop_manager_id && ! is_wp_error( $shop_manager_id ) ) {
 		$roles['shop_manager'] = array( 'user_id' => (int) $shop_manager_id, 'cookie' => $build_cookie_header( (int) $shop_manager_id ) );
@@ -323,6 +371,12 @@ add_action( "shutdown", function () {
 	$http_errors               = array_filter( $measured_visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
 	$permission_boundary_skips = array_filter( $visits, static fn( array $visit ): bool => 'skipped' === (string) $visit['status'] && in_array( 'permission_boundary', (array) ( $visit['reasons'] ?? array() ), true ) );
 	$status_code_counts        = array_count_values( array_map( 'strval', array_filter( array_column( $visits, 'status_code' ), 'is_numeric' ) ) );
+	$skip_reason_counts        = array();
+	foreach ( array_merge( $skipped, $visits ) as $row ) {
+		foreach ( (array) ( $row['reasons'] ?? array() ) as $reason ) {
+			$skip_reason_counts[ (string) $reason ] = ( $skip_reason_counts[ (string) $reason ] ?? 0 ) + 1;
+		}
+	}
 	$php_errors                = 0;
 	$query_counts              = array();
 	$top_query_count_pages     = array();
@@ -398,6 +452,9 @@ add_action( "shutdown", function () {
 		'top_query_family_count'      => isset( $query_attribution['top_query_families'][0]['count'] ) ? $query_attribution['top_query_families'][0]['count'] : 0,
 		'top_query_shapes'            => $query_attribution['top_query_shapes'],
 		'top_query_families'          => $query_attribution['top_query_families'],
+		'skip_reason_counts'          => $skip_reason_counts,
+		'admin_page_contract_schema'  => $enumeration_contract['schema'],
+		'artifact_contract_schema'    => $enumeration_contract['artifact_expectations']['schema'],
 	);
 
 	$artifact_path = '';
@@ -410,8 +467,10 @@ add_action( "shutdown", function () {
 			$artifact_path,
 			wp_json_encode(
 				array(
+					'schema'              => $enumeration_contract['artifact_expectations']['schema'],
 					'run_id'              => $run_id,
 					'woocommerce_version' => defined( 'WC_VERSION' ) ? WC_VERSION : '',
+					'contract'            => $enumeration_contract,
 					'limit'               => $limit,
 					'targets'             => $targets,
 					'visits'              => $visits,
@@ -431,6 +490,7 @@ add_action( "shutdown", function () {
 			'runner'         => 'wp-codebox',
 			'workload'       => 'admin-page-coverage',
 			'coverage_shape' => 'bounded authenticated wp-admin and Woo admin menu/submenu GET coverage',
+			'contract'       => $enumeration_contract,
 			'roles'          => array_keys( $roles ),
 			'limit'          => $limit,
 			'query_attribution' => $query_attribution,

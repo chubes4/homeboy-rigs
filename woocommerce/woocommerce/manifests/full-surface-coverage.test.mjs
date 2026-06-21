@@ -31,6 +31,18 @@ const expectedSafetyClassifications = new Set([
   'synthetic_checkout_mutation',
 ]);
 
+const requiredFuzzProofContracts = new Map([
+  ['cart-session-overwrite-race', ['cart-session-race']],
+  ['checkout-gateway-compatibility-matrix', ['gateway-compatibility']],
+  ['checkout-shipping-cache', ['shipping-cache-invalidation']],
+  ['frontend-rendering-request-coverage', ['shop-product-cart-checkout-rendering-requests']],
+  ['layered-nav-catalog-crawl', ['catalog-layered-nav-transient-growth']],
+  ['layered-nav-count-cache', ['layered-nav-transient-growth']],
+  ['options-transients-coverage', ['cache-invalidation-and-transient-growth']],
+  ['performance-hotspots-artifact-summary', ['artifact-summary-expectations']],
+  ['woocommerce-external-http-guardrail', ['external-http-guardrails']],
+]);
+
 test('full-surface executable workloads have coverage contract metadata', () => {
   const workloadIds = executableCoverageWorkloadIds();
 
@@ -54,4 +66,44 @@ test('manifest workload metadata stays scoped to full-surface workload ids', () 
   const workloadIds = executableCoverageWorkloadIds();
 
   assert.deepEqual(new Set(Object.keys(manifest.workloads)), workloadIds);
+});
+
+test('high-risk Woo fuzz manifests declare required proof contracts', () => {
+  for (const [workloadId, contractIds] of requiredFuzzProofContracts) {
+    const workloadPath = path.join(packageRoot, 'fuzz', `${workloadId}.json`);
+    const workload = JSON.parse(readFileSync(workloadPath, 'utf8'));
+    const actualContractIds = new Set((workload.proof_contracts || []).map((contract) => contract.id));
+
+    for (const contractId of contractIds) {
+      assert.ok(actualContractIds.has(contractId), `${workloadId} missing ${contractId}`);
+    }
+
+    const requiredArtifactNames = new Set(workload.proof_contracts.map((contract) => contract.required_artifact));
+    for (const artifactName of requiredArtifactNames) {
+      assert.equal(
+        workload.cases[0].artifacts.find((artifact) => artifact.name === artifactName)?.required,
+        true,
+        `${workloadId} case artifact ${artifactName} must be required`
+      );
+      assert.equal(
+        workload.artifacts.expected.find((artifact) => artifact.name === artifactName)?.required,
+        true,
+        `${workloadId} expected artifact ${artifactName} must be required`
+      );
+    }
+  }
+});
+
+test('fuzz workload metadata does not fall back to benchmark transcripts', () => {
+  const fuzzWorkloadIds = new Set(
+    performanceRig.fuzz_workloads.wordpress.map((entry) => workloadIdFromPath(entry.path))
+  );
+
+  for (const workloadId of fuzzWorkloadIds) {
+    const optionalArtifacts = manifest.workloads[workloadId]?.artifact_expectations?.optional || [];
+    assert.ok(
+      !optionalArtifacts.includes('bench transcript'),
+      `${workloadId} must not declare benchmark transcript fallback proof`
+    );
+  }
 });

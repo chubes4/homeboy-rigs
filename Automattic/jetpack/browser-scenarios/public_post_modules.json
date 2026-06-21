@@ -1,0 +1,5 @@
+[
+  { "kind": "navigate", "url": "/?p=1201", "waitFor": "load" },
+  { "kind": "waitForSelector", "selector": "body" },
+  { "kind": "screenshot", "name": "jetpack-public-post-modules" }
+]

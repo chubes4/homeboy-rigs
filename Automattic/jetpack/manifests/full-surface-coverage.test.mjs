@@ -25,6 +25,16 @@ function workloadIdFromPath(workloadPath) {
   return path.basename(workloadPath).replace(/\.json$/, '');
 }
 
+function readFuzzManifest(name) {
+  return JSON.parse(readFileSync(path.join(fuzzRoot, `${name}.json`), 'utf8'));
+}
+
+function defaultCase(manifest) {
+  assert.ok(Array.isArray(manifest.cases), `${manifest.id} must declare cases`);
+  assert.ok(manifest.cases.length > 0, `${manifest.id} must declare at least one case`);
+  return manifest.cases[0];
+}
+
 test('Jetpack fuzz workloads are declared outside bench profiles', () => {
   assert.equal(apiRig.bench_workloads, undefined, 'Jetpack fuzz coverage must not use bench_workloads as a fallback');
   assert.equal(apiRig.bench_profiles, undefined, 'Jetpack fuzz coverage must not use bench_profiles as a fallback');
@@ -64,10 +74,157 @@ test('Jetpack fuzz workload manifests carry coverage contract metadata', () => {
 });
 
 test('Jetpack external HTTP guardrail blocks synthetic probes', () => {
-  const guardrail = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-external-http-guardrail.json'), 'utf8'));
+  const guardrail = readFuzzManifest('jetpack-external-http-guardrail');
 
   assert.equal(guardrail.network_guardrail.block_network, true);
-  assert.deepEqual(guardrail.network_guardrail.allowlist_domains, []);
+  assert.ok(guardrail.network_guardrail.allowlist_domains.includes('public-api.wordpress.com'));
   assert.equal(guardrail.network_guardrail.real_external_service_calls_allowed, false);
-  assert.ok(guardrail.network_guardrail.probe_hosts.every((host) => host.endsWith('.invalid')));
+  assert.ok(guardrail.network_guardrail.probe_hosts.includes('jetpack-homeboy-guardrail.invalid'));
+  assert.ok(guardrail.network_guardrail.expectations.some((expectation) => expectation.classification === 'blocked'));
+  assert.ok(guardrail.network_guardrail.expectations.some((expectation) => expectation.classification === 'allowlisted_boundary_not_called'));
+});
+
+test('Jetpack REST request cases cover namespaces and permission classes', () => {
+  const routeCoverage = JSON.parse(readFileSync(path.join(__dirname, 'rest-route-coverage.json'), 'utf8'));
+  const generatedCases = JSON.parse(readFileSync(path.join(packageRoot, 'bench/generated-rest-request-cases.workload.json'), 'utf8'));
+  const casesById = new Map(generatedCases.rest_request_cases.map((restCase) => [restCase.id, restCase]));
+
+  assert.deepEqual(new Set(routeCoverage.namespaces.map((entry) => entry.namespace)), new Set(['jetpack/v4', 'wpcom/v2']));
+
+  for (const requiredCase of routeCoverage.required_generated_cases) {
+    const generatedCase = casesById.get(requiredCase.id);
+    assert.ok(generatedCase, `${requiredCase.id} is missing from generated REST request cases`);
+    assert.equal(generatedCase.method, requiredCase.method);
+    assert.equal(generatedCase.path, requiredCase.path);
+    assert.equal(generatedCase.permission_class, requiredCase.permission_class);
+    assert.equal(typeof generatedCase.permission_class, 'string');
+    assert.ok(Array.isArray(generatedCase.expected_statuses), `${requiredCase.id} needs explicit expected statuses`);
+  }
+});
+
+test('Jetpack DB inventory declares module tables and options', () => {
+  const dbInventory = JSON.parse(readFileSync(path.join(packageRoot, 'bench/db-inventory.workload.json'), 'utf8'));
+  const dbFuzz = JSON.parse(readFileSync(path.join(fuzzRoot, 'db-inventory.json'), 'utf8'));
+  const [runStep] = dbInventory.run;
+
+  assert.equal(runStep['include-options'], true);
+  assert.ok(runStep.table_prefixes.includes('jpsq_'));
+  assert.ok(runStep.option_names.includes('jetpack_active_modules'));
+  assert.ok(runStep.module_inventory.expected_modules.includes('stats'));
+  assert.ok(dbFuzz.operations.includes('module-option-inventory'));
+});
+
+test('Jetpack option/module/sync fuzz workloads declare rollback-safe boundaries', () => {
+  const workloadIds = [
+    'jetpack-options-matrix',
+    'jetpack-module-state-matrix',
+    'jetpack-sync-queue-coverage',
+    'jetpack-cron-sync-actions',
+    'jetpack-connected-disconnected-fixtures',
+  ];
+
+  for (const workloadId of workloadIds) {
+    const workload = JSON.parse(readFileSync(path.join(fuzzRoot, `${workloadId}.json`), 'utf8'));
+    const firstCase = workload.cases[0];
+    const serializedInputs = JSON.stringify(firstCase.inputs || {});
+    const serializedArgs = JSON.stringify(firstCase.phases?.action || []);
+
+    assert.equal(workload.safety_class, 'isolated_mutation', `${workloadId} should be isolated mutation coverage`);
+    assert.ok(serializedInputs.includes('rollback') || serializedArgs.includes('rollback'), `${workloadId} must require rollback-safe mutation handling`);
+    assert.ok(serializedInputs.includes('restore_original_values') || serializedArgs.includes('restore_original_values'), `${workloadId} must restore original values`);
+  }
+});
+
+test('Jetpack inventory fuzz workloads define module option/table and cron sync primitives', () => {
+  const moduleInventory = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-module-option-table-inventory.json'), 'utf8'));
+  const cronSyncActions = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-cron-sync-actions.json'), 'utf8'));
+
+  assert.equal(moduleInventory.safety_class, 'read_only_inventory');
+  assert.ok(moduleInventory.coverage.operations.includes('module-option-inventory'));
+  assert.ok(moduleInventory.coverage.operations.includes('module-table-inventory'));
+  assert.ok(moduleInventory.cases[0].inputs.read_only);
+  assert.ok(moduleInventory.cases[0].inputs.secret_placeholders_only);
+
+  assert.ok(cronSyncActions.coverage.operations.includes('cron-event-inventory'));
+  assert.ok(cronSyncActions.coverage.operations.includes('sync-action-inventory'));
+  assert.equal(cronSyncActions.cases[0].inputs.remote_dispatch, false);
+  assert.equal(cronSyncActions.cases[0].inputs.force_http_guardrail, true);
+  assert.ok(cronSyncActions.cases[0].inputs.cron_hooks.length > 0);
+  assert.ok(cronSyncActions.cases[0].inputs.synthetic_actions.length > 0);
+});
+
+test('Jetpack admin page coverage enumerates wp-admin menus with explicit skip reasons', () => {
+  const admin = readFuzzManifest('jetpack-admin-page-coverage');
+  const testCase = defaultCase(admin);
+  const inputs = testCase.inputs;
+
+  assert.ok(inputs.menu_sources.includes('global_menu'));
+  assert.ok(inputs.menu_sources.includes('global_submenu'));
+  assert.ok(inputs.include_menu_slugs.includes('jetpack'));
+  assert.ok(inputs.include_menu_slugs.includes('jetpack_modules'));
+  assert.ok(inputs.include_menu_slugs.includes('jetpack#/settings?term=performance'));
+  assert.ok(inputs.skip_reason_codes.includes('destructive_action'));
+  assert.ok(inputs.skip_reason_codes.includes('credential_unavailable'));
+  assert.ok(testCase.artifacts.some((artifact) => artifact.metadata?.semantic_key === 'fuzz.admin_menu_enumeration'));
+  assert.ok(testCase.artifacts.some((artifact) => artifact.metadata?.semantic_key === 'fuzz.skip_reasons'));
+});
+
+test('Jetpack public frontend coverage declares module routes, request classes, and state skips', () => {
+  const frontend = readFuzzManifest('jetpack-public-module-frontend-coverage');
+  const testCase = defaultCase(frontend);
+  const inputs = testCase.inputs;
+  const modules = new Set(inputs.module_scenarios.map((scenario) => scenario.module));
+
+  assert.deepEqual(new Set(inputs.states), new Set(['connected', 'disconnected']));
+  assert.ok(modules.has('shortcodes'));
+  assert.ok(modules.has('contact-form'));
+  assert.ok(modules.has('related-posts'));
+  assert.ok(modules.has('stats'));
+  assert.ok(inputs.request_classes.includes('xhr'));
+  assert.ok(inputs.request_classes.includes('fetch'));
+  assert.ok(inputs.skip_reason_codes.includes('connection_required'));
+  assert.ok(testCase.artifacts.some((artifact) => artifact.metadata?.semantic_key === 'fuzz.browser_request_matrix'));
+});
+
+test('Jetpack connected/disconnected fixture coverage classifies credential-dependent skips', () => {
+  const fixtures = readFuzzManifest('jetpack-connected-disconnected-fixtures');
+  const inputs = defaultCase(fixtures).inputs;
+
+  assert.deepEqual(new Set(inputs.states), new Set(['connected', 'disconnected']));
+  assert.equal(inputs.real_wpcom_credentials_allowed, false);
+  assert.equal(inputs.secret_placeholders_only, true);
+  assert.equal(inputs.restore_original_values, true);
+  assert.ok(inputs.fixture_options.includes('jetpack_options'));
+  assert.ok(inputs.skip_reason_codes.includes('credential_unavailable'));
+  assert.ok(inputs.skip_reason_codes.includes('connected_required'));
+});
+
+test('Jetpack performance observation declares non-benchmark observation surfaces and artifacts', () => {
+  const performance = readFuzzManifest('jetpack-performance-observation');
+  const testCase = defaultCase(performance);
+  const inputs = testCase.inputs;
+
+  assert.ok(inputs.observation_surfaces.includes('admin_page_coverage'));
+  assert.ok(inputs.observation_surfaces.includes('public_module_frontend_coverage'));
+  assert.ok(inputs.observation_surfaces.includes('external_http_guardrail'));
+  assert.ok(inputs.metrics.includes('duration_ms'));
+  assert.ok(inputs.metrics.includes('query_count'));
+  assert.equal(inputs.proof_required_before_status_p, true);
+  assert.ok(performance.coverage.operations.includes('slow-surface-classification'));
+  assert.ok(testCase.artifacts.some((artifact) => artifact.metadata?.semantic_key === 'fuzz.performance_surface_summary'));
+});
+
+test('Jetpack browser trace includes admin and public module scenarios', () => {
+  assert.deepEqual(new Set(manifest.surfaces.browser_requests.scenarios), new Set([
+    'dashboard',
+    'connection',
+    'modules',
+    'settings',
+    'public_post_modules',
+    'public_page_modules',
+  ]));
+
+  for (const scenario of manifest.surfaces.browser_requests.scenarios) {
+    assert.ok(readdirSync(path.join(packageRoot, 'browser-scenarios')).includes(`${scenario}.json`), `${scenario} needs a browser scenario file`);
+  }
 });

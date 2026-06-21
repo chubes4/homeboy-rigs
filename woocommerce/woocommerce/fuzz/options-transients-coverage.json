@@ -3,15 +3,129 @@
   "id": "options-transients-coverage",
   "label": "WooCommerce options and transients coverage",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["woocommerce-options", "woocommerce-transients", "woocommerce-action-scheduler", "wordpress-options"],
-  "operations": ["option-inventory", "transient-growth-attribution", "action-scheduler-delta", "rollback-safe-option-mutation"],
+  "surface_ids": [
+    "woocommerce-options",
+    "woocommerce-transients",
+    "woocommerce-action-scheduler",
+    "wordpress-options"
+  ],
+  "operations": [
+    "option-inventory",
+    "transient-growth-attribution",
+    "action-scheduler-delta",
+    "rollback-safe-option-mutation"
+  ],
   "case_budget": 120,
   "duration_budget_seconds": 900,
-  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/bench/db-inventory.workload.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
-  "target": { "type": "wordpress-plugin", "slug": "woocommerce", "component": "woocommerce" },
-  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/db-inventory.workload.json", "entry": "options-transients-coverage" },
-  "cases": [{ "case_id": "options-transients-coverage:default", "surface_ids": ["woocommerce-options", "woocommerce-transients", "woocommerce-action-scheduler", "wordpress-options"], "operations": ["option-inventory", "transient-growth-attribution", "action-scheduler-delta", "rollback-safe-option-mutation"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=woocommerce/woocommerce.php"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/db-inventory.workload.json", "type=json", "surface=woocommerce-options-transients"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=options_transients_coverage"] }] }, "artifacts": [{ "name": "options_transients_coverage", "path": "options-transients-coverage/options_transients_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "isolated_mutation" } }],
-  "limits": { "max_cases": 120, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["woocommerce-options", "woocommerce-transients", "woocommerce-action-scheduler", "wordpress-options"], "operations": ["option-inventory", "transient-growth-attribution", "action-scheduler-delta", "rollback-safe-option-mutation"] },
-  "artifacts": { "expected": [{ "name": "options_transients_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/db-inventory.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/db-inventory.workload.json",
+    "entry": "options-transients-coverage"
+  },
+  "cases": [
+    {
+      "case_id": "options-transients-coverage:default",
+      "surface_ids": [
+        "woocommerce-options",
+        "woocommerce-transients",
+        "woocommerce-action-scheduler",
+        "wordpress-options"
+      ],
+      "operations": [
+        "option-inventory",
+        "transient-growth-attribution",
+        "action-scheduler-delta",
+        "rollback-safe-option-mutation"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/db-inventory.workload.json",
+              "type=json",
+              "surface=woocommerce-options-transients"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=options_transients_coverage"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "options_transients_coverage",
+          "path": "options-transients-coverage/options_transients_coverage.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 120,
+    "max_duration_seconds": 900
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-options",
+      "woocommerce-transients",
+      "woocommerce-action-scheduler",
+      "wordpress-options"
+    ],
+    "operations": [
+      "option-inventory",
+      "transient-growth-attribution",
+      "action-scheduler-delta",
+      "rollback-safe-option-mutation"
+    ]
+  },
+  "proof_contracts": [
+    {
+      "id": "cache-invalidation-and-transient-growth",
+      "description": "Artifact must report option/transient inventory, transient growth attribution, Action Scheduler deltas, and rollback evidence for isolated option mutation cases.",
+      "required_artifact": "options_transients_coverage"
+    }
+  ],
+  "artifacts": {
+    "expected": [
+      {
+        "name": "options_transients_coverage",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
 }

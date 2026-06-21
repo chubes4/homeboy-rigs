@@ -11,6 +11,7 @@ const workload = readFileSync(path.join(__dirname, 'admin-page-coverage.php'), '
 const rig = JSON.parse(readFileSync(path.join(__dirname, '../rigs/woocommerce-performance/rig.json'), 'utf8'));
 const browserCoverageRig = JSON.parse(readFileSync(path.join(__dirname, '../rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
 const manifest = JSON.parse(readFileSync(path.join(__dirname, '../manifests/full-surface-coverage.json'), 'utf8'));
+const adminFuzzManifest = JSON.parse(readFileSync(path.join(__dirname, '../fuzz/admin-page-coverage.json'), 'utf8'));
 const adminAssetsCheck = path.join(__dirname, '../tools/check-admin-assets.sh');
 
 const summarizeArtifactVisits = (visits) => {
@@ -149,4 +150,48 @@ test('admin page coverage treats expected shop-manager 403s as permission-bounda
   assert.equal(trueFailure.success_rate, 0);
   assert.equal(trueFailure.http_error_count, 1);
   assert.equal(trueFailure.skipped_permission_count, 0);
+});
+
+test('admin page coverage declares safe menu enumeration and role-boundary contracts', () => {
+  assert.match(workload, /homeboy-rigs\/woocommerce-admin-page-enumeration-contract\/v1/);
+  assert.match(workload, /homeboy-rigs\/woocommerce-admin-page-coverage\/v1/);
+  assert.match(workload, /'administrator'\s*=>\s*array/);
+  assert.match(workload, /'shop_manager'\s*=>\s*array/);
+  assert.match(workload, /'skip_reason_codes'\s*=>\s*\$safe_skip_reason_codes/);
+  assert.match(workload, /'destructive_reason_codes'\s*=>\s*array/);
+  assert.match(workload, /'skip_reason_counts'\s*=>\s*\$skip_reason_counts/);
+  assert.match(workload, /'contract'\s*=>\s*\$enumeration_contract/);
+  assert.match(workload, /'schema'\s*=>\s*\$enumeration_contract\['artifact_expectations'\]\['schema'\]/);
+
+  assert.equal(
+    manifest.surfaces.authenticated_admin_pages.enumeration_contract.schema,
+    'homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1'
+  );
+  assert.deepEqual(manifest.surfaces.authenticated_admin_pages.enumeration_contract.methods, ['GET']);
+  assert.ok(manifest.surfaces.authenticated_admin_pages.enumeration_contract.skip_reason_codes.includes('permission_boundary'));
+  assert.ok(manifest.surfaces.authenticated_admin_pages.enumeration_contract.skip_reason_codes.includes('unsafe_query_arg_delete'));
+  assert.deepEqual(
+    manifest.surfaces.authenticated_admin_pages.enumeration_contract.artifact_expectations.required,
+    ['contract', 'targets', 'visits', 'skipped', 'request_logs', 'query_attribution', 'metrics']
+  );
+});
+
+test('admin fuzz manifest requires the generic fuzz artifact contract', () => {
+  assert.ok(adminFuzzManifest.operations.includes('safe-menu-enumeration-contract'));
+  assert.ok(adminFuzzManifest.operations.includes('skipped-destructive-reason-classification'));
+  assert.equal(adminFuzzManifest.metadata.admin_page_contract_schema, 'homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1');
+  assert.equal(adminFuzzManifest.metadata.artifact_contract_schema, 'homeboy-rigs/woocommerce-admin-page-coverage/v1');
+  assert.equal(adminFuzzManifest.artifacts.expected[0].required, true);
+  assert.equal(adminFuzzManifest.artifacts.expected[0].schema, 'homeboy-rigs/woocommerce-admin-page-coverage/v1');
+  assert.equal(adminFuzzManifest.cases[0].artifacts[0].required, true);
+  assert.deepEqual(adminFuzzManifest.cases[0].artifacts[0].metadata.required_fields, [
+    'schema',
+    'contract',
+    'targets',
+    'visits',
+    'skipped',
+    'request_logs',
+    'query_attribution',
+    'metrics',
+  ]);
 });

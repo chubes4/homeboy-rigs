@@ -21,6 +21,7 @@
     },
     "database": {
       "coverage_goal": "all_tables_rows_columns_indexes_after_editor_fixture_setup",
+      "lab_cell_contract": "manifests/api-db-lab-cell.json",
       "inventory_artifact": "homeboy/wordpress-db-inventory/v1",
       "query_profile_artifact": "homeboy/wordpress-rest-db-query-profile/v1",
       "inventory_workload": "bench/db-inventory.workload.json",

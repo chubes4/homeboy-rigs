@@ -1,0 +1,47 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-module-option-table-inventory",
+  "label": "Jetpack module option and table inventory",
+  "safety_class": "read_only_inventory",
+  "surface_ids": ["jetpack-modules", "jetpack-options", "jetpack-tables", "wordpress-options"],
+  "operations": ["module-option-inventory", "module-table-inventory", "autoload-classification", "serialized-value-boundary-classification"],
+  "case_budget": 80,
+  "duration_budget_seconds": 600,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "artifact_expectations": {
+      "required": ["module_inventory", "option_inventory", "table_inventory", "serialization_boundaries"],
+      "optional": ["autoload_counts", "missing_table_reasons", "module_dependency_edges"]
+    }
+  },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "wordpress-plugin-module-option-table-inventory" },
+  "cases": [
+    {
+      "case_id": "jetpack-module-option-table-inventory:default",
+      "surface_ids": ["jetpack-modules", "jetpack-options", "jetpack-tables", "wordpress-options"],
+      "operations": ["module-option-inventory", "module-table-inventory", "autoload-classification", "serialized-value-boundary-classification"],
+      "inputs": {
+        "module_allowlist": ["stats", "publicize", "related-posts", "markdown", "shortcodes", "widget-visibility", "photon", "sitemaps", "protect"],
+        "option_prefixes": ["jetpack_", "jetpack_%", "jpsq_", "stats_options", "sharedaddy_options", "sharing-options"],
+        "table_patterns": ["%_jetpack_%", "%_wc_connect%"],
+        "read_only": true,
+        "secret_placeholders_only": true
+      },
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }],
+        "action": [{ "command": "wordpress.inventory-plugin-module-options-tables", "args": ["read_only=true", "secret_placeholders_only=true"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=module_option_table_inventory"] }]
+      },
+      "artifacts": [{ "name": "module_option_table_inventory", "path": "jetpack-module-option-table-inventory/module_option_table_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only_inventory" }
+    }
+  ],
+  "limits": { "max_cases": 80, "max_duration_seconds": 600 },
+  "coverage": { "surface_ids": ["jetpack-modules", "jetpack-options", "jetpack-tables", "wordpress-options"], "operations": ["module-option-inventory", "module-table-inventory", "autoload-classification", "serialized-value-boundary-classification"] },
+  "artifacts": { "expected": [{ "name": "module_option_table_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}
