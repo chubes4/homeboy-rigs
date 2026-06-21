@@ -96,6 +96,10 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.workload?.runner, 'wp-codebox', `${manifest.id} workload.runner mismatch`);
   assert.equal(manifest.workload?.path, manifest.metadata?.workload_path, `${manifest.id} workload path must match metadata`);
   assert.ok(['php', 'json'].includes(manifest.workload?.type), `${manifest.id} workload.type must be php or json`);
+  assert.equal(manifest.metadata?.fixture?.runtime, 'wp-codebox', `${manifest.id} fixture runtime must be wp-codebox`);
+  assert.equal(manifest.metadata?.fixture?.scope, 'disposable-wordpress', `${manifest.id} fixture scope must be disposable-wordpress`);
+  assert.equal(manifest.metadata?.fixture?.component, 'woocommerce', `${manifest.id} fixture component must be woocommerce`);
+  assert.equal(manifest.metadata?.fixture?.activation, 'woocommerce/woocommerce.php', `${manifest.id} fixture activation must be woocommerce/woocommerce.php`);
   assert.deepEqual(manifest.coverage?.surface_ids, manifest.surface_ids, `${manifest.id} coverage surface ids drifted`);
   assert.deepEqual(manifest.coverage?.operations, manifest.operations, `${manifest.id} coverage operations drifted`);
   assert.equal(manifest.limits?.max_cases, manifest.case_budget, `${manifest.id} max_cases must match case_budget`);
@@ -104,6 +108,7 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.cases?.length, 1, `${manifest.id} requires one default runner case`);
   const [runnerCase] = manifest.cases;
   assert.equal(runnerCase.case_id, `${manifest.id}:default`, `${manifest.id} default case id mismatch`);
+  assert.equal(runnerCase.metadata?.safety_class, manifest.safety_class, `${manifest.id} case safety class must match workload safety class`);
   assert.deepEqual(runnerCase.surface_ids, manifest.surface_ids, `${manifest.id} case surface ids drifted`);
   assert.deepEqual(runnerCase.operations, manifest.operations, `${manifest.id} case operations drifted`);
   assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);

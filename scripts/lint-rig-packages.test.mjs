@@ -139,6 +139,23 @@ test('rejects fuzz workload safety classes outside the Homeboy contract', () => 
   assert.match(result.stderr, /safety_class must be one of read_only, idempotent, isolated_mutation, destructive/);
 });
 
+test('rejects fuzz case safety classes that drift from the workload', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload({
+        safety_class: 'read_only',
+        cases: [
+          { case_id: 'generic-fuzz:default', metadata: { safety_class: 'isolated_mutation' } },
+        ],
+      }),
+    },
+  });
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /case generic-fuzz:default metadata\.safety_class must match workload safety_class read_only/);
+});
+
 test('rejects missing fuzz workload backing files', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {

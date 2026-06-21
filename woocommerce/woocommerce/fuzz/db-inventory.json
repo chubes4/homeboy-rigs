@@ -18,7 +18,13 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/db-inventory.workload.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "component": "woocommerce",
+      "activation": "woocommerce/woocommerce.php"
+    }
   },
   "target": {
     "type": "wordpress-plugin",

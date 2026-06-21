@@ -22,6 +22,12 @@
     "workload_path": "${package.root}/bench/admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "component": "woocommerce",
+      "activation": "woocommerce/woocommerce.php"
+    },
     "admin_page_contract_schema": "homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1",
     "artifact_contract_schema": "homeboy-rigs/woocommerce-admin-page-coverage/v1"
   },
