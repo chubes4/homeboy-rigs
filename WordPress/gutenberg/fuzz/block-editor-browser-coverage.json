@@ -31,11 +31,11 @@
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-browser-coverage.trace.mjs", "type=trace", "scenario=post_editor"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=block_editor_browser_coverage"] }]
       },
-      "artifacts": [{ "name": "block_editor_browser_coverage", "path": "block-editor-browser-coverage/browser_request_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "block_editor_browser_coverage", "path": "block-editor-browser-coverage/browser_request_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "isolated_mutation" }
     }
   ],
   "limits": { "max_cases": 24, "max_duration_seconds": 900 },
   "coverage": { "surface_ids": ["gutenberg-block-editor", "wordpress-admin-pages", "browser-requests"], "operations": ["editor-page-load", "block-editor-action-probe", "browser-request-coverage"] },
-  "artifacts": { "expected": [{ "name": "block_editor_browser_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "artifacts": { "expected": [{ "name": "block_editor_browser_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }

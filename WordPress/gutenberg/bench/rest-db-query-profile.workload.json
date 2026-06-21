@@ -7,10 +7,24 @@
       "metric-prefix": "rest_db_query_profile",
       "sampleLimit": 50,
       "queryLengthLimit": 500,
+      "attribution": {
+        "group_by": ["request_case_id", "route", "method", "query_type", "table"],
+        "include_stack_summary": true,
+        "include_caller_summary": true
+      },
       "rest_request_cases": [
         { "id": "gutenberg-block-patterns", "method": "GET", "path": "/wp/v2/block-patterns/patterns", "params": { "context": "view" } },
         { "id": "gutenberg-block-pattern-categories", "method": "GET", "path": "/wp/v2/block-patterns/categories", "params": { "context": "view" } },
-        { "id": "gutenberg-templates", "method": "GET", "path": "/wp/v2/templates", "params": { "context": "view" } }
+        { "id": "gutenberg-block-directory-search", "method": "GET", "path": "/wp/v2/block-directory/search", "params": { "term": "paragraph" } },
+        { "id": "gutenberg-pattern-directory-search", "method": "GET", "path": "/wp/v2/pattern-directory/patterns", "params": { "search": "hero", "per_page": 2 } },
+        { "id": "gutenberg-block-renderer-paragraph", "method": "GET", "path": "/wp/v2/block-renderer/core/paragraph", "params": { "context": "edit", "attributes": { "content": "Gutenberg REST fuzz proof" } }, "auth": "editor" },
+        { "id": "gutenberg-global-styles-themes", "method": "GET", "path": "/wp/v2/global-styles/themes/twentytwentyfour", "params": { "context": "edit" }, "auth": "editor" },
+        { "id": "gutenberg-navigation-list", "method": "GET", "path": "/wp/v2/navigation", "params": { "context": "edit", "per_page": 5 }, "auth": "editor" },
+        { "id": "gutenberg-settings-editor-permission", "method": "GET", "path": "/wp/v2/settings", "params": { "context": "edit" }, "auth": "editor", "expected_statuses": [200, 401, 403] },
+        { "id": "gutenberg-search-post-format", "method": "GET", "path": "/wp/v2/search", "params": { "search": "home", "subtype": "post", "per_page": 3 } },
+        { "id": "gutenberg-templates", "method": "GET", "path": "/wp/v2/templates", "params": { "context": "edit", "per_page": 5 }, "auth": "editor" },
+        { "id": "gutenberg-template-parts", "method": "GET", "path": "/wp/v2/template-parts", "params": { "context": "edit", "per_page": 5 }, "auth": "editor" },
+        { "id": "gutenberg-templates-unauthenticated-boundary", "method": "GET", "path": "/wp/v2/templates", "params": { "context": "edit", "per_page": 1 }, "auth": "none", "expected_statuses": [401, 403] }
       ]
     }
   ],
@@ -18,6 +32,8 @@
     "runner": "wp-codebox",
     "workload": "rest-db-query-profile",
     "coverage_shape": "Gutenberg REST request DB query profile",
-    "manifest": "manifests/full-surface-coverage.json"
+    "manifest": "manifests/full-surface-coverage.json",
+    "route_case_source": "bench/generated-rest-request-cases.workload.json",
+    "attribution_contract": "queries are grouped by request case, route, method, query type, table, stack summary, and caller summary"
   }
 }

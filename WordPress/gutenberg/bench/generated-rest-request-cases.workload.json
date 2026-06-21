@@ -24,24 +24,83 @@
       "capture-response": true
     },
     {
+      "id": "gutenberg-pattern-directory-search",
+      "method": "GET",
+      "path": "/wp/v2/pattern-directory/patterns",
+      "params": { "search": "hero", "per_page": 2 },
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-block-renderer-paragraph",
+      "method": "GET",
+      "path": "/wp/v2/block-renderer/core/paragraph",
+      "params": { "context": "edit", "attributes": { "content": "Gutenberg REST fuzz proof" } },
+      "auth": "editor",
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-global-styles-themes",
+      "method": "GET",
+      "path": "/wp/v2/global-styles/themes/twentytwentyfour",
+      "params": { "context": "edit" },
+      "auth": "editor",
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-navigation-list",
+      "method": "GET",
+      "path": "/wp/v2/navigation",
+      "params": { "context": "edit", "per_page": 5 },
+      "auth": "editor",
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-settings-editor-permission",
+      "method": "GET",
+      "path": "/wp/v2/settings",
+      "params": { "context": "edit" },
+      "auth": "editor",
+      "expected_statuses": [200, 401, 403],
+      "capture-response": true
+    },
+    {
+      "id": "gutenberg-search-post-format",
+      "method": "GET",
+      "path": "/wp/v2/search",
+      "params": { "search": "home", "subtype": "post", "per_page": 3 },
+      "capture-response": true
+    },
+    {
       "id": "gutenberg-templates",
       "method": "GET",
       "path": "/wp/v2/templates",
-      "params": { "context": "view" },
+      "params": { "context": "edit", "per_page": 5 },
+      "auth": "editor",
       "capture-response": true
     },
     {
       "id": "gutenberg-template-parts",
       "method": "GET",
       "path": "/wp/v2/template-parts",
-      "params": { "context": "view" },
+      "params": { "context": "edit", "per_page": 5 },
+      "auth": "editor",
       "capture-response": true
+    },
+    {
+      "id": "gutenberg-templates-unauthenticated-boundary",
+      "method": "GET",
+      "path": "/wp/v2/templates",
+      "params": { "context": "edit", "per_page": 1 },
+      "auth": "none",
+      "expected_statuses": [401, 403]
     }
   ],
   "metadata": {
     "runner": "wp-codebox",
     "workload": "generated-rest-request-cases",
     "coverage_shape": "generated safe Gutenberg REST request cases",
-    "manifest": "manifests/rest-route-coverage.json"
+    "manifest": "manifests/rest-route-coverage.json",
+    "permission_matrix": "authenticated editor cases plus unauthenticated boundary cases for protected editor routes",
+    "entity_targets": ["block-patterns", "block-directory", "pattern-directory", "block-renderer", "global-styles", "navigation", "settings", "search", "templates", "template-parts"]
   }
 }

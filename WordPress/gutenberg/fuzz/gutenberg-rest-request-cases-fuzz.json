@@ -4,7 +4,7 @@
   "label": "Generated Gutenberg REST request cases",
   "safety_class": "isolated_mutation",
   "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"],
-  "operations": ["generated-rest-case-plan", "request-case-execution"],
+  "operations": ["generated-rest-case-plan", "request-case-execution", "permission-boundary-case-execution"],
   "case_budget": 120,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -25,17 +25,17 @@
     {
       "case_id": "gutenberg-rest-request-cases-fuzz:default",
       "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"],
-      "operations": ["generated-rest-case-plan", "request-case-execution"],
+      "operations": ["generated-rest-case-plan", "request-case-execution", "permission-boundary-case-execution"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/generated-rest-request-cases.workload.json", "type=json"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_request_cases"] }]
       },
-      "artifacts": [{ "name": "rest_request_cases", "path": "generated-rest-request-cases/rest_request_cases.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "rest_request_cases", "path": "generated-rest-request-cases/rest_request_cases.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "isolated_mutation" }
     }
   ],
   "limits": { "max_cases": 120, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"], "operations": ["generated-rest-case-plan", "request-case-execution"] },
-  "artifacts": { "expected": [{ "name": "rest_request_cases", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"], "operations": ["generated-rest-case-plan", "request-case-execution", "permission-boundary-case-execution"] },
+  "artifacts": { "expected": [{ "name": "rest_request_cases", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }

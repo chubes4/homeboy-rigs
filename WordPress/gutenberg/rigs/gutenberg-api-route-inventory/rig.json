@@ -29,15 +29,6 @@
   "fuzz": {
     "default_component": "gutenberg"
   },
-  "bench_workloads": {
-    "wordpress": [
-      { "path": "${package.root}/bench/gutenberg-rest-route-inventory.php" },
-      { "path": "${package.root}/bench/gutenberg-external-http-guardrail.php" },
-      { "path": "${package.root}/bench/generated-rest-request-cases.workload.json" },
-      { "path": "${package.root}/bench/rest-db-query-profile.workload.json" },
-      { "path": "${package.root}/bench/db-inventory.workload.json" }
-    ]
-  },
   "fuzz_workloads": {
     "wordpress": [
       { "path": "${package.root}/fuzz/gutenberg-rest-route-fuzz.json" },
@@ -50,27 +41,6 @@
       { "path": "${package.root}/fuzz/gutenberg-hooks-options-inventory.json" },
       { "path": "${package.root}/fuzz/gutenberg-editor-performance-observation.json" },
       { "path": "${package.root}/fuzz/gutenberg-external-http-guardrail-fuzz.json" }
-    ]
-  },
-  "bench_profiles": {
-    "smoke": [
-      "gutenberg-rest-route-inventory",
-      "gutenberg-external-http-guardrail",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory"
-    ],
-    "api-coverage": [
-      "gutenberg-rest-route-inventory",
-      "generated-rest-request-cases",
-      "rest-db-query-profile"
-    ],
-    "full-surface": [
-      "gutenberg-rest-route-inventory",
-      "generated-rest-request-cases",
-      "gutenberg-external-http-guardrail",
-      "rest-db-query-profile",
-      "db-inventory"
     ]
   },
   "pipeline": {

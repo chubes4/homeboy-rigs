@@ -29,6 +29,10 @@ const benchWorkloadIds = new Set(
     .map((entry) => path.basename(entry.path, path.extname(entry.path)))
 );
 const benchProfileIds = new Set(Object.values(rig.bench_profiles || {}).flat());
+const restRouteCoverage = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-route-coverage.json'), 'utf8'));
+const restCases = JSON.parse(readFileSync(path.join(packageRoot, 'bench/generated-rest-request-cases.workload.json'), 'utf8'));
+const dbInventory = JSON.parse(readFileSync(path.join(packageRoot, 'bench/db-inventory.workload.json'), 'utf8'));
+const restQueryProfile = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
 
 const requiredSurfaces = new Set([
   'gutenberg-rest-routes',
@@ -72,6 +76,13 @@ for (const { file, manifest } of fuzzManifests) {
   assert.ok(Array.isArray(runnerCase.artifacts), `${manifest.id} requires case artifacts`);
   assert.ok(Array.isArray(manifest.artifacts?.expected), `${manifest.id} requires expected artifacts`);
 
+  for (const artifact of runnerCase.artifacts) {
+    assert.equal(artifact.required, true, `${manifest.id} case artifact ${artifact.name} must be required`);
+  }
+  for (const artifact of manifest.artifacts.expected) {
+    assert.equal(artifact.required, true, `${manifest.id} expected artifact ${artifact.name} must be required`);
+  }
+
   for (const surfaceId of manifest.surface_ids || []) {
     coveredSurfaces.add(surfaceId);
   }
@@ -80,5 +91,31 @@ for (const { file, manifest } of fuzzManifests) {
 for (const surfaceId of requiredSurfaces) {
   assert.ok(coveredSurfaces.has(surfaceId), `missing Gutenberg fuzz surface ${surfaceId}`);
 }
+
+assert.deepEqual(restRouteCoverage.namespaces, ['wp/v2', '__experimental'], 'REST route coverage must declare Gutenberg REST namespaces');
+assert.ok(restRouteCoverage.coverage_groups.some((group) => group.id === 'permissions'), 'REST route coverage must declare permission coverage group');
+
+const restCaseIds = new Set(restCases.rest_request_cases.map((restCase) => restCase.id));
+for (const requiredCaseId of [
+  'gutenberg-block-renderer-paragraph',
+  'gutenberg-global-styles-themes',
+  'gutenberg-navigation-list',
+  'gutenberg-settings-editor-permission',
+  'gutenberg-templates-unauthenticated-boundary',
+]) {
+  assert.ok(restCaseIds.has(requiredCaseId), `generated REST cases missing ${requiredCaseId}`);
+}
+
+const dbInventoryRun = dbInventory.run?.[0] || {};
+assert.ok((dbInventoryRun.option_prefixes || []).includes('gutenberg_'), 'DB inventory must include Gutenberg option prefix coverage');
+assert.ok((dbInventoryRun.postmeta_keys || []).includes('_wp_pattern_sync_status'), 'DB inventory must include Gutenberg postmeta coverage');
+assert.ok((dbInventoryRun.post_types || []).includes('wp_template'), 'DB inventory must include template entity coverage');
+assert.ok((dbInventoryRun.post_types || []).includes('wp_template_part'), 'DB inventory must include template-part entity coverage');
+
+const queryProfileRun = restQueryProfile.run?.[0] || {};
+assert.deepEqual(queryProfileRun.attribution?.group_by, ['request_case_id', 'route', 'method', 'query_type', 'table'], 'REST query profile attribution group drifted');
+assert.ok(queryProfileRun.attribution?.include_stack_summary, 'REST query profile must include stack summary attribution');
+assert.ok(queryProfileRun.attribution?.include_caller_summary, 'REST query profile must include caller summary attribution');
+assert.ok(queryProfileRun.rest_request_cases?.some((restCase) => restCase.id === 'gutenberg-templates-unauthenticated-boundary'), 'REST query profile must include permission boundary case');
 
 console.log(`validated ${fuzzManifests.length} Gutenberg fuzz manifests; no fuzz IDs are present in bench_workloads or bench_profiles`);

@@ -26,11 +26,11 @@
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-external-http-guardrail.php", "type=php"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=external_http_guardrail"] }]
       },
-      "artifacts": [{ "name": "external_http_guardrail", "path": "gutenberg-external-http-guardrail/external_http_guardrail.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "external_http_guardrail", "path": "gutenberg-external-http-guardrail/external_http_guardrail.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "read_only" }
     }
   ],
   "limits": { "max_cases": 30, "max_duration_seconds": 300 },
   "coverage": { "surface_ids": ["gutenberg-api", "wordpress-http-api", "performance-guardrails"], "operations": ["external-http-host-inventory", "unapproved-host-blocking"] },
-  "artifacts": { "expected": [{ "name": "external_http_guardrail", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "artifacts": { "expected": [{ "name": "external_http_guardrail", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }

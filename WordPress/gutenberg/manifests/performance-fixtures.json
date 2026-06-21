@@ -11,17 +11,29 @@
       "entities": {
         "posts": 12,
         "pages": 6,
+        "blocks": 10,
+        "global_styles": 2,
         "patterns": 8,
         "navigation_menus": 2,
         "templates": 6,
         "template_parts": 8
       },
+      "state_inventory": {
+        "option_prefixes": ["_transient_gutenberg_", "gutenberg_", "wporg_patterns_", "wporg_block_directory_"],
+        "postmeta_keys": ["_wp_page_template", "_wp_block_editor_context", "_wp_pattern_sync_status", "_wp_navigation_post_origin", "_wp_ignored_hooked_blocks", "footnotes"],
+        "post_types": ["wp_block", "wp_global_styles", "wp_navigation", "wp_template", "wp_template_part"],
+        "taxonomies": ["wp_pattern_category"]
+      },
       "route_groups": [
         "editor-data",
-        "dynamic-rendering"
+        "dynamic-rendering",
+        "permissions"
       ],
       "expected_workloads": [
         "gutenberg-rest-route-inventory",
+        "generated-rest-request-cases",
+        "rest-db-query-profile",
+        "db-inventory",
         "gutenberg-external-http-guardrail"
       ]
     }

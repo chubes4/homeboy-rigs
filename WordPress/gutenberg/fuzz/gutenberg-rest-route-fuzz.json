@@ -4,7 +4,7 @@
   "label": "Gutenberg REST route inventory coverage",
   "safety_class": "read_only",
   "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"],
-  "operations": ["rest-route-discovery", "route-group-classification"],
+  "operations": ["rest-route-discovery", "namespace-coverage", "route-group-classification", "permission-boundary-classification"],
   "case_budget": 40,
   "duration_budget_seconds": 300,
   "metadata": {
@@ -25,17 +25,17 @@
     {
       "case_id": "gutenberg-rest-route-fuzz:default",
       "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"],
-      "operations": ["rest-route-discovery", "route-group-classification"],
+      "operations": ["rest-route-discovery", "namespace-coverage", "route-group-classification", "permission-boundary-classification"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-rest-route-inventory.php", "type=php"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_route_inventory"] }]
       },
-      "artifacts": [{ "name": "rest_route_inventory", "path": "gutenberg-rest-route-inventory/rest_route_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "rest_route_inventory", "path": "gutenberg-rest-route-inventory/rest_route_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "read_only" }
     }
   ],
   "limits": { "max_cases": 40, "max_duration_seconds": 300 },
-  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"], "operations": ["rest-route-discovery", "route-group-classification"] },
-  "artifacts": { "expected": [{ "name": "rest_route_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-rest-api"], "operations": ["rest-route-discovery", "namespace-coverage", "route-group-classification", "permission-boundary-classification"] },
+  "artifacts": { "expected": [{ "name": "rest_route_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }
