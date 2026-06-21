@@ -271,3 +271,20 @@ test('requires WordPress Core proof artifacts when linting package root directly
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /fuzz\/rest-api\.json: rest-api must declare expected artifact semantic key fuzz\.rest\.route_inventory/);
 });
+
+test('rejects WordPress Core fuzz workloads outside wordpress-develop', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-wp-legacy-lint-'));
+  const fuzzRoot = join(directory, 'WordPress', 'wordpress', 'fuzz');
+
+  mkdirSync(fuzzRoot, { recursive: true });
+  writeJson(join(fuzzRoot, 'rest-api.json'), fuzzWorkload({
+    id: 'rest-api',
+    surface_ids: ['wordpress-core-rest-routes'],
+    target: { type: 'wordpress-core', component: 'wordpress' },
+  }));
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /WordPress Core fuzz workloads must live under WordPress\/wordpress-develop\/fuzz/);
+});
