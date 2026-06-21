@@ -5,8 +5,11 @@
   "requires_primitives": [
     "wordpress-rest-route-matrix",
     "wordpress-rest-request-cases",
+    "wordpress-rest-permission-boundary-matrix",
     "wordpress-rest-db-query-profiler",
     "wordpress-db-inventory",
+    "wordpress-db-schema-inventory",
+    "wordpress-query-attribution",
     "wordpress-admin-page-coverage",
     "wordpress-frontend-rendering-request-coverage",
     "wordpress-hook-inventory",
@@ -24,14 +27,19 @@
   "coverage_gap_reporting": {
     "report_shape": "homeboy-rigs/wordpress-core-fuzzer-coverage-gap/v1",
     "compare": {
-      "rest_api": "registered core REST routes minus generated safe request cases",
-      "database": "core table inventory plus query profiles per covered REST case",
+      "rest_api": "registered core REST routes minus generated safe request cases and role permission-boundary rows",
+      "database": "core schema inventory plus query profiles per covered REST case with options, postmeta, and rewrite attribution",
       "admin_pages": "manifest admin pages minus captured readiness and query attribution artifacts",
+      "runtime_state": "registered hooks, cron events, rewrite rules, postmeta keys, autoloaded options, and transients minus inventory rows",
       "frontend_rendering": "front page, singular, archive, search, feed, attachment, and request coverage artifacts minus captured rendering/readiness rows",
-      "runtime_state": "registered hooks, cron events, rewrite rules, autoloaded options, and transients minus inventory rows",
       "content": "registered post types, statuses, taxonomies, terms, and permalink structures minus inventory rows",
       "media_users": "attachment, user, role, and capability surfaces minus permission coverage rows",
       "performance": "declared representative performance surfaces minus observation artifacts"
     }
+  },
+  "proof_artifact_contract": {
+    "declared": ["manifest row exists", "fuzz workload references manifest", "rig profile references workload id"],
+    "executable": ["workload file validates", "runner path is declared", "expected artifact semantic keys are declared"],
+    "proven": ["reviewer-facing run artifact is linked", "permission and query-attribution summaries are present", "gap report records uncovered routes and surfaces"]
   }
 }

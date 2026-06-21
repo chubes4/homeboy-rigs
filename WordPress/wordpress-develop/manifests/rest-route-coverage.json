@@ -1,25 +1,57 @@
 {
   "schema": "homeboy-rigs/wordpress-core-rest-route-coverage/v1",
   "property": "WordPress/wordpress-develop",
+  "route_inventory": {
+    "source": "rest_get_server()->get_routes()",
+    "include_namespaces": ["wp/v2", "wp-block-editor/v1", "wp-site-health/v1", "oembed/1.0"],
+    "artifact": { "name": "rest_route_inventory", "semantic_key": "fuzz.rest.route_inventory", "required_for_proof": true }
+  },
   "route_groups": [
-    { "id": "posts", "namespace": "wp/v2", "patterns": ["/wp/v2/posts", "/wp/v2/pages", "/wp/v2/search"] },
-    { "id": "taxonomies", "namespace": "wp/v2", "patterns": ["/wp/v2/categories", "/wp/v2/tags", "/wp/v2/taxonomies", "/wp/v2/types", "/wp/v2/statuses"] },
-    { "id": "media", "namespace": "wp/v2", "patterns": ["/wp/v2/media"] },
-    { "id": "users", "namespace": "wp/v2", "patterns": ["/wp/v2/users", "/wp/v2/users/me"] },
-    { "id": "settings", "namespace": "wp/v2", "patterns": ["/wp/v2/settings"] },
-    { "id": "blocks", "namespace": "wp/v2", "patterns": ["/wp/v2/blocks", "/wp/v2/block-types", "/wp/v2/block-patterns/*", "/wp/v2/templates", "/wp/v2/template-parts", "/wp/v2/navigation"] },
+    { "id": "posts", "namespace": "wp/v2", "patterns": ["/wp/v2/posts", "/wp/v2/posts/*", "/wp/v2/pages", "/wp/v2/pages/*", "/wp/v2/search", "/wp/v2/autosaves", "/wp/v2/revisions"] },
+    { "id": "taxonomies", "namespace": "wp/v2", "patterns": ["/wp/v2/categories", "/wp/v2/categories/*", "/wp/v2/tags", "/wp/v2/tags/*", "/wp/v2/taxonomies", "/wp/v2/taxonomies/*", "/wp/v2/types", "/wp/v2/statuses"] },
+    { "id": "media", "namespace": "wp/v2", "patterns": ["/wp/v2/media", "/wp/v2/media/*"] },
+    { "id": "users", "namespace": "wp/v2", "patterns": ["/wp/v2/users", "/wp/v2/users/*", "/wp/v2/users/me", "/wp/v2/users/me/application-passwords"] },
+    { "id": "settings", "namespace": "wp/v2", "patterns": ["/wp/v2/settings", "/wp/v2/global-styles", "/wp/v2/global-styles/*", "/wp/v2/themes", "/wp/v2/themes/*"] },
+    { "id": "blocks", "namespace": "wp/v2", "patterns": ["/wp/v2/blocks", "/wp/v2/blocks/*", "/wp/v2/block-types", "/wp/v2/block-types/*", "/wp/v2/block-patterns/*", "/wp/v2/templates", "/wp/v2/templates/*", "/wp/v2/template-parts", "/wp/v2/template-parts/*", "/wp/v2/navigation", "/wp/v2/navigation/*"] },
     { "id": "site-health", "namespace": "wp-site-health/v1", "patterns": ["/wp-site-health/v1/*"] },
-    { "id": "menus", "namespace": "wp/v2", "patterns": ["/wp/v2/menus", "/wp/v2/menu-items", "/wp/v2/menu-locations"] }
+    { "id": "menus", "namespace": "wp/v2", "patterns": ["/wp/v2/menus", "/wp/v2/menus/*", "/wp/v2/menu-items", "/wp/v2/menu-items/*", "/wp/v2/menu-locations"] },
+    { "id": "oembed", "namespace": "oembed/1.0", "patterns": ["/oembed/1.0/embed", "/oembed/1.0/proxy"] }
   ],
+  "generated_case_rules": {
+    "source": "route_inventory",
+    "safe_methods": ["GET", "HEAD", "OPTIONS"],
+    "include_permission_roles": ["anonymous", "subscriber", "author", "editor", "administrator"],
+    "exclude_destructive_methods": ["POST", "PUT", "PATCH", "DELETE"],
+    "artifact": { "name": "generated_rest_request_cases", "semantic_key": "fuzz.rest.generated_cases", "required_for_proof": true }
+  },
   "safe_request_cases": [
     { "id": "posts-list", "method": "GET", "path": "/wp/v2/posts", "params": { "context": "view", "per_page": 5 } },
     { "id": "pages-list", "method": "GET", "path": "/wp/v2/pages", "params": { "context": "view", "per_page": 5 } },
+    { "id": "post-single-view", "method": "GET", "path": "/wp/v2/posts/{fixture_post_id}", "params": { "context": "view" } },
     { "id": "media-list", "method": "GET", "path": "/wp/v2/media", "params": { "context": "view", "per_page": 5 } },
+    { "id": "media-single-edit", "method": "GET", "path": "/wp/v2/media/{fixture_attachment_id}", "params": { "context": "edit" } },
     { "id": "users-me-edit", "method": "GET", "path": "/wp/v2/users/me", "params": { "context": "edit" } },
     { "id": "settings-edit", "method": "GET", "path": "/wp/v2/settings", "params": { "context": "edit" } },
     { "id": "taxonomies-view", "method": "GET", "path": "/wp/v2/taxonomies", "params": { "context": "view" } },
     { "id": "types-view", "method": "GET", "path": "/wp/v2/types", "params": { "context": "view" } },
     { "id": "block-types-edit", "method": "GET", "path": "/wp/v2/block-types", "params": { "context": "edit" } },
+    { "id": "templates-edit", "method": "GET", "path": "/wp/v2/templates", "params": { "context": "edit" } },
+    { "id": "menus-edit", "method": "GET", "path": "/wp/v2/menus", "params": { "context": "edit", "per_page": 5 } },
+    { "id": "site-health-tests", "method": "GET", "path": "/wp-site-health/v1/tests", "params": {} },
+    { "id": "oembed-proxy", "method": "GET", "path": "/oembed/1.0/proxy", "params": { "url": "{fixture_post_url}" } },
     { "id": "search-post", "method": "GET", "path": "/wp/v2/search", "params": { "search": "hello", "type": "post", "per_page": 5 } }
+  ],
+  "permission_boundaries": [
+    { "role": "anonymous", "expected_allowed_contexts": ["view"], "expected_denied_contexts": ["edit"], "assert_statuses": [200, 401, 403] },
+    { "role": "subscriber", "expected_allowed_contexts": ["view", "embed"], "expected_denied_contexts": ["edit_sensitive"], "assert_statuses": [200, 403] },
+    { "role": "author", "expected_allowed_contexts": ["view", "edit_own_content"], "expected_denied_contexts": ["edit_others_content", "manage_options"], "assert_statuses": [200, 403] },
+    { "role": "editor", "expected_allowed_contexts": ["view", "edit_posts", "edit_pages", "edit_others_content"], "expected_denied_contexts": ["manage_options"], "assert_statuses": [200, 403] },
+    { "role": "administrator", "expected_allowed_contexts": ["view", "edit", "manage_options"], "expected_denied_contexts": [], "assert_statuses": [200] }
+  ],
+  "proof_artifacts": [
+    { "name": "rest_route_inventory", "semantic_key": "fuzz.rest.route_inventory", "required_for_status": "E" },
+    { "name": "generated_rest_request_cases", "semantic_key": "fuzz.rest.generated_cases", "required_for_status": "E" },
+    { "name": "rest_permission_boundaries", "semantic_key": "fuzz.rest.permission_boundaries", "required_for_status": "P" },
+    { "name": "rest_case_execution_summary", "semantic_key": "fuzz.rest.execution_summary", "required_for_status": "P" }
   ]
 }

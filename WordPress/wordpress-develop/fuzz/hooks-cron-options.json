@@ -3,8 +3,8 @@
   "id": "hooks-cron-options",
   "label": "WordPress Core hooks, cron, options, transients, and rewrite coverage",
   "safety_class": "read_only",
-  "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-rewrites"],
-  "operations": ["hook-inventory", "cron-schedule-inventory", "autoloaded-option-inventory", "transient-lifecycle-inventory", "rewrite-rule-inventory"],
+  "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-postmeta", "wordpress-core-rewrites"],
+  "operations": ["hook-inventory", "cron-schedule-inventory", "option-inventory", "autoloaded-option-inventory", "transient-inventory", "transient-lifecycle-inventory", "postmeta-inventory", "rewrite-rule-inventory", "rewrite-query-attribution"],
   "case_budget": 160,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -19,8 +19,8 @@
   "cases": [
     {
       "case_id": "hooks-cron-options:runtime-state-inventory",
-      "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-rewrites"],
-      "operations": ["hook-inventory", "cron-schedule-inventory", "autoloaded-option-inventory", "transient-lifecycle-inventory", "rewrite-rule-inventory"],
+      "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-postmeta", "wordpress-core-rewrites"],
+      "operations": ["hook-inventory", "cron-schedule-inventory", "option-inventory", "autoloaded-option-inventory", "transient-inventory", "transient-lifecycle-inventory", "postmeta-inventory", "rewrite-rule-inventory", "rewrite-query-attribution"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["cron=default", "permalinks=postname", "transients=core-safe"] }],
         "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=runtime_state"] }],
@@ -30,6 +30,7 @@
         { "name": "hook_inventory", "path": "hooks-cron-options/hook_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.hooks" } },
         { "name": "cron_schedule", "path": "hooks-cron-options/cron_schedule.json", "required": true, "metadata": { "semantic_key": "fuzz.cron" } },
         { "name": "options_autoload", "path": "hooks-cron-options/options_autoload.json", "required": true, "metadata": { "semantic_key": "fuzz.options" } },
+        { "name": "rewrite_postmeta_options_inventory", "path": "hooks-cron-options/rewrite_postmeta_options_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.runtime.rewrite_postmeta_options_inventory" } },
         { "name": "transient_inventory", "path": "hooks-cron-options/transient_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.transients" } },
         { "name": "rewrite_rules", "path": "hooks-cron-options/rewrite_rules.json", "required": true, "metadata": { "semantic_key": "fuzz.rewrites" } },
         { "name": "runtime_state_summary", "path": "hooks-cron-options/runtime_state_summary.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }
@@ -38,12 +39,13 @@
     }
   ],
   "limits": { "max_cases": 160, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-rewrites"], "operations": ["hook-inventory", "cron-schedule-inventory", "autoloaded-option-inventory", "transient-lifecycle-inventory", "rewrite-rule-inventory"] },
+  "coverage": { "surface_ids": ["wordpress-core-hooks", "wordpress-core-cron", "wordpress-core-options", "wordpress-core-postmeta", "wordpress-core-rewrites"], "operations": ["hook-inventory", "cron-schedule-inventory", "option-inventory", "autoloaded-option-inventory", "transient-inventory", "transient-lifecycle-inventory", "postmeta-inventory", "rewrite-rule-inventory", "rewrite-query-attribution"] },
   "artifacts": {
     "expected": [
       { "name": "hook_inventory", "role": "fuzz_report", "semantic_key": "fuzz.hooks", "required": true },
       { "name": "cron_schedule", "role": "fuzz_report", "semantic_key": "fuzz.cron", "required": true },
       { "name": "options_autoload", "role": "fuzz_report", "semantic_key": "fuzz.options", "required": true },
+      { "name": "rewrite_postmeta_options_inventory", "role": "runtime_inventory", "semantic_key": "fuzz.runtime.rewrite_postmeta_options_inventory", "required": true },
       { "name": "transient_inventory", "role": "fuzz_report", "semantic_key": "fuzz.transients", "required": true },
       { "name": "rewrite_rules", "role": "fuzz_report", "semantic_key": "fuzz.rewrites", "required": true },
       { "name": "runtime_state_summary", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }
