@@ -24,7 +24,9 @@ const expectedSafetyClassifications = new Set([
   'bounded_authenticated_read',
   'bounded_catalog_fixture_mutation',
   'browser_fixture_trace',
+  'isolated_fixture_mutation',
   'network_guardrail_probe',
+  'performance_observation',
   'read_only_inventory',
   'synthetic_checkout_mutation',
 ]);

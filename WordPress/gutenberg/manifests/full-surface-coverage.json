@@ -31,6 +31,16 @@
       "fuzz_workloads": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
       "rig": "rigs/gutenberg-browser-coverage/rig.json",
       "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"]
+    },
+    "runtime_state": {
+      "coverage_goal": "Gutenberg hook, option, cron/state, postmeta, template, pattern, and editor-settings runtime inventory",
+      "fuzz_workload": "gutenberg-hooks-options-inventory",
+      "coverage_artifact": "homeboy/gutenberg-runtime-state-coverage/v1"
+    },
+    "performance_observation": {
+      "coverage_goal": "editor, site editor, block rendering, pattern preview, request timing, query count, asset fanout, and external HTTP guardrail summary artifacts",
+      "fuzz_workload": "gutenberg-editor-performance-observation",
+      "coverage_artifact": "homeboy/gutenberg-performance-observation/v1"
     }
   },
   "coverage_gap_reporting": {
@@ -56,7 +66,9 @@
       "database": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
       "server_requests": ["gutenberg-external-http-guardrail-fuzz"],
       "browser_requests": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
-      "block_rendering": ["block-rendering-coverage"]
+      "block_rendering": ["block-rendering-coverage"],
+      "runtime_state": ["gutenberg-hooks-options-inventory"],
+      "performance_observation": ["gutenberg-editor-performance-observation"]
     },
     "full-surface": {
       "rest_api": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],

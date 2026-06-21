@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-public-module-frontend-coverage",
+  "label": "Jetpack public module frontend coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["jetpack-public-frontend", "jetpack-modules", "browser-requests"],
+  "operations": ["module-frontend-render", "asset-request-capture", "xhr-fetch-capture", "connected-disconnected-classification"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/full-surface-coverage.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "jetpack-public-module-frontend-coverage" },
+  "cases": [{ "case_id": "jetpack-public-module-frontend-coverage:default", "surface_ids": ["jetpack-public-frontend", "jetpack-modules", "browser-requests"], "operations": ["module-frontend-render", "asset-request-capture", "xhr-fetch-capture", "connected-disconnected-classification"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.trace-browser-coverage", "args": ["surface=jetpack-public-modules", "states=connected,disconnected"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=public_module_frontend_coverage"] }] }, "artifacts": [{ "name": "public_module_frontend_coverage", "path": "jetpack-public-module-frontend-coverage/public_module_frontend_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "read_only" } }],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["jetpack-public-frontend", "jetpack-modules", "browser-requests"], "operations": ["module-frontend-render", "asset-request-capture", "xhr-fetch-capture", "connected-disconnected-classification"] },
+  "artifacts": { "expected": [{ "name": "public_module_frontend_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

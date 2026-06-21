@@ -58,6 +58,21 @@
       "coverage_goal": "bounded Jetpack sync queue/action serialization coverage without WordPress.com credentials",
       "workload": "fuzz/jetpack-sync-queue-coverage.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
+    },
+    "connection_fixtures": {
+      "coverage_goal": "connected/disconnected site fixture boundaries, token placeholder serialization, and WP.com-dependent skip classifications",
+      "workload": "fuzz/jetpack-connected-disconnected-fixtures.json",
+      "rig": "rigs/jetpack-api-route-inventory/rig.json"
+    },
+    "public_frontend": {
+      "coverage_goal": "public Jetpack module frontend rendering and request scenarios with connected/disconnected expectations",
+      "workload": "fuzz/jetpack-public-module-frontend-coverage.json",
+      "coverage_artifact": "wp-codebox/browser-request-coverage/v1"
+    },
+    "performance_observation": {
+      "coverage_goal": "Jetpack admin, REST, sync, module, frontend, query-count, request-timing, and external HTTP guardrail summaries",
+      "workload": "fuzz/jetpack-performance-observation.json",
+      "coverage_artifact": "homeboy/jetpack-performance-observation/v1"
     }
   },
   "coverage_profiles": {
@@ -69,6 +84,9 @@
       "options": ["jetpack-options-matrix"],
       "modules": ["jetpack-module-state-matrix"],
       "sync": ["jetpack-sync-queue-coverage"],
+      "connection_fixtures": ["jetpack-connected-disconnected-fixtures"],
+      "public_frontend": ["jetpack-public-module-frontend-coverage"],
+      "performance_observation": ["jetpack-performance-observation"],
       "browser_requests": ["dashboard", "connection", "modules", "settings"]
     }
   },
@@ -144,6 +162,33 @@
         "notes": ["Exercises local sync queue state only", "Outbound WordPress.com dispatch is blocked by the external HTTP guardrail"]
       },
       "artifact_expectations": { "required": ["metrics", "sync queue artifact"], "optional": ["serialized action samples"] }
+    },
+    "jetpack-connected-disconnected-fixtures": {
+      "surface": "connection_fixtures",
+      "coverage_shape": "connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, and WP.com-dependent skip classifications",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Uses synthetic placeholder connection values only", "Records connected_required, disconnected_expected, and credential_unavailable skip reasons instead of contacting WordPress.com"]
+      },
+      "artifact_expectations": { "required": ["metrics", "connection fixture matrix artifact"], "optional": ["skip reason samples", "placeholder serialization rows"] }
+    },
+    "jetpack-public-module-frontend-coverage": {
+      "surface": "public_frontend",
+      "coverage_shape": "public-module frontend rendering and request coverage for representative Jetpack modules across connected and disconnected fixture states",
+      "safety": {
+        "classification": "browser_fixture_trace",
+        "notes": ["Runs against local fixture pages and posts in WP Codebox", "External module calls are blocked or classified by the Jetpack HTTP guardrail"]
+      },
+      "artifact_expectations": { "required": ["browser request coverage artifact", "module scenario matrix"], "optional": ["screenshots", "console logs", "request waterfall"] }
+    },
+    "jetpack-performance-observation": {
+      "surface": "performance_observation",
+      "coverage_shape": "Jetpack admin, settings, REST, sync queue, module frontend, request timing, query count, asset, and external HTTP guardrail summary contract",
+      "safety": {
+        "classification": "performance_observation",
+        "notes": ["Summarizes executable coverage expectations without claiming proof until run artifacts exist", "Heavy proof runs should use offloaded Homeboy runners instead of local benchmarks"]
+      },
+      "artifact_expectations": { "required": ["metrics", "performance observation summary artifact"], "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"] }
     },
     "jetpack-external-http-guardrail": {
       "surface": "server_requests",

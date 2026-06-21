@@ -18,7 +18,7 @@ const fuzzManifests = readdirSync(fuzzDir)
     manifest: JSON.parse(readFileSync(path.join(fuzzDir, file), 'utf8')),
   }));
 
-assert.equal(fuzzManifests.length, 8, 'expected 8 Gutenberg fuzz manifests');
+assert.equal(fuzzManifests.length, 10, 'expected 10 Gutenberg fuzz manifests');
 
 const declaredFuzzIds = new Set(
   (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
@@ -38,7 +38,10 @@ const requiredSurfaces = new Set([
   'wordpress-admin-pages',
   'wordpress-database',
   'wordpress-database-queries',
+  'wordpress-hooks',
+  'wordpress-options',
   'performance-guardrails',
+  'gutenberg-performance-observation',
 ]);
 const coveredSurfaces = new Set();
 
