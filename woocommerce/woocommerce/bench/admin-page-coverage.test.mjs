@@ -13,6 +13,21 @@ const browserCoverageRig = JSON.parse(readFileSync(path.join(__dirname, '../rigs
 const manifest = JSON.parse(readFileSync(path.join(__dirname, '../manifests/full-surface-coverage.json'), 'utf8'));
 const adminAssetsCheck = path.join(__dirname, '../tools/check-admin-assets.sh');
 
+const summarizeArtifactVisits = (visits) => {
+  const measuredVisits = visits.filter((visit) => visit.status !== 'skipped');
+  const httpErrors = measuredVisits.filter((visit) => Number(visit.status_code) >= 400);
+  const requestErrors = measuredVisits.filter((visit) => visit.status === 'error');
+  const permissionBoundarySkips = visits.filter(
+    (visit) => visit.status === 'skipped' && visit.reasons?.includes('permission_boundary')
+  );
+
+  return {
+    success_rate: measuredVisits.length > 0 ? (measuredVisits.length - httpErrors.length - requestErrors.length) / measuredVisits.length : 0,
+    http_error_count: httpErrors.length,
+    skipped_permission_count: permissionBoundarySkips.length,
+  };
+};
+
 test('admin page coverage is bounded and skips unsafe admin actions', () => {
   assert.match(workload, /WC_ADMIN_PAGE_COVERAGE_LIMIT/);
   assert.match(workload, /min\( 100,/);
@@ -51,4 +66,44 @@ test('admin coverage rigs fail preflight when WooCommerce admin assets are missi
   writeFileSync(path.join(woocommercePath, 'assets/client/admin/wp-admin-scripts/index.asset.php'), '<?php return array();');
   const ready = spawnSync('bash', [adminAssetsCheck, woocommercePath], { encoding: 'utf8' });
   assert.equal(ready.status, 0);
+});
+
+test('admin page coverage treats expected shop-manager 403s as permission-boundary skips', () => {
+  assert.match(workload, /permission_boundary/);
+  assert.match(workload, /skipped_permission_count/);
+  assert.match(workload, /user_can\( \(int\) \$role_data\['user_id'\], \(string\) \$target\['capability'\] \)/);
+
+  const permissionBoundaryOnly = summarizeArtifactVisits([
+    {
+      role: 'shop_manager',
+      status: 'visited',
+      status_code: 200,
+      page: 'admin.php?page=wc-admin',
+    },
+    {
+      role: 'shop_manager',
+      status: 'skipped',
+      status_code: 403,
+      reasons: ['permission_boundary'],
+      capability: 'manage_options',
+      page: 'options-general.php',
+    },
+  ]);
+
+  assert.equal(permissionBoundaryOnly.success_rate, 1);
+  assert.equal(permissionBoundaryOnly.http_error_count, 0);
+  assert.equal(permissionBoundaryOnly.skipped_permission_count, 1);
+
+  const trueFailure = summarizeArtifactVisits([
+    {
+      role: 'shop_manager',
+      status: 'visited',
+      status_code: 500,
+      page: 'admin.php?page=wc-admin',
+    },
+  ]);
+
+  assert.equal(trueFailure.success_rate, 0);
+  assert.equal(trueFailure.http_error_count, 1);
+  assert.equal(trueFailure.skipped_permission_count, 0);
 });
