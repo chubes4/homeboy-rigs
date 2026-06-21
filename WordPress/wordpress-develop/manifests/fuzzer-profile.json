@@ -15,8 +15,8 @@
   "coverage_gap_report": {
     "schema": "homeboy-rigs/wordpress-core-fuzzer-coverage-gap/v1",
     "inputs": [
-      "REST route inventory and request case artifacts",
-      "DB inventory and REST query profile artifacts",
+      "REST route inventory, generated request case, and permission-boundary artifacts",
+      "DB schema inventory and REST query profile artifacts with options, postmeta, and rewrite attribution",
       "admin page coverage artifacts",
       "hook, cron, option, transient, and rewrite artifacts",
       "post type, post status, taxonomy, term, and permalink artifacts",
@@ -24,8 +24,9 @@
       "performance observation artifacts"
     ],
     "sections": [
-      "rest_routes_without_cases",
+      "rest_routes_without_cases_or_permission_boundaries",
       "registered_surfaces_without_inventory_rows",
+      "queries_without_options_postmeta_or_rewrite_attribution",
       "admin_pages_without_browser_readiness",
       "autoloaded_options_and_cron_outliers",
       "content_registration_gaps",

@@ -16,7 +16,7 @@ Run the route inventory workload:
 homeboy bench --rig wordpress-core-api-route-inventory --scenario wordpress-core-rest-route-inventory --iterations 1 --shared-state /tmp/wordpress-core-api-inventory
 ```
 
-Run the currently executable full-surface profile. It is intentionally limited to workload-backed REST route inventory until generated REST cases, DB inventory/profiling, external HTTP guardrails, and browser request coverage have concrete workload files:
+Run the legacy bench full-surface profile when you need compatibility with existing Homeboy bench primitives. Current fuzz coverage for `WordPress/wordpress-develop` lives in `../wordpress-develop` and has no benchmark fallback declaration:
 
 ```sh
 homeboy bench --rig wordpress-core-api-route-inventory --profile full-surface --iterations 1 --shared-state /tmp/wordpress-core-full-surface

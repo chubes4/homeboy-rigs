@@ -34,11 +34,11 @@ Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narro
 
 | Surface | Status | Current assets | Proven / missing edge |
 |---|---|---|---|
-| API | D/E | `WordPress/wordpress/manifests/rest-route-coverage.json`, `bench/wordpress-core-rest-route-inventory.php`, `bench/generated-rest-request-cases.workload.json` | Route inventory and generated safe REST cases are executable. No committed proof bundle is linked yet. |
-| DB | D/E | `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json` | Inventory and REST query profile primitives are present. Core-specific schema/query proof is pending. |
+| API | D/E | `WordPress/wordpress-develop/fuzz/rest-api.json`, `WordPress/wordpress-develop/manifests/rest-route-coverage.json`, legacy `WordPress/wordpress/bench/wordpress-core-rest-route-inventory.php`, legacy `bench/generated-rest-request-cases.workload.json` | Route inventory, generated safe REST cases, and role permission-boundary contracts are declared/executable. No reviewer-facing proof bundle is linked yet. |
+| DB | D/E | `WordPress/wordpress-develop/fuzz/db-inventory-query-profile.json`, legacy `bench/db-inventory.workload.json`, legacy `bench/rest-db-query-profile.workload.json` | Schema inventory, REST query profile, and options/postmeta/rewrite attribution contracts are declared/executable. Core-specific proof artifacts are pending. |
 | Admin | D/E partial | `WordPress/wordpress-develop/fuzz/admin-page-coverage.json`, `browser-scenarios/post_editor.json`, `site_editor.json`, `media_library.json`, `rigs/wordpress-core-browser-coverage/rig.json` | Safe admin-page enumeration is declared as a Core fuzz workload, and browser scenarios cover editor/admin-like flows. Proof artifacts are pending. |
 | External HTTP | D/E | `bench/wordpress-core-external-http-guardrail.php` | Guardrail executable exists; proof artifacts are pending. |
-| Hooks / cron / options | D/E | `WordPress/wordpress-develop/fuzz/hooks-cron-options.json`, `manifests/fuzzer-profile.json`, `rigs/wordpress-core-fuzz-coverage/rig.json` | Hooks, cron events, options, transients, and rewrite-rule inventory are declared as fuzz workloads. Proof artifacts are pending. |
+| Hooks / cron / options | D/E | `WordPress/wordpress-develop/fuzz/hooks-cron-options.json`, `manifests/fuzzer-profile.json`, `rigs/wordpress-core-fuzz-coverage/rig.json` | Hooks, cron events, options, transients, postmeta, rewrite-rule inventory, and rewrite query attribution are declared as fuzz workloads. Proof artifacts are pending. |
 | Frontend / rendering | D/E partial | `browser-scenarios/front_page.json`, editor scenarios, `bench/wordpress-core-browser-coverage.trace.mjs` | Front page and editor browser request coverage are executable. Rendering correctness and visual comparison are not claimed. |
 | Performance-related fuzz | D/E partial | `WordPress/wordpress-develop/fuzz/performance-surfaces.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | The full-surface profile declares representative bootstrap, REST, admin, editor, cron, media, query, timing, query-count, and asset observations, but no targeted core performance bug proof is linked. |
 
@@ -68,7 +68,7 @@ Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narro
 
 ## Pending Cross-Project Work
 
-- Core admin safe-page enumeration and hook/cron/options inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
+- Core REST permission-boundary, DB schema/query attribution, admin safe-page enumeration, and hook/cron/options/postmeta/rewrite inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
 - Jetpack module option/sync/cron coverage and public-module frontend scenarios are D/E; they still need proof artifacts before P.
 - All four projects need durable proof bundles or linked run artifacts before the full-surface rows can move from `D/E` to `P`.
 - Visual rendering correctness remains outside this matrix unless a workload explicitly uses WP Codebox visual comparison or another reviewer-facing visual artifact.
