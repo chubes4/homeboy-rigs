@@ -14,7 +14,17 @@
   "surfaces": {
     "rest_api": {
       "budget_manifest": "manifests/rest-route-budgets.json",
-      "coverage_goal": "all_wc_v3_wc_store_wc_admin_routes_and_generated_safe_cases"
+      "coverage_goal": "all_wc_v3_wc_store_wc_admin_routes_and_generated_safe_cases",
+      "generated_request_cases": {
+        "workload": "bench/generated-rest-request-cases.workload.json",
+        "status_contract": {
+          "public_read_success": "Store API catalog GET cases should return 200.",
+          "public_session_read_success": "Store API cart/checkout GET cases should return 200 without credentials.",
+          "auth_boundary": "Woo REST and wc-admin GET cases intentionally run without credentials and should return 401 or 403; 2xx, 404, or 5xx statuses are actionable coverage failures."
+        },
+        "safe_methods": ["GET"],
+        "surfaces": ["store_api", "wc_rest_api", "wc_admin_api"]
+      }
     },
     "database": {
       "coverage_goal": "all_tables_rows_columns_indexes_after_catalog_checkout_fixture_setup",

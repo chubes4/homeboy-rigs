@@ -13,39 +13,171 @@
       "method": "GET",
       "path": "/wc/store/v1/products",
       "params": { "per_page": 1 },
-      "capture-response": true
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_read_success"
+      }
+    },
+    {
+      "id": "woocommerce-store-product-categories",
+      "method": "GET",
+      "path": "/wc/store/v1/products/categories",
+      "params": { "per_page": 1 },
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_read_success"
+      }
+    },
+    {
+      "id": "woocommerce-store-product-tags",
+      "method": "GET",
+      "path": "/wc/store/v1/products/tags",
+      "params": { "per_page": 1 },
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_read_success"
+      }
+    },
+    {
+      "id": "woocommerce-store-product-attributes",
+      "method": "GET",
+      "path": "/wc/store/v1/products/attributes",
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_read_success"
+      }
+    },
+    {
+      "id": "woocommerce-store-product-reviews",
+      "method": "GET",
+      "path": "/wc/store/v1/products/reviews",
+      "params": { "per_page": 1 },
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_read_success"
+      }
+    },
+    {
+      "id": "woocommerce-store-product-collection-data",
+      "method": "GET",
+      "path": "/wc/store/v1/products/collection-data",
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_read_success"
+      }
     },
     {
       "id": "woocommerce-store-cart",
       "method": "GET",
       "path": "/wc/store/v1/cart",
-      "capture-response": true
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_session_read_success"
+      }
+    },
+    {
+      "id": "woocommerce-store-checkout",
+      "method": "GET",
+      "path": "/wc/store/v1/checkout",
+      "capture-response": true,
+      "metadata": {
+        "surface": "store_api",
+        "expected_statuses": [200],
+        "expected_outcome": "public_session_read_success"
+      }
     },
     {
       "id": "woocommerce-v3-products",
       "method": "GET",
       "path": "/wc/v3/products",
       "params": { "per_page": 1 },
-      "capture-response": true
+      "capture-response": true,
+      "metadata": {
+        "surface": "wc_rest_api",
+        "expected_statuses": [401, 403],
+        "expected_outcome": "auth_boundary"
+      }
     },
     {
       "id": "woocommerce-v3-orders",
       "method": "GET",
       "path": "/wc/v3/orders",
       "params": { "per_page": 1 },
-      "capture-response": true
+      "capture-response": true,
+      "metadata": {
+        "surface": "wc_rest_api",
+        "expected_statuses": [401, 403],
+        "expected_outcome": "auth_boundary"
+      }
+    },
+    {
+      "id": "woocommerce-v3-payment-gateways",
+      "method": "GET",
+      "path": "/wc/v3/payment_gateways",
+      "capture-response": true,
+      "metadata": {
+        "surface": "wc_rest_api",
+        "expected_statuses": [401, 403],
+        "expected_outcome": "auth_boundary"
+      }
+    },
+    {
+      "id": "woocommerce-v3-reports",
+      "method": "GET",
+      "path": "/wc/v3/reports",
+      "capture-response": true,
+      "metadata": {
+        "surface": "wc_rest_api",
+        "expected_statuses": [401, 403],
+        "expected_outcome": "auth_boundary"
+      }
+    },
+    {
+      "id": "woocommerce-v3-system-status",
+      "method": "GET",
+      "path": "/wc/v3/system_status",
+      "capture-response": true,
+      "metadata": {
+        "surface": "wc_rest_api",
+        "expected_statuses": [401, 403],
+        "expected_outcome": "auth_boundary"
+      }
     },
     {
       "id": "woocommerce-admin-options",
       "method": "GET",
       "path": "/wc-admin/options",
-      "capture-response": true
+      "capture-response": true,
+      "metadata": {
+        "surface": "wc_admin_api",
+        "expected_statuses": [401, 403],
+        "expected_outcome": "auth_boundary"
+      }
     }
   ],
   "metadata": {
     "runner": "wp-codebox",
     "workload": "generated-rest-request-cases",
-    "coverage_shape": "generated safe WooCommerce Store API, REST API, and admin REST request cases",
+    "coverage_shape": "generated safe WooCommerce Store API public reads plus REST/admin auth-boundary request cases",
+    "status_contract": {
+      "public_read_success": "Expected 200 for read-only Store API catalog routes.",
+      "public_session_read_success": "Expected 200 for read-only Store API cart/checkout session routes.",
+      "auth_boundary": "Expected 401 or 403 for credentialed Woo REST/admin routes when the workload has no API credentials. Other statuses indicate a route, bootstrap, or permission regression."
+    },
     "manifest": "manifests/full-surface-coverage.json"
   }
 }
