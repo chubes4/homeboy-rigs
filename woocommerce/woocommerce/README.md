@@ -143,6 +143,10 @@ homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route
 homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-rest-generated-cases --seed 1 --max-duration 20m
 homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-rest-db-query-profile --seed 1 --max-duration 20m
 homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-inventory --seed 1 --max-duration 10m
+homeboy fuzz run --rig woocommerce-performance --workload rest-permission-boundary-matrix --run-id wc-rest-permission-boundary-matrix --seed 1 --max-duration 20m
+homeboy fuzz run --rig woocommerce-performance --workload options-transients-coverage --run-id wc-options-transients-coverage --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload frontend-rendering-request-coverage --run-id wc-frontend-rendering-request-coverage --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-performance-hotspots-summary --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
 ```
 
@@ -150,14 +154,17 @@ homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-h
 component and `fuzz_workloads.wordpress` declarations. Fuzz workloads are not
 registered through `bench_workloads`, so there is no legacy bench fallback path
 for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
-admin coverage, REST coverage, DB inventory, or external HTTP guardrails.
+admin coverage, REST coverage, permission boundaries, DB inventory,
+options/transients, frontend rendering, performance summaries, or external HTTP
+guardrails.
 
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
-issue-focused checkout/catalog workloads above. Browser request coverage remains
-the separate `woocommerce-browser-coverage` trace profile, and performance timing
-remains in `bench_workloads`. Use Homeboy Lab for heavy `homeboy fuzz run` proof
-when the runner has a `homeboy` binary that exposes the `fuzz` command; do not
-substitute `homeboy bench` for missing fuzz support.
+issue-focused checkout/catalog workloads above. Browser request and performance
+summary fuzz manifests are proof-ready declarations until a `homeboy fuzz run`
+produces reviewer-facing artifacts. Performance timing remains in
+`bench_workloads`. Use Homeboy Lab for heavy `homeboy fuzz run` proof when the
+runner has a `homeboy` binary that exposes the `fuzz` command; do not substitute
+`homeboy bench` for missing fuzz support.
 
 ## Benchmark Commands
 
@@ -232,6 +239,19 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   Codebox HTTP runtime. It records HTTP status, redirects when visible, request
   timing, PHP notices/errors observed by a temporary runtime-only MU plugin, DB
   query counts and query shapes when available, and explicit skipped reasons.
+- `rest-permission-boundary-matrix` extends generated REST request coverage with
+  namespace and role-boundary expectations for Store API, wc/v*, wc-admin, and
+  wc-analytics routes. It is D/E until run artifacts prove route-level statuses.
+- `options-transients-coverage` declares option, transient, Action Scheduler,
+  lookup-table, and rollback-safe isolated option mutation coverage. It is D/E
+  until artifacts show rollback rows and transient/action deltas.
+- `frontend-rendering-request-coverage` declares shop, product, cart, checkout,
+  asset, XHR/fetch, and skipped-destructive-action frontend coverage. It is D/E
+  until browser request artifacts prove the scenario set.
+- `performance-hotspots-artifact-summary` defines the summary contract for
+  checkout/cart/catalog/admin/API timing, query counts, cache invalidation,
+  transient growth, gateway compatibility, and HTTP guardrail evidence. It does
+  not claim proof without linked fuzz run artifacts.
 
 ## Current Bench Workloads
 

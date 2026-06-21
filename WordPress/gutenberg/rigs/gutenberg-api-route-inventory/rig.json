@@ -47,6 +47,8 @@
       { "path": "${package.root}/fuzz/block-rendering-coverage.json" },
       { "path": "${package.root}/fuzz/gutenberg-db-inventory-fuzz.json" },
       { "path": "${package.root}/fuzz/gutenberg-rest-db-query-profile-fuzz.json" },
+      { "path": "${package.root}/fuzz/gutenberg-hooks-options-inventory.json" },
+      { "path": "${package.root}/fuzz/gutenberg-editor-performance-observation.json" },
       { "path": "${package.root}/fuzz/gutenberg-external-http-guardrail-fuzz.json" }
     ]
   },

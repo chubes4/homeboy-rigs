@@ -39,6 +39,9 @@
       { "path": "${package.root}/fuzz/jetpack-module-state-matrix.json" },
       { "path": "${package.root}/fuzz/jetpack-options-matrix.json" },
       { "path": "${package.root}/fuzz/jetpack-sync-queue-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-connected-disconnected-fixtures.json" },
+      { "path": "${package.root}/fuzz/jetpack-public-module-frontend-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-performance-observation.json" },
       { "path": "${package.root}/fuzz/jetpack-external-http-guardrail.json" }
     ]
   },

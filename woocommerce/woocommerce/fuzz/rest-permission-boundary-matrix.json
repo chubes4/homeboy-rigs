@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "rest-permission-boundary-matrix",
+  "label": "WooCommerce REST permission boundary matrix",
+  "safety_class": "read_only",
+  "surface_ids": ["woocommerce-rest-routes", "woocommerce-store-api", "woocommerce-admin-api", "wordpress-permissions"],
+  "operations": ["namespace-inventory", "role-boundary-classification", "status-contract-attribution"],
+  "case_budget": 240,
+  "duration_budget_seconds": 1200,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-plugin", "slug": "woocommerce", "component": "woocommerce" },
+  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/generated-rest-request-cases.workload.json", "entry": "rest-permission-boundary-matrix" },
+  "cases": [{ "case_id": "rest-permission-boundary-matrix:default", "surface_ids": ["woocommerce-rest-routes", "woocommerce-store-api", "woocommerce-admin-api", "wordpress-permissions"], "operations": ["namespace-inventory", "role-boundary-classification", "status-contract-attribution"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=woocommerce/woocommerce.php"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/generated-rest-request-cases.workload.json", "type=json", "surface=woocommerce-permission-boundaries"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_permission_boundary_matrix"] }] }, "artifacts": [{ "name": "rest_permission_boundary_matrix", "path": "rest-permission-boundary-matrix/rest_permission_boundary_matrix.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "read_only" } }],
+  "limits": { "max_cases": 240, "max_duration_seconds": 1200 },
+  "coverage": { "surface_ids": ["woocommerce-rest-routes", "woocommerce-store-api", "woocommerce-admin-api", "wordpress-permissions"], "operations": ["namespace-inventory", "role-boundary-classification", "status-contract-attribution"] },
+  "artifacts": { "expected": [{ "name": "rest_permission_boundary_matrix", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

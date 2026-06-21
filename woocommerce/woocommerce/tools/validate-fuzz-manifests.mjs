@@ -17,9 +17,13 @@ const expectedFuzzIds = new Set([
   'checkout-gateway-compatibility-matrix',
   'checkout-shipping-cache',
   'db-inventory',
+  'frontend-rendering-request-coverage',
   'generated-rest-request-cases',
   'layered-nav-catalog-crawl',
   'layered-nav-count-cache',
+  'options-transients-coverage',
+  'performance-hotspots-artifact-summary',
+  'rest-permission-boundary-matrix',
   'rest-db-query-profile',
   'woocommerce-external-http-guardrail',
   'woocommerce-rest-route-inventory',
@@ -34,7 +38,7 @@ const fuzzManifests = readdirSync(fuzzDir)
     manifest: JSON.parse(readFileSync(path.join(fuzzDir, file), 'utf8')),
   }));
 
-assert.equal(fuzzManifests.length, 12, 'expected 12 WooCommerce fuzz manifests');
+assert.equal(fuzzManifests.length, 16, 'expected 16 WooCommerce fuzz manifests');
 
 const declaredFuzzIds = new Set(
   (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
@@ -50,12 +54,9 @@ const actualFuzzIds = new Set(fuzzManifests.map(({ manifest }) => manifest.id));
 assert.deepEqual(actualFuzzIds, expectedFuzzIds, 'WooCommerce fuzz manifest ids drifted');
 assert.deepEqual(declaredFuzzIds, expectedFuzzIds, 'rig fuzz_workloads.wordpress ids drifted');
 
-const fullSurfaceFuzzIds = new Set([
-  ...coverageManifest.coverage_profiles['full-surface'].rest_api,
-  ...coverageManifest.coverage_profiles['full-surface'].database,
-  ...coverageManifest.coverage_profiles['full-surface'].server_requests,
-  ...coverageManifest.coverage_profiles['full-surface'].authenticated_admin_pages,
-]);
+const fullSurfaceFuzzIds = new Set(Object.entries(coverageManifest.coverage_profiles['full-surface'])
+  .filter(([surface]) => surface !== 'browser_requests')
+  .flatMap(([, workloadIds]) => workloadIds));
 
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredFuzzIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);

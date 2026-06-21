@@ -30,7 +30,7 @@ stay generic.
 
 ## `gutenberg` fuzzer profile
 
-`manifests/fuzzer-profile.json` defines a rig-owned Gutenberg fuzzer profile analogous to the Woo full-surface shape. It composes REST route coverage, `wp-admin` and editor page coverage, block editor load/action probes, Site Editor probes, block rendering, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting without moving Gutenberg-specific knowledge into Homeboy core or Homeboy Extensions.
+`manifests/fuzzer-profile.json` defines a rig-owned Gutenberg fuzzer profile analogous to the Woo full-surface shape. It composes REST route coverage, `wp-admin` and editor page coverage, block editor load/action probes, Site Editor probes, block rendering, DB query/profile hooks, hook/option/postmeta/runtime-state inventory, editor performance observation summaries, external HTTP guardrails, and coverage-gap reporting without moving Gutenberg-specific knowledge into Homeboy core or Homeboy Extensions.
 
 Run the fuzzer manifests through the WordPress extension runner:
 
@@ -39,6 +39,11 @@ homeboy fuzz --rig gutenberg-api-route-inventory --runner wordpress --shared-sta
 ```
 
 See `docs/fuzzer-profile.md` for the gap-report contract and current limits.
+
+Current D/E-only fuzz workload additions:
+
+- `gutenberg-hooks-options-inventory` declares hook, option, postmeta, template/pattern, and cron/state inventory. It is not P until a fuzz run emits the runtime-state artifact.
+- `gutenberg-editor-performance-observation` declares editor, Site Editor, block rendering, pattern preview, request timing, query count, asset fanout, and HTTP guardrail summaries. Pattern preview has issue-linked proof separately; this summary manifest needs its own artifacts before P.
 
 ## `gutenberg-pattern-preview-assets`
 

@@ -17,7 +17,7 @@ homeboy rig check wordpress-core-fuzz-coverage
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
 ```
 
-The suite intentionally declares `fuzz_workloads` and `fuzz_profiles` only. It does not register `bench_workloads` or `bench_profiles`, so there is no benchmark fallback path.
+The suite intentionally declares `fuzz_workloads` and `fuzz_profiles` only. It does not register `bench_workloads` or `bench_profiles`, so there is no benchmark fallback path. These manifests are D/E coverage contracts until `homeboy fuzz run` artifacts prove the surfaces.
 
 ## Coverage Shape
 

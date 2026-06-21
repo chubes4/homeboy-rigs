@@ -17,6 +17,7 @@ const expectedSafetyClassifications = new Set([
   'browser_fixture_trace',
   'isolated_fixture_mutation',
   'network_guardrail_probe',
+  'performance_observation',
   'read_only_inventory',
 ]);
 

@@ -23,7 +23,8 @@
           "auth_boundary": "Woo REST and wc-admin GET cases intentionally run without credentials and should return 401 or 403; 2xx, 404, or 5xx statuses are actionable coverage failures."
         },
         "safe_methods": ["GET"],
-        "surfaces": ["store_api", "wc_rest_api", "wc_admin_api"]
+        "surfaces": ["store_api", "wc_rest_api", "wc_admin_api"],
+        "permission_boundary_workload": "fuzz/rest-permission-boundary-matrix.json"
       }
     },
     "database": {
@@ -47,6 +48,21 @@
       "coverage_artifact": "homeboy/woocommerce-admin-page-coverage/v1",
       "workload": "bench/admin-page-coverage.php",
       "rig": "rigs/woocommerce-performance/rig.json"
+    },
+    "options_transients": {
+      "coverage_goal": "WooCommerce option, transient, Action Scheduler, lookup table, and rollback-safe isolated mutation attribution",
+      "workload": "fuzz/options-transients-coverage.json",
+      "coverage_artifact": "homeboy/woocommerce-options-transients-coverage/v1"
+    },
+    "frontend_rendering": {
+      "coverage_goal": "shop, product, cart, checkout, asset, XHR/fetch, and skipped-destructive-action frontend rendering/request coverage",
+      "workload": "fuzz/frontend-rendering-request-coverage.json",
+      "coverage_artifact": "wp-codebox/browser-request-coverage/v1"
+    },
+    "performance_hotspots": {
+      "coverage_goal": "checkout, cart/session, catalog, admin, API, cache invalidation, transient growth, gateway, and HTTP guardrail summary artifacts",
+      "workload": "fuzz/performance-hotspots-artifact-summary.json",
+      "coverage_artifact": "homeboy/woocommerce-performance-hotspots-summary/v1"
     }
   },
   "coverage_profiles": {
@@ -55,6 +71,10 @@
       "database": ["db-inventory", "rest-db-query-profile"],
       "server_requests": ["woocommerce-external-http-guardrail"],
       "authenticated_admin_pages": ["admin-page-coverage"],
+      "permission_boundaries": ["rest-permission-boundary-matrix"],
+      "options_transients": ["options-transients-coverage"],
+      "frontend_rendering": ["frontend-rendering-request-coverage"],
+      "performance_hotspots": ["performance-hotspots-artifact-summary"],
       "browser_requests": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
     }
   },
@@ -237,6 +257,54 @@
       "artifact_expectations": {
         "required": ["metrics", "database inventory"],
         "optional": ["column inventory", "index inventory"]
+      }
+    },
+    "rest-permission-boundary-matrix": {
+      "surface": "rest_api_permissions",
+      "coverage_shape": "WooCommerce Store API, wc/v*, wc-admin, and wc-analytics namespace permission-boundary matrix for public, anonymous, administrator, and shop-manager expectations",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Uses generated safe request cases only", "Classifies expected 2xx/401/403 boundaries instead of mutating catalog, order, or payment state"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "permission boundary matrix artifact"],
+        "optional": ["route-level status samples", "role classification gaps"]
+      }
+    },
+    "options-transients-coverage": {
+      "surface": "options_transients_action_scheduler",
+      "coverage_shape": "WooCommerce option, transient, lookup-table, and Action Scheduler inventory with rollback-safe isolated option mutation cases",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Mutates only synthetic or fixture-scoped options in the isolated runner", "Restores original option values and records skipped destructive or credential-bearing options"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "options/transients coverage artifact"],
+        "optional": ["rollback samples", "Action Scheduler delta rows", "transient growth attribution"]
+      }
+    },
+    "frontend-rendering-request-coverage": {
+      "surface": "frontend_rendering_requests",
+      "coverage_shape": "Shop, product, cart, and checkout frontend render/request coverage with assets, XHR/fetch requests, and skipped destructive action reason codes",
+      "safety": {
+        "classification": "browser_fixture_trace",
+        "notes": ["Runs against synthetic shop/cart fixtures in WP Codebox", "Checkout coverage stops before live payment submission unless a separate synthetic checkout workload owns the mutation"]
+      },
+      "artifact_expectations": {
+        "required": ["browser request coverage artifact", "skipped/destructive reason codes"],
+        "optional": ["screenshots", "console logs", "request waterfall"]
+      }
+    },
+    "performance-hotspots-artifact-summary": {
+      "surface": "performance_hotspot_summary",
+      "coverage_shape": "Proof-ready summary contract for checkout/cart/catalog/admin/API timing, query counts, cache invalidation, transient growth, gateway compatibility, and HTTP guardrail artifacts",
+      "safety": {
+        "classification": "performance_observation",
+        "notes": ["Summarizes declared fuzz and benchmark artifacts without claiming proof until run artifacts exist", "Heavy benchmark proof should run through Homeboy Lab/offloaded runners"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "performance hotspot summary artifact"],
+        "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"]
       }
     },
     "woocommerce-browser-coverage": {
