@@ -24,7 +24,9 @@
         },
         "safe_methods": ["GET"],
         "surfaces": ["store_api", "wc_rest_api", "wc_admin_api"],
-        "permission_boundary_workload": "fuzz/rest-permission-boundary-matrix.json"
+        "permission_boundary_workload": "fuzz/rest-permission-boundary-matrix.json",
+        "namespace_generated_cases_workload": "fuzz/rest-namespace-generated-cases.json",
+        "schema_query_attribution_workload": "fuzz/rest-schema-query-attribution.json"
       }
     },
     "database": {
@@ -47,12 +49,40 @@
       "coverage_goal": "bounded_safe_wp_admin_and_woo_admin_menu_submenu_get_pages_as_admin_and_shop_manager",
       "coverage_artifact": "homeboy/woocommerce-admin-page-coverage/v1",
       "workload": "bench/admin-page-coverage.php",
-      "rig": "rigs/woocommerce-performance/rig.json"
+      "rig": "rigs/woocommerce-performance/rig.json",
+      "enumeration_contract": {
+        "schema": "homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1",
+        "sources": ["global $menu", "global $submenu"],
+        "methods": ["GET"],
+        "roles": {
+          "administrator": "safe enumerated GET targets should be reachable unless the target redirects",
+          "shop_manager": "safe enumerated GET targets should be reachable when shop_manager has the target capability; capability failures are expected permission_boundary skips"
+        },
+        "skip_reason_codes": [
+          "creation_install_update_or_export_screen",
+          "unsafe_query_arg_action",
+          "unsafe_query_arg_action2",
+          "unsafe_query_arg_delete",
+          "unsafe_query_arg_trash",
+          "unsafe_query_arg_untrash",
+          "unsafe_query_arg_activate",
+          "unsafe_query_arg_deactivate",
+          "setup_or_onboarding_screen",
+          "role_unavailable",
+          "permission_boundary"
+        ],
+        "artifact_expectations": {
+          "schema": "homeboy-rigs/woocommerce-admin-page-coverage/v1",
+          "required": ["contract", "targets", "visits", "skipped", "request_logs", "query_attribution", "metrics"]
+        }
+      }
     },
     "options_transients": {
       "coverage_goal": "WooCommerce option, transient, Action Scheduler, lookup table, and rollback-safe isolated mutation attribution",
       "workload": "fuzz/options-transients-coverage.json",
-      "coverage_artifact": "homeboy/woocommerce-options-transients-coverage/v1"
+      "coverage_artifact": "homeboy/woocommerce-options-transients-coverage/v1",
+      "action_scheduler_lookup_workload": "fuzz/action-scheduler-lookup-table-coverage.json",
+      "rollback_safe_mutation_workload": "fuzz/rollback-safe-options-transients-mutations.json"
     },
     "frontend_rendering": {
       "coverage_goal": "shop, product, cart, checkout, asset, XHR/fetch, and skipped-destructive-action frontend rendering/request coverage",
@@ -67,12 +97,12 @@
   },
   "coverage_profiles": {
     "full-surface": {
-      "rest_api": ["woocommerce-rest-route-inventory", "generated-rest-request-cases"],
-      "database": ["db-inventory", "rest-db-query-profile"],
+      "rest_api": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-permission-boundary-matrix", "rest-namespace-generated-cases", "rest-schema-query-attribution"],
+      "database": ["db-inventory", "rest-db-query-profile", "rest-schema-query-attribution", "action-scheduler-lookup-table-coverage"],
       "server_requests": ["woocommerce-external-http-guardrail"],
       "authenticated_admin_pages": ["admin-page-coverage"],
       "permission_boundaries": ["rest-permission-boundary-matrix"],
-      "options_transients": ["options-transients-coverage"],
+      "options_transients": ["options-transients-coverage", "action-scheduler-lookup-table-coverage", "rollback-safe-options-transients-mutations"],
       "frontend_rendering": ["frontend-rendering-request-coverage"],
       "performance_hotspots": ["performance-hotspots-artifact-summary"],
       "browser_requests": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
@@ -180,10 +210,10 @@
       "coverage_shape": "bounded authenticated wp-admin and Woo admin menu/submenu GET coverage for administrator and shop manager roles",
       "safety": {
         "classification": "bounded_authenticated_read",
-        "notes": ["GET-only admin page visits with explicit skips for create/install/update/destructive screens", "Per-role page limits bound the request volume"]
+        "notes": ["GET-only admin page visits with explicit skips for create/install/update/destructive screens", "Per-role page limits bound the request volume", "Administrator and shop_manager expectations are emitted in the admin page enumeration contract"]
       },
       "artifact_expectations": {
-        "required": ["metrics", "admin_page_coverage json artifact"],
+        "required": ["metrics", "admin_page_coverage json artifact", "enumeration contract", "skip reason counts", "role-boundary expectations"],
         "optional": ["request logs"]
       }
     },
@@ -271,6 +301,42 @@
         "optional": ["route-level status samples", "role classification gaps"]
       }
     },
+    "rest-namespace-generated-cases": {
+      "surface": "rest_api_namespaces",
+      "coverage_shape": "WooCommerce wc/v*, Store API, wc-admin, and wc-analytics namespace classification with generated safe GET cases and route-gap attribution",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Uses generated GET cases against local WooCommerce REST namespaces", "Captures namespace gaps without mutating orders, products, payments, or customer data"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "namespace generated case artifact"],
+        "optional": ["route gap rows", "namespace case counts"]
+      }
+    },
+    "rest-schema-query-attribution": {
+      "surface": "rest_api_schema_database",
+      "coverage_shape": "Route-level WooCommerce REST schema, SQL query shape, and route-to-table attribution for generated safe request cases",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Profiles bounded REST cases only", "SQL samples are capped and attributed to route/schema/table families for review"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "schema/query attribution artifact"],
+        "optional": ["route-to-table samples", "query family summaries"]
+      }
+    },
+    "action-scheduler-lookup-table-coverage": {
+      "surface": "action_scheduler_lookup_tables",
+      "coverage_shape": "WooCommerce Action Scheduler delta, lookup-table inventory, and lookup row attribution around fixture setup and safe request cases",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Reads Action Scheduler and WooCommerce lookup tables in the isolated runner", "Records deltas and row attribution without dispatching live jobs or external side effects"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "Action Scheduler and lookup table artifact"],
+        "optional": ["scheduled action deltas", "lookup row samples"]
+      }
+    },
     "options-transients-coverage": {
       "surface": "options_transients_action_scheduler",
       "coverage_shape": "WooCommerce option, transient, lookup-table, and Action Scheduler inventory with rollback-safe isolated option mutation cases",
@@ -281,6 +347,18 @@
       "artifact_expectations": {
         "required": ["metrics", "options/transients coverage artifact"],
         "optional": ["rollback samples", "Action Scheduler delta rows", "transient growth attribution"]
+      }
+    },
+    "rollback-safe-options-transients-mutations": {
+      "surface": "rollback_safe_options_transients",
+      "coverage_shape": "Rollback-safe WooCommerce option and transient mutation cases with skipped sensitive option attribution",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Mutates only isolated runner option/transient fixtures", "Restores original values and records skipped credential-bearing or destructive keys"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "rollback-safe mutation artifact"],
+        "optional": ["rollback verification rows", "skipped sensitive option reasons"]
       }
     },
     "frontend-rendering-request-coverage": {

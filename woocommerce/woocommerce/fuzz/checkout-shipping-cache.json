@@ -86,7 +86,7 @@
         {
           "name": "raw_result",
           "path": "checkout-shipping-cache/raw_result.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -112,13 +112,20 @@
       "real-input-rehash"
     ]
   },
+  "proof_contracts": [
+    {
+      "id": "shipping-cache-invalidation",
+      "description": "Artifact must include package shape matrix results, cache key churn, warm-run behavior, real-input rehash checks, and cache invalidation pass/fail classification.",
+      "required_artifact": "raw_result"
+    }
+  ],
   "artifacts": {
     "expected": [
       {
         "name": "raw_result",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

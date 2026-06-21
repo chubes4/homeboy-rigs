@@ -144,7 +144,11 @@ homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request
 homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-rest-db-query-profile --seed 1 --max-duration 20m
 homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-inventory --seed 1 --max-duration 10m
 homeboy fuzz run --rig woocommerce-performance --workload rest-permission-boundary-matrix --run-id wc-rest-permission-boundary-matrix --seed 1 --max-duration 20m
+homeboy fuzz run --rig woocommerce-performance --workload rest-namespace-generated-cases --run-id wc-rest-namespace-generated-cases --seed 1 --max-duration 20m
+homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-rest-schema-query-attribution --seed 1 --max-duration 20m
+homeboy fuzz run --rig woocommerce-performance --workload action-scheduler-lookup-table-coverage --run-id wc-action-scheduler-lookup-table-coverage --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload options-transients-coverage --run-id wc-options-transients-coverage --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload rollback-safe-options-transients-mutations --run-id wc-rollback-safe-options-transients-mutations --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload frontend-rendering-request-coverage --run-id wc-frontend-rendering-request-coverage --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-performance-hotspots-summary --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
@@ -154,9 +158,10 @@ homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-h
 component and `fuzz_workloads.wordpress` declarations. Fuzz workloads are not
 registered through `bench_workloads`, so there is no legacy bench fallback path
 for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
-admin coverage, REST coverage, permission boundaries, DB inventory,
-options/transients, frontend rendering, performance summaries, or external HTTP
-guardrails.
+  admin coverage, REST coverage, namespace generated cases, permission
+  boundaries, schema/query attribution, DB inventory, Action Scheduler, lookup
+  tables, rollback-safe options/transients, frontend rendering, performance
+  summaries, or external HTTP guardrails.
 
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance
@@ -235,16 +240,36 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   hand-picked endpoints.
 - `admin-page-coverage` enumerates registered wp-admin menu and submenu URLs,
   skips known unsafe creation/install/update/export/action targets, then visits
-  the bounded safe GET set as admin and shop manager through the disposable WP
-  Codebox HTTP runtime. It records HTTP status, redirects when visible, request
-  timing, PHP notices/errors observed by a temporary runtime-only MU plugin, DB
-  query counts and query shapes when available, and explicit skipped reasons.
+  the bounded safe GET set as administrator and shop manager through the generic
+  fuzz workload path and disposable WP Codebox HTTP runtime. It emits the
+  `homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1` contract for
+  `$menu`/`$submenu` enumeration, GET-only scope, administrator vs shop-manager
+  expectations, skipped/destructive reason codes, and required artifact fields.
+  The JSON artifact uses `homeboy-rigs/woocommerce-admin-page-coverage/v1` and
+  records targets, visits, skipped rows, request logs, query attribution, metrics,
+  HTTP status, redirects when visible, request timing, PHP notices/errors observed
+  by a temporary runtime-only MU plugin, DB query counts and query shapes when
+  available, and skip reason counts.
 - `rest-permission-boundary-matrix` extends generated REST request coverage with
   namespace and role-boundary expectations for Store API, wc/v*, wc-admin, and
   wc-analytics routes. It is D/E until run artifacts prove route-level statuses.
+- `rest-namespace-generated-cases` declares proof-ready namespace classification
+  and generated safe GET case coverage for Store API, wc/v*, wc-admin, and
+  wc-analytics routes, including route-gap attribution for missing or skipped
+  cases.
+- `rest-schema-query-attribution` declares route-level schema, SQL query shape,
+  and route-to-table attribution for generated safe request cases, with capped
+  query samples suitable for reviewer artifacts.
+- `action-scheduler-lookup-table-coverage` declares Action Scheduler delta,
+  WooCommerce lookup-table inventory, and lookup row attribution around fixture
+  setup and safe request cases without dispatching live jobs.
 - `options-transients-coverage` declares option, transient, Action Scheduler,
   lookup-table, and rollback-safe isolated option mutation coverage. It is D/E
   until artifacts show rollback rows and transient/action deltas.
+- `rollback-safe-options-transients-mutations` narrows the isolated mutation
+  contract to rollback verification, transient growth attribution, and skipped
+  sensitive option reasons so options/transients proof can be reviewed without
+  inferring mutation safety from the broader inventory workload.
 - `frontend-rendering-request-coverage` declares shop, product, cart, checkout,
   asset, XHR/fetch, and skipped-destructive-action frontend coverage. It is D/E
   until browser request artifacts prove the scenario set.
@@ -313,8 +338,26 @@ The first slice reports:
   `wc_other_route_count` for the first full WooCommerce API coverage primitive.
 - `enumerated_admin_url_count`, `visited_admin_url_count`, `total_visit_count`,
   `skipped_unsafe_count`, `http_error_count`, `request_error_count`,
-  `php_error_notice_count`, `max_query_count`, and `avg_query_count` for bounded
-  authenticated wp-admin/Woo admin page coverage.
+  `php_error_notice_count`, `max_query_count`, `avg_query_count`,
+  `skip_reason_counts`, `admin_page_contract_schema`, and
+  `artifact_contract_schema` for bounded authenticated wp-admin/Woo admin page
+  coverage.
+
+## Unproven Admin Surfaces
+
+The admin-page contract is executable and validated, but these surfaces remain
+unproven until a fresh offloaded `homeboy fuzz run` artifact is linked to the
+relevant tracker or PR:
+
+- Woo admin pages registered only by optional extensions or feature flags absent
+  from the selected WooCommerce checkout.
+- Setup, onboarding, install/update/export, create, activation, deletion, trash,
+  and other destructive/action-bearing admin screens, which are intentionally
+  skipped with explicit reason codes.
+- Non-GET admin mutations, AJAX handlers, and REST endpoints outside the
+  enumerated menu/submenu GET page set.
+- Visual correctness of Woo admin React screens; this workload captures request,
+  status, PHP error, and query evidence, not screenshot parity.
 - `direct_has_physical_products_ms`, `dashboard_setup_widget_ms`,
   `matching_query_elapsed_ms`, `matching_query_count`, `total_query_count`,
   seeded product/term counts, physical/virtual split, onboarding state, and

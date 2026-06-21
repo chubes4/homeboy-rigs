@@ -9,7 +9,9 @@
   ],
   "operations": [
     "admin-page-discovery",
+    "safe-menu-enumeration-contract",
     "permission-boundary-classification",
+    "skipped-destructive-reason-classification",
     "query-attribution"
   ],
   "case_budget": 80,
@@ -19,7 +21,9 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "admin_page_contract_schema": "homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1",
+    "artifact_contract_schema": "homeboy-rigs/woocommerce-admin-page-coverage/v1"
   },
   "target": {
     "type": "wordpress-plugin",
@@ -41,7 +45,9 @@
       ],
       "operations": [
         "admin-page-discovery",
+        "safe-menu-enumeration-contract",
         "permission-boundary-classification",
+        "skipped-destructive-reason-classification",
         "query-attribution"
       ],
       "phases": {
@@ -75,9 +81,20 @@
         {
           "name": "admin_page_coverage",
           "path": "admin-page-coverage/admin_page_coverage.json",
-          "required": false,
+          "required": true,
           "metadata": {
-            "semantic_key": "fuzz.report"
+            "semantic_key": "fuzz.report",
+            "schema": "homeboy-rigs/woocommerce-admin-page-coverage/v1",
+            "required_fields": [
+              "schema",
+              "contract",
+              "targets",
+              "visits",
+              "skipped",
+              "request_logs",
+              "query_attribution",
+              "metrics"
+            ]
           }
         }
       ],
@@ -97,7 +114,9 @@
     ],
     "operations": [
       "admin-page-discovery",
+      "safe-menu-enumeration-contract",
       "permission-boundary-classification",
+      "skipped-destructive-reason-classification",
       "query-attribution"
     ]
   },
@@ -107,7 +126,8 @@
         "name": "admin_page_coverage",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "schema": "homeboy-rigs/woocommerce-admin-page-coverage/v1",
+        "required": true
       }
     ]
   }
