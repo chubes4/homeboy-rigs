@@ -83,6 +83,31 @@ test('admin coverage rigs fail preflight when WooCommerce admin assets are missi
   assert.equal(ready.status, 0);
 });
 
+test('admin page coverage artifact includes additive bottleneck summaries', () => {
+  for (const rawField of ['visits', 'request_logs']) {
+    assert.match(workload, new RegExp(`'${rawField}'\\s*=>\\s*\\$${rawField}`));
+  }
+
+  for (const summaryField of [
+    'top_slow_visited_pages',
+    'top_query_count_pages',
+    'status_code_counts',
+    'permission_skip_count',
+    'php_error_summaries',
+    'php_fatal_summaries',
+  ]) {
+    assert.match(workload, new RegExp(`'${summaryField}'\\s*=>`));
+  }
+
+  assert.match(workload, /label'\s*=>\s*\(string\) \( \$visit\['label'\]/);
+  assert.match(workload, /page'\s*=>\s*\(string\) \( \$visit\['page'\]/);
+  assert.match(workload, /role'\s*=>\s*\(string\) \( \$visit\['role'\]/);
+  assert.match(workload, /status'\s*=>\s*\(string\) \( \$visit\['status'\]/);
+  assert.match(workload, /elapsed_ms'\s*=>\s*isset\( \$visit\['elapsed_ms'\] \)/);
+  assert.match(workload, /usort\( \$top_slow_visited_pages/);
+  assert.match(workload, /usort\( \$top_query_count_pages/);
+});
+
 test('admin page coverage treats expected shop-manager 403s as permission-boundary skips', () => {
   assert.match(workload, /permission_boundary/);
   assert.match(workload, /skipped_permission_count/);

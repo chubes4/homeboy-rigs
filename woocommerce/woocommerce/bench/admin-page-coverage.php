@@ -318,19 +318,60 @@ add_action( "shutdown", function () {
 	delete_option( $log_option );
 	delete_option( $log_option . '_expected' );
 
-	$status_counts              = array_count_values( array_map( static fn( array $visit ): string => (string) $visit['status'], $visits ) );
-	$measured_visits            = array_filter( $visits, static fn( array $visit ): bool => 'skipped' !== (string) $visit['status'] );
-	$http_errors                = array_filter( $measured_visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
-	$permission_boundary_skips  = array_filter( $visits, static fn( array $visit ): bool => 'skipped' === (string) $visit['status'] && in_array( 'permission_boundary', (array) ( $visit['reasons'] ?? array() ), true ) );
-	$php_errors                 = 0;
-	$query_counts               = array();
+	$status_counts             = array_count_values( array_map( static fn( array $visit ): string => (string) $visit['status'], $visits ) );
+	$measured_visits           = array_filter( $visits, static fn( array $visit ): bool => 'skipped' !== (string) $visit['status'] );
+	$http_errors               = array_filter( $measured_visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
+	$permission_boundary_skips = array_filter( $visits, static fn( array $visit ): bool => 'skipped' === (string) $visit['status'] && in_array( 'permission_boundary', (array) ( $visit['reasons'] ?? array() ), true ) );
+	$status_code_counts        = array_count_values( array_map( 'strval', array_filter( array_column( $visits, 'status_code' ), 'is_numeric' ) ) );
+	$php_errors                = 0;
+	$query_counts              = array();
+	$top_query_count_pages     = array();
+	$php_error_summaries       = array();
+	$php_fatal_summaries       = array();
 	foreach ( $request_logs as $record ) {
-		$php_errors += count( (array) ( $record['php_errors'] ?? array() ) );
+		foreach ( (array) ( $record['php_errors'] ?? array() ) as $error ) {
+			$php_errors++;
+			$php_error_summaries[] = array(
+				'path'     => (string) ( $record['path'] ?? '' ),
+				'severity' => (int) ( $error['severity'] ?? 0 ),
+				'message'  => (string) ( $error['message'] ?? '' ),
+				'file'     => (string) ( $error['file'] ?? '' ),
+				'line'     => (int) ( $error['line'] ?? 0 ),
+			);
+		}
+		$last_error = (array) ( $record['last_error'] ?? array() );
+		if ( $last_error && in_array( (int) ( $last_error['type'] ?? 0 ), array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR ), true ) ) {
+			$php_fatal_summaries[] = array(
+				'path'    => (string) ( $record['path'] ?? '' ),
+				'type'    => (int) ( $last_error['type'] ?? 0 ),
+				'message' => (string) ( $last_error['message'] ?? '' ),
+				'file'    => isset( $last_error['file'] ) ? basename( (string) $last_error['file'] ) : '',
+				'line'    => (int) ( $last_error['line'] ?? 0 ),
+			);
+		}
 		if ( isset( $record['query_count'] ) ) {
-			$query_counts[] = (int) $record['query_count'];
+			$query_count             = (int) $record['query_count'];
+			$query_counts[]          = $query_count;
+			$top_query_count_pages[] = array(
+				'path'            => (string) ( $record['path'] ?? '' ),
+				'query_count'     => $query_count,
+				'elapsed_ms'      => isset( $record['elapsed_ms'] ) ? (float) $record['elapsed_ms'] : null,
+				'php_error_count' => count( (array) ( $record['php_errors'] ?? array() ) ),
+			);
 		}
 	}
-
+	$top_slow_visited_pages = array_map(
+		static fn( array $visit ): array => array(
+			'label'      => (string) ( $visit['label'] ?? '' ),
+			'page'       => (string) ( $visit['page'] ?? '' ),
+			'role'       => (string) ( $visit['role'] ?? '' ),
+			'status'     => (string) ( $visit['status'] ?? '' ),
+			'elapsed_ms' => isset( $visit['elapsed_ms'] ) ? (float) $visit['elapsed_ms'] : null,
+		),
+		$visits
+	);
+	usort( $top_slow_visited_pages, static fn( array $left, array $right ): int => ( $right['elapsed_ms'] ?? 0 ) <=> ( $left['elapsed_ms'] ?? 0 ) );
+	usort( $top_query_count_pages, static fn( array $left, array $right ): int => $right['query_count'] <=> $left['query_count'] );
 	$summary = array(
 		'success_rate'              => count( $measured_visits ) > 0 ? ( count( $measured_visits ) - count( $http_errors ) - ( $status_counts['error'] ?? 0 ) ) / count( $measured_visits ) : 0,
 		'total_elapsed_ms'          => ( microtime( true ) - $started ) * 1000,
@@ -343,14 +384,20 @@ add_action( "shutdown", function () {
 		'request_error_count'        => $status_counts['error'] ?? 0,
 		'php_error_notice_count'     => $php_errors,
 		'max_query_count'            => $query_counts ? max( $query_counts ) : null,
-		'avg_query_count'            => $query_counts ? array_sum( $query_counts ) / count( $query_counts ) : null,
-		'query_shape_sample_count'   => $query_attribution['sample_count'],
+		'avg_query_count'             => $query_counts ? array_sum( $query_counts ) / count( $query_counts ) : null,
+		'top_slow_visited_pages'      => array_slice( $top_slow_visited_pages, 0, 5 ),
+		'top_query_count_pages'       => array_slice( $top_query_count_pages, 0, 5 ),
+		'status_code_counts'          => $status_code_counts,
+		'permission_skip_count'       => count( $permission_boundary_skips ),
+		'php_error_summaries'         => array_slice( $php_error_summaries, 0, 10 ),
+		'php_fatal_summaries'         => array_slice( $php_fatal_summaries, 0, 10 ),
+		'query_shape_sample_count'    => $query_attribution['sample_count'],
 		'distinct_query_shape_count'  => count( $query_shape_counts ),
 		'distinct_query_family_count' => count( $query_family_counts ),
-		'top_query_shape_count'      => isset( $query_attribution['top_query_shapes'][0]['count'] ) ? $query_attribution['top_query_shapes'][0]['count'] : 0,
-		'top_query_family_count'     => isset( $query_attribution['top_query_families'][0]['count'] ) ? $query_attribution['top_query_families'][0]['count'] : 0,
-		'top_query_shapes'           => $query_attribution['top_query_shapes'],
-		'top_query_families'         => $query_attribution['top_query_families'],
+		'top_query_shape_count'       => isset( $query_attribution['top_query_shapes'][0]['count'] ) ? $query_attribution['top_query_shapes'][0]['count'] : 0,
+		'top_query_family_count'      => isset( $query_attribution['top_query_families'][0]['count'] ) ? $query_attribution['top_query_families'][0]['count'] : 0,
+		'top_query_shapes'            => $query_attribution['top_query_shapes'],
+		'top_query_families'          => $query_attribution['top_query_families'],
 	);
 
 	$artifact_path = '';
