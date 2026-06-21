@@ -1,0 +1,36 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-db-inventory-fuzz",
+  "label": "Gutenberg database inventory coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["wordpress-database", "gutenberg-fixture-state"],
+  "operations": ["database-inventory", "fixture-state-classification"],
+  "case_budget": 20,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/db-inventory.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/db-inventory.workload.json", "entry": "db-inventory" },
+  "cases": [
+    {
+      "case_id": "gutenberg-db-inventory-fuzz:default",
+      "surface_ids": ["wordpress-database", "gutenberg-fixture-state"],
+      "operations": ["database-inventory", "fixture-state-classification"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/db-inventory.workload.json", "type=json"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=db_inventory"] }]
+      },
+      "artifacts": [{ "name": "db_inventory", "path": "db-inventory/db_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 20, "max_duration_seconds": 300 },
+  "coverage": { "surface_ids": ["wordpress-database", "gutenberg-fixture-state"], "operations": ["database-inventory", "fixture-state-classification"] },
+  "artifacts": { "expected": [{ "name": "db_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

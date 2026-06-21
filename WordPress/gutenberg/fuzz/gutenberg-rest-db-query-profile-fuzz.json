@@ -1,0 +1,36 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-rest-db-query-profile-fuzz",
+  "label": "Gutenberg REST database query profile coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"],
+  "operations": ["rest-query-profile", "query-shape-attribution"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/rest-db-query-profile.workload.json", "entry": "rest-db-query-profile" },
+  "cases": [
+    {
+      "case_id": "gutenberg-rest-db-query-profile-fuzz:default",
+      "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"],
+      "operations": ["rest-query-profile", "query-shape-attribution"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/rest-db-query-profile.workload.json", "type=json"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_db_query_profile"] }]
+      },
+      "artifacts": [{ "name": "rest_db_query_profile", "path": "rest-db-query-profile/rest_db_query_profile.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"], "operations": ["rest-query-profile", "query-shape-attribution"] },
+  "artifacts": { "expected": [{ "name": "rest_db_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

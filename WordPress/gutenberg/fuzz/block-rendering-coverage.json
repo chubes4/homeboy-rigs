@@ -1,0 +1,41 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "block-rendering-coverage",
+  "label": "Gutenberg dynamic block rendering coverage",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["gutenberg-block-renderer", "wordpress-rest-api", "wordpress-server-rendered-blocks"],
+  "operations": ["block-renderer-route-cases", "server-rendered-block-coverage"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "entry": "block-rendering-coverage"
+  },
+  "cases": [
+    {
+      "case_id": "block-rendering-coverage:default",
+      "surface_ids": ["gutenberg-block-renderer", "wordpress-rest-api", "wordpress-server-rendered-blocks"],
+      "operations": ["block-renderer-route-cases", "server-rendered-block-coverage"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/generated-rest-request-cases.workload.json", "type=json", "surface=gutenberg-block-renderer"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=block_rendering_coverage"] }]
+      },
+      "artifacts": [{ "name": "block_rendering_coverage", "path": "block-rendering-coverage/rest_request_cases.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["gutenberg-block-renderer", "wordpress-rest-api", "wordpress-server-rendered-blocks"], "operations": ["block-renderer-route-cases", "server-rendered-block-coverage"] },
+  "artifacts": { "expected": [{ "name": "block_rendering_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

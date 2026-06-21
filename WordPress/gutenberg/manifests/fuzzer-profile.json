@@ -9,20 +9,27 @@
     "fixtures": "manifests/performance-fixtures.json"
   },
   "execution": {
-    "bench_rig": "gutenberg-api-route-inventory",
-    "bench_profile": "fuzzer",
-    "trace_rig": "gutenberg-browser-coverage",
-    "trace_profile": "fuzzer"
+    "fuzz_rig": "gutenberg-api-route-inventory",
+    "fuzz_workloads": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "block-editor-browser-coverage",
+      "site-editor-browser-coverage",
+      "block-rendering-coverage",
+      "gutenberg-db-inventory-fuzz",
+      "gutenberg-rest-db-query-profile-fuzz",
+      "gutenberg-external-http-guardrail-fuzz"
+    ]
   },
   "surfaces": {
     "rest_route_coverage": {
-      "workloads": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
+      "workloads": ["gutenberg-rest-route-fuzz", "gutenberg-rest-request-cases-fuzz"],
       "target_manifest": "manifests/rest-route-coverage.json",
       "gap_rule": "Report registered Gutenberg-facing routes that do not have generated safe request cases."
     },
     "wp_admin_editor_pages": {
-      "trace_workload": "bench/gutenberg-browser-coverage.trace.mjs",
-      "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"],
+      "fuzz_workloads": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
+      "scenario_sources": ["browser-scenarios/post_editor.json", "browser-scenarios/site_editor.json", "browser-scenarios/template_editor.json", "browser-scenarios/patterns.json"],
       "gap_rule": "Report target scenarios missing browser request coverage artifacts or failing readiness steps."
     },
     "block_editor_load_action_probes": {
@@ -36,12 +43,12 @@
       "gap_rule": "Report editor screens that load but produce failed browser actions, browser errors, or no request coverage."
     },
     "db_query_profile_hooks": {
-      "workloads": ["db-inventory", "rest-db-query-profile"],
+      "workloads": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
       "budget_manifest": "manifests/rest-route-budgets.json",
       "gap_rule": "Report covered routes without query profiles and query profiles that exceed Gutenberg route budgets."
     },
     "server_request_guardrails": {
-      "workloads": ["gutenberg-external-http-guardrail"],
+      "workloads": ["gutenberg-external-http-guardrail-fuzz"],
       "allowed_hosts": ["api.wordpress.org"],
       "gap_rule": "Report unapproved outbound hosts touched by Gutenberg editor/library probes."
     }

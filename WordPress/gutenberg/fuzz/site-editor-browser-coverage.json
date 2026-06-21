@@ -1,0 +1,41 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "site-editor-browser-coverage",
+  "label": "Gutenberg site editor browser coverage",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["gutenberg-site-editor", "wordpress-admin-pages", "browser-requests"],
+  "operations": ["site-editor-page-load", "template-editor-action-probe", "browser-request-coverage"],
+  "case_budget": 24,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "trace",
+    "path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs",
+    "entry": "site_editor"
+  },
+  "cases": [
+    {
+      "case_id": "site-editor-browser-coverage:default",
+      "surface_ids": ["gutenberg-site-editor", "wordpress-admin-pages", "browser-requests"],
+      "operations": ["site-editor-page-load", "template-editor-action-probe", "browser-request-coverage"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-browser-coverage.trace.mjs", "type=trace", "scenario=site_editor"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=site_editor_browser_coverage"] }]
+      },
+      "artifacts": [{ "name": "site_editor_browser_coverage", "path": "site-editor-browser-coverage/browser_request_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "isolated_mutation" }
+    }
+  ],
+  "limits": { "max_cases": 24, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["gutenberg-site-editor", "wordpress-admin-pages", "browser-requests"], "operations": ["site-editor-page-load", "template-editor-action-probe", "browser-request-coverage"] },
+  "artifacts": { "expected": [{ "name": "site_editor_browser_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}
