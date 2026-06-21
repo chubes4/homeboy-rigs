@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "generated-rest-request-cases",
+  "label": "Generated WooCommerce REST request cases",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-rest-routes"],
+  "operations": ["generated-rest-case-plan", "request-case-execution"],
+  "case_budget": 200,
+  "duration_budget_seconds": 1200,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

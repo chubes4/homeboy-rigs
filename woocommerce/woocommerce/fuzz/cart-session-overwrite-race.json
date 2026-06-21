@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "cart-session-overwrite-race",
+  "label": "Cart session overwrite race",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-cart-session"],
+  "operations": ["session-write-race", "cart-hash-guardrail"],
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/cart-session-overwrite-race.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

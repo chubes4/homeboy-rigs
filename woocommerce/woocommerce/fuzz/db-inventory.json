@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "db-inventory",
+  "label": "WooCommerce database inventory",
+  "safety_class": "read_only",
+  "surface_ids": ["woocommerce-database-tables", "wordpress-database-tables"],
+  "operations": ["table-inventory", "index-inventory"],
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/db-inventory.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

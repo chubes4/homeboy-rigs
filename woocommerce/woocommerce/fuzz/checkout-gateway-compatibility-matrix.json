@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "checkout-gateway-compatibility-matrix",
+  "label": "Checkout gateway compatibility matrix",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-checkout-payment-gateways", "woocommerce-checkout-create-order"],
+  "operations": ["gateway-profile-matrix", "idempotency-repro", "dependency-readiness-classification"],
+  "case_budget": 12,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

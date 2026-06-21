@@ -35,9 +35,9 @@ homeboy rig check woocommerce-performance
 
 ## Runner Prerequisites
 
-The rig mounts the selected WooCommerce checkout into the disposable WP Codebox
-WordPress runtime. Pass `homeboy bench --path /absolute/path/to/plugins/woocommerce`
-when validating a specific WooCommerce worktree.
+The rig mounts the selected WooCommerce checkout into disposable WP Codebox
+WordPress runtimes. Pass `--path /absolute/path/to/plugins/woocommerce` when
+validating a specific WooCommerce worktree.
 
 The checkout gateway compatibility matrix defaults to the `core_only` profile
 set so BACS, Cheque, and COD controls can run even when real gateway plugin
@@ -45,7 +45,7 @@ materialization is unavailable. Select the focused Stripe profile set when the
 runner can prepare WooCommerce Stripe Gateway:
 
 ```bash
-homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
+homeboy fuzz run --rig woocommerce-performance --workload checkout-gateway-compatibility-matrix --run-id wc-gateway-stripe --seed 1 --max-duration 15m \
   --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET":"stripe"}' \
   --setting-json 'validation_dependencies=["woocommerce-gateway-stripe"]'
 ```
@@ -57,7 +57,7 @@ lowest-level escape hatch for comma-separated profile ids or gateway ids.
 Homeboy Extensions resolves that dependency through the runner dependency
 contract, prepares a runnable artifact when the source checkout needs Composer
 materialization, mounts the prepared plugin into WP Codebox, and attaches
-`prepared_dependencies` provenance to the final bench results. The workload
+`prepared_dependencies` provenance to the final fuzz results. The workload
 artifact reports the runtime side of that same contract: configured dependency,
 source path when explicitly provided, git revision when visible, prepared artifact
 path when exported, mounted plugin directory, plugin version, and status. If the
@@ -73,7 +73,7 @@ Codebox recipe mounting for Stripe product-page traces:
 {"source":"/path/to/woocommerce-gateway-stripe","slug":"woocommerce-gateway-stripe","pluginFile":"woocommerce-gateway-stripe/woocommerce-gateway-stripe.php","activate":true}
 ```
 
-The gateway matrix is a WordPress bench workload, so it consumes the same
+The gateway matrix is a WordPress fuzz workload, so it consumes the same
 slug/entrypoint/runtime metadata through Homeboy Extensions' WordPress dependency
 contract instead of building a second Stripe-specific mount path in this rig.
 
@@ -82,7 +82,7 @@ adding them to `validation_dependencies` or by overriding `wp_codebox_extra_plug
 and the matching artifact path env values:
 
 ```bash
-homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 \
+homeboy fuzz run --rig woocommerce-performance --workload checkout-gateway-compatibility-matrix --run-id wc-gateway-mounted-plugins --seed 1 --max-duration 15m \
   --setting-json 'wp_codebox_extra_plugins=[{"source":"/path/to/woocommerce-paypal-payments","slug":"woocommerce-paypal-payments","pluginFile":"woocommerce-paypal-payments/woocommerce-paypal-payments.php","activate":false},{"source":"/path/to/woocommerce-payments","slug":"woocommerce-payments","pluginFile":"woocommerce-payments/woocommerce-payments.php","activate":false}]' \
   --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH":"/path/to/woocommerce-paypal-payments","WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH":"/path/to/woocommerce-payments"}'
 ```
@@ -119,39 +119,50 @@ homeboy rig check woocommerce-performance
   `assets/client/admin/wp-admin-scripts/command-palette.asset.php` is missing.
 - It does not modify WooCommerce source files or switch branches.
 
-Admin coverage and full-surface runs require built WooCommerce admin JS outputs.
-`homeboy rig check woocommerce-performance` fails before benchmark execution when
+Admin coverage fuzz runs require built WooCommerce admin JS outputs.
+`homeboy rig check woocommerce-performance` fails before fuzz execution when
 `assets/client/admin/wp-admin-scripts/*.asset.php` registries or
 `vendor/automattic/jetpack-connection/dist/jetpack-connection.js` are missing.
 
 Equivalent manual prep, when needed for debugging, should run from the selected
 WooCommerce plugin directory.
 
+## Fuzz Commands
+
+```bash
+homeboy rig up woocommerce-performance
+homeboy fuzz list --rig woocommerce-performance
+homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-atomicity --seed 1 --max-duration 10m
+homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id wc-shipping-cache --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload admin-page-coverage --run-id wc-admin-coverage --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-rest-generated-cases --seed 1 --max-duration 20m
+```
+
+`homeboy fuzz --rig woocommerce-performance` resolves the rig's WooCommerce
+component and `fuzz_workloads.wordpress` declarations. Fuzz workloads are not
+registered through `bench_workloads`, so there is no legacy bench fallback path
+for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
+admin coverage, REST coverage, DB inventory, or external HTTP guardrails.
+
 ## Benchmark Commands
 
 ```bash
 homeboy rig up woocommerce-performance
-homeboy bench --rig woocommerce-performance --scenario checkout-concurrent-create-order --iterations 1 --shared-state /tmp/woocommerce-concurrent-checkout
-homeboy bench --rig woocommerce-performance --scenario checkout-gateway-compatibility-matrix --iterations 1 --shared-state /tmp/woocommerce-gateway-matrix
-homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
-homeboy bench --rig woocommerce-performance --scenario layered-nav-count-cache --iterations 1 --shared-state /tmp/woocommerce-layered-nav-cache --setting-json 'bench_env={"WC_LAYERED_NAV_CACHE_ITERATIONS":"150","WC_LAYERED_NAV_CACHE_LIMIT":"25"}'
-homeboy bench --rig woocommerce-performance --scenario layered-nav-catalog-crawl --iterations 1 --shared-state /tmp/woocommerce-layered-nav-crawl --setting-json 'bench_env={"WC_LAYERED_NAV_CRAWL_REQUESTS":"150","WC_LAYERED_NAV_CRAWL_LIMIT":"25"}'
-homeboy bench --rig woocommerce-performance --scenario admin-page-coverage --iterations 1 --shared-state /tmp/woocommerce-admin-page-coverage
-homeboy bench --rig woocommerce-performance --profile api-coverage --iterations 1 --shared-state /tmp/woocommerce-api-coverage
-homeboy bench --rig woocommerce-performance --profile full-surface --iterations 1 --shared-state /tmp/woocommerce-full-surface
-homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --setting-json 'bench_env={"WC_SHIPPING_CACHE_CART_ITEMS":"120","WC_SHIPPING_CACHE_PACKAGES":"24"}' --force-hot
+homeboy bench --rig woocommerce-performance --scenario rest-product-batch-import --iterations 1 --shared-state /tmp/woocommerce-rest-product-batch-import
+homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --force-hot
 ```
 
-The `full-surface` profile is executable because every listed workload ID is backed by a concrete `bench_workloads.wordpress` file declaration. It covers the existing WooCommerce REST route inventory, bounded authenticated admin page coverage, DB inventory/profiling, generated REST cases, external HTTP guardrails, and the large-merchant workload suite. Browser request coverage remains a separate trace rig until it can run as a concrete WordPress bench workload.
+The `hot` bench profile now contains only true performance workloads. Full-surface
+coverage moved to fuzz workload declarations.
 
 `homeboy bench --rig woocommerce-performance` runs through Homeboy Extensions'
 `wordpress.bench` / WP Codebox backend. WP Codebox owns the disposable WordPress
 runtime, mounts WooCommerce as the runtime plugin, mounts the rig's PHP workload
 into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
 
-## Current Workloads
+## Current Fuzz Workloads
 
 - `checkout-concurrent-create-order` calls public `WC_Checkout::create_order()`
   twice against the same cart to report duplicate-order behavior, then records
@@ -180,12 +191,6 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   packages, and measures cold, warm, totals-only churn, and address-rehashed
   shipping calculation passes through WooCommerce's checkout/cart shipping cache
   path.
-- `checkout-shortcode-place-order-latency` seeds a shortcode checkout page,
-  roughly 150 products, 125 variations, and historical CPT orders with HPOS
-  disabled, then drives `WC()->checkout()->process_checkout()` for COD and a
-  synthetic successful gateway while capturing checkout POST timing, order
-  creation timing, query counts, Action Scheduler deltas, and raw JSON evidence
-  for the slow place-order report in homeboy-rigs issue #223.
 - `checkout-concurrent-create-order` seeds one WooCommerce cart/session, then
   fires simultaneous `/?wc-ajax=checkout` POSTs with the same session cookie to
   distinguish true request races from sequential `create_order()` retry fixes.
@@ -196,12 +201,6 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   across many unique layered-nav count query hashes to measure growth of the
   single `wc_layered_nav_counts_*` taxonomy transient reported in WooCommerce
   issue #17355.
-- `admin-dashboard-physical-products-query` seeds configurable simple products
-  and product categories with deterministic `_virtual` metadata, sets the
-  WooCommerce onboarding state, exercises
-  `Shipping::has_physical_products()` plus the dashboard setup-widget PHP path,
-  and records whether the reported physical-products SQL appears on the tested
-  WooCommerce branch.
 - `layered-nav-catalog-crawl` uses real `filter_*` request combinations and
   renders the layered-nav widget list path for each request shape, measuring
   the same transient growth through a crawler/catalog-traffic-shaped path.
@@ -218,6 +217,23 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   Codebox HTTP runtime. It records HTTP status, redirects when visible, request
   timing, PHP notices/errors observed by a temporary runtime-only MU plugin, DB
   query counts and query shapes when available, and explicit skipped reasons.
+
+## Current Bench Workloads
+
+- `checkout-shortcode-place-order-latency` seeds a shortcode checkout page,
+  roughly 150 products, 125 variations, and historical CPT orders with HPOS
+  disabled, then drives `WC()->checkout()->process_checkout()` for COD and a
+  synthetic successful gateway while capturing checkout POST timing, order
+  creation timing, query counts, Action Scheduler deltas, and raw JSON evidence
+  for the slow place-order report in homeboy-rigs issue #223.
+- `admin-dashboard-physical-products-query` seeds configurable simple products
+  and product categories with deterministic `_virtual` metadata, sets the
+  WooCommerce onboarding state, exercises
+  `Shipping::has_physical_products()` plus the dashboard setup-widget PHP path,
+  and records whether the reported physical-products SQL appears on the tested
+  WooCommerce branch.
+- `rest-product-batch-import` measures WooCommerce REST product batch import
+  throughput and related query behavior for generated catalog shapes.
 
 ## Metrics
 
@@ -271,13 +287,13 @@ The first slice reports:
 
 See `docs/checkout-shipping-cache.md` for workload details and current TODOs.
 
-For baseline/candidate duplicate-checkout comparisons, run the focused profile
-against each WooCommerce checkout and keep the shared-state artifacts attached
-to the WooCommerce tracker or PR:
+For baseline/candidate duplicate-checkout comparisons, run the focused fuzz
+workload against each WooCommerce checkout and keep the artifacts attached to the
+WooCommerce tracker or PR:
 
 ```bash
-homeboy bench --rig woocommerce-performance --profile checkout-concurrent --iterations 1 --shared-state /tmp/wc-checkout-baseline
-homeboy bench --rig woocommerce-performance --profile checkout-concurrent --iterations 1 --shared-state /tmp/wc-checkout-candidate
+homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-baseline --seed 1 --max-duration 10m
+homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-candidate --seed 1 --max-duration 10m
 ```
 
 Use `bench_env.WC_CONCURRENT_CHECKOUT_REQUESTS`,
@@ -292,7 +308,7 @@ comments without inventing missing baseline/candidate numbers:
 
 ```bash
 node woocommerce/woocommerce/tools/checkout-shipping-cache-matrix-report.mjs \
-  --input /tmp/woocommerce-performance-bench
+  --input /tmp/woocommerce-shipping-cache-artifacts
 ```
 
 The report separates timing evidence from shipping-rate call-count evidence and

@@ -1,6 +1,6 @@
 {
   "id": "woocommerce-performance",
-  "description": "WooCommerce large-merchant performance rig. Uses the WordPress/WP Codebox bench runtime for checkout and shipping cache workloads tied to concrete WooCommerce performance issues.",
+  "description": "WooCommerce large-merchant performance and fuzz rig. Uses WordPress/WP Codebox runtimes for performance benchmarks plus declared fuzz workloads tied to concrete WooCommerce issues and coverage surfaces.",
   "components": {
     "woocommerce": {
       "path": "~/Developer/woocommerce/plugins/woocommerce",
@@ -61,82 +61,42 @@
     "default_component": "woocommerce",
     "warmup_iterations": 0
   },
+  "fuzz": {
+    "default_component": "woocommerce"
+  },
   "bench_workloads": {
     "wordpress": [
-      { "path": "${package.root}/bench/cart-session-overwrite-race.php" },
-      { "path": "${package.root}/bench/checkout-concurrent-create-order.php" },
-      { "path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php" },
       { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
-      { "path": "${package.root}/bench/checkout-shipping-cache.php" },
       { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
-      { "path": "${package.root}/bench/layered-nav-count-cache.php" },
-      { "path": "${package.root}/bench/layered-nav-catalog-crawl.php" },
-      { "path": "${package.root}/bench/admin-page-coverage.php" },
-      { "path": "${package.root}/bench/woocommerce-rest-route-inventory.php" },
-      { "path": "${package.root}/bench/rest-product-batch-import.php" },
-      { "path": "${package.root}/bench/woocommerce-external-http-guardrail.php" },
-      { "path": "${package.root}/bench/generated-rest-request-cases.workload.json" },
-      { "path": "${package.root}/bench/rest-db-query-profile.workload.json" },
-      { "path": "${package.root}/bench/db-inventory.workload.json" }
+      { "path": "${package.root}/bench/rest-product-batch-import.php" }
+    ]
+  },
+  "fuzz_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/fuzz/cart-session-overwrite-race.json" },
+      { "path": "${package.root}/fuzz/checkout-concurrent-create-order.json" },
+      { "path": "${package.root}/fuzz/checkout-gateway-compatibility-matrix.json" },
+      { "path": "${package.root}/fuzz/checkout-shipping-cache.json" },
+      { "path": "${package.root}/fuzz/admin-page-coverage.json" },
+      { "path": "${package.root}/fuzz/layered-nav-count-cache.json" },
+      { "path": "${package.root}/fuzz/layered-nav-catalog-crawl.json" },
+      { "path": "${package.root}/fuzz/woocommerce-rest-route-inventory.json" },
+      { "path": "${package.root}/fuzz/generated-rest-request-cases.json" },
+      { "path": "${package.root}/fuzz/rest-db-query-profile.json" },
+      { "path": "${package.root}/fuzz/db-inventory.json" },
+      { "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json" }
     ]
   },
   "bench_profiles": {
     "smoke": [
-      "cart-session-overwrite-race",
-      "checkout-concurrent-create-order",
-      "checkout-gateway-compatibility-matrix",
       "checkout-shortcode-place-order-latency",
-      "checkout-shipping-cache",
       "admin-dashboard-physical-products-query",
-      "layered-nav-count-cache",
-      "layered-nav-catalog-crawl",
-      "woocommerce-rest-route-inventory",
-      "rest-product-batch-import",
-      "woocommerce-external-http-guardrail",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory"
+      "rest-product-batch-import"
     ],
     "hot": [
-      "cart-session-overwrite-race",
-      "checkout-concurrent-create-order",
-      "checkout-gateway-compatibility-matrix",
       "checkout-shortcode-place-order-latency",
-      "checkout-shipping-cache",
       "admin-dashboard-physical-products-query",
-      "layered-nav-count-cache",
-      "layered-nav-catalog-crawl",
-      "woocommerce-rest-route-inventory",
-      "rest-product-batch-import",
-      "woocommerce-external-http-guardrail",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory"
-    ],
-    "api-coverage": [
-      "woocommerce-rest-route-inventory",
-      "generated-rest-request-cases",
-      "rest-db-query-profile"
-    ],
-    "full-surface": [
-      "cart-session-overwrite-race",
-      "checkout-concurrent-create-order",
-      "checkout-gateway-compatibility-matrix",
-      "checkout-shortcode-place-order-latency",
-      "checkout-shipping-cache",
-      "admin-dashboard-physical-products-query",
-      "layered-nav-count-cache",
-      "layered-nav-catalog-crawl",
-      "admin-page-coverage",
-      "woocommerce-rest-route-inventory",
-      "rest-product-batch-import",
-      "woocommerce-external-http-guardrail",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory"
-    ],
-    "checkout-concurrent": [
-      "checkout-concurrent-create-order"
+      "rest-product-batch-import"
     ]
   },
   "pipeline": {
@@ -187,7 +147,7 @@
         "kind": "command",
         "label": "WooCommerce admin assets are built",
         "command": "bash \"${package.root}/tools/check-admin-assets.sh\" \"${components.woocommerce.path}\"",
-        "remediation": "Use a packaged WooCommerce plugin checkout or build the WooCommerce admin assets before running admin-page-coverage/full-surface benchmarks."
+        "remediation": "Use a packaged WooCommerce plugin checkout or build the WooCommerce admin assets before running admin-page-coverage fuzz workloads."
       }
     ],
     "up": [

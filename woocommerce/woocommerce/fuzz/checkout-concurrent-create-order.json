@@ -1,0 +1,22 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "checkout-concurrent-create-order",
+  "label": "Checkout create_order atomicity",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-checkout-create-order", "woocommerce-ajax-checkout"],
+  "operations": ["duplicate-order-repro", "concurrent-checkout-post", "session-side-effect-guardrails"],
+  "case_budget": 10,
+  "duration_budget_seconds": 600,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/checkout-concurrent-create-order.php",
+    "issues": [
+      "https://github.com/woocommerce/woocommerce/issues/62659",
+      "https://github.com/chubes4/homeboy-rigs/issues/253",
+      "https://github.com/chubes4/homeboy-rigs/issues/254"
+    ],
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}
