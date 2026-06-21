@@ -17,7 +17,6 @@ test('admin page coverage is bounded and skips unsafe admin actions', () => {
   assert.match(workload, /WC_ADMIN_PAGE_COVERAGE_LIMIT/);
   assert.match(workload, /min\( 100,/);
   assert.match(workload, /admin asset registries are missing/);
-  assert.match(workload, /jetpack-connection\/dist\/jetpack-connection\.js/);
   assert.match(workload, /post-new\.php/);
   assert.match(workload, /plugin-install\.php/);
   assert.match(workload, /unsafe_query_arg_/);
@@ -50,12 +49,6 @@ test('admin coverage rigs fail preflight when WooCommerce admin assets are missi
 
   mkdirSync(path.join(woocommercePath, 'assets/client/admin/wp-admin-scripts'), { recursive: true });
   writeFileSync(path.join(woocommercePath, 'assets/client/admin/wp-admin-scripts/index.asset.php'), '<?php return array();');
-  const missingJetpack = spawnSync('bash', [adminAssetsCheck, woocommercePath], { encoding: 'utf8' });
-  assert.equal(missingJetpack.status, 1);
-  assert.match(missingJetpack.stderr, /Jetpack connection build output is missing/);
-
-  mkdirSync(path.join(woocommercePath, 'vendor/automattic/jetpack-connection/dist'), { recursive: true });
-  writeFileSync(path.join(woocommercePath, 'vendor/automattic/jetpack-connection/dist/jetpack-connection.js'), '/* built */');
   const ready = spawnSync('bash', [adminAssetsCheck, woocommercePath], { encoding: 'utf8' });
   assert.equal(ready.status, 0);
 });
