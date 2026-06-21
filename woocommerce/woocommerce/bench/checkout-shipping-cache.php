@@ -29,6 +29,10 @@ return function (): array {
 
 	$cart_items       = max( 1, min( 1000, (int) ( getenv( 'WC_SHIPPING_CACHE_CART_ITEMS' ) ?: 40 ) ) );
 	$packages         = max( 1, min( $cart_items, (int) ( getenv( 'WC_SHIPPING_CACHE_PACKAGES' ) ?: 8 ) ) );
+	$package_shape    = getenv( 'WC_SHIPPING_CACHE_PACKAGE_SHAPE' ) ?: 'balanced';
+	if ( ! in_array( $package_shape, array( 'balanced', 'mixed_destination' ), true ) ) {
+		$package_shape = 'balanced';
+	}
 	$warm_runs        = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_WARM_RUNS' ) ?: 5 ) ) );
 	$total_churn_runs = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS' ) ?: 3 ) ) );
 	$rehash_runs      = max( 1, min( 100, (int) ( getenv( 'WC_SHIPPING_CACHE_REHASH_RUNS' ) ?: 3 ) ) );
@@ -162,7 +166,7 @@ return function (): array {
 		'field' => '',
 		'step'  => 0,
 	);
-	$split_packages = static function ( array $cart_packages ) use ( $packages, &$current_phase, $synthetic_unknown_key, $flat_rate_instance_id ): array {
+	$split_packages = static function ( array $cart_packages ) use ( $packages, $package_shape, &$current_phase, $synthetic_unknown_key, $flat_rate_instance_id ): array {
 		$base_package = $cart_packages[0] ?? array();
 		$contents     = array_values( $base_package['contents'] ?? array() );
 		if ( empty( $contents ) ) {
@@ -184,6 +188,11 @@ return function (): array {
 			$package['homeboy_package_index']  = $index;
 			$package['subtotal']               = (float) array_sum( wp_list_pluck( $package['contents'], 'line_subtotal' ) );
 			$package['total']                  = (float) array_sum( wp_list_pluck( $package['contents'], 'line_total' ) );
+			if ( 'mixed_destination' === $package_shape ) {
+				$package['destination']['postcode'] = '941' . str_pad( (string) ( 10 + $index ), 2, '0', STR_PAD_LEFT );
+				$package['destination']['address']  = ( 100 + $index ) . ' Performance Way';
+				$package['destination']['address_1'] = ( 100 + $index ) . ' Performance Way';
+			}
 
 			switch ( $current_phase['field'] ) {
 				case 'subtotal':
@@ -394,6 +403,7 @@ return function (): array {
 		'success_rate'                         => 1,
 		'cart_items'                           => $cart_items,
 		'configured_package_target'            => $packages,
+		'package_shape'                        => $package_shape,
 		'actual_package_count'                 => (int) $cold_row['package_count'],
 		'shipping_rate_count'                  => (int) $cold_row['rate_count'],
 		'warm_runs'                            => $warm_runs,
@@ -460,6 +470,7 @@ return function (): array {
 			'issues'                     => $issues,
 			'zone_id'                    => $zone->get_id(),
 			'product_seed'               => 'simple-physical',
+			'package_shape'              => $package_shape,
 		),
 		'artifacts' => $artifact_path ? array( 'raw_result' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);

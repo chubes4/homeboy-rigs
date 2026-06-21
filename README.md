@@ -31,6 +31,11 @@ mark feature-not-needed and feature-needed phases, count feature/third-party
 requests before and after the trigger, and emit assertions proving no early
 initialization plus post-trigger success.
 
+`shared/wordpress-plugin-performance-template/` documents the reusable
+full-surface performance rig shape for WordPress plugins: discovery, safe admin,
+frontend, and REST coverage, readiness checks, fixtures, metrics, artifacts,
+thresholds, and plugin-specific workload extension points.
+
 ## Install
 
 Install a package subpath with Homeboy's rig package lifecycle:

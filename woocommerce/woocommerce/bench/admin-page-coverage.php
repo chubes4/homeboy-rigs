@@ -168,10 +168,11 @@ add_action( "shutdown", function () {
 		}
 		$url = $normalize_admin_url( $page );
 		$candidates[ $url ] = array(
-			'label'  => isset( $item[0] ) ? wp_strip_all_tags( (string) $item[0] ) : '',
-			'source' => $source,
-			'page'   => $page,
-			'url'    => $url,
+			'label'      => isset( $item[0] ) ? wp_strip_all_tags( (string) $item[0] ) : '',
+			'capability' => isset( $item[1] ) ? (string) $item[1] : '',
+			'source'     => $source,
+			'page'       => $page,
+			'url'        => $url,
 		);
 	};
 	foreach ( $menu as $item ) {
@@ -224,16 +225,22 @@ add_action( "shutdown", function () {
 				$visits[] = array_merge( $target, array( 'role' => $role, 'status' => 'error', 'error' => $response->get_error_message(), 'elapsed_ms' => $elapsed ) );
 				continue;
 			}
-			$visits[] = array_merge(
+			$status_code = (int) wp_remote_retrieve_response_code( $response );
+			$visit       = array_merge(
 				$target,
 				array(
 					'role'        => $role,
 					'status'      => 'visited',
-					'status_code' => wp_remote_retrieve_response_code( $response ),
+					'status_code' => $status_code,
 					'final_url'   => wp_remote_retrieve_header( $response, 'x-redirect-by' ) ? wp_remote_retrieve_header( $response, 'location' ) : '',
 					'elapsed_ms'  => $elapsed,
 				)
 			);
+			if ( 403 === $status_code && 'shop_manager' === $role && isset( $target['capability'] ) && '' !== $target['capability'] && ! user_can( (int) $role_data['user_id'], (string) $target['capability'] ) ) {
+				$visit['status'] = 'skipped';
+				$visit['reasons'] = array( 'permission_boundary' );
+			}
+			$visits[] = $visit;
 		}
 	}
 
@@ -241,18 +248,86 @@ add_action( "shutdown", function () {
 	if ( ! is_array( $request_logs ) ) {
 		$request_logs = array();
 	}
+
+	$normalize_query_shape = static function ( string $query ): string {
+		$query = preg_replace( '#/\*.*?\*/#s', ' ', $query );
+		$query = preg_replace( "/'(?:''|[^'])*'/", '?', (string) $query );
+		$query = preg_replace( '/"(?:""|[^"])*"/', '?', (string) $query );
+		$query = preg_replace( '/\b0x[0-9a-f]+\b/i', '?', (string) $query );
+		$query = preg_replace( '/\b\d+(?:\.\d+)?\b/', '?', (string) $query );
+		$query = preg_replace( '/\s+/', ' ', (string) $query );
+		return strtolower( trim( (string) $query ) );
+	};
+
+	$query_family = static function ( string $query_shape ): string {
+		$shape = str_replace( '`', '', strtolower( $query_shape ) );
+		if ( preg_match( '/^select\b.*?\bfrom\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return 'select:' . $matches[1];
+		}
+		if ( preg_match( '/^(insert|replace)\s+into\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return $matches[1] . ':' . $matches[2];
+		}
+		if ( preg_match( '/^update\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return 'update:' . $matches[1];
+		}
+		if ( preg_match( '/^delete\s+from\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return 'delete:' . $matches[1];
+		}
+		if ( preg_match( '/^([a-z]+)/', $shape, $matches ) ) {
+			return $matches[1] . ':other';
+		}
+		return 'unknown:other';
+	};
+
+	$top_counts = static function ( array $counts, string $field, int $limit = 10 ): array {
+		arsort( $counts );
+		$rows = array();
+		foreach ( $counts as $value => $count ) {
+			$rows[] = array( $field => (string) $value, 'count' => (int) $count );
+			if ( count( $rows ) >= $limit ) {
+				break;
+			}
+		}
+		return $rows;
+	};
+
+	$query_shape_counts  = array();
+	$query_family_counts = array();
+	$query_sample_count  = 0;
+	foreach ( $request_logs as $record ) {
+		foreach ( (array) ( $record['query_shapes'] ?? array() ) as $query ) {
+			$shape = $normalize_query_shape( (string) $query );
+			if ( '' === $shape ) {
+				continue;
+			}
+			$family = $query_family( $shape );
+			$query_shape_counts[ $shape ]  = ( $query_shape_counts[ $shape ] ?? 0 ) + 1;
+			$query_family_counts[ $family ] = ( $query_family_counts[ $family ] ?? 0 ) + 1;
+			++$query_sample_count;
+		}
+	}
+	$query_attribution = array(
+		'schema'                   => 'homeboy-rigs/woocommerce-admin-query-attribution/v1',
+		'sample_source'            => 'request_logs.query_shapes',
+		'sample_limit_per_request' => 25,
+		'sample_count'             => $query_sample_count,
+		'top_query_shapes'         => $top_counts( $query_shape_counts, 'shape' ),
+		'top_query_families'       => $top_counts( $query_family_counts, 'family' ),
+	);
 	@unlink( $mu_plugin );
 	delete_option( $log_option );
 	delete_option( $log_option . '_expected' );
 
-	$status_counts         = array_count_values( array_map( static fn( array $visit ): string => (string) $visit['status'], $visits ) );
-	$http_errors           = array_filter( $visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
-	$status_code_counts    = array_count_values( array_map( 'strval', array_filter( array_column( $visits, 'status_code' ), 'is_numeric' ) ) );
-	$php_errors            = 0;
-	$query_counts          = array();
-	$top_query_count_pages = array();
-	$php_error_summaries   = array();
-	$php_fatal_summaries   = array();
+	$status_counts             = array_count_values( array_map( static fn( array $visit ): string => (string) $visit['status'], $visits ) );
+	$measured_visits           = array_filter( $visits, static fn( array $visit ): bool => 'skipped' !== (string) $visit['status'] );
+	$http_errors               = array_filter( $measured_visits, static fn( array $visit ): bool => isset( $visit['status_code'] ) && (int) $visit['status_code'] >= 400 );
+	$permission_boundary_skips = array_filter( $visits, static fn( array $visit ): bool => 'skipped' === (string) $visit['status'] && in_array( 'permission_boundary', (array) ( $visit['reasons'] ?? array() ), true ) );
+	$status_code_counts        = array_count_values( array_map( 'strval', array_filter( array_column( $visits, 'status_code' ), 'is_numeric' ) ) );
+	$php_errors                = 0;
+	$query_counts              = array();
+	$top_query_count_pages     = array();
+	$php_error_summaries       = array();
+	$php_fatal_summaries       = array();
 	foreach ( $request_logs as $record ) {
 		foreach ( (array) ( $record['php_errors'] ?? array() ) as $error ) {
 			$php_errors++;
@@ -297,31 +372,32 @@ add_action( "shutdown", function () {
 	);
 	usort( $top_slow_visited_pages, static fn( array $left, array $right ): int => ( $right['elapsed_ms'] ?? 0 ) <=> ( $left['elapsed_ms'] ?? 0 ) );
 	usort( $top_query_count_pages, static fn( array $left, array $right ): int => $right['query_count'] <=> $left['query_count'] );
-	$permission_skip_count = count(
-		array_filter(
-			$skipped,
-			static fn( array $skip ): bool => (bool) preg_grep( '/permission|capabilit|forbidden|unauthor/i', (array) ( $skip['reasons'] ?? array() ) )
-		)
-	);
-
 	$summary = array(
-		'success_rate'              => count( $visits ) > 0 ? ( count( $visits ) - count( $http_errors ) - ( $status_counts['error'] ?? 0 ) ) / count( $visits ) : 0,
+		'success_rate'              => count( $measured_visits ) > 0 ? ( count( $measured_visits ) - count( $http_errors ) - ( $status_counts['error'] ?? 0 ) ) / count( $measured_visits ) : 0,
 		'total_elapsed_ms'          => ( microtime( true ) - $started ) * 1000,
 		'enumerated_admin_url_count' => count( $candidates ),
 		'visited_admin_url_count'    => count( $targets ),
 		'total_visit_count'          => count( $visits ),
 		'skipped_unsafe_count'       => count( $skipped ),
+		'skipped_permission_count'   => count( $permission_boundary_skips ),
 		'http_error_count'           => count( $http_errors ),
 		'request_error_count'        => $status_counts['error'] ?? 0,
 		'php_error_notice_count'     => $php_errors,
 		'max_query_count'            => $query_counts ? max( $query_counts ) : null,
-		'avg_query_count'            => $query_counts ? array_sum( $query_counts ) / count( $query_counts ) : null,
-		'top_slow_visited_pages'     => array_slice( $top_slow_visited_pages, 0, 5 ),
-		'top_query_count_pages'      => array_slice( $top_query_count_pages, 0, 5 ),
-		'status_code_counts'         => $status_code_counts,
-		'permission_skip_count'      => $permission_skip_count,
-		'php_error_summaries'        => array_slice( $php_error_summaries, 0, 10 ),
-		'php_fatal_summaries'        => array_slice( $php_fatal_summaries, 0, 10 ),
+		'avg_query_count'             => $query_counts ? array_sum( $query_counts ) / count( $query_counts ) : null,
+		'top_slow_visited_pages'      => array_slice( $top_slow_visited_pages, 0, 5 ),
+		'top_query_count_pages'       => array_slice( $top_query_count_pages, 0, 5 ),
+		'status_code_counts'          => $status_code_counts,
+		'permission_skip_count'       => count( $permission_boundary_skips ),
+		'php_error_summaries'         => array_slice( $php_error_summaries, 0, 10 ),
+		'php_fatal_summaries'         => array_slice( $php_fatal_summaries, 0, 10 ),
+		'query_shape_sample_count'    => $query_attribution['sample_count'],
+		'distinct_query_shape_count'  => count( $query_shape_counts ),
+		'distinct_query_family_count' => count( $query_family_counts ),
+		'top_query_shape_count'       => isset( $query_attribution['top_query_shapes'][0]['count'] ) ? $query_attribution['top_query_shapes'][0]['count'] : 0,
+		'top_query_family_count'      => isset( $query_attribution['top_query_families'][0]['count'] ) ? $query_attribution['top_query_families'][0]['count'] : 0,
+		'top_query_shapes'            => $query_attribution['top_query_shapes'],
+		'top_query_families'          => $query_attribution['top_query_families'],
 	);
 
 	$artifact_path = '';
@@ -341,6 +417,7 @@ add_action( "shutdown", function () {
 					'visits'              => $visits,
 					'skipped'             => $skipped,
 					'request_logs'        => $request_logs,
+					'query_attribution'  => $query_attribution,
 					'metrics'             => $summary,
 				),
 				JSON_PRETTY_PRINT
@@ -356,6 +433,7 @@ add_action( "shutdown", function () {
 			'coverage_shape' => 'bounded authenticated wp-admin and Woo admin menu/submenu GET coverage',
 			'roles'          => array_keys( $roles ),
 			'limit'          => $limit,
+			'query_attribution' => $query_attribution,
 		),
 		'artifacts' => $artifact_path ? array( 'admin_page_coverage' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);
