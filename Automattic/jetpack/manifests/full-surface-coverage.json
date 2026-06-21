@@ -25,13 +25,16 @@
     "database": {
       "coverage_goal": "all_tables_rows_columns_indexes_after_connected_site_fixture_setup",
       "inventory_artifact": "homeboy/wordpress-db-inventory/v1",
+      "module_option_inventory": ["jetpack_active_modules", "jetpack_options", "jetpack_private_options", "jetpack_sync_settings", "jpsq_sync_checkout"],
       "query_profile_artifact": "homeboy/wordpress-rest-db-query-profile/v1"
     },
     "server_requests": {
       "coverage_goal": "all_connection_wpcom_sync_and_module_http_hosts_with_unapproved_requests_blocked",
       "guardrail": "wordpress-external-http-guardrail",
       "guardrail_manifest": "fuzz/jetpack-external-http-guardrail.json",
-      "network_policy": "block_all_synthetic_external_requests"
+      "network_policy": "block_synthetic_external_requests_and_classify_wpcom_boundaries",
+      "blocked_hosts": ["jetpack-homeboy-guardrail.invalid"],
+      "allowlisted_boundaries": ["public-api.wordpress.com"]
     },
     "browser_requests": {
       "coverage_goal": "all_wp_admin_jetpack_screen_fetch_xhr_websocket_asset_requests",
@@ -125,10 +128,10 @@
     },
     "db-inventory": {
       "surface": "database",
-      "coverage_shape": "Jetpack fixture database table, row, column, and index inventory",
+      "coverage_shape": "Jetpack fixture database table, option, module-state, row, column, and index inventory",
       "safety": {
         "classification": "read_only_inventory",
-        "notes": ["Reads isolated runner database metadata", "Does not mutate production or developer databases"]
+        "notes": ["Reads isolated runner database metadata", "Inventories Jetpack table prefixes and module/options state", "Does not mutate production or developer databases"]
       },
       "artifact_expectations": { "required": ["metrics", "db inventory json artifact"], "optional": ["table samples"] }
     },
@@ -215,10 +218,10 @@
     },
     "jetpack-external-http-guardrail": {
       "surface": "server_requests",
-      "coverage_shape": "Jetpack connection, sync, module, and WordPress.com API external HTTP guardrail probes with all synthetic requests blocked",
+      "coverage_shape": "Jetpack connection, sync, module, and WordPress.com API external HTTP guardrail probes with blocked synthetic requests and declared WP.com allowlist boundaries",
       "safety": {
         "classification": "network_guardrail_probe",
-        "notes": ["Installs the external HTTP guardrail before probes run", "Uses .invalid synthetic hosts and an empty allowlist so no real external service calls are expected"]
+        "notes": ["Installs the external HTTP guardrail before probes run", "Uses .invalid synthetic hosts for blocked probes", "Declares public-api.wordpress.com as an allowlisted boundary without making live service calls"]
       },
       "artifact_expectations": { "required": ["metrics", "guardrail collection"], "optional": ["captured request samples"] }
     },

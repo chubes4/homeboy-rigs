@@ -67,9 +67,41 @@ test('Jetpack external HTTP guardrail blocks synthetic probes', () => {
   const guardrail = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-external-http-guardrail.json'), 'utf8'));
 
   assert.equal(guardrail.network_guardrail.block_network, true);
-  assert.deepEqual(guardrail.network_guardrail.allowlist_domains, []);
+  assert.ok(guardrail.network_guardrail.allowlist_domains.includes('public-api.wordpress.com'));
   assert.equal(guardrail.network_guardrail.real_external_service_calls_allowed, false);
-  assert.ok(guardrail.network_guardrail.probe_hosts.every((host) => host.endsWith('.invalid')));
+  assert.ok(guardrail.network_guardrail.probe_hosts.includes('jetpack-homeboy-guardrail.invalid'));
+  assert.ok(guardrail.network_guardrail.expectations.some((expectation) => expectation.classification === 'blocked'));
+  assert.ok(guardrail.network_guardrail.expectations.some((expectation) => expectation.classification === 'allowlisted_boundary_not_called'));
+});
+
+test('Jetpack REST request cases cover namespaces and permission classes', () => {
+  const routeCoverage = JSON.parse(readFileSync(path.join(__dirname, 'rest-route-coverage.json'), 'utf8'));
+  const generatedCases = JSON.parse(readFileSync(path.join(packageRoot, 'bench/generated-rest-request-cases.workload.json'), 'utf8'));
+  const casesById = new Map(generatedCases.rest_request_cases.map((restCase) => [restCase.id, restCase]));
+
+  assert.deepEqual(new Set(routeCoverage.namespaces.map((entry) => entry.namespace)), new Set(['jetpack/v4', 'wpcom/v2']));
+
+  for (const requiredCase of routeCoverage.required_generated_cases) {
+    const generatedCase = casesById.get(requiredCase.id);
+    assert.ok(generatedCase, `${requiredCase.id} is missing from generated REST request cases`);
+    assert.equal(generatedCase.method, requiredCase.method);
+    assert.equal(generatedCase.path, requiredCase.path);
+    assert.equal(generatedCase.permission_class, requiredCase.permission_class);
+    assert.equal(typeof generatedCase.permission_class, 'string');
+    assert.ok(Array.isArray(generatedCase.expected_statuses), `${requiredCase.id} needs explicit expected statuses`);
+  }
+});
+
+test('Jetpack DB inventory declares module tables and options', () => {
+  const dbInventory = JSON.parse(readFileSync(path.join(packageRoot, 'bench/db-inventory.workload.json'), 'utf8'));
+  const dbFuzz = JSON.parse(readFileSync(path.join(fuzzRoot, 'db-inventory.json'), 'utf8'));
+  const [runStep] = dbInventory.run;
+
+  assert.equal(runStep['include-options'], true);
+  assert.ok(runStep.table_prefixes.includes('jpsq_'));
+  assert.ok(runStep.option_names.includes('jetpack_active_modules'));
+  assert.ok(runStep.module_inventory.expected_modules.includes('stats'));
+  assert.ok(dbFuzz.operations.includes('module-option-inventory'));
 });
 
 test('Jetpack option/module/sync fuzz workloads declare rollback-safe boundaries', () => {

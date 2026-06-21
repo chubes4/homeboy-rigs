@@ -1,7 +1,11 @@
 {
   "id": "jetpack-rest-route-coverage",
   "property": "Automattic/jetpack",
-  "description": "Initial Jetpack REST route inventory coverage shape for API performance primitive adapters.",
+  "description": "Jetpack REST route inventory coverage shape for proof-ready API performance primitive adapters.",
+  "namespaces": [
+    { "namespace": "jetpack/v4", "route_prefix": "/jetpack/v4/", "permission_class": "mixed_public_authenticated_and_connected" },
+    { "namespace": "wpcom/v2", "route_prefix": "/wpcom/v2/", "permission_class": "mixed_public_authenticated_and_wpcom_dependent" }
+  ],
   "route_prefixes": [
     "/jetpack/v4/",
     "/jetpack/v4/connection",
@@ -16,7 +20,10 @@
       "description": "Connection and identity endpoints that affect Jetpack bootstrap flows.",
       "route_prefixes": [
         "/jetpack/v4/connection"
-      ]
+      ],
+      "permission_classifications": ["authenticated_local", "connected_site_required", "wpcom_credentials_unavailable"],
+      "generated_case_ids": ["jetpack-connection", "jetpack-connection-status"],
+      "boundary_expectations": ["No live WordPress.com OAuth credentials are provisioned", "WP.com-dependent failures are classified instead of bypassed"]
     },
     {
       "id": "module-settings",
@@ -24,7 +31,9 @@
       "route_prefixes": [
         "/jetpack/v4/modules",
         "/jetpack/v4/settings"
-      ]
+      ],
+      "permission_classifications": ["authenticated_local", "administrator_required", "module_may_require_connection"],
+      "generated_case_ids": ["jetpack-modules", "jetpack-module-stats", "jetpack-settings"]
     },
     {
       "id": "site-data",
@@ -32,8 +41,21 @@
       "route_prefixes": [
         "/jetpack/v4/site",
         "/wpcom/v2/"
-      ]
+      ],
+      "permission_classifications": ["public_read", "authenticated_local", "wpcom_dependent"],
+      "generated_case_ids": ["jetpack-site", "wpcom-publicize-services", "wpcom-site-settings"],
+      "boundary_expectations": ["Public WP.com compatibility routes are GET-only in generated cases", "Credentialed WP.com routes record skipped_or_forbidden without real service calls"]
     }
+  ],
+  "required_generated_cases": [
+    { "id": "jetpack-site", "method": "GET", "path": "/jetpack/v4/site", "permission_class": "authenticated_local" },
+    { "id": "jetpack-modules", "method": "GET", "path": "/jetpack/v4/modules", "permission_class": "authenticated_local" },
+    { "id": "jetpack-module-stats", "method": "GET", "path": "/jetpack/v4/modules/stats", "permission_class": "authenticated_local" },
+    { "id": "jetpack-settings", "method": "GET", "path": "/jetpack/v4/settings", "permission_class": "administrator_required" },
+    { "id": "jetpack-connection", "method": "GET", "path": "/jetpack/v4/connection", "permission_class": "connected_site_required" },
+    { "id": "jetpack-connection-status", "method": "GET", "path": "/jetpack/v4/connection/status", "permission_class": "connected_site_required" },
+    { "id": "wpcom-publicize-services", "method": "GET", "path": "/wpcom/v2/publicize/services", "permission_class": "public_read_or_wpcom_dependent" },
+    { "id": "wpcom-site-settings", "method": "GET", "path": "/wpcom/v2/sites/example.wordpress.com/settings", "permission_class": "wpcom_dependent", "placeholder_parameters": { "site": "example.wordpress.com" } }
   ],
   "future_primitives": [
     "route inventory",
