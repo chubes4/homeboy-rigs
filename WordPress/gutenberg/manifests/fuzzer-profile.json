@@ -4,6 +4,7 @@
   "description": "Rig-owned Gutenberg fuzzer profile analogous to Woo full-surface coverage. It composes REST route coverage, wp-admin/editor page coverage, block editor load/action probes, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting without adding Gutenberg-specific logic to Homeboy core or Homeboy Extensions.",
   "source_manifests": {
     "full_surface": "manifests/full-surface-coverage.json",
+    "api_db_lab_cell": "manifests/api-db-lab-cell.json",
     "rest_routes": "manifests/rest-route-coverage.json",
     "rest_budgets": "manifests/rest-route-budgets.json",
     "fixtures": "manifests/performance-fixtures.json"
@@ -47,6 +48,7 @@
     "db_query_profile_hooks": {
       "workloads": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
       "budget_manifest": "manifests/rest-route-budgets.json",
+      "lab_cell_contract": "manifests/api-db-lab-cell.json",
       "profile_contract": {
         "artifact_schema": "homeboy/wordpress-rest-db-query-profile/v1",
         "required_route_classes": ["editor-rest", "block-directory", "patterns", "global-styles", "block-renderer"],
@@ -133,6 +135,9 @@
       "covered_routes_without_query_profiles",
       "missing_runtime_state_inventory_sections",
       "missing_performance_observation_sections",
+      "routes_without_permission_boundary_cases",
+      "queries_without_table_or_key_attribution",
+      "entities_without_state_artifacts",
       "budget_regressions",
       "unapproved_external_hosts",
       "unexpected_allowed_external_hosts",

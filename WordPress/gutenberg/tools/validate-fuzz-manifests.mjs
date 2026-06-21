@@ -25,6 +25,7 @@ const fuzzManifests = readdirSync(fuzzDir)
 assert.equal(fuzzManifests.length, declaredFuzzIds.size, 'expected one manifest per declared Gutenberg fuzz workload');
 
 const fuzzerProfile = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/fuzzer-profile.json'), 'utf8'));
+const apiDbLabCell = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/api-db-lab-cell.json'), 'utf8'));
 const benchWorkloadIds = new Set(
   Object.values(rig.bench_workloads || {})
     .flat()
@@ -128,6 +129,27 @@ for (const [name, summary] of Object.entries(fuzzerProfile.artifact_summaries ||
   assert.equal(summary.semantic_key, 'fuzz.report', `${name} artifact summary semantic key mismatch`);
   assert.ok(Array.isArray(summary.required_sections), `${name} artifact summary requires sections`);
   assert.ok(summary.required_sections.length > 0, `${name} artifact summary has no required sections`);
+}
+
+assert.equal(apiDbLabCell.schema, 'homeboy-rigs/gutenberg-api-db-lab-cell/v1', 'Gutenberg API/DB Lab cell schema mismatch');
+assert.ok(apiDbLabCell.rest_namespaces.some((entry) => entry.namespace === 'wp/v2'), 'API/DB Lab cell must cover wp/v2 routes');
+assert.ok(apiDbLabCell.rest_namespaces.some((entry) => entry.namespace === '__experimental'), 'API/DB Lab cell must cover __experimental routes');
+for (const role of ['anonymous', 'subscriber', 'editor', 'administrator']) {
+  assert.ok(apiDbLabCell.permission_boundaries.some((entry) => entry.role === role), `API/DB Lab cell missing ${role} permission boundary`);
+}
+for (const field of ['namespace', 'role', 'tables_touched', 'option_keys', 'postmeta_keys']) {
+  assert.ok(apiDbLabCell.db_query_attribution.required_fields.includes(field), `API/DB Lab cell missing DB attribution field ${field}`);
+}
+for (const section of ['options', 'postmeta', 'transients', 'mutation_deltas']) {
+  assert.ok(apiDbLabCell.state_attribution.required_artifact_sections.includes(section), `API/DB Lab cell missing state attribution section ${section}`);
+}
+for (const entity of ['wp_template', 'wp_template_part', 'wp_global_styles', 'wp_navigation', 'attachment']) {
+  assert.ok(apiDbLabCell.entity_fixtures.includes(entity), `API/DB Lab cell missing entity fixture ${entity}`);
+}
+for (const artifact of ['rest_namespace_permission_matrix', 'rest_db_query_profile', 'entity_state_attribution']) {
+  const proofArtifact = apiDbLabCell.proof_artifacts.find((entry) => entry.name === artifact);
+  assert.ok(proofArtifact, `API/DB Lab cell missing proof artifact ${artifact}`);
+  assert.ok(proofArtifact.required_sections.length > 0, `API/DB Lab cell proof artifact ${artifact} requires sections`);
 }
 
 console.log(`validated ${fuzzManifests.length} Gutenberg fuzz manifests; no fuzz IDs are present in bench_workloads or bench_profiles`);
