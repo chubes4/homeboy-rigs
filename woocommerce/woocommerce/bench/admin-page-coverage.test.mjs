@@ -23,6 +23,19 @@ test('admin page coverage is bounded and skips unsafe admin actions', () => {
   assert.match(workload, /setup_or_onboarding_screen/);
 });
 
+test('admin page coverage reports summarized query attribution without dropping raw logs', () => {
+  assert.match(workload, /'request_logs'\s*=>\s*\$request_logs/);
+  assert.match(workload, /homeboy-rigs\/woocommerce-admin-query-attribution\/v1/);
+  assert.match(workload, /'sample_source'\s*=>\s*'request_logs\.query_shapes'/);
+  assert.match(workload, /'sample_limit_per_request'\s*=>\s*25/);
+  assert.match(workload, /'query_shape_sample_count'\s*=>\s*\$query_attribution\['sample_count'\]/);
+  assert.match(workload, /'top_query_shapes'\s*=>\s*\$query_attribution\['top_query_shapes'\]/);
+  assert.match(workload, /'top_query_families'\s*=>\s*\$query_attribution\['top_query_families'\]/);
+  assert.match(workload, /'query_attribution'\s*=>\s*\$query_attribution/);
+  assert.ok(workload.includes("preg_replace( '/\\b\\d+(?:\\.\\d+)?\\b/', '?'"));
+  assert.match(workload, /return 'select:' \. \$matches\[1\]/);
+});
+
 test('admin page coverage is wired into executable full-surface profile', () => {
   assert.ok(
     rig.bench_workloads.wordpress.some((entry) => entry.path.includes('bench/admin-page-coverage.php')),

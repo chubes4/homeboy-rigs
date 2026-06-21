@@ -241,6 +241,72 @@ add_action( "shutdown", function () {
 	if ( ! is_array( $request_logs ) ) {
 		$request_logs = array();
 	}
+
+	$normalize_query_shape = static function ( string $query ): string {
+		$query = preg_replace( '#/\*.*?\*/#s', ' ', $query );
+		$query = preg_replace( "/'(?:''|[^'])*'/", '?', (string) $query );
+		$query = preg_replace( '/"(?:""|[^"])*"/', '?', (string) $query );
+		$query = preg_replace( '/\b0x[0-9a-f]+\b/i', '?', (string) $query );
+		$query = preg_replace( '/\b\d+(?:\.\d+)?\b/', '?', (string) $query );
+		$query = preg_replace( '/\s+/', ' ', (string) $query );
+		return strtolower( trim( (string) $query ) );
+	};
+
+	$query_family = static function ( string $query_shape ): string {
+		$shape = str_replace( '`', '', strtolower( $query_shape ) );
+		if ( preg_match( '/^select\b.*?\bfrom\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return 'select:' . $matches[1];
+		}
+		if ( preg_match( '/^(insert|replace)\s+into\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return $matches[1] . ':' . $matches[2];
+		}
+		if ( preg_match( '/^update\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return 'update:' . $matches[1];
+		}
+		if ( preg_match( '/^delete\s+from\s+([a-z0-9_]+)/', $shape, $matches ) ) {
+			return 'delete:' . $matches[1];
+		}
+		if ( preg_match( '/^([a-z]+)/', $shape, $matches ) ) {
+			return $matches[1] . ':other';
+		}
+		return 'unknown:other';
+	};
+
+	$top_counts = static function ( array $counts, string $field, int $limit = 10 ): array {
+		arsort( $counts );
+		$rows = array();
+		foreach ( $counts as $value => $count ) {
+			$rows[] = array( $field => (string) $value, 'count' => (int) $count );
+			if ( count( $rows ) >= $limit ) {
+				break;
+			}
+		}
+		return $rows;
+	};
+
+	$query_shape_counts  = array();
+	$query_family_counts = array();
+	$query_sample_count  = 0;
+	foreach ( $request_logs as $record ) {
+		foreach ( (array) ( $record['query_shapes'] ?? array() ) as $query ) {
+			$shape = $normalize_query_shape( (string) $query );
+			if ( '' === $shape ) {
+				continue;
+			}
+			$family = $query_family( $shape );
+			$query_shape_counts[ $shape ]  = ( $query_shape_counts[ $shape ] ?? 0 ) + 1;
+			$query_family_counts[ $family ] = ( $query_family_counts[ $family ] ?? 0 ) + 1;
+			++$query_sample_count;
+		}
+	}
+	$query_attribution = array(
+		'schema'                   => 'homeboy-rigs/woocommerce-admin-query-attribution/v1',
+		'sample_source'            => 'request_logs.query_shapes',
+		'sample_limit_per_request' => 25,
+		'sample_count'             => $query_sample_count,
+		'top_query_shapes'         => $top_counts( $query_shape_counts, 'shape' ),
+		'top_query_families'       => $top_counts( $query_family_counts, 'family' ),
+	);
 	@unlink( $mu_plugin );
 	delete_option( $log_option );
 	delete_option( $log_option . '_expected' );
@@ -268,6 +334,9 @@ add_action( "shutdown", function () {
 		'php_error_notice_count'     => $php_errors,
 		'max_query_count'            => $query_counts ? max( $query_counts ) : null,
 		'avg_query_count'            => $query_counts ? array_sum( $query_counts ) / count( $query_counts ) : null,
+		'query_shape_sample_count'   => $query_attribution['sample_count'],
+		'top_query_shapes'           => $query_attribution['top_query_shapes'],
+		'top_query_families'         => $query_attribution['top_query_families'],
 	);
 
 	$artifact_path = '';
@@ -287,6 +356,7 @@ add_action( "shutdown", function () {
 					'visits'              => $visits,
 					'skipped'             => $skipped,
 					'request_logs'        => $request_logs,
+					'query_attribution'  => $query_attribution,
 					'metrics'             => $summary,
 				),
 				JSON_PRETTY_PRINT
