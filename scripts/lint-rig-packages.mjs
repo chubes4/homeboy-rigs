@@ -413,6 +413,11 @@ function collectExpectedSemanticKeys(workload) {
 
 function lintWordPressCoreFuzzContract(rel, workload) {
   const isWordPressDevelopFuzz = rel.startsWith('WordPress/wordpress-develop/fuzz/') || (rel.startsWith('fuzz/') && root.endsWith('/WordPress/wordpress-develop'));
+
+  if (isWordPressCoreFuzzWorkload(workload) && !isWordPressDevelopFuzz) {
+    failures.push(`${rel}: WordPress Core fuzz workloads must live under WordPress/wordpress-develop/fuzz; WordPress/wordpress is legacy bench/trace compatibility scaffolding`);
+  }
+
   if (!isWordPressDevelopFuzz) {
     return;
   }
@@ -466,6 +471,15 @@ function lintWordPressCoreFuzzContract(rel, workload) {
       failures.push(`${rel}: hooks-cron-options must declare expected artifact semantic key fuzz.runtime.rewrite_postmeta_options_inventory`);
     }
   }
+}
+
+function isWordPressCoreFuzzWorkload(workload) {
+  const surfaceIds = Array.isArray(workload.surface_ids) ? workload.surface_ids : [];
+
+  return workload.target?.type === 'wordpress-core'
+    || workload.target?.component === 'wordpress-develop'
+    || workload.metadata?.kind === 'wordpress-core-fuzz'
+    || surfaceIds.some((surfaceId) => typeof surfaceId === 'string' && surfaceId.startsWith('wordpress-core-'));
 }
 
 function lintPhp(file) {
