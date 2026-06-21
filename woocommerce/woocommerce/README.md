@@ -111,9 +111,18 @@ homeboy rig check woocommerce-performance
 
 - It runs `composer install --no-interaction --no-progress` only when
   `vendor/autoload_packages.php` is missing.
+- It uses the same Composer install prep when
+  `vendor/automattic/jetpack-connection/dist/jetpack-connection.js` is missing.
 - It runs `php bin/generate-feature-config.php` only when
   `includes/react-admin/feature-config.php` is missing.
+- It runs `pnpm --filter @woocommerce/plugin-woocommerce build:admin` only when
+  `assets/client/admin/wp-admin-scripts/command-palette.asset.php` is missing.
 - It does not modify WooCommerce source files or switch branches.
+
+Admin coverage and full-surface runs require built WooCommerce admin JS outputs.
+`homeboy rig check woocommerce-performance` fails before benchmark execution when
+`assets/client/admin/wp-admin-scripts/*.asset.php` registries or
+`vendor/automattic/jetpack-connection/dist/jetpack-connection.js` are missing.
 
 Equivalent manual prep, when needed for debugging, should run from the selected
 WooCommerce plugin directory.
