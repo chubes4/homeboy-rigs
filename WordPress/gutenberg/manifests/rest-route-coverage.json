@@ -1,16 +1,26 @@
 {
   "id": "gutenberg-rest-route-coverage",
   "property": "WordPress/gutenberg",
-  "description": "Initial Gutenberg REST route inventory coverage shape for API performance primitive adapters.",
+  "description": "Proof-ready Gutenberg REST route inventory coverage shape for API performance primitive adapters.",
   "route_prefixes": [
     "/wp/v2/block-directory",
     "/wp/v2/block-patterns",
     "/wp/v2/block-renderer",
     "/wp/v2/global-styles",
+    "/wp/v2/global-styles/themes",
     "/wp/v2/navigation",
+    "/wp/v2/pattern-directory",
+    "/wp/v2/search",
+    "/wp/v2/settings",
+    "/wp/v2/statuses",
     "/wp/v2/templates",
     "/wp/v2/template-parts",
+    "/wp/v2/themes",
     "/__experimental"
+  ],
+  "namespaces": [
+    "wp/v2",
+    "__experimental"
   ],
   "coverage_groups": [
     {
@@ -19,9 +29,14 @@
       "route_prefixes": [
         "/wp/v2/block-patterns",
         "/wp/v2/global-styles",
+        "/wp/v2/global-styles/themes",
         "/wp/v2/navigation",
+        "/wp/v2/search",
+        "/wp/v2/settings",
+        "/wp/v2/statuses",
         "/wp/v2/templates",
-        "/wp/v2/template-parts"
+        "/wp/v2/template-parts",
+        "/wp/v2/themes"
       ]
     },
     {
@@ -29,10 +44,33 @@
       "description": "Server-rendered block and directory endpoints that can later consume latency/query primitives.",
       "route_prefixes": [
         "/wp/v2/block-directory",
-        "/wp/v2/block-renderer"
+        "/wp/v2/block-renderer",
+        "/wp/v2/pattern-directory"
       ]
+    },
+    {
+      "id": "permissions",
+      "description": "Authenticated editor routes whose safe cases must preserve expected unauthenticated 401/403 boundaries.",
+      "route_prefixes": [
+        "/wp/v2/global-styles",
+        "/wp/v2/navigation",
+        "/wp/v2/settings",
+        "/wp/v2/templates",
+        "/wp/v2/template-parts"
+      ],
+      "expected_statuses": {
+        "unauthenticated": [401, 403],
+        "authenticated_editor": [200, 201, 204, 404]
+      }
     }
   ],
+  "entity_targets": {
+    "blocks": ["core/paragraph", "core/image", "core/query", "core/navigation"],
+    "editor_state": ["post_editor", "site_editor", "template_editor", "patterns"],
+    "templates": ["index", "single", "page", "archive", "home"],
+    "template_parts": ["header", "footer", "sidebar"],
+    "patterns": ["core/query-standard-posts", "core/text-two-columns"]
+  },
   "future_primitives": [
     "route inventory",
     "route coverage diff",

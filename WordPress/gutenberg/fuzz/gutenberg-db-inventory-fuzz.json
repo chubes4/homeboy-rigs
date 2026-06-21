@@ -4,7 +4,7 @@
   "label": "Gutenberg database inventory coverage",
   "safety_class": "read_only",
   "surface_ids": ["wordpress-database", "gutenberg-fixture-state"],
-  "operations": ["database-inventory", "fixture-state-classification"],
+  "operations": ["database-inventory", "fixture-state-classification", "option-prefix-inventory", "postmeta-key-inventory", "gutenberg-entity-inventory"],
   "case_budget": 20,
   "duration_budget_seconds": 300,
   "metadata": {
@@ -20,17 +20,17 @@
     {
       "case_id": "gutenberg-db-inventory-fuzz:default",
       "surface_ids": ["wordpress-database", "gutenberg-fixture-state"],
-      "operations": ["database-inventory", "fixture-state-classification"],
+      "operations": ["database-inventory", "fixture-state-classification", "option-prefix-inventory", "postmeta-key-inventory", "gutenberg-entity-inventory"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/db-inventory.workload.json", "type=json"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=db_inventory"] }]
       },
-      "artifacts": [{ "name": "db_inventory", "path": "db-inventory/db_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "db_inventory", "path": "db-inventory/db_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "read_only" }
     }
   ],
   "limits": { "max_cases": 20, "max_duration_seconds": 300 },
-  "coverage": { "surface_ids": ["wordpress-database", "gutenberg-fixture-state"], "operations": ["database-inventory", "fixture-state-classification"] },
-  "artifacts": { "expected": [{ "name": "db_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": { "surface_ids": ["wordpress-database", "gutenberg-fixture-state"], "operations": ["database-inventory", "fixture-state-classification", "option-prefix-inventory", "postmeta-key-inventory", "gutenberg-entity-inventory"] },
+  "artifacts": { "expected": [{ "name": "db_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }

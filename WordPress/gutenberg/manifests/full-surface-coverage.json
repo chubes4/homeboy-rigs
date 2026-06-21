@@ -14,13 +14,20 @@
     "rest_api": {
       "manifest": "manifests/rest-route-coverage.json",
       "budget_manifest": "manifests/rest-route-budgets.json",
-      "coverage_goal": "all_registered_editor_routes_and_generated_safe_cases"
+      "coverage_goal": "all_registered_editor_routes_and_generated_safe_cases",
+      "namespace_goal": ["wp/v2", "__experimental"],
+      "permission_goal": "safe authenticated editor cases plus unauthenticated 401/403 boundary cases for protected editor routes",
+      "request_case_workload": "bench/generated-rest-request-cases.workload.json"
     },
     "database": {
       "coverage_goal": "all_tables_rows_columns_indexes_after_editor_fixture_setup",
       "lab_cell_contract": "manifests/api-db-lab-cell.json",
       "inventory_artifact": "homeboy/wordpress-db-inventory/v1",
-      "query_profile_artifact": "homeboy/wordpress-rest-db-query-profile/v1"
+      "query_profile_artifact": "homeboy/wordpress-rest-db-query-profile/v1",
+      "inventory_workload": "bench/db-inventory.workload.json",
+      "query_profile_workload": "bench/rest-db-query-profile.workload.json",
+      "attribution_goal": "attribute queries by request case, route, method, query type, table, stack summary, and caller summary",
+      "state_goal": "capture Gutenberg option prefixes, postmeta keys, block/editor/template/pattern post types, and pattern taxonomy state"
     },
     "server_requests": {
       "coverage_goal": "all_outbound_http_hosts_and_blocked_unapproved_requests",
@@ -36,7 +43,8 @@
     "runtime_state": {
       "coverage_goal": "Gutenberg hook, option, cron/state, postmeta, template, pattern, and editor-settings runtime inventory",
       "fuzz_workload": "gutenberg-hooks-options-inventory",
-      "coverage_artifact": "homeboy/gutenberg-runtime-state-coverage/v1"
+      "coverage_artifact": "homeboy/gutenberg-runtime-state-coverage/v1",
+      "runtime_state_workload": "manifests/fuzzer-profile.json#gutenberg-runtime-state"
     },
     "performance_observation": {
       "coverage_goal": "editor, site editor, block rendering, pattern preview, request timing, query count, asset fanout, and external HTTP guardrail summary artifacts",
@@ -53,10 +61,20 @@
       "gutenberg-external-http-guardrail",
       "gutenberg-browser-coverage"
     ],
+    "artifact_expectations": {
+      "rest_route_inventory": { "required": true, "semantic_key": "fuzz.report" },
+      "rest_request_cases": { "required": true, "semantic_key": "fuzz.report" },
+      "rest_db_query_profile": { "required": true, "semantic_key": "fuzz.report" },
+      "db_inventory": { "required": true, "semantic_key": "fuzz.report" },
+      "gutenberg_runtime_state": { "required": true, "semantic_key": "fuzz.report" },
+      "external_http_guardrail": { "required": true, "semantic_key": "fuzz.report" },
+      "browser_request_coverage": { "required": true, "semantic_key": "fuzz.report" }
+    },
     "compare": {
       "rest_routes": "registered Gutenberg-facing route inventory minus generated safe request cases",
+      "permissions": "protected editor routes with authenticated success cases and unauthenticated 401/403 boundary cases",
       "admin_editor_pages": "manifest browser scenarios minus captured browser request coverage scenarios",
-      "database": "fixture DB inventory plus REST query profiles per covered route",
+      "database": "fixture DB inventory plus REST query profiles per covered route, query attribution group, option prefix, postmeta key, and Gutenberg entity type",
       "external_http": "observed outbound HTTP hosts minus approved Gutenberg hosts"
     },
     "report_shape": "homeboy-rigs/gutenberg-fuzzer-coverage-gap/v1"
