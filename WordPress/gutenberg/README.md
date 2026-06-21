@@ -32,11 +32,14 @@ stay generic.
 
 `manifests/fuzzer-profile.json` defines a rig-owned Gutenberg fuzzer profile analogous to the Woo full-surface shape. It composes REST route coverage, safe `wp-admin` and editor page enumeration, block editor load/action probes, Site Editor probes, block rendering, frontend rendering/request coverage, DB query/profile hooks, hook/option/postmeta/runtime-state inventory, editor performance observation summaries, external HTTP guardrails, and coverage-gap reporting without moving Gutenberg-specific knowledge into Homeboy core or Homeboy Extensions.
 
-Run the fuzzer manifests through the WordPress extension runner:
+Inspect and run fuzzer manifests through Homeboy's generic fuzz command:
 
 ```sh
-homeboy fuzz --rig gutenberg-api-route-inventory --runner wordpress --shared-state /tmp/gutenberg-fuzzer
+homeboy fuzz list --rig gutenberg-api-route-inventory
+homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
+
+Use an offloaded Lab runner for heavy proof campaigns. A `homeboy fuzz list` result is only a declaration check; P status requires persisted `homeboy fuzz run` evidence and artifacts.
 
 See `docs/fuzzer-profile.md` for the gap-report contract and current limits.
 

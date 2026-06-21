@@ -32,7 +32,7 @@ The `fuzzer` profile groups these manifests:
 - `fuzz/media-users.json` covers attachment/media metadata, REST media endpoints, users, roles, capabilities, media library rendering, users list rendering, and profile screen rendering.
 - `fuzz/performance-surfaces.json` covers representative frontend, REST, admin, editor, media, cron, and option/autoload pages as performance observation targets, including request timing, query count, and asset observations.
 
-Supporting manifests live in `manifests/` and define the intended coverage gap report shape. The manifests are declarative until Homeboy Extensions exposes a first-class fuzz runner for these generic WordPress primitives.
+Supporting manifests live in `manifests/` and define the intended coverage gap report shape. The manifests stay declarative until an offloaded `homeboy fuzz run` records persisted run evidence for the selected workload.
 
 ## Browser Request Coverage
 
@@ -53,7 +53,7 @@ Static contract tests live in `fuzz/core-fuzz-contracts.test.mjs` and can run wi
 
 Runtime-state coverage expects `hooks-cron-options/` artifacts for hook inventory, cron schedule rows, autoloaded options, transient state, rewrite rules, and a runtime-state summary. Performance coverage expects `performance-surfaces/performance_surfaces.json` with one observation row per declared surface and request timing/query count fields for every non-database-only page.
 
-These are proof contracts, not local benchmark instructions. Collect them through the offloaded fuzz runner once available; do not use `homeboy bench` as a fallback for this Core package.
+These are proof contracts, not local benchmark instructions. Collect them through offloaded `homeboy fuzz run` evidence; do not use `homeboy bench` as a fallback for this Core package.
 
 ## D/E/P Proof Contract
 

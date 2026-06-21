@@ -127,6 +127,18 @@ test('rejects invalid declared fuzz workload shapes', () => {
   assert.match(result.stderr, /must declare a non-empty string label/);
 });
 
+test('rejects fuzz workload safety classes outside the Homeboy contract', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload({ safety_class: 'read_only_inventory' }),
+    },
+  });
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /safety_class must be one of read_only, idempotent, isolated_mutation, destructive/);
+});
+
 test('rejects missing fuzz workload backing files', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {

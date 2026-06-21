@@ -2,7 +2,7 @@
   "schema": "homeboy/fuzz-workload/v1",
   "id": "rest-api",
   "label": "WordPress Core REST API coverage",
-  "safety_class": "mixed_read_isolated_mutation",
+  "safety_class": "isolated_mutation",
   "surface_ids": ["wordpress-core-rest-routes"],
   "operations": ["rest-route-inventory", "generated-rest-case-plan", "request-case-execution", "permission-boundary-classification", "role-boundary-execution"],
   "case_budget": 250,
@@ -32,7 +32,7 @@
         { "name": "generated_rest_request_cases", "path": "rest-api/generated_rest_request_cases.json", "required": false, "metadata": { "semantic_key": "fuzz.rest.generated_cases" } },
         { "name": "rest_permission_boundaries", "path": "rest-api/rest_permission_boundaries.json", "required": false, "metadata": { "semantic_key": "fuzz.rest.permission_boundaries" } }
       ],
-      "metadata": { "safety_class": "mixed_read_isolated_mutation" }
+      "metadata": { "safety_class": "isolated_mutation" }
     }
   ],
   "limits": { "max_cases": 250, "max_duration_seconds": 1200 },

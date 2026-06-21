@@ -2,7 +2,7 @@
   "schema": "homeboy/fuzz-workload/v1",
   "id": "jetpack-module-option-table-inventory",
   "label": "Jetpack module option and table inventory",
-  "safety_class": "read_only_inventory",
+  "safety_class": "read_only",
   "surface_ids": ["jetpack-modules", "jetpack-options", "jetpack-tables", "wordpress-options"],
   "operations": ["module-option-inventory", "module-table-inventory", "autoload-classification", "serialized-value-boundary-classification"],
   "case_budget": 80,
@@ -38,7 +38,7 @@
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=module_option_table_inventory"] }]
       },
       "artifacts": [{ "name": "module_option_table_inventory", "path": "jetpack-module-option-table-inventory/module_option_table_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
-      "metadata": { "safety_class": "read_only_inventory" }
+      "metadata": { "safety_class": "read_only" }
     }
   ],
   "limits": { "max_cases": 80, "max_duration_seconds": 600 },
