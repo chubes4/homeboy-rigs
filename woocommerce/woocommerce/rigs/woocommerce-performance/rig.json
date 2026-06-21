@@ -178,7 +178,7 @@
         "kind": "requirement",
         "label": "WooCommerce admin script asset registry exists or can be built",
         "file": "${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
-        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=$(cd \"$woocommerce_component_source/../..\" && pwd); fi; cd \"$woocommerce_source_root\" || exit 1; if [ ! -d node_modules ]; then pnpm install --frozen-lockfile; fi; pnpm --filter @woocommerce/plugin-woocommerce build:admin",
+        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=$(cd \"$woocommerce_component_source/../..\" && pwd); fi; cd \"$woocommerce_source_root\" || exit 1; if [ ! -d node_modules ]; then pnpm install --frozen-lockfile; fi; pnpm --filter @woocommerce/plugin-woocommerce build:admin || [ -r \"$woocommerce_component_source/assets/client/admin/wp-admin-scripts/command-palette.asset.php\" ]",
         "prepare_phases": ["up", "bench_prepare"],
         "remediation": "Install pnpm dependencies and build Woo admin assets, or run: homeboy rig up woocommerce-performance"
       },
@@ -210,7 +210,7 @@
         "kind": "requirement",
         "label": "Build WooCommerce admin script asset registry when missing",
         "file": "${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
-        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=$(cd \"$woocommerce_component_source/../..\" && pwd); fi; cd \"$woocommerce_source_root\" || exit 1; if [ ! -d node_modules ]; then pnpm install --frozen-lockfile; fi; pnpm --filter @woocommerce/plugin-woocommerce build:admin",
+        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=$(cd \"$woocommerce_component_source/../..\" && pwd); fi; cd \"$woocommerce_source_root\" || exit 1; if [ ! -d node_modules ]; then pnpm install --frozen-lockfile; fi; pnpm --filter @woocommerce/plugin-woocommerce build:admin || [ -r \"$woocommerce_component_source/assets/client/admin/wp-admin-scripts/command-palette.asset.php\" ]",
         "prepare_phases": ["up"],
         "remediation": "Install pnpm dependencies and build Woo admin assets, or run: homeboy rig up woocommerce-performance"
       }
@@ -236,7 +236,7 @@
         "kind": "requirement",
         "label": "Build WooCommerce admin script asset registry when missing",
         "file": "${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
-        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=$(cd \"$woocommerce_component_source/../..\" && pwd); fi; cd \"$woocommerce_source_root\" || exit 1; if [ ! -d node_modules ]; then pnpm install --frozen-lockfile; fi; pnpm --filter @woocommerce/plugin-woocommerce build:admin",
+        "prepare_command": "woocommerce_component_source=\"${components.woocommerce.path}\"; woocommerce_source_root=\"$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT\"; if [ -z \"$woocommerce_source_root\" ]; then woocommerce_source_root=$(cd \"$woocommerce_component_source/../..\" && pwd); fi; cd \"$woocommerce_source_root\" || exit 1; if [ ! -d node_modules ]; then pnpm install --frozen-lockfile; fi; pnpm --filter @woocommerce/plugin-woocommerce build:admin || [ -r \"$woocommerce_component_source/assets/client/admin/wp-admin-scripts/command-palette.asset.php\" ]",
         "prepare_phases": ["bench_prepare"],
         "remediation": "Install pnpm dependencies and build Woo admin assets, or run: homeboy rig up woocommerce-performance"
       }
