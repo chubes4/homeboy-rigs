@@ -71,3 +71,42 @@ test('Jetpack external HTTP guardrail blocks synthetic probes', () => {
   assert.equal(guardrail.network_guardrail.real_external_service_calls_allowed, false);
   assert.ok(guardrail.network_guardrail.probe_hosts.every((host) => host.endsWith('.invalid')));
 });
+
+test('Jetpack option/module/sync fuzz workloads declare rollback-safe boundaries', () => {
+  const workloadIds = [
+    'jetpack-options-matrix',
+    'jetpack-module-state-matrix',
+    'jetpack-sync-queue-coverage',
+    'jetpack-cron-sync-actions',
+    'jetpack-connected-disconnected-fixtures',
+  ];
+
+  for (const workloadId of workloadIds) {
+    const workload = JSON.parse(readFileSync(path.join(fuzzRoot, `${workloadId}.json`), 'utf8'));
+    const firstCase = workload.cases[0];
+    const serializedInputs = JSON.stringify(firstCase.inputs || {});
+    const serializedArgs = JSON.stringify(firstCase.phases?.action || []);
+
+    assert.equal(workload.safety_class, 'isolated_mutation', `${workloadId} should be isolated mutation coverage`);
+    assert.ok(serializedInputs.includes('rollback') || serializedArgs.includes('rollback'), `${workloadId} must require rollback-safe mutation handling`);
+    assert.ok(serializedInputs.includes('restore_original_values') || serializedArgs.includes('restore_original_values'), `${workloadId} must restore original values`);
+  }
+});
+
+test('Jetpack inventory fuzz workloads define module option/table and cron sync primitives', () => {
+  const moduleInventory = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-module-option-table-inventory.json'), 'utf8'));
+  const cronSyncActions = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-cron-sync-actions.json'), 'utf8'));
+
+  assert.equal(moduleInventory.safety_class, 'read_only_inventory');
+  assert.ok(moduleInventory.coverage.operations.includes('module-option-inventory'));
+  assert.ok(moduleInventory.coverage.operations.includes('module-table-inventory'));
+  assert.ok(moduleInventory.cases[0].inputs.read_only);
+  assert.ok(moduleInventory.cases[0].inputs.secret_placeholders_only);
+
+  assert.ok(cronSyncActions.coverage.operations.includes('cron-event-inventory'));
+  assert.ok(cronSyncActions.coverage.operations.includes('sync-action-inventory'));
+  assert.equal(cronSyncActions.cases[0].inputs.remote_dispatch, false);
+  assert.equal(cronSyncActions.cases[0].inputs.force_http_guardrail, true);
+  assert.ok(cronSyncActions.cases[0].inputs.cron_hooks.length > 0);
+  assert.ok(cronSyncActions.cases[0].inputs.synthetic_actions.length > 0);
+});
