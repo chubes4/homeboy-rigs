@@ -3,8 +3,15 @@
   "id": "checkout-gateway-compatibility-matrix",
   "label": "Checkout gateway compatibility matrix",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["woocommerce-checkout-payment-gateways", "woocommerce-checkout-create-order"],
-  "operations": ["gateway-profile-matrix", "idempotency-repro", "dependency-readiness-classification"],
+  "surface_ids": [
+    "woocommerce-checkout-payment-gateways",
+    "woocommerce-checkout-create-order"
+  ],
+  "operations": [
+    "gateway-profile-matrix",
+    "idempotency-repro",
+    "dependency-readiness-classification"
+  ],
   "case_budget": 12,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -13,5 +20,95 @@
     "workload_path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php",
+    "entry": "checkout-gateway-compatibility-matrix"
+  },
+  "cases": [
+    {
+      "case_id": "checkout-gateway-compatibility-matrix:default",
+      "surface_ids": [
+        "woocommerce-checkout-payment-gateways",
+        "woocommerce-checkout-create-order"
+      ],
+      "operations": [
+        "gateway-profile-matrix",
+        "idempotency-repro",
+        "dependency-readiness-classification"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/checkout-gateway-compatibility-matrix.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=gateway_matrix"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "gateway_matrix",
+          "path": "checkout-gateway-compatibility-matrix/gateway_matrix.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 12,
+    "max_duration_seconds": 900
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-checkout-payment-gateways",
+      "woocommerce-checkout-create-order"
+    ],
+    "operations": [
+      "gateway-profile-matrix",
+      "idempotency-repro",
+      "dependency-readiness-classification"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "gateway_matrix",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }

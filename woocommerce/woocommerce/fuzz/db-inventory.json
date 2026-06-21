@@ -3,8 +3,14 @@
   "id": "db-inventory",
   "label": "WooCommerce database inventory",
   "safety_class": "read_only",
-  "surface_ids": ["woocommerce-database-tables", "wordpress-database-tables"],
-  "operations": ["table-inventory", "index-inventory"],
+  "surface_ids": [
+    "woocommerce-database-tables",
+    "wordpress-database-tables"
+  ],
+  "operations": [
+    "table-inventory",
+    "index-inventory"
+  ],
   "case_budget": 1,
   "duration_budget_seconds": 300,
   "metadata": {
@@ -13,5 +19,93 @@
     "workload_path": "${package.root}/bench/db-inventory.workload.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/db-inventory.workload.json",
+    "entry": "db-inventory"
+  },
+  "cases": [
+    {
+      "case_id": "db-inventory:default",
+      "surface_ids": [
+        "woocommerce-database-tables",
+        "wordpress-database-tables"
+      ],
+      "operations": [
+        "table-inventory",
+        "index-inventory"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/db-inventory.workload.json",
+              "type=json"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=db_inventory"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "db_inventory",
+          "path": "db-inventory/db_inventory.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 1,
+    "max_duration_seconds": 300
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-database-tables",
+      "wordpress-database-tables"
+    ],
+    "operations": [
+      "table-inventory",
+      "index-inventory"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "db_inventory",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }

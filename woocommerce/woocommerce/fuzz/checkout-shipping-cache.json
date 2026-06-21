@@ -3,8 +3,15 @@
   "id": "checkout-shipping-cache",
   "label": "Checkout shipping cache guardrails",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["woocommerce-cart-shipping-packages", "woocommerce-shipping-rate-cache"],
-  "operations": ["package-shape-matrix", "cache-key-churn", "real-input-rehash"],
+  "surface_ids": [
+    "woocommerce-cart-shipping-packages",
+    "woocommerce-shipping-rate-cache"
+  ],
+  "operations": [
+    "package-shape-matrix",
+    "cache-key-churn",
+    "real-input-rehash"
+  ],
   "case_budget": 40,
   "duration_budget_seconds": 900,
   "thresholds": [
@@ -24,5 +31,95 @@
     "workload_path": "${package.root}/bench/checkout-shipping-cache.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/checkout-shipping-cache.php",
+    "entry": "checkout-shipping-cache"
+  },
+  "cases": [
+    {
+      "case_id": "checkout-shipping-cache:default",
+      "surface_ids": [
+        "woocommerce-cart-shipping-packages",
+        "woocommerce-shipping-rate-cache"
+      ],
+      "operations": [
+        "package-shape-matrix",
+        "cache-key-churn",
+        "real-input-rehash"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/checkout-shipping-cache.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=raw_result"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "raw_result",
+          "path": "checkout-shipping-cache/raw_result.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 40,
+    "max_duration_seconds": 900
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-cart-shipping-packages",
+      "woocommerce-shipping-rate-cache"
+    ],
+    "operations": [
+      "package-shape-matrix",
+      "cache-key-churn",
+      "real-input-rehash"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "raw_result",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }
