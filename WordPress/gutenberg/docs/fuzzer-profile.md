@@ -13,6 +13,7 @@ The `fuzzer` profile composes the same surface classes as the Woo full-surface r
 - DB inventory and REST query profiling through `gutenberg-db-inventory-fuzz` and `gutenberg-rest-db-query-profile-fuzz`.
 - Hook, option, postmeta, template/pattern, cron, transient, and editor-state inventory through `gutenberg-hooks-options-inventory`.
 - Editor, Site Editor, block-rendering, pattern-preview, notes-unsaved-attachment, and external HTTP performance summaries through `gutenberg-editor-performance-observation`.
+- Gutenberg 1 API/DB Lab cell recovery through `manifests/api-db-lab-cell.json`: REST namespaces, role permission boundaries, query/table attribution, option/postmeta state, entity fixtures, and required proof artifact sections.
 - External HTTP guardrails through `gutenberg-external-http-guardrail-fuzz`.
 - Coverage-gap reporting shape in `manifests/fuzzer-profile.json` and `manifests/full-surface-coverage.json`.
 
@@ -41,6 +42,7 @@ A consumer can produce `homeboy-rigs/gutenberg-fuzzer-coverage-gap/v1` from the 
 - Covered REST routes without DB query profiles or with query counts/durations over `manifests/rest-route-budgets.json`.
 - Missing hook, option, postmeta, template, pattern, cron, transient, or editor-state inventory sections.
 - Missing editor, Site Editor, block-rendering, pattern-preview, notes-unsaved-attachment, or external HTTP performance summary sections.
+- REST namespaces without generated cases, routes without role permission-boundary cases, queries without table/key attribution, and entities without state artifacts from the Gutenberg 1 API/DB Lab cell contract.
 - Unapproved outbound hosts observed by `gutenberg-external-http-guardrail-fuzz`.
 - Fixture or primitive gaps that prevent a surface from being interpreted as covered.
 

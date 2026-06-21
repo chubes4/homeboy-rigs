@@ -40,6 +40,8 @@ homeboy fuzz --rig gutenberg-api-route-inventory --runner wordpress --shared-sta
 
 See `docs/fuzzer-profile.md` for the gap-report contract and current limits.
 
+`manifests/api-db-lab-cell.json` recovers the Gutenberg 1 API/DB Lab cell as a coverage contract. It pins REST namespace coverage, role permission-boundary expectations, DB query attribution fields, option/postmeta state attribution, entity fixtures, and the proof artifact sections required before this surface can be marked P.
+
 Current D/E-only fuzz workload additions:
 
 - `gutenberg-hooks-options-inventory` declares hook, option, postmeta, template/pattern, cron/state, transient, and editor-state inventory so remote-cache pressure is visible in the same artifact. It is not P until a fuzz run emits the runtime-state artifact.
