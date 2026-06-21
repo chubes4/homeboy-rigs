@@ -85,7 +85,11 @@
       { "path": "${package.root}/fuzz/rest-db-query-profile.json" },
       { "path": "${package.root}/fuzz/db-inventory.json" },
       { "path": "${package.root}/fuzz/rest-permission-boundary-matrix.json" },
+      { "path": "${package.root}/fuzz/rest-namespace-generated-cases.json" },
+      { "path": "${package.root}/fuzz/rest-schema-query-attribution.json" },
+      { "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json" },
       { "path": "${package.root}/fuzz/options-transients-coverage.json" },
+      { "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json" },
       { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
       { "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json" },
       { "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json" }

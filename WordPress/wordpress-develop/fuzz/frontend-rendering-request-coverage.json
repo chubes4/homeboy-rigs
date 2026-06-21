@@ -1,0 +1,41 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "frontend-rendering-request-coverage",
+  "label": "WordPress Core frontend request and rendering coverage",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["wordpress-core-frontend", "wordpress-core-template-rendering", "wordpress-core-posts", "wordpress-core-pages", "wordpress-core-media"],
+  "operations": ["frontend-request-capture", "template-rendering-readiness", "post-rendering", "page-rendering", "archive-rendering", "search-rendering", "media-rendering", "skipped-destructive-classification"],
+  "case_budget": 120,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-core-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "frontend-rendering-request-coverage" },
+  "cases": [
+    {
+      "case_id": "frontend-rendering-request-coverage:core-content-rendering",
+      "surface_ids": ["wordpress-core-frontend", "wordpress-core-template-rendering", "wordpress-core-posts", "wordpress-core-pages", "wordpress-core-media"],
+      "operations": ["frontend-request-capture", "template-rendering-readiness", "post-rendering", "page-rendering", "archive-rendering", "search-rendering", "media-rendering", "skipped-destructive-classification"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=12", "pages=6", "media=4", "terms=6", "comments=4", "front_page=page"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=frontend_rendering", "paths=/,/sample-page/,/hello-world/,/?s=fixture,/category/uncategorized/,/feed/"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=frontend_rendering_request_coverage"] }]
+      },
+      "artifacts": [{ "name": "frontend_rendering_request_coverage", "path": "frontend-rendering-request-coverage/frontend_rendering_request_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy-rigs/wordpress-core-frontend-rendering-request-coverage/v1" } }],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "safe_methods": ["GET", "HEAD"],
+        "scenarios": ["front-page", "single-post", "single-page", "archive", "search", "feed", "attachment"],
+        "expected_artifact_fields": ["schema", "summary", "requests", "rendered_paths", "template_contexts", "request_coverage", "skipped"],
+        "skipped_reason_codes": ["unsafe_method", "comment_submission_mutation", "login_or_password_flow", "nonce_required", "permission_boundary"]
+      }
+    }
+  ],
+  "limits": { "max_cases": 120, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["wordpress-core-frontend", "wordpress-core-template-rendering", "wordpress-core-posts", "wordpress-core-pages", "wordpress-core-media"], "operations": ["frontend-request-capture", "template-rendering-readiness", "post-rendering", "page-rendering", "archive-rendering", "search-rendering", "media-rendering", "skipped-destructive-classification"] },
+  "artifacts": { "expected": [{ "name": "frontend_rendering_request_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true, "schema": "homeboy-rigs/wordpress-core-frontend-rendering-request-coverage/v1" }] }
+}
