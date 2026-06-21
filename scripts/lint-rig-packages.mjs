@@ -220,6 +220,12 @@ function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
 
   if (!Array.isArray(workload.cases) || workload.cases.length === 0) {
     failures.push(`${rel}: ${context} must declare at least one case`);
+  } else {
+    for (const runnerCase of workload.cases) {
+      if (runnerCase?.metadata?.safety_class && runnerCase.metadata.safety_class !== workload.safety_class) {
+        failures.push(`${rel}: ${context} case ${runnerCase.case_id || '(unknown)'} metadata.safety_class must match workload safety_class ${workload.safety_class}`);
+      }
+    }
   }
 }
 
@@ -369,6 +375,14 @@ function lintFuzzWorkload(file) {
   for (const field of ['surface_ids', 'operations', 'cases']) {
     if (!Array.isArray(workload[field]) || workload[field].length === 0) {
       failures.push(`${rel}: fuzz workload must define non-empty array field ${field}`);
+    }
+  }
+
+  if (Array.isArray(workload.cases)) {
+    for (const runnerCase of workload.cases) {
+      if (runnerCase?.metadata?.safety_class && runnerCase.metadata.safety_class !== workload.safety_class) {
+        failures.push(`${rel}: fuzz workload case ${runnerCase.case_id || '(unknown)'} metadata.safety_class must match workload safety_class ${workload.safety_class}`);
+      }
     }
   }
 

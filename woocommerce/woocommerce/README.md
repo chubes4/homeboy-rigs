@@ -154,8 +154,9 @@ homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-a
 homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
 ```
 
-`homeboy fuzz --rig woocommerce-performance` resolves the rig's WooCommerce
-component and `fuzz_workloads.wordpress` declarations. Fuzz workloads are not
+`homeboy fuzz list --rig woocommerce-performance` resolves the rig's
+WooCommerce component and `fuzz_workloads.wordpress` declarations before any
+focused `homeboy fuzz run` proof command. Fuzz workloads are not
 registered through `bench_workloads`, so there is no legacy bench fallback path
 for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
   admin coverage, REST coverage, namespace generated cases, permission
@@ -170,6 +171,11 @@ produces reviewer-facing artifacts. Performance timing remains in
 `bench_workloads`. Use Homeboy Lab for heavy `homeboy fuzz run` proof when the
 runner has a `homeboy` binary that exposes the `fuzz` command; do not substitute
 `homeboy bench` for missing fuzz support.
+
+Each Woo fuzz manifest declares the WP Codebox fixture contract in metadata:
+`wp-codebox` runtime, disposable WordPress scope, WooCommerce component, and
+`woocommerce/woocommerce.php` activation. The validator rejects fixture metadata
+drift and case safety classes that do not match the workload safety class.
 
 ## Benchmark Commands
 
@@ -370,6 +376,7 @@ workload against each WooCommerce checkout and keep the artifacts attached to th
 WooCommerce tracker or PR:
 
 ```bash
+homeboy fuzz list --rig woocommerce-performance
 homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-baseline --seed 1 --max-duration 10m
 homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-candidate --seed 1 --max-duration 10m
 ```

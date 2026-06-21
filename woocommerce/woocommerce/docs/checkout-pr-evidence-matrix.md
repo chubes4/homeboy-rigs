@@ -93,6 +93,7 @@ Run these rows for both the old PR shape and the revised WooCommerce candidate.
 
 ```bash
 homeboy rig up woocommerce-performance
+homeboy fuzz list --rig woocommerce-performance
 
 homeboy fuzz run --rig woocommerce-performance \
   --workload checkout-gateway-compatibility-matrix \

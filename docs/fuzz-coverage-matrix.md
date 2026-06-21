@@ -30,6 +30,13 @@ Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narro
 | Frontend / rendering | D/E/P partial | `fuzz/frontend-rendering-request-coverage.json`, `bench/woocommerce-browser-coverage.trace.mjs`, `browser-scenarios/shop.json`, `product.json`, `cart.json`, `checkout.json`, `rigs/woocommerce-browser-coverage/rig.json`, `cart-session-overwrite-race.trace.mjs` | Shop/product/cart/checkout, frontend request capture, skipped-destructive reason codes, and browser cart-session race coverage are executable. Checkout duplicate-order and cart/session bug coverage is issue-linked; broader visual/rendering parity is not claimed. |
 | Performance-related fuzz | D/E/P partial | `fuzz/performance-hotspots-artifact-summary.json`, `checkout-concurrent-create-order.php`, `checkout-shipping-cache.php`, `layered-nav-count-cache.php`, `layered-nav-catalog-crawl.php`, `admin-dashboard-physical-products-query.php`, `cart-session-overwrite-race.php` | Proven for the documented checkout duplicate-order, shipping cache, layered-nav transient, and admin dashboard query bug clusters listed in `woocommerce/woocommerce/README.md`. Full-surface performance summary remains D/E until new run artifacts exist. |
 
+WooCommerce fuzz manifests also carry explicit WP Codebox fixture metadata
+(`wp-codebox`, disposable WordPress, WooCommerce component activation) and
+case-level safety classes that must match the workload safety class. Use
+`homeboy fuzz list --rig woocommerce-performance` before focused
+`homeboy fuzz run` recipes; `homeboy bench` is not a substitute for missing fuzz
+support or reviewer-facing fuzz artifacts.
+
 ## WordPress Core
 
 | Surface | Status | Current assets | Proven / missing edge |
