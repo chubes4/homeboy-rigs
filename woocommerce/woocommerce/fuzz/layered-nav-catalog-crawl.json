@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "layered-nav-catalog-crawl",
+  "label": "Layered nav catalog crawl cache cap",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-layered-nav-widget", "woocommerce-product-archive"],
+  "operations": ["facet-url-crawl", "transient-entry-cap-guardrail"],
+  "case_budget": 25,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/layered-nav-catalog-crawl.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

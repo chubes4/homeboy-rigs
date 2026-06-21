@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "layered-nav-count-cache",
+  "label": "Layered nav count cache cap",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-layered-nav-count-cache"],
+  "operations": ["taxonomy-filter-count-cache", "transient-entry-cap-guardrail"],
+  "case_budget": 25,
+  "duration_budget_seconds": 600,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/layered-nav-count-cache.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

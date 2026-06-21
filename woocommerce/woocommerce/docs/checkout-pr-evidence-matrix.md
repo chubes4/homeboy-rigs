@@ -94,20 +94,21 @@ Run these rows for both the old PR shape and the revised WooCommerce candidate.
 ```bash
 homeboy rig up woocommerce-performance
 
-homeboy bench --rig woocommerce-performance \
-  --scenario checkout-gateway-compatibility-matrix \
-  --iterations 1 \
-  --shared-state /tmp/woocommerce-checkout-pr-65588-old-shape \
-  --setting-json 'bench_env={"WC_CHECKOUT_GATEWAY_MATRIX_PROFILES":"core_bacs,core_cheque,core_cod"}'
+homeboy fuzz run --rig woocommerce-performance \
+  --workload checkout-gateway-compatibility-matrix \
+  --run-id woocommerce-checkout-pr-65588-old-shape-gateway \
+  --seed 1 \
+  --max-duration 15m
 
-homeboy bench --rig woocommerce-performance \
-  --scenario checkout-concurrent-create-order \
-  --iterations 1 \
-  --shared-state /tmp/woocommerce-checkout-pr-65588-old-shape
+homeboy fuzz run --rig woocommerce-performance \
+  --workload checkout-concurrent-create-order \
+  --run-id woocommerce-checkout-pr-65588-old-shape-concurrent \
+  --seed 1 \
+  --max-duration 10m
 ```
 
-Repeat with the revised candidate checked out and
-`--shared-state /tmp/woocommerce-checkout-pr-65588-revised-candidate`.
+Repeat with the revised candidate checked out and candidate-specific `--run-id`
+values.
 
 ## Expected Interpretation
 

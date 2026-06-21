@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "woocommerce-external-http-guardrail",
+  "label": "WooCommerce external HTTP guardrail",
+  "safety_class": "read_only",
+  "surface_ids": ["woocommerce-external-http"],
+  "operations": ["external-http-blocklist-probe", "network-side-effect-classification"],
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/woocommerce-external-http-guardrail.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

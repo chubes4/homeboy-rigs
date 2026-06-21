@@ -1,0 +1,28 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "checkout-shipping-cache",
+  "label": "Checkout shipping cache guardrails",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["woocommerce-cart-shipping-packages", "woocommerce-shipping-rate-cache"],
+  "operations": ["package-shape-matrix", "cache-key-churn", "real-input-rehash"],
+  "case_budget": 40,
+  "duration_budget_seconds": 900,
+  "thresholds": [
+    {
+      "schema": "homeboy/fuzz-threshold/v1",
+      "id": "shipping-cache-max-failure-rate",
+      "metric": "failure_rate",
+      "operator": "less_than_or_equal",
+      "value": 0,
+      "unit": "ratio",
+      "safety_class": "isolated_mutation"
+    }
+  ],
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/checkout-shipping-cache.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

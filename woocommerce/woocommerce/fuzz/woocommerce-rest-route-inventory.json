@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "woocommerce-rest-route-inventory",
+  "label": "WooCommerce REST route inventory",
+  "safety_class": "read_only",
+  "surface_ids": ["woocommerce-rest-routes", "wordpress-rest-api"],
+  "operations": ["route-discovery", "permission-boundary-classification"],
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}

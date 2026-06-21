@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "rest-db-query-profile",
+  "label": "REST DB query profile coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["woocommerce-rest-routes", "wordpress-database-queries"],
+  "operations": ["rest-query-profile", "query-shape-attribution"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  }
+}
