@@ -118,7 +118,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["bench transcript"]
+        "optional": ["fuzz run id"]
       }
     },
     "checkout-concurrent-create-order": {
@@ -130,7 +130,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["order ids", "bench transcript"]
+        "optional": ["order ids", "fuzz run id"]
       }
     },
     "checkout-gateway-compatibility-matrix": {
@@ -142,7 +142,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["gateway matrix rows", "bench transcript"]
+        "optional": ["gateway matrix rows", "fuzz run id"]
       }
     },
     "checkout-shortcode-place-order-latency": {
@@ -166,7 +166,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["cache churn samples", "bench transcript"]
+        "optional": ["cache churn samples", "fuzz run id"]
       }
     },
     "admin-dashboard-physical-products-query": {
@@ -190,7 +190,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["cache samples", "bench transcript"]
+        "optional": ["cache samples", "fuzz run id"]
       }
     },
     "layered-nav-catalog-crawl": {
@@ -202,7 +202,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["crawl samples", "bench transcript"]
+        "optional": ["crawl samples", "fuzz run id"]
       }
     },
     "admin-page-coverage": {

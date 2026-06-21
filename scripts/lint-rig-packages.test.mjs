@@ -49,6 +49,8 @@ function fuzzWorkload(overrides = {}) {
     id: 'generic-fuzz',
     label: 'Generic fuzz workload',
     safety_class: 'read_only',
+    surface_ids: ['generic-surface'],
+    operations: ['generic-operation'],
     metadata: { kind: 'generic-fuzz' },
     target: { type: 'generic' },
     workload: {
