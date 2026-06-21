@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-module-state-matrix",
+  "label": "Jetpack module state matrix",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["jetpack-modules", "jetpack-settings"],
+  "operations": ["module-discovery", "module-activate-deactivate", "settings-state-classification"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "generic", "entry": "wordpress-plugin-module-state-matrix" },
+  "cases": [{ "case_id": "jetpack-module-state-matrix:default", "surface_ids": ["jetpack-modules", "jetpack-settings"], "operations": ["module-discovery", "module-activate-deactivate", "settings-state-classification"], "inputs": { "module_allowlist": ["stats", "publicize", "related-posts", "markdown", "shortcodes", "widget-visibility"], "synthetic_connection": false, "external_dispatch": false }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.fuzz-plugin-module-state", "args": ["external_dispatch=false", "synthetic_connection=false"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=module_state_matrix"] }] }, "artifacts": [{ "name": "module_state_matrix", "path": "jetpack-module-state-matrix/module_state_matrix.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "isolated_mutation" } }],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["jetpack-modules", "jetpack-settings"], "operations": ["module-discovery", "module-activate-deactivate", "settings-state-classification"] },
+  "artifacts": { "expected": [{ "name": "module_state_matrix", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

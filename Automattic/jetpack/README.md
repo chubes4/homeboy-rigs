@@ -2,7 +2,7 @@
 
 ## `jetpack-api-route-inventory`
 
-Captures a lightweight inventory of registered Jetpack REST routes without executing API requests. This is an adapter scaffold for applying generic Homeboy Extensions / WP Codebox API performance primitives to Jetpack later.
+Declares the Jetpack fuzz coverage suite for REST/API, module state, admin pages, database/query profiling, options, sync queue behavior, external HTTP guardrails, and browser/admin request coverage. The suite uses generic fuzz workload manifests under `fuzz/`; it does not declare fuzz workloads as bench fallbacks.
 
 Install locally:
 
@@ -10,16 +10,17 @@ Install locally:
 homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/Automattic/jetpack
 ```
 
-Run the route inventory workload:
+Check the rig package:
 
 ```sh
-homeboy bench --rig jetpack-api-route-inventory --scenario jetpack-rest-route-inventory --iterations 1 --shared-state /tmp/jetpack-api-inventory
+homeboy rig check jetpack-api-route-inventory
+homeboy rig check jetpack-browser-coverage
 ```
 
-Run the currently executable full-surface profile. It is intentionally limited to workload-backed REST route inventory until generated REST cases, DB inventory/profiling, external HTTP guardrails, and browser request coverage have concrete workload files:
+Run fuzz workloads only through the fuzz runner surface once available in the target Homeboy install. Do not use `homeboy bench` as a fallback for these coverage manifests.
 
 ```sh
-homeboy bench --rig jetpack-api-route-inventory --profile full-surface --iterations 1 --shared-state /tmp/jetpack-full-surface
+homeboy fuzz --rig jetpack-api-route-inventory --workload jetpack-rest-route-inventory
 ```
 
-The coverage manifest lives at `manifests/rest-route-coverage.json`. It keeps Jetpack-specific route grouping in this rig package so upstream primitives can stay generic.
+The coverage manifests live under `manifests/`, with executable/declarative fuzz workload manifests under `fuzz/`. External HTTP guardrail probes use `.invalid` synthetic hosts and an empty allowlist so no real external service calls are expected.

@@ -1,0 +1,18 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-external-http-guardrail",
+  "label": "Jetpack external HTTP guardrail",
+  "safety_class": "read_only",
+  "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"],
+  "operations": ["external-http-blocklist-probe", "network-side-effect-classification"],
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/bench/jetpack-external-http-guardrail.php", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "network_policy": "block_all_synthetic_external_requests" },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/jetpack-external-http-guardrail.php", "entry": "jetpack-external-http-guardrail" },
+  "network_guardrail": { "block_network": true, "allowlist_domains": [], "probe_hosts": ["jetpack-homeboy-guardrail.invalid"], "real_external_service_calls_allowed": false },
+  "cases": [{ "case_id": "jetpack-external-http-guardrail:default", "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"], "operations": ["external-http-blocklist-probe", "network-side-effect-classification"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }, { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-external-http-guardrail.php", "type=php"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=external_http_guardrail"] }] }, "artifacts": [{ "name": "external_http_guardrail", "path": "jetpack-external-http-guardrail/external_http_guardrail.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "read_only" } }],
+  "limits": { "max_cases": 1, "max_duration_seconds": 300 },
+  "coverage": { "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"], "operations": ["external-http-blocklist-probe", "network-side-effect-classification"] },
+  "artifacts": { "expected": [{ "name": "external_http_guardrail", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

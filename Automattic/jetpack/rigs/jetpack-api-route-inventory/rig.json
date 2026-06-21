@@ -26,34 +26,20 @@
     "default_component": "jetpack",
     "warmup_iterations": 0
   },
-  "bench_workloads": {
-    "wordpress": [
-      { "path": "${package.root}/bench/jetpack-rest-route-inventory.php" },
-      { "path": "${package.root}/bench/jetpack-external-http-guardrail.php" },
-      { "path": "${package.root}/bench/generated-rest-request-cases.workload.json" },
-      { "path": "${package.root}/bench/rest-db-query-profile.workload.json" },
-      { "path": "${package.root}/bench/db-inventory.workload.json" }
-    ]
+  "fuzz": {
+    "default_component": "jetpack"
   },
-  "bench_profiles": {
-    "smoke": [
-      "jetpack-rest-route-inventory",
-      "jetpack-external-http-guardrail",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory"
-    ],
-    "api-coverage": [
-      "jetpack-rest-route-inventory",
-      "generated-rest-request-cases",
-      "rest-db-query-profile"
-    ],
-    "full-surface": [
-      "jetpack-rest-route-inventory",
-      "generated-rest-request-cases",
-      "jetpack-external-http-guardrail",
-      "rest-db-query-profile",
-      "db-inventory"
+  "fuzz_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/fuzz/jetpack-rest-route-inventory.json" },
+      { "path": "${package.root}/fuzz/generated-rest-request-cases.json" },
+      { "path": "${package.root}/fuzz/rest-db-query-profile.json" },
+      { "path": "${package.root}/fuzz/db-inventory.json" },
+      { "path": "${package.root}/fuzz/jetpack-admin-page-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-module-state-matrix.json" },
+      { "path": "${package.root}/fuzz/jetpack-options-matrix.json" },
+      { "path": "${package.root}/fuzz/jetpack-sync-queue-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-external-http-guardrail.json" }
     ]
   },
   "pipeline": {

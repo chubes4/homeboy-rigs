@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-options-matrix",
+  "label": "Jetpack options matrix",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["jetpack-options", "wordpress-options"],
+  "operations": ["option-default-read", "option-update-rollback", "serialization-boundary-classification"],
+  "case_budget": 120,
+  "duration_budget_seconds": 900,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "generic", "entry": "wordpress-plugin-option-matrix" },
+  "cases": [{ "case_id": "jetpack-options-matrix:default", "surface_ids": ["jetpack-options", "wordpress-options"], "operations": ["option-default-read", "option-update-rollback", "serialization-boundary-classification"], "inputs": { "option_prefixes": ["jetpack_", "jetpack_%", "jpsq_"], "secret_placeholders_only": true, "restore_original_values": true }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.fuzz-plugin-options", "args": ["secret_placeholders_only=true", "restore_original_values=true"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=options_matrix"] }] }, "artifacts": [{ "name": "options_matrix", "path": "jetpack-options-matrix/options_matrix.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "isolated_mutation" } }],
+  "limits": { "max_cases": 120, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["jetpack-options", "wordpress-options"], "operations": ["option-default-read", "option-update-rollback", "serialization-boundary-classification"] },
+  "artifacts": { "expected": [{ "name": "options_matrix", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

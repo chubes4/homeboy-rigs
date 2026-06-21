@@ -1,0 +1,36 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-rest-route-inventory",
+  "label": "Jetpack REST route inventory",
+  "safety_class": "read_only",
+  "surface_ids": ["jetpack-rest-routes", "wordpress-rest-api"],
+  "operations": ["route-discovery", "permission-boundary-classification"],
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/jetpack-rest-route-inventory.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/jetpack-rest-route-inventory.php", "entry": "jetpack-rest-route-inventory" },
+  "cases": [
+    {
+      "case_id": "jetpack-rest-route-inventory:default",
+      "surface_ids": ["jetpack-rest-routes", "wordpress-rest-api"],
+      "operations": ["route-discovery", "permission-boundary-classification"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-rest-route-inventory.php", "type=php"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=route_inventory"] }]
+      },
+      "artifacts": [{ "name": "route_inventory", "path": "jetpack-rest-route-inventory/route_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 1, "max_duration_seconds": 300 },
+  "coverage": { "surface_ids": ["jetpack-rest-routes", "wordpress-rest-api"], "operations": ["route-discovery", "permission-boundary-classification"] },
+  "artifacts": { "expected": [{ "name": "route_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

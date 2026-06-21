@@ -25,6 +25,13 @@
       ],
       "expected_workloads": [
         "jetpack-rest-route-inventory",
+        "generated-rest-request-cases",
+        "rest-db-query-profile",
+        "db-inventory",
+        "jetpack-admin-page-coverage",
+        "jetpack-module-state-matrix",
+        "jetpack-options-matrix",
+        "jetpack-sync-queue-coverage",
         "jetpack-external-http-guardrail"
       ]
     }
