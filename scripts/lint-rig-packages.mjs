@@ -2,12 +2,13 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 
 const root = process.argv[2] ? join(process.cwd(), process.argv[2]) : process.cwd();
 const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
 const rigFiles = [];
+const jsonFiles = [];
 const portableSourceFiles = [];
 const failures = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
@@ -36,13 +37,17 @@ function walk(directory) {
       rigFiles.push(join(directory, entry.name));
     }
 
+    if (entry.isFile() && entry.name.endsWith('.json')) {
+      jsonFiles.push(join(directory, entry.name));
+    }
+
     if (entry.isFile() && /\.(json|mjs|js)$/.test(entry.name)) {
       portableSourceFiles.push(join(directory, entry.name));
     }
   }
 }
 
-function lintRigPortability(file) {
+function lintRigPortability(file, fuzzWorkloadIdsByPackageRoot) {
   const rel = relative(root, file);
   const contents = readFileSync(file, 'utf8');
   let rig;
@@ -71,7 +76,29 @@ function lintRigPortability(file) {
     failures.push(`${rel}: use shared/wp-codebox/check-cli.sh instead of duplicating WP Codebox CLI discovery in rig commands`);
   }
 
-  lintBenchProfiles(rel, rig);
+  lintBenchProfiles(rel, file, rig, fuzzWorkloadIdsByPackageRoot);
+}
+
+function packageRootForRig(file) {
+  const rel = relative(root, file);
+  const rigsIndex = rel.indexOf('/rigs/');
+
+  if (rigsIndex === -1) {
+    return dirname(file);
+  }
+
+  return join(root, rel.slice(0, rigsIndex));
+}
+
+function packageRootForFuzzWorkload(file) {
+  const rel = relative(root, file);
+  const fuzzIndex = rel.indexOf('/fuzz/');
+
+  if (fuzzIndex === -1) {
+    return null;
+  }
+
+  return join(root, rel.slice(0, fuzzIndex));
 }
 
 function workloadIdFromPath(path) {
@@ -84,11 +111,49 @@ function workloadIdFromPath(path) {
     .replace(/\.json$/, '');
 }
 
-function lintBenchProfiles(rel, rig) {
-  if (!rig.bench_profiles) {
+function addSetValue(map, key, value) {
+  if (!map.has(key)) {
+    map.set(key, new Set());
+  }
+
+  map.get(key).add(value);
+}
+
+function collectWordPressPluginFuzzWorkloadIds() {
+  const fuzzWorkloadIdsByPackageRoot = new Map();
+
+  for (const file of jsonFiles) {
+    const packageRoot = packageRootForFuzzWorkload(file);
+    if (!packageRoot) {
+      continue;
+    }
+
+    let workload;
+    try {
+      workload = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+      continue;
+    }
+
+    if (workload.schema !== 'homeboy/fuzz-workload/v1' || workload.metadata?.kind !== 'wordpress-plugin-fuzz') {
+      continue;
+    }
+
+    addSetValue(fuzzWorkloadIdsByPackageRoot, packageRoot, workloadIdFromPath(file));
+    if (typeof workload.id === 'string' && workload.id) {
+      addSetValue(fuzzWorkloadIdsByPackageRoot, packageRoot, workload.id);
+    }
+  }
+
+  return fuzzWorkloadIdsByPackageRoot;
+}
+
+function lintBenchProfiles(rel, file, rig, fuzzWorkloadIdsByPackageRoot) {
+  if (!rig.bench_profiles && !rig.bench_workloads) {
     return;
   }
 
+  const fuzzWorkloadIds = fuzzWorkloadIdsByPackageRoot.get(packageRootForRig(file)) || new Set();
   const workloadIds = new Set();
   for (const workloads of Object.values(rig.bench_workloads || {})) {
     if (!Array.isArray(workloads)) {
@@ -98,9 +163,18 @@ function lintBenchProfiles(rel, rig) {
     for (const workload of workloads) {
       const path = typeof workload === 'string' ? workload : workload?.path;
       if (path) {
-        workloadIds.add(workloadIdFromPath(path));
+        const workloadId = workloadIdFromPath(path);
+        workloadIds.add(workloadId);
+
+        if (fuzzWorkloadIds.has(workloadId)) {
+          failures.push(`${rel}: bench_workloads declares ${workloadId}, but that id belongs to a WordPress plugin fuzz workload in this package`);
+        }
       }
     }
+  }
+
+  if (!rig.bench_profiles) {
+    return;
   }
 
   for (const [profile, workloadRefs] of Object.entries(rig.bench_profiles)) {
@@ -110,6 +184,10 @@ function lintBenchProfiles(rel, rig) {
     }
 
     for (const workloadRef of workloadRefs) {
+      if (fuzzWorkloadIds.has(workloadRef)) {
+        failures.push(`${rel}: bench profile ${profile} references ${workloadRef}, but that id belongs to a WordPress plugin fuzz workload in this package`);
+      }
+
       if (!workloadIds.has(workloadRef)) {
         failures.push(`${rel}: bench profile ${profile} references ${workloadRef}, but bench_workloads does not declare a matching workload file`);
       }
@@ -173,7 +251,9 @@ function lintGeneratedStudioModelRigs() {
 
 walk(root);
 
-rigFiles.forEach(lintRigPortability);
+const wordpressPluginFuzzWorkloadIdsByPackageRoot = collectWordPressPluginFuzzWorkloadIds();
+
+rigFiles.forEach((file) => lintRigPortability(file, wordpressPluginFuzzWorkloadIdsByPackageRoot));
 portableSourceFiles.forEach(lintPortableSource);
 lintGeneratedStudioModelRigs();
 
