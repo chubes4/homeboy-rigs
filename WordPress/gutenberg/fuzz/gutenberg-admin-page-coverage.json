@@ -1,0 +1,37 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-admin-page-coverage",
+  "label": "Gutenberg safe wp-admin and editor page enumeration",
+  "safety_class": "read_only",
+  "surface_ids": ["gutenberg-block-editor", "gutenberg-site-editor", "gutenberg-pattern-browser", "wordpress-admin-pages"],
+  "operations": ["admin-page-discovery", "editor-page-enumeration", "skipped-destructive-action-classification"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/gutenberg-admin-page-coverage.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "skipped_reason_codes": ["install_update_import_export_screen", "nonce_action_url", "unsafe_query_arg_action", "unsafe_query_arg_action2", "unsafe_query_arg_delete", "unsafe_query_arg_trash", "unsafe_query_arg_untrash", "unsafe_query_arg_activate", "unsafe_query_arg_deactivate", "unsafe_query_arg_reset"]
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/gutenberg-admin-page-coverage.php", "entry": "gutenberg-admin-page-coverage" },
+  "cases": [
+    {
+      "case_id": "gutenberg-admin-page-coverage:default",
+      "surface_ids": ["gutenberg-block-editor", "gutenberg-site-editor", "gutenberg-pattern-browser", "wordpress-admin-pages"],
+      "operations": ["admin-page-discovery", "editor-page-enumeration", "skipped-destructive-action-classification"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-admin-page-coverage.php", "type=php"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=gutenberg_admin_page_coverage"] }]
+      },
+      "artifacts": [{ "name": "gutenberg_admin_page_coverage", "path": "gutenberg-admin-page-coverage/admin-page-coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["gutenberg-block-editor", "gutenberg-site-editor", "gutenberg-pattern-browser", "wordpress-admin-pages"], "operations": ["admin-page-discovery", "editor-page-enumeration", "skipped-destructive-action-classification"] },
+  "artifacts": { "expected": [{ "name": "gutenberg_admin_page_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
+}

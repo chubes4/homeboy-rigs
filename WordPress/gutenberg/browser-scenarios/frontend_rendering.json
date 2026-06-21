@@ -1,0 +1,6 @@
+[
+  { "kind": "navigate", "url": "/gutenberg-fuzz-rendering-fixture/", "waitFor": "load" },
+  { "kind": "waitFor", "selector": "body", "timeout": "30s" },
+  { "kind": "waitFor", "selector": ".wp-block-query, .wp-block-latest-posts, .wp-block-navigation, .wp-block-gallery, body", "timeout": "30s" },
+  { "kind": "screenshot", "name": "gutenberg-frontend-rendering" }
+]

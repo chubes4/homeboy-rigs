@@ -1,0 +1,37 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "frontend-rendering-request-coverage",
+  "label": "Gutenberg frontend rendering and request coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["gutenberg-frontend-rendering", "gutenberg-block-renderer", "browser-requests"],
+  "operations": ["frontend-page-render", "dynamic-block-render", "asset-request-capture", "xhr-fetch-capture", "skipped-destructive-action-classification"],
+  "case_budget": 48,
+  "duration_budget_seconds": 900,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "skipped_reason_codes": ["no_form_submission", "no_post_delete_trash", "no_template_save", "no_global_styles_save"]
+  },
+  "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
+  "workload": { "runner": "wp-codebox", "type": "trace", "path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs", "entry": "frontend_rendering" },
+  "cases": [
+    {
+      "case_id": "frontend-rendering-request-coverage:default",
+      "surface_ids": ["gutenberg-frontend-rendering", "gutenberg-block-renderer", "browser-requests"],
+      "operations": ["frontend-page-render", "dynamic-block-render", "asset-request-capture", "xhr-fetch-capture", "skipped-destructive-action-classification"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-browser-coverage.trace.mjs", "type=trace", "scenario=frontend_rendering"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=frontend_rendering_request_coverage"] }]
+      },
+      "artifacts": [{ "name": "frontend_rendering_request_coverage", "path": "frontend-rendering-request-coverage/browser_request_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 48, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["gutenberg-frontend-rendering", "gutenberg-block-renderer", "browser-requests"], "operations": ["frontend-page-render", "dynamic-block-render", "asset-request-capture", "xhr-fetch-capture", "skipped-destructive-action-classification"] },
+  "artifacts": { "expected": [{ "name": "frontend_rendering_request_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
+}

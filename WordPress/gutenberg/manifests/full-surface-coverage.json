@@ -38,7 +38,19 @@
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
       "fuzz_workloads": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
       "rig": "rigs/gutenberg-browser-coverage/rig.json",
-      "scenarios": ["post_editor", "site_editor", "template_editor", "patterns"]
+      "scenarios": ["post_editor", "site_editor", "template_editor", "patterns", "frontend_rendering"]
+    },
+    "admin_editor_pages": {
+      "coverage_goal": "safe wp-admin menu, editor, site editor, template, and pattern browser GET enumeration with skipped destructive reason codes",
+      "coverage_artifact": "homeboy-rigs/gutenberg-admin-page-coverage/v1",
+      "fuzz_workload": "gutenberg-admin-page-coverage",
+      "skipped_reason_codes": ["install_update_import_export_screen", "nonce_action_url", "unsafe_query_arg_action", "unsafe_query_arg_action2", "unsafe_query_arg_delete", "unsafe_query_arg_trash", "unsafe_query_arg_untrash", "unsafe_query_arg_activate", "unsafe_query_arg_deactivate", "unsafe_query_arg_reset"]
+    },
+    "frontend_rendering": {
+      "coverage_goal": "published Gutenberg fixture page render, dynamic block server rendering, and frontend browser request capture",
+      "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
+      "fuzz_workload": "frontend-rendering-request-coverage",
+      "scenarios": ["frontend_rendering"]
     },
     "runtime_state": {
       "coverage_goal": "Gutenberg hook, option, cron/state, postmeta, template, pattern, and editor-settings runtime inventory",
@@ -72,8 +84,9 @@
     },
     "compare": {
       "rest_routes": "registered Gutenberg-facing route inventory minus generated safe request cases",
+      "admin_editor_pages": "safe admin/editor targets minus admin enumeration and captured browser request coverage scenarios",
+      "frontend_rendering": "declared frontend fixture/rendering scenarios minus captured browser request coverage scenarios",
       "permissions": "protected editor routes with authenticated success cases and unauthenticated 401/403 boundary cases",
-      "admin_editor_pages": "manifest browser scenarios minus captured browser request coverage scenarios",
       "database": "fixture DB inventory plus REST query profiles per covered route, query attribution group, option prefix, postmeta key, and Gutenberg entity type",
       "external_http": "observed outbound HTTP hosts minus approved Gutenberg hosts"
     },
@@ -85,7 +98,9 @@
       "database": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
       "server_requests": ["gutenberg-external-http-guardrail-fuzz"],
       "browser_requests": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
+      "authenticated_admin_pages": ["gutenberg-admin-page-coverage"],
       "block_rendering": ["block-rendering-coverage"],
+      "frontend_rendering": ["frontend-rendering-request-coverage"],
       "runtime_state": ["gutenberg-hooks-options-inventory"],
       "performance_observation": ["gutenberg-editor-performance-observation"]
     },
@@ -93,7 +108,9 @@
       "rest_api": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
       "database": ["db-inventory", "rest-db-query-profile"],
       "server_requests": ["gutenberg-external-http-guardrail"],
-      "browser_requests": ["post_editor", "site_editor", "template_editor", "patterns"]
+      "browser_requests": ["post_editor", "site_editor", "template_editor", "patterns", "frontend_rendering"],
+      "authenticated_admin_pages": ["gutenberg-admin-page-coverage"],
+      "frontend_rendering": ["frontend-rendering-request-coverage"]
     }
   }
 }
