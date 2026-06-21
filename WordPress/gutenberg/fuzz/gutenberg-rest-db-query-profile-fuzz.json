@@ -4,7 +4,7 @@
   "label": "Gutenberg REST database query profile coverage",
   "safety_class": "read_only",
   "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"],
-  "operations": ["rest-query-profile", "query-shape-attribution"],
+  "operations": ["rest-query-profile", "query-shape-attribution", "permission-case-query-attribution", "option-postmeta-query-attribution"],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -20,17 +20,17 @@
     {
       "case_id": "gutenberg-rest-db-query-profile-fuzz:default",
       "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"],
-      "operations": ["rest-query-profile", "query-shape-attribution"],
+      "operations": ["rest-query-profile", "query-shape-attribution", "permission-case-query-attribution", "option-postmeta-query-attribution"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/rest-db-query-profile.workload.json", "type=json"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_db_query_profile"] }]
       },
-      "artifacts": [{ "name": "rest_db_query_profile", "path": "rest-db-query-profile/rest_db_query_profile.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "rest_db_query_profile", "path": "rest-db-query-profile/rest_db_query_profile.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "read_only" }
     }
   ],
   "limits": { "max_cases": 80, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"], "operations": ["rest-query-profile", "query-shape-attribution"] },
-  "artifacts": { "expected": [{ "name": "rest_db_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": { "surface_ids": ["gutenberg-rest-routes", "wordpress-database-queries"], "operations": ["rest-query-profile", "query-shape-attribution", "permission-case-query-attribution", "option-postmeta-query-attribution"] },
+  "artifacts": { "expected": [{ "name": "rest_db_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }

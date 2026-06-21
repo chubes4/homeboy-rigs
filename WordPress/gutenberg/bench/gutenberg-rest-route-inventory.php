@@ -40,15 +40,19 @@ return function (): array {
 			'/wp/v2/block-patterns',
 			'/wp/v2/global-styles',
 			'/wp/v2/navigation',
+			'/wp/v2/search',
+			'/wp/v2/settings',
+			'/wp/v2/statuses',
 			'/wp/v2/templates',
 			'/wp/v2/template-parts',
+			'/wp/v2/themes',
 		);
 		foreach ( $editor_prefixes as $prefix ) {
 			if ( 0 === strpos( $route, $prefix ) ) {
 				return 'editor_data';
 			}
 		}
-		if ( 0 === strpos( $route, '/wp/v2/block-directory' ) || 0 === strpos( $route, '/wp/v2/block-renderer' ) ) {
+		if ( 0 === strpos( $route, '/wp/v2/block-directory' ) || 0 === strpos( $route, '/wp/v2/block-renderer' ) || 0 === strpos( $route, '/wp/v2/pattern-directory' ) ) {
 			return 'dynamic_rendering';
 		}
 		if ( 0 === strpos( $route, '/__experimental' ) ) {

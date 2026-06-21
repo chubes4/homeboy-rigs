@@ -43,6 +43,19 @@ function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, b
   return directory;
 }
 
+function createWordPressDevelopFuzzPackage(workload) {
+  const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-wp-lint-'));
+  const fuzzRoot = join(directory, 'WordPress', 'wordpress-develop', 'fuzz');
+  const manifestsRoot = join(directory, 'WordPress', 'wordpress-develop', 'manifests');
+
+  mkdirSync(fuzzRoot, { recursive: true });
+  mkdirSync(manifestsRoot, { recursive: true });
+  writeJson(join(manifestsRoot, 'rest-route-coverage.json'), { schema: 'test' });
+  writeJson(join(fuzzRoot, `${workload.id}.json`), workload);
+
+  return directory;
+}
+
 function fuzzWorkload(overrides = {}) {
   return {
     schema: 'homeboy/fuzz-workload/v1',
@@ -172,4 +185,60 @@ test('rejects fuzz ids in bench workloads and profiles', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /bench_workloads declares generic-fuzz, but that id belongs to a fuzz workload/);
   assert.match(result.stderr, /bench profile smoke references generic-fuzz, but that id belongs to a fuzz workload/);
+});
+
+test('accepts package-root scoped lint for rigs and fuzz directories', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const result = runLint(join(directory, 'Vendor', 'product'));
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('requires WordPress Core REST fuzz permission proof artifacts', () => {
+  const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
+    id: 'rest-api',
+    surface_ids: ['wordpress-core-rest-routes'],
+    operations: ['rest-route-inventory', 'generated-rest-case-plan'],
+    workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
+    artifacts: { expected: [] },
+  }));
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /role-boundary-execution/);
+  assert.match(result.stderr, /fuzz\.rest\.permission_boundaries/);
+});
+
+test('requires WordPress Core DB attribution proof artifacts', () => {
+  const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
+    id: 'db-inventory-query-profile',
+    surface_ids: ['wordpress-core-database'],
+    operations: ['db-inventory'],
+    workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
+    artifacts: { expected: [] },
+  }));
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /wordpress-core-postmeta/);
+  assert.match(result.stderr, /rewrite-query-attribution/);
+  assert.match(result.stderr, /fuzz\.db\.options_postmeta_rewrite_attribution/);
+});
+
+test('requires WordPress Core proof artifacts when linting package root directly', () => {
+  const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
+    id: 'rest-api',
+    surface_ids: ['wordpress-core-rest-routes'],
+    operations: ['rest-route-inventory'],
+    workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
+    artifacts: { expected: [] },
+  }));
+  const result = runLint(join(directory, 'WordPress', 'wordpress-develop'));
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /fuzz\/rest-api\.json: rest-api must declare expected artifact semantic key fuzz\.rest\.route_inventory/);
 });

@@ -31,11 +31,11 @@
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/generated-rest-request-cases.workload.json", "type=json", "surface=gutenberg-block-renderer"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=block_rendering_coverage"] }]
       },
-      "artifacts": [{ "name": "block_rendering_coverage", "path": "block-rendering-coverage/rest_request_cases.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "artifacts": [{ "name": "block_rendering_coverage", "path": "block-rendering-coverage/rest_request_cases.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
       "metadata": { "safety_class": "isolated_mutation" }
     }
   ],
   "limits": { "max_cases": 80, "max_duration_seconds": 900 },
   "coverage": { "surface_ids": ["gutenberg-block-renderer", "wordpress-rest-api", "wordpress-server-rendered-blocks"], "operations": ["block-renderer-route-cases", "server-rendered-block-coverage"] },
-  "artifacts": { "expected": [{ "name": "block_rendering_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "artifacts": { "expected": [{ "name": "block_rendering_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }] }
 }

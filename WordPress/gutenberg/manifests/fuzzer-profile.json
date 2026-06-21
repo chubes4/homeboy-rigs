@@ -30,7 +30,9 @@
     "rest_route_coverage": {
       "workloads": ["gutenberg-rest-route-fuzz", "gutenberg-rest-request-cases-fuzz"],
       "target_manifest": "manifests/rest-route-coverage.json",
-      "gap_rule": "Report registered Gutenberg-facing routes that do not have generated safe request cases."
+      "namespaces": ["wp/v2", "__experimental"],
+      "permission_matrix": "Authenticated editor cases plus unauthenticated 401/403 boundary cases for protected editor routes.",
+      "gap_rule": "Report registered Gutenberg-facing routes that do not have generated safe request cases or expected permission-boundary cases."
     },
     "wp_admin_editor_pages": {
       "fuzz_workloads": ["gutenberg-admin-page-coverage", "block-editor-browser-coverage", "site-editor-browser-coverage"],
@@ -57,6 +59,10 @@
     "db_query_profile_hooks": {
       "workloads": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
       "budget_manifest": "manifests/rest-route-budgets.json",
+      "attribution": ["request_case_id", "route", "method", "query_type", "table", "stack_summary", "caller_summary"],
+      "option_prefixes": ["_transient_gutenberg_", "gutenberg_", "wporg_patterns_", "wporg_block_directory_"],
+      "postmeta_keys": ["_wp_page_template", "_wp_block_editor_context", "_wp_pattern_sync_status", "_wp_navigation_post_origin", "_wp_ignored_hooked_blocks", "footnotes"],
+      "entity_types": ["wp_block", "wp_global_styles", "wp_navigation", "wp_template", "wp_template_part", "wp_pattern_category"],
       "lab_cell_contract": "manifests/api-db-lab-cell.json",
       "profile_contract": {
         "artifact_schema": "homeboy/wordpress-rest-db-query-profile/v1",
@@ -64,7 +70,7 @@
         "required_fields": ["route", "method", "status", "query_count", "query_time_ms", "slowest_queries", "duplicate_query_groups"],
         "budget_fields": ["max_queries", "max_query_time_ms", "max_duplicate_query_groups"]
       },
-      "gap_rule": "Report covered routes without query profiles and query profiles that exceed Gutenberg route budgets."
+      "gap_rule": "Report covered routes without query profiles, missing query attribution groups, missing option/postmeta/entity inventory, and query profiles that exceed Gutenberg route budgets."
     },
     "runtime_hook_option_inventory": {
       "workloads": ["gutenberg-hooks-options-inventory"],
@@ -140,10 +146,13 @@
     ],
     "sections": [
       "rest_routes_without_cases",
+      "permission_boundaries_without_cases",
       "admin_editor_scenarios_without_browser_coverage",
       "admin_pages_skipped_without_reason_codes",
       "frontend_rendering_scenarios_without_browser_coverage",
       "covered_routes_without_query_profiles",
+      "queries_without_attribution",
+      "options_postmeta_or_entities_without_inventory",
       "missing_runtime_state_inventory_sections",
       "missing_performance_observation_sections",
       "routes_without_permission_boundary_cases",
