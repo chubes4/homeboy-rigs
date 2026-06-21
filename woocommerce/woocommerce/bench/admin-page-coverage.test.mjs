@@ -55,10 +55,13 @@ test('admin page coverage reports summarized query attribution without dropping 
 
 test('admin page coverage is wired into executable full-surface profile', () => {
   assert.ok(
-    rig.bench_workloads.wordpress.some((entry) => entry.path.includes('bench/admin-page-coverage.php')),
-    'expected workload declaration'
+    rig.fuzz_workloads.wordpress.some((entry) => entry.path.includes('fuzz/admin-page-coverage.json')),
+    'expected fuzz workload declaration'
   );
-  assert.ok(rig.bench_profiles['full-surface'].includes('admin-page-coverage'));
+  assert.ok(
+    !Object.values(rig.bench_workloads).flat().some((entry) => entry.path.includes('admin-page-coverage')),
+    'admin page coverage must not use bench fallback'
+  );
   assert.deepEqual(manifest.coverage_profiles['full-surface'].authenticated_admin_pages, ['admin-page-coverage']);
 });
 
