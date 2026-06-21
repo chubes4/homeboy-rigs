@@ -18,6 +18,8 @@
       "block-rendering-coverage",
       "gutenberg-db-inventory-fuzz",
       "gutenberg-rest-db-query-profile-fuzz",
+      "gutenberg-hooks-options-inventory",
+      "gutenberg-editor-performance-observation",
       "gutenberg-external-http-guardrail-fuzz"
     ]
   },
@@ -45,12 +47,72 @@
     "db_query_profile_hooks": {
       "workloads": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
       "budget_manifest": "manifests/rest-route-budgets.json",
+      "profile_contract": {
+        "artifact_schema": "homeboy/wordpress-rest-db-query-profile/v1",
+        "required_route_classes": ["editor-rest", "block-directory", "patterns", "global-styles", "block-renderer"],
+        "required_fields": ["route", "method", "status", "query_count", "query_time_ms", "slowest_queries", "duplicate_query_groups"],
+        "budget_fields": ["max_queries", "max_query_time_ms", "max_duplicate_query_groups"]
+      },
       "gap_rule": "Report covered routes without query profiles and query profiles that exceed Gutenberg route budgets."
+    },
+    "runtime_hook_option_inventory": {
+      "workloads": ["gutenberg-hooks-options-inventory"],
+      "artifact_schema": "homeboy/gutenberg-runtime-state-coverage/v1",
+      "inventory_targets": {
+        "hooks": ["registered Gutenberg actions", "registered Gutenberg filters", "block editor preload filters", "block renderer filters", "pattern directory filters"],
+        "options": ["gutenberg experiments", "editor settings", "global styles", "block directory cache", "pattern directory cache"],
+        "postmeta": ["template state", "template part state", "global styles revisions", "navigation state", "notes unsaved attachment state"],
+        "cron_state": ["wp_scheduled_delete", "wp_update_plugins", "gutenberg-related scheduled events when present"],
+        "transients": ["plugin/theme update cache", "block pattern remote cache", "block directory remote cache"]
+      },
+      "gap_rule": "Report missing hook, option, postmeta, transient, cron, or editor-state inventory sections rather than counting the runtime-state surface as covered."
+    },
+    "editor_performance_observation": {
+      "workloads": ["gutenberg-editor-performance-observation"],
+      "artifact_schema": "homeboy/gutenberg-performance-observation/v1",
+      "contracts": {
+        "post_editor": ["ready_time_ms", "rest_preload_hits", "rest_request_count", "asset_request_count", "long_task_total_ms", "console_error_count"],
+        "site_editor": ["ready_time_ms", "rest_preload_hits", "rest_request_count", "global_styles_request_count", "template_request_count", "long_task_total_ms"],
+        "block_rendering": ["rendered_block_count", "block_renderer_request_count", "server_render_time_ms", "query_count", "cache_hit_count"],
+        "pattern_preview": ["preview_iframe_count", "fixture_asset_request_count", "unique_fixture_asset_count", "preview_ready_time_ms", "long_task_total_ms"],
+        "notes_unsaved_attachment": ["attachment_upload_state", "autosave_request_count", "editor_notice_count", "unsaved_attachment_recovery_state"]
+      },
+      "gap_rule": "Report editor, Site Editor, block-rendering, pattern-preview, and notes-unsaved-attachment observations missing summary fields or artifact refs."
     },
     "server_request_guardrails": {
       "workloads": ["gutenberg-external-http-guardrail-fuzz"],
       "allowed_hosts": ["api.wordpress.org"],
+      "synthetic_probe_hosts": ["patterns.wordpress.org"],
+      "expectations": {
+        "block_network": true,
+        "allowed_host_behavior": "Requests to api.wordpress.org are captured and classified as approved.",
+        "unapproved_host_behavior": "Requests to patterns.wordpress.org are captured as blocked synthetic guardrail probes.",
+        "real_external_service_calls_allowed": false,
+        "required_artifact_fields": ["approved_hosts", "blocked_hosts", "samples", "unexpected_allowed_hosts", "network_side_effects"]
+      },
       "gap_rule": "Report unapproved outbound hosts touched by Gutenberg editor/library probes."
+    }
+  },
+  "artifact_summaries": {
+    "runtime_state": {
+      "artifact": "gutenberg-hooks-options-inventory/gutenberg_runtime_state.json",
+      "semantic_key": "fuzz.report",
+      "required_sections": ["hooks", "options", "postmeta", "templates", "patterns", "cron", "transients", "editor_state"]
+    },
+    "db_query_profile": {
+      "artifact": "rest-db-query-profile/rest_db_query_profile.json",
+      "semantic_key": "fuzz.report",
+      "required_sections": ["routes", "query_counts", "slowest_queries", "duplicate_query_groups", "budget_regressions"]
+    },
+    "external_http_guardrail": {
+      "artifact": "gutenberg-external-http-guardrail/external_http_guardrail.json",
+      "semantic_key": "fuzz.report",
+      "required_sections": ["approved_hosts", "blocked_hosts", "unexpected_allowed_hosts", "samples"]
+    },
+    "performance_observation": {
+      "artifact": "gutenberg-editor-performance-observation/gutenberg_performance_observation.json",
+      "semantic_key": "fuzz.report",
+      "required_sections": ["post_editor", "site_editor", "block_rendering", "pattern_preview", "notes_unsaved_attachment", "external_http_guardrail"]
     }
   },
   "coverage_gap_report": {
@@ -61,14 +123,19 @@
       "REST DB query profile artifact",
       "DB inventory artifact",
       "external HTTP guardrail artifact",
-      "browser request coverage artifact"
+      "browser request coverage artifact",
+      "runtime state inventory artifact",
+      "performance observation summary artifact"
     ],
     "sections": [
       "rest_routes_without_cases",
       "admin_editor_scenarios_without_browser_coverage",
       "covered_routes_without_query_profiles",
+      "missing_runtime_state_inventory_sections",
+      "missing_performance_observation_sections",
       "budget_regressions",
       "unapproved_external_hosts",
+      "unexpected_allowed_external_hosts",
       "open_fixture_or_primitive_gaps"
     ]
   }
