@@ -8,7 +8,11 @@
     "wordpress-rest-db-query-profiler",
     "wordpress-db-inventory",
     "wordpress-external-http-guardrail",
-    "browser-request-coverage"
+    "browser-request-coverage",
+    "wordpress-authenticated-admin-page-coverage",
+    "wordpress-plugin-option-matrix",
+    "wordpress-plugin-module-state-matrix",
+    "wordpress-plugin-sync-queue-coverage"
   ],
   "surfaces": {
     "rest_api": {
@@ -23,7 +27,9 @@
     },
     "server_requests": {
       "coverage_goal": "all_connection_wpcom_sync_and_module_http_hosts_with_unapproved_requests_blocked",
-      "guardrail": "wordpress-external-http-guardrail"
+      "guardrail": "wordpress-external-http-guardrail",
+      "guardrail_manifest": "fuzz/jetpack-external-http-guardrail.json",
+      "network_policy": "block_all_synthetic_external_requests"
     },
     "browser_requests": {
       "coverage_goal": "all_wp_admin_jetpack_screen_fetch_xhr_websocket_asset_requests",
@@ -31,14 +37,131 @@
       "trace_workload": "bench/jetpack-browser-coverage.trace.mjs",
       "rig": "rigs/jetpack-browser-coverage/rig.json",
       "scenarios": ["dashboard", "connection", "modules", "settings"]
+    },
+    "authenticated_admin_pages": {
+      "coverage_goal": "bounded_safe_wp_admin_jetpack_menu_submenu_get_pages_as_admin",
+      "coverage_artifact": "homeboy/wordpress-admin-page-coverage/v1",
+      "workload": "fuzz/jetpack-admin-page-coverage.json",
+      "rig": "rigs/jetpack-api-route-inventory/rig.json"
+    },
+    "options": {
+      "coverage_goal": "bounded Jetpack option read/write/default shape coverage for isolated fixture options",
+      "workload": "fuzz/jetpack-options-matrix.json",
+      "rig": "rigs/jetpack-api-route-inventory/rig.json"
+    },
+    "modules": {
+      "coverage_goal": "bounded Jetpack module activate/deactivate/settings state matrix in an isolated runner",
+      "workload": "fuzz/jetpack-module-state-matrix.json",
+      "rig": "rigs/jetpack-api-route-inventory/rig.json"
+    },
+    "sync": {
+      "coverage_goal": "bounded Jetpack sync queue/action serialization coverage without WordPress.com credentials",
+      "workload": "fuzz/jetpack-sync-queue-coverage.json",
+      "rig": "rigs/jetpack-api-route-inventory/rig.json"
     }
   },
   "coverage_profiles": {
     "full-surface": {
       "rest_api": ["jetpack-rest-route-inventory", "generated-rest-request-cases"],
-      "database": ["db-inventory", "rest-db-query-profiler"],
-      "server_requests": ["external-http-guardrail"],
+      "database": ["db-inventory", "rest-db-query-profile"],
+      "server_requests": ["jetpack-external-http-guardrail"],
+      "authenticated_admin_pages": ["jetpack-admin-page-coverage"],
+      "options": ["jetpack-options-matrix"],
+      "modules": ["jetpack-module-state-matrix"],
+      "sync": ["jetpack-sync-queue-coverage"],
       "browser_requests": ["dashboard", "connection", "modules", "settings"]
+    }
+  },
+  "workloads": {
+    "jetpack-rest-route-inventory": {
+      "surface": "rest_api",
+      "coverage_shape": "registered Jetpack and WPCOM REST route inventory with permission-boundary classification",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Inspects the local REST route registry", "Does not execute route handlers"]
+      },
+      "artifact_expectations": { "required": ["metrics", "route_inventory json artifact"], "optional": ["namespace counts"] }
+    },
+    "generated-rest-request-cases": {
+      "surface": "rest_api",
+      "coverage_shape": "generated safe Jetpack REST request cases for site, connection, modules, settings, and WPCOM publicize routes",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Uses explicit local GET request cases", "Does not require WordPress.com OAuth credentials"]
+      },
+      "artifact_expectations": { "required": ["metadata", "captured REST responses"], "optional": ["request case timing"] }
+    },
+    "rest-db-query-profile": {
+      "surface": "database",
+      "coverage_shape": "DB query profile for safe Jetpack REST request cases",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Profiles local REST request cases only", "Captures query counts without external service calls"]
+      },
+      "artifact_expectations": { "required": ["metrics", "query profile json artifact"], "optional": ["query samples"] }
+    },
+    "db-inventory": {
+      "surface": "database",
+      "coverage_shape": "Jetpack fixture database table, row, column, and index inventory",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Reads isolated runner database metadata", "Does not mutate production or developer databases"]
+      },
+      "artifact_expectations": { "required": ["metrics", "db inventory json artifact"], "optional": ["table samples"] }
+    },
+    "jetpack-admin-page-coverage": {
+      "surface": "authenticated_admin_pages",
+      "coverage_shape": "bounded authenticated wp-admin Jetpack menu and submenu GET coverage for administrator users",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["GET-only admin visits with explicit skips for destructive/update/install screens", "Per-role and per-page limits bound request volume"]
+      },
+      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact"], "optional": ["request logs"] }
+    },
+    "jetpack-module-state-matrix": {
+      "surface": "modules",
+      "coverage_shape": "bounded Jetpack module activation, deactivation, dependency, and settings-state matrix",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Mutates only module state in the isolated runner", "Connection-dependent modules are classified instead of calling external services"]
+      },
+      "artifact_expectations": { "required": ["metrics", "module matrix rows"], "optional": ["skipped module reasons"] }
+    },
+    "jetpack-options-matrix": {
+      "surface": "options",
+      "coverage_shape": "bounded Jetpack option defaults, serialization, update, and rollback matrix",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Mutates options only inside the isolated runner database", "Secrets and tokens are represented by synthetic placeholder values"]
+      },
+      "artifact_expectations": { "required": ["metrics", "option matrix rows"], "optional": ["serialization samples"] }
+    },
+    "jetpack-sync-queue-coverage": {
+      "surface": "sync",
+      "coverage_shape": "bounded Jetpack sync queue, action serialization, cron, and retry coverage without remote dispatch",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Exercises local sync queue state only", "Outbound WordPress.com dispatch is blocked by the external HTTP guardrail"]
+      },
+      "artifact_expectations": { "required": ["metrics", "sync queue artifact"], "optional": ["serialized action samples"] }
+    },
+    "jetpack-external-http-guardrail": {
+      "surface": "server_requests",
+      "coverage_shape": "Jetpack connection, sync, module, and WordPress.com API external HTTP guardrail probes with all synthetic requests blocked",
+      "safety": {
+        "classification": "network_guardrail_probe",
+        "notes": ["Installs the external HTTP guardrail before probes run", "Uses .invalid synthetic hosts and an empty allowlist so no real external service calls are expected"]
+      },
+      "artifact_expectations": { "required": ["metrics", "guardrail collection"], "optional": ["captured request samples"] }
+    },
+    "jetpack-browser-coverage": {
+      "surface": "browser_requests",
+      "coverage_shape": "Jetpack dashboard, connection, modules, and settings admin browser request coverage",
+      "safety": {
+        "classification": "browser_fixture_trace",
+        "notes": ["Runs in WP Codebox browser coverage", "No WordPress.com OAuth fixture or live service account is provisioned"]
+      },
+      "artifact_expectations": { "required": ["browser request coverage artifact"], "optional": ["screenshots", "console logs"] }
     }
   }
 }

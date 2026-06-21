@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "jetpack-sync-queue-coverage",
+  "label": "Jetpack sync queue coverage",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"],
+  "operations": ["sync-queue-discovery", "action-serialization", "retry-boundary-classification"],
+  "case_budget": 80,
+  "duration_budget_seconds": 900,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "generic", "entry": "wordpress-plugin-sync-queue-coverage" },
+  "cases": [{ "case_id": "jetpack-sync-queue-coverage:default", "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["sync-queue-discovery", "action-serialization", "retry-boundary-classification"], "inputs": { "remote_dispatch": false, "synthetic_actions": ["post_save", "option_update", "comment_status", "module_toggle"], "force_http_guardrail": true }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }, { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }], "action": [{ "command": "wordpress.fuzz-plugin-sync-queue", "args": ["remote_dispatch=false", "force_http_guardrail=true"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=sync_queue_coverage"] }] }, "artifacts": [{ "name": "sync_queue_coverage", "path": "jetpack-sync-queue-coverage/sync_queue_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "isolated_mutation" } }],
+  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
+  "coverage": { "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["sync-queue-discovery", "action-serialization", "retry-boundary-classification"] },
+  "artifacts": { "expected": [{ "name": "sync_queue_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

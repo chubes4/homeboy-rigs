@@ -1,0 +1,17 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "rest-db-query-profile",
+  "label": "Jetpack REST DB query profile",
+  "safety_class": "read_only",
+  "surface_ids": ["jetpack-rest-routes", "wordpress-database"],
+  "operations": ["request-case-query-profile", "query-attribution"],
+  "case_budget": 50,
+  "duration_budget_seconds": 600,
+  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/rest-db-query-profile.workload.json", "entry": "rest-db-query-profile" },
+  "cases": [{ "case_id": "rest-db-query-profile:default", "surface_ids": ["jetpack-rest-routes", "wordpress-database"], "operations": ["request-case-query-profile", "query-attribution"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/rest-db-query-profile.workload.json", "type=json"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_db_query_profile"] }] }, "artifacts": [{ "name": "rest_db_query_profile", "path": "rest-db-query-profile/rest_db_query_profile.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "read_only" } }],
+  "limits": { "max_cases": 50, "max_duration_seconds": 600 },
+  "coverage": { "surface_ids": ["jetpack-rest-routes", "wordpress-database"], "operations": ["request-case-query-profile", "query-attribution"] },
+  "artifacts": { "expected": [{ "name": "rest_db_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}
