@@ -18,7 +18,7 @@ const fuzzManifests = readdirSync(fuzzDir)
     manifest: JSON.parse(readFileSync(path.join(fuzzDir, file), 'utf8')),
   }));
 
-assert.equal(fuzzManifests.length, 10, 'expected 10 Gutenberg fuzz manifests');
+assert.equal(fuzzManifests.length, 12, 'expected 12 Gutenberg fuzz manifests');
 
 const declaredFuzzIds = new Set(
   (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
@@ -34,7 +34,9 @@ const requiredSurfaces = new Set([
   'gutenberg-rest-routes',
   'gutenberg-block-editor',
   'gutenberg-site-editor',
+  'gutenberg-pattern-browser',
   'gutenberg-block-renderer',
+  'gutenberg-frontend-rendering',
   'wordpress-admin-pages',
   'wordpress-database',
   'wordpress-database-queries',
@@ -71,6 +73,11 @@ for (const { file, manifest } of fuzzManifests) {
   assert.ok(runnerCase.phases.action.length > 0, `${manifest.id} requires at least one action step`);
   assert.ok(Array.isArray(runnerCase.artifacts), `${manifest.id} requires case artifacts`);
   assert.ok(Array.isArray(manifest.artifacts?.expected), `${manifest.id} requires expected artifacts`);
+
+  if (manifest.operations?.includes('skipped-destructive-action-classification')) {
+    assert.ok(Array.isArray(manifest.metadata?.skipped_reason_codes), `${manifest.id} requires skipped reason codes`);
+    assert.ok(manifest.metadata.skipped_reason_codes.length > 0, `${manifest.id} skipped reason codes cannot be empty`);
+  }
 
   for (const surfaceId of manifest.surface_ids || []) {
     coveredSurfaces.add(surfaceId);

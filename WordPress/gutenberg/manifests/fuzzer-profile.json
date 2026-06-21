@@ -13,9 +13,11 @@
     "fuzz_workloads": [
       "gutenberg-rest-route-fuzz",
       "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
       "block-editor-browser-coverage",
       "site-editor-browser-coverage",
       "block-rendering-coverage",
+      "frontend-rendering-request-coverage",
       "gutenberg-db-inventory-fuzz",
       "gutenberg-rest-db-query-profile-fuzz",
       "gutenberg-external-http-guardrail-fuzz"
@@ -28,9 +30,10 @@
       "gap_rule": "Report registered Gutenberg-facing routes that do not have generated safe request cases."
     },
     "wp_admin_editor_pages": {
-      "fuzz_workloads": ["block-editor-browser-coverage", "site-editor-browser-coverage"],
+      "fuzz_workloads": ["gutenberg-admin-page-coverage", "block-editor-browser-coverage", "site-editor-browser-coverage"],
       "scenario_sources": ["browser-scenarios/post_editor.json", "browser-scenarios/site_editor.json", "browser-scenarios/template_editor.json", "browser-scenarios/patterns.json"],
-      "gap_rule": "Report target scenarios missing browser request coverage artifacts or failing readiness steps."
+      "skipped_reason_codes": ["install_update_import_export_screen", "nonce_action_url", "unsafe_query_arg_action", "unsafe_query_arg_action2", "unsafe_query_arg_delete", "unsafe_query_arg_trash", "unsafe_query_arg_untrash", "unsafe_query_arg_activate", "unsafe_query_arg_deactivate", "unsafe_query_arg_reset"],
+      "gap_rule": "Report target scenarios missing admin enumeration, browser request coverage artifacts, skipped/destructive reason codes, or readiness steps."
     },
     "block_editor_load_action_probes": {
       "scenario_files": [
@@ -41,6 +44,12 @@
       ],
       "captures": ["steps", "console", "errors", "network", "html", "screenshot", "dom-snapshot"],
       "gap_rule": "Report editor screens that load but produce failed browser actions, browser errors, or no request coverage."
+    },
+    "frontend_rendering_request_coverage": {
+      "workloads": ["frontend-rendering-request-coverage"],
+      "scenario_sources": ["browser-scenarios/frontend_rendering.json"],
+      "captures": ["network", "request-coverage", "html", "screenshot", "dom-snapshot"],
+      "gap_rule": "Report fixture frontend pages or dynamic block rendering requests missing browser request coverage artifacts."
     },
     "db_query_profile_hooks": {
       "workloads": ["gutenberg-db-inventory-fuzz", "gutenberg-rest-db-query-profile-fuzz"],
@@ -66,6 +75,8 @@
     "sections": [
       "rest_routes_without_cases",
       "admin_editor_scenarios_without_browser_coverage",
+      "admin_pages_skipped_without_reason_codes",
+      "frontend_rendering_scenarios_without_browser_coverage",
       "covered_routes_without_query_profiles",
       "budget_regressions",
       "unapproved_external_hosts",

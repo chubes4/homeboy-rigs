@@ -42,9 +42,11 @@
     "wordpress": [
       { "path": "${package.root}/fuzz/gutenberg-rest-route-fuzz.json" },
       { "path": "${package.root}/fuzz/gutenberg-rest-request-cases-fuzz.json" },
+      { "path": "${package.root}/fuzz/gutenberg-admin-page-coverage.json" },
       { "path": "${package.root}/fuzz/block-editor-browser-coverage.json" },
       { "path": "${package.root}/fuzz/site-editor-browser-coverage.json" },
       { "path": "${package.root}/fuzz/block-rendering-coverage.json" },
+      { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
       { "path": "${package.root}/fuzz/gutenberg-db-inventory-fuzz.json" },
       { "path": "${package.root}/fuzz/gutenberg-rest-db-query-profile-fuzz.json" },
       { "path": "${package.root}/fuzz/gutenberg-hooks-options-inventory.json" },

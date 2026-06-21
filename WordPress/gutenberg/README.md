@@ -30,7 +30,7 @@ stay generic.
 
 ## `gutenberg` fuzzer profile
 
-`manifests/fuzzer-profile.json` defines a rig-owned Gutenberg fuzzer profile analogous to the Woo full-surface shape. It composes REST route coverage, `wp-admin` and editor page coverage, block editor load/action probes, Site Editor probes, block rendering, DB query/profile hooks, hook/option/postmeta/runtime-state inventory, editor performance observation summaries, external HTTP guardrails, and coverage-gap reporting without moving Gutenberg-specific knowledge into Homeboy core or Homeboy Extensions.
+`manifests/fuzzer-profile.json` defines a rig-owned Gutenberg fuzzer profile analogous to the Woo full-surface shape. It composes REST route coverage, safe `wp-admin` and editor page enumeration, block editor load/action probes, Site Editor probes, block rendering, frontend rendering/request coverage, DB query/profile hooks, hook/option/postmeta/runtime-state inventory, editor performance observation summaries, external HTTP guardrails, and coverage-gap reporting without moving Gutenberg-specific knowledge into Homeboy core or Homeboy Extensions.
 
 Run the fuzzer manifests through the WordPress extension runner:
 
@@ -44,6 +44,8 @@ Current D/E-only fuzz workload additions:
 
 - `gutenberg-hooks-options-inventory` declares hook, option, postmeta, template/pattern, and cron/state inventory. It is not P until a fuzz run emits the runtime-state artifact.
 - `gutenberg-editor-performance-observation` declares editor, Site Editor, block rendering, pattern preview, request timing, query count, asset fanout, and HTTP guardrail summaries. Pattern preview has issue-linked proof separately; this summary manifest needs its own artifacts before P.
+- `gutenberg-admin-page-coverage` declares bounded read-only `wp-admin`/editor enumeration and records skipped destructive reason codes instead of executing unsafe actions.
+- `frontend-rendering-request-coverage` declares browser request coverage for a disposable published Gutenberg fixture page and dynamic block rendering requests.
 
 ## `gutenberg-pattern-preview-assets`
 
