@@ -71,7 +71,7 @@
         {
           "name": "raw_result",
           "path": "cart-session-overwrite-race/raw_result.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -95,13 +95,20 @@
       "cart-hash-guardrail"
     ]
   },
+  "proof_contracts": [
+    {
+      "id": "cart-session-race",
+      "description": "Artifact must include concurrent cart/session write attempts, observed cart hash/session state, and pass/fail classification for overwrite protection.",
+      "required_artifact": "raw_result"
+    }
+  ],
   "artifacts": {
     "expected": [
       {
         "name": "raw_result",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }
