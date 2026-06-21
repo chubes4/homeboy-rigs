@@ -1,6 +1,6 @@
 {
   "id": "jetpack-browser-coverage",
-  "description": "WP Codebox browser-actions request coverage for Jetpack dashboard, connection, modules, and settings admin surfaces.",
+  "description": "WP Codebox browser-actions request coverage for Jetpack dashboard, connection, modules, settings admin, and public module frontend surfaces.",
   "components": {
     "jetpack": {
       "path": "~/Developer/jetpack/projects/plugins/jetpack",

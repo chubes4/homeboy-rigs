@@ -1,0 +1,5 @@
+[
+  { "kind": "navigate", "url": "/?page_id=1203", "waitFor": "load" },
+  { "kind": "waitForSelector", "selector": "body" },
+  { "kind": "screenshot", "name": "jetpack-public-page-modules" }
+]
