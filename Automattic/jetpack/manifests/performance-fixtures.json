@@ -32,6 +32,9 @@
         "jetpack-module-state-matrix",
         "jetpack-options-matrix",
         "jetpack-sync-queue-coverage",
+        "jetpack-connected-disconnected-fixtures",
+        "jetpack-public-module-frontend-coverage",
+        "jetpack-performance-observation",
         "jetpack-external-http-guardrail"
       ]
     }

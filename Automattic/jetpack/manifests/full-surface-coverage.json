@@ -37,14 +37,14 @@
       "allowlisted_boundaries": ["public-api.wordpress.com"]
     },
     "browser_requests": {
-      "coverage_goal": "all_wp_admin_jetpack_screen_fetch_xhr_websocket_asset_requests",
+      "coverage_goal": "all_wp_admin_jetpack_screen_and_public_module_fetch_xhr_websocket_asset_requests",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
       "trace_workload": "bench/jetpack-browser-coverage.trace.mjs",
       "rig": "rigs/jetpack-browser-coverage/rig.json",
-      "scenarios": ["dashboard", "connection", "modules", "settings"]
+      "scenarios": ["dashboard", "connection", "modules", "settings", "public_post_modules", "public_page_modules"]
     },
     "authenticated_admin_pages": {
-      "coverage_goal": "bounded_safe_wp_admin_jetpack_menu_submenu_get_pages_as_admin",
+      "coverage_goal": "bounded_safe_wp_admin_jetpack_menu_submenu_get_pages_as_admin_with_skip_reason_codes",
       "coverage_artifact": "homeboy/wordpress-admin-page-coverage/v1",
       "workload": "fuzz/jetpack-admin-page-coverage.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
@@ -73,7 +73,7 @@
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "public_frontend": {
-      "coverage_goal": "public Jetpack module frontend rendering and request scenarios with connected/disconnected expectations",
+      "coverage_goal": "public Jetpack module frontend rendering and request scenarios with connected/disconnected expectations and skip reason codes",
       "workload": "fuzz/jetpack-public-module-frontend-coverage.json",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1"
     },
@@ -95,7 +95,7 @@
       "connection_fixtures": ["jetpack-connected-disconnected-fixtures"],
       "public_frontend": ["jetpack-public-module-frontend-coverage"],
       "performance_observation": ["jetpack-performance-observation"],
-      "browser_requests": ["dashboard", "connection", "modules", "settings"]
+      "browser_requests": ["dashboard", "connection", "modules", "settings", "public_post_modules", "public_page_modules"]
     }
   },
   "workloads": {
@@ -137,12 +137,12 @@
     },
     "jetpack-admin-page-coverage": {
       "surface": "authenticated_admin_pages",
-      "coverage_shape": "bounded authenticated wp-admin Jetpack menu and submenu GET coverage for administrator users",
+      "coverage_shape": "bounded authenticated wp-admin Jetpack top-level menu, submenu, hash-route, and settings-tab GET coverage for administrator users with destructive/credential skip reason classification",
       "safety": {
         "classification": "bounded_authenticated_read",
         "notes": ["GET-only admin visits with explicit skips for destructive/update/install screens", "Per-role and per-page limits bound request volume"]
       },
-      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact"], "optional": ["request logs"] }
+      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact", "admin menu enumeration artifact", "admin skip reason artifact"], "optional": ["request logs"] }
     },
     "jetpack-module-state-matrix": {
       "surface": "modules",
@@ -191,30 +191,30 @@
     },
     "jetpack-connected-disconnected-fixtures": {
       "surface": "connection_fixtures",
-      "coverage_shape": "connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, and WP.com-dependent skip classifications",
+      "coverage_shape": "connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, fixture option restoration, and WP.com-dependent skip classifications",
       "safety": {
         "classification": "isolated_fixture_mutation",
         "notes": ["Uses synthetic placeholder connection values only", "Records connected_required, disconnected_expected, and credential_unavailable skip reasons instead of contacting WordPress.com"]
       },
-      "artifact_expectations": { "required": ["metrics", "connection fixture matrix artifact"], "optional": ["skip reason samples", "placeholder serialization rows"] }
+      "artifact_expectations": { "required": ["metrics", "connection fixture matrix artifact", "connection skip reason artifact"], "optional": ["skip reason samples", "placeholder serialization rows"] }
     },
     "jetpack-public-module-frontend-coverage": {
       "surface": "public_frontend",
-      "coverage_shape": "public-module frontend rendering and request coverage for representative Jetpack modules across connected and disconnected fixture states",
+      "coverage_shape": "public-module frontend rendering and request coverage for representative Jetpack modules, fixture routes, request classes, and connected/disconnected fixture states",
       "safety": {
         "classification": "browser_fixture_trace",
         "notes": ["Runs against local fixture pages and posts in WP Codebox", "External module calls are blocked or classified by the Jetpack HTTP guardrail"]
       },
-      "artifact_expectations": { "required": ["browser request coverage artifact", "module scenario matrix"], "optional": ["screenshots", "console logs", "request waterfall"] }
+      "artifact_expectations": { "required": ["browser request coverage artifact", "module scenario matrix", "public module skip reason artifact"], "optional": ["screenshots", "console logs", "request waterfall"] }
     },
     "jetpack-performance-observation": {
       "surface": "performance_observation",
-      "coverage_shape": "Jetpack admin, settings, REST, sync queue, module frontend, request timing, query count, asset, and external HTTP guardrail summary contract",
+      "coverage_shape": "Jetpack admin, settings, REST, sync queue, module frontend, request timing, query count, asset, skip reason, slow-surface, and external HTTP guardrail summary contract",
       "safety": {
         "classification": "performance_observation",
         "notes": ["Summarizes executable coverage expectations without claiming proof until run artifacts exist", "Heavy proof runs should use offloaded Homeboy runners instead of local benchmarks"]
       },
-      "artifact_expectations": { "required": ["metrics", "performance observation summary artifact"], "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"] }
+      "artifact_expectations": { "required": ["metrics", "performance observation summary artifact", "performance surface summary artifact"], "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"] }
     },
     "jetpack-external-http-guardrail": {
       "surface": "server_requests",
@@ -227,7 +227,7 @@
     },
     "jetpack-browser-coverage": {
       "surface": "browser_requests",
-      "coverage_shape": "Jetpack dashboard, connection, modules, and settings admin browser request coverage",
+      "coverage_shape": "Jetpack dashboard, connection, modules, settings, public post, and public page browser request coverage",
       "safety": {
         "classification": "browser_fixture_trace",
         "notes": ["Runs in WP Codebox browser coverage", "No WordPress.com OAuth fixture or live service account is provisioned"]
