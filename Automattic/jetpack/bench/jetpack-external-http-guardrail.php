@@ -11,7 +11,7 @@ return function (): array {
 		array(
 			'type'             => 'external-http-guardrail',
 			'action'           => 'install',
-			'allowlistDomains' => array(),
+			'allowlistDomains' => array( 'public-api.wordpress.com' ),
 			'blockNetwork'     => true,
 			'metric-prefix'    => 'jetpack_external_http_guardrail_install',
 		)
@@ -33,7 +33,11 @@ return function (): array {
 		array(
 				'runner'         => 'wp-codebox',
 				'workload'       => 'jetpack-external-http-guardrail',
-				'coverage_shape' => 'Jetpack connection and service API external HTTP guardrail probes with all synthetic network requests blocked',
+				'coverage_shape' => 'Jetpack connection and service API external HTTP guardrail probes with blocked synthetic requests and declared WP.com allowlist boundaries',
+				'network_expectations' => array(
+					array( 'host' => 'jetpack-homeboy-guardrail.invalid', 'classification' => 'blocked' ),
+					array( 'host' => 'public-api.wordpress.com', 'classification' => 'allowlisted_boundary_not_called' ),
+				),
 			)
 		);
 	return $payload;

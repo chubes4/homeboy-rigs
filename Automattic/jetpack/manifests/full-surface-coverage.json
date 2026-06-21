@@ -12,7 +12,9 @@
     "wordpress-authenticated-admin-page-coverage",
     "wordpress-plugin-option-matrix",
     "wordpress-plugin-module-state-matrix",
-    "wordpress-plugin-sync-queue-coverage"
+    "wordpress-plugin-module-option-table-inventory",
+    "wordpress-plugin-sync-queue-coverage",
+    "wordpress-plugin-cron-sync-actions"
   ],
   "surfaces": {
     "rest_api": {
@@ -23,40 +25,46 @@
     "database": {
       "coverage_goal": "all_tables_rows_columns_indexes_after_connected_site_fixture_setup",
       "inventory_artifact": "homeboy/wordpress-db-inventory/v1",
+      "module_option_inventory": ["jetpack_active_modules", "jetpack_options", "jetpack_private_options", "jetpack_sync_settings", "jpsq_sync_checkout"],
       "query_profile_artifact": "homeboy/wordpress-rest-db-query-profile/v1"
     },
     "server_requests": {
       "coverage_goal": "all_connection_wpcom_sync_and_module_http_hosts_with_unapproved_requests_blocked",
       "guardrail": "wordpress-external-http-guardrail",
       "guardrail_manifest": "fuzz/jetpack-external-http-guardrail.json",
-      "network_policy": "block_all_synthetic_external_requests"
+      "network_policy": "block_synthetic_external_requests_and_classify_wpcom_boundaries",
+      "blocked_hosts": ["jetpack-homeboy-guardrail.invalid"],
+      "allowlisted_boundaries": ["public-api.wordpress.com"]
     },
     "browser_requests": {
-      "coverage_goal": "all_wp_admin_jetpack_screen_fetch_xhr_websocket_asset_requests",
+      "coverage_goal": "all_wp_admin_jetpack_screen_and_public_module_fetch_xhr_websocket_asset_requests",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
       "trace_workload": "bench/jetpack-browser-coverage.trace.mjs",
       "rig": "rigs/jetpack-browser-coverage/rig.json",
-      "scenarios": ["dashboard", "connection", "modules", "settings"]
+      "scenarios": ["dashboard", "connection", "modules", "settings", "public_post_modules", "public_page_modules"]
     },
     "authenticated_admin_pages": {
-      "coverage_goal": "bounded_safe_wp_admin_jetpack_menu_submenu_get_pages_as_admin",
+      "coverage_goal": "bounded_safe_wp_admin_jetpack_menu_submenu_get_pages_as_admin_with_skip_reason_codes",
       "coverage_artifact": "homeboy/wordpress-admin-page-coverage/v1",
       "workload": "fuzz/jetpack-admin-page-coverage.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "options": {
-      "coverage_goal": "bounded Jetpack option read/write/default shape coverage for isolated fixture options",
+      "coverage_goal": "bounded Jetpack option read/write/default shape coverage for isolated fixture options, including serialized values and rollback verification",
       "workload": "fuzz/jetpack-options-matrix.json",
-      "rig": "rigs/jetpack-api-route-inventory/rig.json"
+      "rig": "rigs/jetpack-api-route-inventory/rig.json",
+      "mutation_policy": "snapshot_before_write_restore_after_assert"
     },
     "modules": {
-      "coverage_goal": "bounded Jetpack module activate/deactivate/settings state matrix in an isolated runner",
+      "coverage_goal": "bounded Jetpack module activate/deactivate/settings state matrix plus module option/table inventory in an isolated runner",
       "workload": "fuzz/jetpack-module-state-matrix.json",
+      "inventory_workload": "fuzz/jetpack-module-option-table-inventory.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "sync": {
-      "coverage_goal": "bounded Jetpack sync queue/action serialization coverage without WordPress.com credentials",
+      "coverage_goal": "bounded Jetpack sync queue/action serialization, cron event inventory, and queue option delta coverage without WordPress.com credentials",
       "workload": "fuzz/jetpack-sync-queue-coverage.json",
+      "cron_action_workload": "fuzz/jetpack-cron-sync-actions.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "connection_fixtures": {
@@ -65,7 +73,7 @@
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "public_frontend": {
-      "coverage_goal": "public Jetpack module frontend rendering and request scenarios with connected/disconnected expectations",
+      "coverage_goal": "public Jetpack module frontend rendering and request scenarios with connected/disconnected expectations and skip reason codes",
       "workload": "fuzz/jetpack-public-module-frontend-coverage.json",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1"
     },
@@ -82,12 +90,12 @@
       "server_requests": ["jetpack-external-http-guardrail"],
       "authenticated_admin_pages": ["jetpack-admin-page-coverage"],
       "options": ["jetpack-options-matrix"],
-      "modules": ["jetpack-module-state-matrix"],
-      "sync": ["jetpack-sync-queue-coverage"],
+      "modules": ["jetpack-module-state-matrix", "jetpack-module-option-table-inventory"],
+      "sync": ["jetpack-sync-queue-coverage", "jetpack-cron-sync-actions"],
       "connection_fixtures": ["jetpack-connected-disconnected-fixtures"],
       "public_frontend": ["jetpack-public-module-frontend-coverage"],
       "performance_observation": ["jetpack-performance-observation"],
-      "browser_requests": ["dashboard", "connection", "modules", "settings"]
+      "browser_requests": ["dashboard", "connection", "modules", "settings", "public_post_modules", "public_page_modules"]
     }
   },
   "workloads": {
@@ -120,21 +128,21 @@
     },
     "db-inventory": {
       "surface": "database",
-      "coverage_shape": "Jetpack fixture database table, row, column, and index inventory",
+      "coverage_shape": "Jetpack fixture database table, option, module-state, row, column, and index inventory",
       "safety": {
         "classification": "read_only_inventory",
-        "notes": ["Reads isolated runner database metadata", "Does not mutate production or developer databases"]
+        "notes": ["Reads isolated runner database metadata", "Inventories Jetpack table prefixes and module/options state", "Does not mutate production or developer databases"]
       },
       "artifact_expectations": { "required": ["metrics", "db inventory json artifact"], "optional": ["table samples"] }
     },
     "jetpack-admin-page-coverage": {
       "surface": "authenticated_admin_pages",
-      "coverage_shape": "bounded authenticated wp-admin Jetpack menu and submenu GET coverage for administrator users",
+      "coverage_shape": "bounded authenticated wp-admin Jetpack top-level menu, submenu, hash-route, and settings-tab GET coverage for administrator users with destructive/credential skip reason classification",
       "safety": {
         "classification": "bounded_authenticated_read",
         "notes": ["GET-only admin visits with explicit skips for destructive/update/install screens", "Per-role and per-page limits bound request volume"]
       },
-      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact"], "optional": ["request logs"] }
+      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact", "admin menu enumeration artifact", "admin skip reason artifact"], "optional": ["request logs"] }
     },
     "jetpack-module-state-matrix": {
       "surface": "modules",
@@ -145,63 +153,81 @@
       },
       "artifact_expectations": { "required": ["metrics", "module matrix rows"], "optional": ["skipped module reasons"] }
     },
+    "jetpack-module-option-table-inventory": {
+      "surface": "modules",
+      "coverage_shape": "read-only Jetpack module option, autoload, serialized-value, and custom-table inventory for module-state fuzz inputs",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Reads isolated runner options and table metadata only", "Secret-like option values are represented by placeholder classifications instead of raw values"]
+      },
+      "artifact_expectations": { "required": ["module inventory", "option inventory", "table inventory", "serialization boundaries"], "optional": ["autoload counts", "missing table reasons"] }
+    },
     "jetpack-options-matrix": {
       "surface": "options",
       "coverage_shape": "bounded Jetpack option defaults, serialization, update, and rollback matrix",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Mutates options only inside the isolated runner database", "Secrets and tokens are represented by synthetic placeholder values"]
+        "notes": ["Mutates options only inside the isolated runner database", "Secrets and tokens are represented by synthetic placeholder values", "Every mutation must record before/after/restore rows so failed assertions can roll back safely"]
       },
-      "artifact_expectations": { "required": ["metrics", "option matrix rows"], "optional": ["serialization samples"] }
+      "artifact_expectations": { "required": ["metrics", "option matrix rows", "rollback rows", "serialization boundary rows"], "optional": ["autoload counts", "secret placeholder classifications"] }
     },
     "jetpack-sync-queue-coverage": {
       "surface": "sync",
       "coverage_shape": "bounded Jetpack sync queue, action serialization, cron, and retry coverage without remote dispatch",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Exercises local sync queue state only", "Outbound WordPress.com dispatch is blocked by the external HTTP guardrail"]
+        "notes": ["Exercises local sync queue state only", "Outbound WordPress.com dispatch is blocked by the external HTTP guardrail", "Queue option deltas must be restored before the run exits"]
       },
-      "artifact_expectations": { "required": ["metrics", "sync queue artifact"], "optional": ["serialized action samples"] }
+      "artifact_expectations": { "required": ["metrics", "sync queue artifact", "serialized action samples", "queue rollback rows"], "optional": ["retry boundary rows"] }
+    },
+    "jetpack-cron-sync-actions": {
+      "surface": "sync",
+      "coverage_shape": "Jetpack cron event, local sync action, queue option delta, and rollback-safe cron mutation inventory without remote dispatch",
+      "safety": {
+        "classification": "isolated_fixture_mutation",
+        "notes": ["Schedules and clears only synthetic cron events in the isolated runner", "Blocks outbound dispatch with the Jetpack external HTTP guardrail", "Records rollback rows for cron and queue option mutations"]
+      },
+      "artifact_expectations": { "required": ["cron events", "sync actions", "queue option deltas", "rollback rows"], "optional": ["blocked dispatch attempts", "skipped action reasons"] }
     },
     "jetpack-connected-disconnected-fixtures": {
       "surface": "connection_fixtures",
-      "coverage_shape": "connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, and WP.com-dependent skip classifications",
+      "coverage_shape": "connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, fixture option restoration, and WP.com-dependent skip classifications",
       "safety": {
         "classification": "isolated_fixture_mutation",
         "notes": ["Uses synthetic placeholder connection values only", "Records connected_required, disconnected_expected, and credential_unavailable skip reasons instead of contacting WordPress.com"]
       },
-      "artifact_expectations": { "required": ["metrics", "connection fixture matrix artifact"], "optional": ["skip reason samples", "placeholder serialization rows"] }
+      "artifact_expectations": { "required": ["metrics", "connection fixture matrix artifact", "connection skip reason artifact"], "optional": ["skip reason samples", "placeholder serialization rows"] }
     },
     "jetpack-public-module-frontend-coverage": {
       "surface": "public_frontend",
-      "coverage_shape": "public-module frontend rendering and request coverage for representative Jetpack modules across connected and disconnected fixture states",
+      "coverage_shape": "public-module frontend rendering and request coverage for representative Jetpack modules, fixture routes, request classes, and connected/disconnected fixture states",
       "safety": {
         "classification": "browser_fixture_trace",
         "notes": ["Runs against local fixture pages and posts in WP Codebox", "External module calls are blocked or classified by the Jetpack HTTP guardrail"]
       },
-      "artifact_expectations": { "required": ["browser request coverage artifact", "module scenario matrix"], "optional": ["screenshots", "console logs", "request waterfall"] }
+      "artifact_expectations": { "required": ["browser request coverage artifact", "module scenario matrix", "public module skip reason artifact"], "optional": ["screenshots", "console logs", "request waterfall"] }
     },
     "jetpack-performance-observation": {
       "surface": "performance_observation",
-      "coverage_shape": "Jetpack admin, settings, REST, sync queue, module frontend, request timing, query count, asset, and external HTTP guardrail summary contract",
+      "coverage_shape": "Jetpack admin, settings, REST, sync queue, module frontend, request timing, query count, asset, skip reason, slow-surface, and external HTTP guardrail summary contract",
       "safety": {
         "classification": "performance_observation",
         "notes": ["Summarizes executable coverage expectations without claiming proof until run artifacts exist", "Heavy proof runs should use offloaded Homeboy runners instead of local benchmarks"]
       },
-      "artifact_expectations": { "required": ["metrics", "performance observation summary artifact"], "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"] }
+      "artifact_expectations": { "required": ["metrics", "performance observation summary artifact", "performance surface summary artifact"], "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"] }
     },
     "jetpack-external-http-guardrail": {
       "surface": "server_requests",
-      "coverage_shape": "Jetpack connection, sync, module, and WordPress.com API external HTTP guardrail probes with all synthetic requests blocked",
+      "coverage_shape": "Jetpack connection, sync, module, and WordPress.com API external HTTP guardrail probes with blocked synthetic requests and declared WP.com allowlist boundaries",
       "safety": {
         "classification": "network_guardrail_probe",
-        "notes": ["Installs the external HTTP guardrail before probes run", "Uses .invalid synthetic hosts and an empty allowlist so no real external service calls are expected"]
+        "notes": ["Installs the external HTTP guardrail before probes run", "Uses .invalid synthetic hosts for blocked probes", "Declares public-api.wordpress.com as an allowlisted boundary without making live service calls"]
       },
       "artifact_expectations": { "required": ["metrics", "guardrail collection"], "optional": ["captured request samples"] }
     },
     "jetpack-browser-coverage": {
       "surface": "browser_requests",
-      "coverage_shape": "Jetpack dashboard, connection, modules, and settings admin browser request coverage",
+      "coverage_shape": "Jetpack dashboard, connection, modules, settings, public post, and public page browser request coverage",
       "safety": {
         "classification": "browser_fixture_trace",
         "notes": ["Runs in WP Codebox browser coverage", "No WordPress.com OAuth fixture or live service account is provisioned"]

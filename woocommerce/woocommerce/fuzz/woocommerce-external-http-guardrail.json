@@ -71,7 +71,7 @@
         {
           "name": "external_http_guardrail",
           "path": "woocommerce-external-http-guardrail/external_http_guardrail.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -95,13 +95,20 @@
       "network-side-effect-classification"
     ]
   },
+  "proof_contracts": [
+    {
+      "id": "external-http-guardrails",
+      "description": "Artifact must include probed WooCommerce marketplace/payment/tax/shipping hosts, blocked unapproved request evidence, and network side-effect classification.",
+      "required_artifact": "external_http_guardrail"
+    }
+  ],
   "artifacts": {
     "expected": [
       {
         "name": "external_http_guardrail",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

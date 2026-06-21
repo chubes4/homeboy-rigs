@@ -11,6 +11,9 @@ The `fuzzer` profile composes the same surface classes as the Woo full-surface r
 - Dynamic block rendering coverage through `block-rendering-coverage` request cases.
 - Block editor load/action probes through the browser action scenario files in `browser-scenarios/`.
 - DB inventory and REST query profiling through `gutenberg-db-inventory-fuzz` and `gutenberg-rest-db-query-profile-fuzz`.
+- Hook, option, postmeta, template/pattern, cron, transient, and editor-state inventory through `gutenberg-hooks-options-inventory`.
+- Editor, Site Editor, block-rendering, pattern-preview, notes-unsaved-attachment, and external HTTP performance summaries through `gutenberg-editor-performance-observation`.
+- Gutenberg 1 API/DB Lab cell recovery through `manifests/api-db-lab-cell.json`: REST namespaces, role permission boundaries, query/table attribution, option/postmeta state, entity fixtures, and required proof artifact sections.
 - External HTTP guardrails through `gutenberg-external-http-guardrail-fuzz`.
 - Coverage-gap reporting shape in `manifests/fuzzer-profile.json` and `manifests/full-surface-coverage.json`.
 
@@ -37,8 +40,29 @@ A consumer can produce `homeboy-rigs/gutenberg-fuzzer-coverage-gap/v1` from the 
 - REST routes from `manifests/rest-route-coverage.json` that were registered but do not have generated safe request cases.
 - Target browser scenarios from `manifests/full-surface-coverage.json` that did not produce browser request coverage.
 - Covered REST routes without DB query profiles or with query counts/durations over `manifests/rest-route-budgets.json`.
+- Missing hook, option, postmeta, template, pattern, cron, transient, or editor-state inventory sections.
+- Missing editor, Site Editor, block-rendering, pattern-preview, notes-unsaved-attachment, or external HTTP performance summary sections.
+- REST namespaces without generated cases, routes without role permission-boundary cases, queries without table/key attribution, and entities without state artifacts from the Gutenberg 1 API/DB Lab cell contract.
 - Unapproved outbound hosts observed by `gutenberg-external-http-guardrail-fuzz`.
 - Fixture or primitive gaps that prevent a surface from being interpreted as covered.
+
+## Runtime-State Contract
+
+`gutenberg-hooks-options-inventory` emits a read-only runtime-state artifact. The artifact summary is not proof unless it has sections for `hooks`, `options`, `postmeta`, `templates`, `patterns`, `cron`, `transients`, and `editor_state`. The profile calls out cron/state surfaces because editor fixtures can change scheduled core events, remote-cache transients, and option/autoload pressure even when no Gutenberg-specific cron hook is registered.
+
+## Performance Observation Contract
+
+`gutenberg-editor-performance-observation` is a summary contract, not a local benchmark. A valid artifact links the underlying browser, REST query-profile, block-rendering, pattern-preview, and notes-unsaved-attachment artifacts, then summarizes:
+
+- Post editor readiness, REST preloads, REST request count, asset request count, long tasks, and console errors.
+- Site Editor readiness, REST preloads, REST request count, template/global-styles request counts, and long tasks.
+- Block-rendering counts, block renderer request counts, server render time, query count, and cache hits.
+- Pattern preview iframe count, fixture asset request count, unique fixture asset count, preview ready time, and long tasks.
+- Notes unsaved attachment upload/autosave state, editor notices, and unsaved attachment recovery state.
+
+## External HTTP Guardrail Contract
+
+`gutenberg-external-http-guardrail-fuzz` installs the WordPress HTTP guardrail with `block_network=true`. `api.wordpress.org` is the only approved host, `patterns.wordpress.org` is the synthetic blocked probe host, and real external service calls are not allowed. A valid artifact summarizes approved hosts, blocked hosts, unexpected allowed hosts, and request samples.
 
 ## Current Limits
 

@@ -1,0 +1,103 @@
+{
+  "schema": "homeboy-rigs/gutenberg-api-db-lab-cell/v1",
+  "id": "gutenberg-api-db-lab-cell",
+  "property": "WordPress/gutenberg",
+  "description": "Recovered Gutenberg 1 Lab cell contract for REST namespace coverage, permission boundaries, DB/query attribution, option/postmeta state, entity fixtures, and proof artifacts.",
+  "rest_namespaces": [
+    {
+      "namespace": "wp/v2",
+      "route_prefixes": [
+        "/wp/v2/block-directory",
+        "/wp/v2/block-patterns",
+        "/wp/v2/block-renderer",
+        "/wp/v2/global-styles",
+        "/wp/v2/navigation",
+        "/wp/v2/templates",
+        "/wp/v2/template-parts"
+      ]
+    },
+    {
+      "namespace": "__experimental",
+      "route_prefixes": ["/__experimental"]
+    }
+  ],
+  "permission_boundaries": [
+    {
+      "role": "anonymous",
+      "expectations": ["public read routes remain available", "editor-only routes return rest_forbidden or rest_cannot_view"]
+    },
+    {
+      "role": "subscriber",
+      "expectations": ["read-only editor data stays bounded", "mutation routes remain denied"]
+    },
+    {
+      "role": "editor",
+      "expectations": ["template, pattern, navigation, and global-style reads execute with query attribution", "mutations require nonce/capability evidence"]
+    },
+    {
+      "role": "administrator",
+      "expectations": ["privileged routes execute inside isolated fixtures", "capability-sensitive responses record status and auth context"]
+    }
+  ],
+  "db_query_attribution": {
+    "artifact_schema": "homeboy/wordpress-rest-db-query-profile/v1",
+    "required_fields": [
+      "route",
+      "namespace",
+      "method",
+      "role",
+      "status",
+      "query_count",
+      "query_time_ms",
+      "tables_touched",
+      "option_keys",
+      "postmeta_keys",
+      "slowest_queries",
+      "duplicate_query_groups"
+    ],
+    "required_tables": ["posts", "postmeta", "options", "terms", "term_taxonomy", "term_relationships"],
+    "budget_manifest": "manifests/rest-route-budgets.json"
+  },
+  "state_attribution": {
+    "options": ["gutenberg experiments", "editor settings", "global styles", "block directory cache", "pattern directory cache"],
+    "postmeta": ["template state", "template part state", "global styles revisions", "navigation state", "autosave or attachment editor state"],
+    "required_artifact_sections": ["options", "postmeta", "transients", "autoload_pressure", "mutation_deltas"]
+  },
+  "entity_fixtures": [
+    "post",
+    "page",
+    "wp_template",
+    "wp_template_part",
+    "wp_global_styles",
+    "wp_navigation",
+    "attachment",
+    "reusable_block",
+    "pattern_directory_result",
+    "block_directory_result"
+  ],
+  "proof_artifacts": [
+    {
+      "name": "rest_namespace_permission_matrix",
+      "schema": "homeboy/gutenberg-rest-permission-matrix/v1",
+      "required_sections": ["namespaces", "routes", "roles", "statuses", "denials", "allowed_mutations"]
+    },
+    {
+      "name": "rest_db_query_profile",
+      "schema": "homeboy/wordpress-rest-db-query-profile/v1",
+      "required_sections": ["routes", "query_counts", "tables_touched", "option_keys", "postmeta_keys", "slowest_queries", "duplicate_query_groups", "budget_regressions"]
+    },
+    {
+      "name": "entity_state_attribution",
+      "schema": "homeboy/gutenberg-entity-state-attribution/v1",
+      "required_sections": ["entities", "options", "postmeta", "transients", "mutation_deltas"]
+    }
+  ],
+  "coverage_gap_sections": [
+    "rest_namespaces_without_cases",
+    "routes_without_permission_boundary_cases",
+    "covered_routes_without_db_query_attribution",
+    "queries_without_table_or_key_attribution",
+    "entities_without_state_artifacts",
+    "proof_artifacts_missing_required_sections"
+  ]
+}

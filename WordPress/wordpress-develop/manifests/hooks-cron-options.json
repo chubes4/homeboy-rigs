@@ -1,0 +1,55 @@
+{
+  "schema": "homeboy-rigs/wordpress-core-hooks-cron-options/v1",
+  "property": "WordPress/wordpress-develop",
+  "description": "Proof contract for WordPress Core runtime-state fuzz coverage across hooks, cron scheduling, options, transients, and rewrite rules.",
+  "surfaces": [
+    {
+      "id": "core-hook-inventory",
+      "kind": "hooks",
+      "collect": ["actions", "filters", "callbacks", "priorities", "accepted_args"],
+      "expected_artifact": "hook_inventory.json"
+    },
+    {
+      "id": "core-cron-schedule",
+      "kind": "cron",
+      "collect": ["scheduled_hooks", "recurrence", "next_run", "args_hash", "missed_or_duplicate_events"],
+      "expected_artifact": "cron_schedule.json"
+    },
+    {
+      "id": "core-options-autoload",
+      "kind": "options",
+      "collect": ["autoloaded_options", "autoload_bytes", "largest_options", "changed_options", "option_value_shape"],
+      "expected_artifact": "options_autoload.json"
+    },
+    {
+      "id": "core-transient-state",
+      "kind": "transients",
+      "collect": ["site_transients", "transients", "timeout_pairs", "expired_rows", "orphaned_timeout_rows"],
+      "expected_artifact": "transient_inventory.json"
+    },
+    {
+      "id": "core-rewrite-rules",
+      "kind": "rewrite_rules",
+      "collect": ["permalink_structure", "rewrite_rule_count", "top_rules", "endpoint_masks", "flush_detected"],
+      "expected_artifact": "rewrite_rules.json"
+    }
+  ],
+  "proof_expectations": {
+    "directory": "hooks-cron-options/",
+    "required_artifacts": [
+      "hook_inventory.json",
+      "cron_schedule.json",
+      "options_autoload.json",
+      "transient_inventory.json",
+      "rewrite_rules.json",
+      "runtime_state_summary.json"
+    ],
+    "summary_fields": [
+      "surface_coverage",
+      "case_count",
+      "fixture_fingerprint",
+      "outliers",
+      "open_gaps"
+    ]
+  }
+}

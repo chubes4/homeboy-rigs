@@ -94,6 +94,18 @@ test('accepts generic declared fuzz workloads', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
+test('accepts package root linting from a direct package directory', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(join(directory, 'Vendor', 'product'));
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
 test('rejects missing declared fuzz workload files', () => {
   const directory = createRigPackage();
   const result = runLint(directory);

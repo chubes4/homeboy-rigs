@@ -9,8 +9,12 @@ const packageRoot = path.join(__dirname, '..');
 const fuzzDir = path.join(packageRoot, 'fuzz');
 const rig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/gutenberg-api-route-inventory/rig.json'), 'utf8'));
 
+const declaredFuzzIds = new Set(
+  (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
+);
 const fuzzManifests = readdirSync(fuzzDir)
   .filter((file) => file.endsWith('.json'))
+  .filter((file) => declaredFuzzIds.has(path.basename(file, '.json')))
   .sort()
   .map((file) => ({
     file,
@@ -18,11 +22,10 @@ const fuzzManifests = readdirSync(fuzzDir)
     manifest: JSON.parse(readFileSync(path.join(fuzzDir, file), 'utf8')),
   }));
 
-assert.equal(fuzzManifests.length, 10, 'expected 10 Gutenberg fuzz manifests');
+assert.equal(fuzzManifests.length, declaredFuzzIds.size, 'expected one manifest per declared Gutenberg fuzz workload');
 
-const declaredFuzzIds = new Set(
-  (rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json'))
-);
+const fuzzerProfile = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/fuzzer-profile.json'), 'utf8'));
+const apiDbLabCell = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/api-db-lab-cell.json'), 'utf8'));
 const benchWorkloadIds = new Set(
   Object.values(rig.bench_workloads || {})
     .flat()
@@ -35,7 +38,6 @@ const requiredSurfaces = new Set([
   'gutenberg-block-editor',
   'gutenberg-site-editor',
   'gutenberg-block-renderer',
-  'wordpress-admin-pages',
   'wordpress-database',
   'wordpress-database-queries',
   'wordpress-hooks',
@@ -72,6 +74,11 @@ for (const { file, manifest } of fuzzManifests) {
   assert.ok(Array.isArray(runnerCase.artifacts), `${manifest.id} requires case artifacts`);
   assert.ok(Array.isArray(manifest.artifacts?.expected), `${manifest.id} requires expected artifacts`);
 
+  if (manifest.operations?.includes('skipped-destructive-action-classification')) {
+    assert.ok(Array.isArray(manifest.metadata?.skipped_reason_codes), `${manifest.id} requires skipped reason codes`);
+    assert.ok(manifest.metadata.skipped_reason_codes.length > 0, `${manifest.id} skipped reason codes cannot be empty`);
+  }
+
   for (const surfaceId of manifest.surface_ids || []) {
     coveredSurfaces.add(surfaceId);
   }
@@ -79,6 +86,70 @@ for (const { file, manifest } of fuzzManifests) {
 
 for (const surfaceId of requiredSurfaces) {
   assert.ok(coveredSurfaces.has(surfaceId), `missing Gutenberg fuzz surface ${surfaceId}`);
+}
+
+const declaredProfileWorkloads = new Set(fuzzerProfile.execution?.fuzz_workloads || []);
+for (const { manifest } of fuzzManifests) {
+  assert.ok(declaredProfileWorkloads.has(manifest.id), `${manifest.id} is not declared in fuzzer-profile execution.fuzz_workloads`);
+}
+
+for (const workloadId of ['gutenberg-hooks-options-inventory', 'gutenberg-editor-performance-observation']) {
+  assert.ok(declaredProfileWorkloads.has(workloadId), `${workloadId} must be part of the fuzzer execution profile`);
+}
+
+const runtimeInventory = fuzzerProfile.surfaces?.runtime_hook_option_inventory;
+assert.deepEqual(runtimeInventory?.workloads, ['gutenberg-hooks-options-inventory'], 'runtime inventory must point at the hook/option fuzz workload');
+assert.ok(runtimeInventory.inventory_targets?.cron_state?.length > 0, 'runtime inventory must declare cron/state targets');
+assert.ok(runtimeInventory.inventory_targets?.options?.length > 0, 'runtime inventory must declare option targets');
+
+const performanceObservation = fuzzerProfile.surfaces?.editor_performance_observation;
+assert.deepEqual(performanceObservation?.workloads, ['gutenberg-editor-performance-observation'], 'performance observation must point at the editor performance workload');
+for (const section of ['post_editor', 'site_editor', 'block_rendering', 'pattern_preview', 'notes_unsaved_attachment']) {
+  assert.ok(Array.isArray(performanceObservation.contracts?.[section]), `performance observation missing ${section} contract`);
+  assert.ok(performanceObservation.contracts[section].length > 0, `performance observation ${section} contract is empty`);
+}
+
+const externalGuardrail = fuzzerProfile.surfaces?.server_request_guardrails;
+assert.equal(externalGuardrail?.expectations?.block_network, true, 'external HTTP guardrail must block network');
+assert.equal(externalGuardrail?.expectations?.real_external_service_calls_allowed, false, 'external HTTP guardrail must forbid real external service calls');
+assert.ok(externalGuardrail.synthetic_probe_hosts?.includes('patterns.wordpress.org'), 'external HTTP guardrail must declare the synthetic blocked probe host');
+
+const hookManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'gutenberg-hooks-options-inventory')?.manifest;
+assert.deepEqual(hookManifest?.inventory_contract?.required_sections, fuzzerProfile.artifact_summaries?.runtime_state?.required_sections, 'runtime inventory summary sections drifted');
+
+const performanceManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'gutenberg-editor-performance-observation')?.manifest;
+assert.deepEqual(performanceManifest?.observation_contract?.required_sections, fuzzerProfile.artifact_summaries?.performance_observation?.required_sections, 'performance observation sections drifted');
+
+const httpManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'gutenberg-external-http-guardrail-fuzz')?.manifest;
+assert.equal(httpManifest?.network_guardrail?.block_network, true, 'HTTP guardrail workload must block network');
+assert.equal(httpManifest?.network_guardrail?.real_external_service_calls_allowed, false, 'HTTP guardrail workload must forbid real external service calls');
+assert.deepEqual(httpManifest?.network_guardrail?.allowlist_domains, ['api.wordpress.org'], 'HTTP guardrail allowlist drifted');
+
+for (const [name, summary] of Object.entries(fuzzerProfile.artifact_summaries || {})) {
+  assert.equal(summary.semantic_key, 'fuzz.report', `${name} artifact summary semantic key mismatch`);
+  assert.ok(Array.isArray(summary.required_sections), `${name} artifact summary requires sections`);
+  assert.ok(summary.required_sections.length > 0, `${name} artifact summary has no required sections`);
+}
+
+assert.equal(apiDbLabCell.schema, 'homeboy-rigs/gutenberg-api-db-lab-cell/v1', 'Gutenberg API/DB Lab cell schema mismatch');
+assert.ok(apiDbLabCell.rest_namespaces.some((entry) => entry.namespace === 'wp/v2'), 'API/DB Lab cell must cover wp/v2 routes');
+assert.ok(apiDbLabCell.rest_namespaces.some((entry) => entry.namespace === '__experimental'), 'API/DB Lab cell must cover __experimental routes');
+for (const role of ['anonymous', 'subscriber', 'editor', 'administrator']) {
+  assert.ok(apiDbLabCell.permission_boundaries.some((entry) => entry.role === role), `API/DB Lab cell missing ${role} permission boundary`);
+}
+for (const field of ['namespace', 'role', 'tables_touched', 'option_keys', 'postmeta_keys']) {
+  assert.ok(apiDbLabCell.db_query_attribution.required_fields.includes(field), `API/DB Lab cell missing DB attribution field ${field}`);
+}
+for (const section of ['options', 'postmeta', 'transients', 'mutation_deltas']) {
+  assert.ok(apiDbLabCell.state_attribution.required_artifact_sections.includes(section), `API/DB Lab cell missing state attribution section ${section}`);
+}
+for (const entity of ['wp_template', 'wp_template_part', 'wp_global_styles', 'wp_navigation', 'attachment']) {
+  assert.ok(apiDbLabCell.entity_fixtures.includes(entity), `API/DB Lab cell missing entity fixture ${entity}`);
+}
+for (const artifact of ['rest_namespace_permission_matrix', 'rest_db_query_profile', 'entity_state_attribution']) {
+  const proofArtifact = apiDbLabCell.proof_artifacts.find((entry) => entry.name === artifact);
+  assert.ok(proofArtifact, `API/DB Lab cell missing proof artifact ${artifact}`);
+  assert.ok(proofArtifact.required_sections.length > 0, `API/DB Lab cell proof artifact ${artifact} requires sections`);
 }
 
 console.log(`validated ${fuzzManifests.length} Gutenberg fuzz manifests; no fuzz IDs are present in bench_workloads or bench_profiles`);

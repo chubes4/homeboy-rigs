@@ -75,7 +75,7 @@
         {
           "name": "gateway_matrix",
           "path": "checkout-gateway-compatibility-matrix/gateway_matrix.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -101,13 +101,20 @@
       "dependency-readiness-classification"
     ]
   },
+  "proof_contracts": [
+    {
+      "id": "gateway-compatibility",
+      "description": "Artifact must include gateway profile rows, readiness/dependency classification, blocked credential/account states, and checkout create-order idempotency observations.",
+      "required_artifact": "gateway_matrix"
+    }
+  ],
   "artifacts": {
     "expected": [
       {
         "name": "gateway_matrix",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }
