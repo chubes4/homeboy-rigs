@@ -47,5 +47,199 @@
       "authenticated_admin_pages": ["admin-page-coverage"],
       "browser_requests": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
     }
+  },
+  "workloads": {
+    "cart-session-overwrite-race": {
+      "surface": "checkout_session",
+      "coverage_shape": "concurrent browser cart session overwrite attempts against the WooCommerce cart session boundary",
+      "safety": {
+        "classification": "synthetic_checkout_mutation",
+        "notes": ["Uses synthetic cart/session fixture data in an isolated runner", "Does not target production stores or external payment providers"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["bench transcript"]
+      }
+    },
+    "checkout-concurrent-create-order": {
+      "surface": "checkout_order_creation",
+      "coverage_shape": "concurrent shortcode checkout order creation with duplicate-submit and completed-order safety probes",
+      "safety": {
+        "classification": "synthetic_checkout_mutation",
+        "notes": ["Creates fixture products, carts, and orders only inside the benchmark site", "Uses offline payment modes unless explicitly configured by the runner"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["order ids", "bench transcript"]
+      }
+    },
+    "checkout-gateway-compatibility-matrix": {
+      "surface": "checkout_payment_gateway_matrix",
+      "coverage_shape": "checkout gateway compatibility matrix across core and configured extension payment profiles",
+      "safety": {
+        "classification": "synthetic_checkout_mutation",
+        "notes": ["Matrix rows are explicit about blocked credential/account states", "Runner configuration controls which external gateway plugins are mounted"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["gateway matrix rows", "bench transcript"]
+      }
+    },
+    "checkout-shortcode-place-order-latency": {
+      "surface": "checkout_shortcode_latency",
+      "coverage_shape": "shortcode checkout place-order latency with large synthetic cart and historical-order fixture pressure",
+      "safety": {
+        "classification": "synthetic_checkout_mutation",
+        "notes": ["Uses generated products, variations, and orders in the isolated benchmark database", "Payment methods are constrained by benchmark environment variables"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["latency samples", "bench transcript"]
+      }
+    },
+    "checkout-shipping-cache": {
+      "surface": "checkout_shipping_cache",
+      "coverage_shape": "shipping package cache churn, warm-run, and rehash behavior for large synthetic carts",
+      "safety": {
+        "classification": "synthetic_checkout_mutation",
+        "notes": ["Mutates only fixture carts, products, and shipping state in the benchmark site", "Does not call live carrier services"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["cache churn samples", "bench transcript"]
+      }
+    },
+    "admin-dashboard-physical-products-query": {
+      "surface": "admin_dashboard_queries",
+      "coverage_shape": "Woo admin dashboard query behavior for synthetic physical-product catalog fixtures",
+      "safety": {
+        "classification": "bounded_admin_fixture_mutation",
+        "notes": ["Seeds fixture products and terms in the isolated database", "Admin dashboard reads are bounded to benchmark-generated state"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["query samples", "bench transcript"]
+      }
+    },
+    "layered-nav-count-cache": {
+      "surface": "catalog_layered_navigation",
+      "coverage_shape": "layered navigation count cache behavior under generated catalog and attribute-term fixtures",
+      "safety": {
+        "classification": "bounded_catalog_fixture_mutation",
+        "notes": ["Creates synthetic catalog data in the isolated runner", "Does not persist or publish content outside the benchmark site"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["cache samples", "bench transcript"]
+      }
+    },
+    "layered-nav-catalog-crawl": {
+      "surface": "catalog_layered_navigation",
+      "coverage_shape": "catalog crawl coverage across layered navigation URLs generated from synthetic products and attributes",
+      "safety": {
+        "classification": "bounded_catalog_fixture_mutation",
+        "notes": ["Crawls local benchmark URLs only", "Fixture generation is limited to the isolated runner database"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["crawl samples", "bench transcript"]
+      }
+    },
+    "admin-page-coverage": {
+      "surface": "authenticated_admin_pages",
+      "coverage_shape": "bounded authenticated wp-admin and Woo admin menu/submenu GET coverage for administrator and shop manager roles",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["GET-only admin page visits with explicit skips for create/install/update/destructive screens", "Per-role page limits bound the request volume"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "admin_page_coverage json artifact"],
+        "optional": ["request logs"]
+      }
+    },
+    "woocommerce-rest-route-inventory": {
+      "surface": "rest_api",
+      "coverage_shape": "registered WooCommerce REST, Store API, wc-admin, and wc-analytics route inventory",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Inspects the local REST route registry", "Does not execute route handlers"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "route_inventory json artifact"],
+        "optional": ["namespace counts"]
+      }
+    },
+    "rest-product-batch-import": {
+      "surface": "rest_api_catalog_mutation",
+      "coverage_shape": "WooCommerce REST product batch import behavior for generated products, attributes, terms, and variation-create focus cases",
+      "safety": {
+        "classification": "bounded_catalog_fixture_mutation",
+        "notes": ["Creates synthetic catalog records in the benchmark database", "Image import defaults are disabled by the full-surface rig environment"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics"],
+        "optional": ["batch phase timings", "bench transcript"]
+      }
+    },
+    "woocommerce-external-http-guardrail": {
+      "surface": "server_requests",
+      "coverage_shape": "marketplace and payment webhook external HTTP guardrail probes with unapproved network requests blocked",
+      "safety": {
+        "classification": "network_guardrail_probe",
+        "notes": ["Installs the external HTTP guardrail before probes run", "Only allowlisted WooCommerce marketplace traffic is permitted; payment webhook probes are expected to be captured or blocked"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "guardrail collection"],
+        "optional": ["captured request samples"]
+      }
+    },
+    "generated-rest-request-cases": {
+      "surface": "rest_api",
+      "coverage_shape": "generated safe WooCommerce Store API, REST API, and admin REST request cases with captured responses",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Uses explicit GET request cases against local WooCommerce routes", "Response capture is intended for reviewable route-contract evidence"]
+      },
+      "artifact_expectations": {
+        "required": ["metadata", "captured REST responses"],
+        "optional": ["request case timing"]
+      }
+    },
+    "rest-db-query-profile": {
+      "surface": "database",
+      "coverage_shape": "DB query profile for safe WooCommerce Store API and REST API request cases",
+      "safety": {
+        "classification": "bounded_authenticated_read",
+        "notes": ["Profiles bounded GET request cases", "Samples and query text length are capped to keep artifacts reviewable"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "query profile samples"],
+        "optional": ["route-level query summaries"]
+      }
+    },
+    "db-inventory": {
+      "surface": "database",
+      "coverage_shape": "WooCommerce fixture database table, row, column, and index inventory after full-surface setup",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Reads database schema and row counts from the isolated benchmark database", "Includes columns and indexes for contract review"]
+      },
+      "artifact_expectations": {
+        "required": ["metrics", "database inventory"],
+        "optional": ["column inventory", "index inventory"]
+      }
+    },
+    "woocommerce-browser-coverage": {
+      "surface": "browser_requests",
+      "coverage_shape": "browser request coverage for shop, product, cart, checkout bootstrap, orders admin, products admin, and analytics admin scenarios",
+      "safety": {
+        "classification": "browser_fixture_trace",
+        "notes": ["Runs against a WP Codebox browser fixture with a synthetic virtual product", "Checkout coverage stops at page bootstrap/request coverage rather than payment completion"]
+      },
+      "artifact_expectations": {
+        "required": ["wp-codebox/browser-request-coverage/v1 artifact"],
+        "optional": ["scenario request logs", "trace timeline"]
+      }
+    }
   }
 }
