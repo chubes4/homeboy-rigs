@@ -11,6 +11,14 @@ const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-cove
 const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
 const browserRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
 
+const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
+
+const executableCoverageWorkloadIds = () => new Set([
+  ...Object.values(performanceRig.bench_workloads?.wordpress || {}).flat().map((entry) => workloadIdFromPath(entry.path)),
+  ...(performanceRig.fuzz_workloads?.wordpress || []).map((entry) => workloadIdFromPath(entry.path)),
+  ...browserRig.trace_profiles['full-surface'],
+]);
+
 const expectedSafetyClassifications = new Set([
   'bounded_admin_fixture_mutation',
   'bounded_authenticated_read',
@@ -22,10 +30,7 @@ const expectedSafetyClassifications = new Set([
 ]);
 
 test('full-surface executable workloads have coverage contract metadata', () => {
-  const workloadIds = new Set([
-    ...performanceRig.bench_profiles['full-surface'],
-    ...browserRig.trace_profiles['full-surface'],
-  ]);
+  const workloadIds = executableCoverageWorkloadIds();
 
   assert.ok(workloadIds.size > 0, 'expected executable full-surface workload ids');
 
@@ -44,10 +49,7 @@ test('full-surface executable workloads have coverage contract metadata', () => 
 });
 
 test('manifest workload metadata stays scoped to full-surface workload ids', () => {
-  const workloadIds = new Set([
-    ...performanceRig.bench_profiles['full-surface'],
-    ...browserRig.trace_profiles['full-surface'],
-  ]);
+  const workloadIds = executableCoverageWorkloadIds();
 
   assert.deepEqual(new Set(Object.keys(manifest.workloads)), workloadIds);
 });
