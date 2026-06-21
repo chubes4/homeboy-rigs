@@ -29,6 +29,8 @@ test('admin page coverage reports summarized query attribution without dropping 
   assert.match(workload, /'sample_source'\s*=>\s*'request_logs\.query_shapes'/);
   assert.match(workload, /'sample_limit_per_request'\s*=>\s*25/);
   assert.match(workload, /'query_shape_sample_count'\s*=>\s*\$query_attribution\['sample_count'\]/);
+  assert.match(workload, /'distinct_query_shape_count'\s*=>\s*count\( \$query_shape_counts \)/);
+  assert.match(workload, /'top_query_shape_count'\s*=>\s*isset\( \$query_attribution\['top_query_shapes'\]\[0\]\['count'\] \)/);
   assert.match(workload, /'top_query_shapes'\s*=>\s*\$query_attribution\['top_query_shapes'\]/);
   assert.match(workload, /'top_query_families'\s*=>\s*\$query_attribution\['top_query_families'\]/);
   assert.match(workload, /'query_attribution'\s*=>\s*\$query_attribution/);

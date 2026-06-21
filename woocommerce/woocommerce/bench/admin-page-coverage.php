@@ -335,6 +335,10 @@ add_action( "shutdown", function () {
 		'max_query_count'            => $query_counts ? max( $query_counts ) : null,
 		'avg_query_count'            => $query_counts ? array_sum( $query_counts ) / count( $query_counts ) : null,
 		'query_shape_sample_count'   => $query_attribution['sample_count'],
+		'distinct_query_shape_count'  => count( $query_shape_counts ),
+		'distinct_query_family_count' => count( $query_family_counts ),
+		'top_query_shape_count'      => isset( $query_attribution['top_query_shapes'][0]['count'] ) ? $query_attribution['top_query_shapes'][0]['count'] : 0,
+		'top_query_family_count'     => isset( $query_attribution['top_query_families'][0]['count'] ) ? $query_attribution['top_query_families'][0]['count'] : 0,
 		'top_query_shapes'           => $query_attribution['top_query_shapes'],
 		'top_query_families'         => $query_attribution['top_query_families'],
 	);
@@ -372,6 +376,7 @@ add_action( "shutdown", function () {
 			'coverage_shape' => 'bounded authenticated wp-admin and Woo admin menu/submenu GET coverage',
 			'roles'          => array_keys( $roles ),
 			'limit'          => $limit,
+			'query_attribution' => $query_attribution,
 		),
 		'artifacts' => $artifact_path ? array( 'admin_page_coverage' => array( 'path' => $artifact_path, 'kind' => 'json' ) ) : array(),
 	);
