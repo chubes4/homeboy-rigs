@@ -1,0 +1,29 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "admin-page-coverage",
+  "label": "WordPress Core admin page coverage",
+  "safety_class": "read_only",
+  "surface_ids": ["wordpress-core-admin-pages"],
+  "operations": ["admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution"],
+  "case_budget": 90,
+  "duration_budget_seconds": 1200,
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "cases": [
+    {
+      "case_id": "admin-page-coverage:core-menu-pages",
+      "surface_ids": ["wordpress-core-admin-pages"],
+      "operations": ["admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["administrator=1", "editor=1", "posts=10", "media=3"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=admin_pages", "paths=/wp-admin/index.php,/wp-admin/edit.php,/wp-admin/post-new.php,/wp-admin/upload.php,/wp-admin/themes.php,/wp-admin/plugins.php,/wp-admin/users.php,/wp-admin/options-general.php,/wp-admin/site-editor.php"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=admin_page_coverage"] }]
+      },
+      "artifacts": [{ "name": "admin_page_coverage", "path": "admin-page-coverage/admin_page_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 90, "max_duration_seconds": 1200 },
+  "coverage": { "surface_ids": ["wordpress-core-admin-pages"], "operations": ["admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution"] },
+  "artifacts": { "expected": [{ "name": "admin_page_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

@@ -1,0 +1,35 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "performance-surfaces",
+  "label": "WordPress Core representative performance surfaces",
+  "safety_class": "read_only",
+  "surface_ids": ["wordpress-core-performance"],
+  "operations": ["performance-surface-inventory", "request-timing-observation", "query-count-observation", "asset-request-observation"],
+  "case_budget": 80,
+  "duration_budget_seconds": 1200,
+  "metadata": {
+    "kind": "wordpress-core-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "coverage_manifest": "${package.root}/manifests/performance-surfaces.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "cases": [
+    {
+      "case_id": "performance-surfaces:representative-observations",
+      "surface_ids": ["wordpress-core-performance"],
+      "operations": ["performance-surface-inventory", "request-timing-observation", "query-count-observation", "asset-request-observation"],
+      "phases": {
+        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["theme=twentytwentyfive", "posts=20", "media=8", "menus=2"] }],
+        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["manifest=${package.root}/manifests/performance-surfaces.json", "surface=performance"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=performance_surfaces"] }]
+      },
+      "artifacts": [{ "name": "performance_surfaces", "path": "performance-surfaces/performance_surfaces.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
+  "limits": { "max_cases": 80, "max_duration_seconds": 1200 },
+  "coverage": { "surface_ids": ["wordpress-core-performance"], "operations": ["performance-surface-inventory", "request-timing-observation", "query-count-observation", "asset-request-observation"] },
+  "artifacts": { "expected": [{ "name": "performance_surfaces", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+}

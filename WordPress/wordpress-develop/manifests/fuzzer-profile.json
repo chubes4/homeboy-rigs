@@ -1,0 +1,37 @@
+{
+  "schema": "homeboy-rigs/wordpress-core-fuzzer-profile/v1",
+  "property": "WordPress/wordpress-develop",
+  "description": "Rig-owned WordPress Core fuzzer profile covering REST, database inventory/query shape, wp-admin pages, hooks, cron, options, content registration, taxonomies, media, users, and representative performance surfaces without adding WordPress assumptions to Homeboy core.",
+  "source_manifests": {
+    "full_surface": "manifests/full-surface-coverage.json",
+    "rest_routes": "manifests/rest-route-coverage.json",
+    "performance_surfaces": "manifests/performance-surfaces.json"
+  },
+  "execution": {
+    "rig": "wordpress-core-fuzz-coverage",
+    "profiles": ["smoke", "fuzzer", "full-surface"],
+    "runner_contract": "homeboy/fuzz-workload/v1"
+  },
+  "coverage_gap_report": {
+    "schema": "homeboy-rigs/wordpress-core-fuzzer-coverage-gap/v1",
+    "inputs": [
+      "REST route inventory and request case artifacts",
+      "DB inventory and REST query profile artifacts",
+      "admin page coverage artifacts",
+      "hook, cron, option, transient, and rewrite artifacts",
+      "post type, post status, taxonomy, term, and permalink artifacts",
+      "media, user, role, and capability artifacts",
+      "performance observation artifacts"
+    ],
+    "sections": [
+      "rest_routes_without_cases",
+      "registered_surfaces_without_inventory_rows",
+      "admin_pages_without_browser_readiness",
+      "autoloaded_options_and_cron_outliers",
+      "content_registration_gaps",
+      "media_and_user_permission_gaps",
+      "performance_surfaces_without_observations",
+      "open_runner_primitive_gaps"
+    ]
+  }
+}
