@@ -2,9 +2,9 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
-const root = process.argv[2] ? join(process.cwd(), process.argv[2]) : process.cwd();
+const root = process.argv[2] ? resolve(process.cwd(), process.argv[2]) : process.cwd();
 const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
 const rigFiles = [];
@@ -52,7 +52,7 @@ function walk(directory) {
   }
 }
 
-function lintRigPortability(file, fuzzWorkloadIdsByPackageRoot) {
+function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
   const rel = relative(root, file);
   const contents = readFileSync(file, 'utf8');
   let rig;
@@ -81,11 +81,8 @@ function lintRigPortability(file, fuzzWorkloadIdsByPackageRoot) {
     failures.push(`${rel}: use shared/wp-codebox/check-cli.sh instead of duplicating WP Codebox CLI discovery in rig commands`);
   }
 
-  lintBenchProfiles(rel, file, rig, fuzzWorkloadIdsByPackageRoot);
-
-  if (rel === 'WordPress/wordpress-develop/rigs/wordpress-core-fuzz-coverage/rig.json' && (rig.bench_profiles || rig.bench_workloads)) {
-    failures.push(`${rel}: WordPress Core fuzz coverage must declare fuzz_workloads/fuzz_profiles only; do not add bench fallback`);
-  }
+  lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot);
+  lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
 }
 
 function packageRootForRig(file) {
@@ -120,16 +117,21 @@ function workloadIdFromPath(path) {
     .replace(/\.json$/, '');
 }
 
-function addSetValue(map, key, value) {
-  if (!map.has(key)) {
-    map.set(key, new Set());
+function resolvePackagePath(path, packageRoot) {
+  if (typeof path !== 'string' || !path) {
+    return null;
   }
 
-  map.get(key).add(value);
+  const expandedPath = path.replaceAll('${package.root}', packageRoot);
+  if (expandedPath.includes('${')) {
+    return null;
+  }
+
+  return isAbsolute(expandedPath) ? expandedPath : resolve(packageRoot, expandedPath);
 }
 
-function collectWordPressPluginFuzzWorkloadIds() {
-  const fuzzWorkloadIdsByPackageRoot = new Map();
+function collectFuzzWorkloads() {
+  const fuzzWorkloadsByPackageRoot = new Map();
 
   for (const file of jsonFiles) {
     const packageRoot = packageRootForFuzzWorkload(file);
@@ -144,25 +146,129 @@ function collectWordPressPluginFuzzWorkloadIds() {
       continue;
     }
 
-    if (workload.schema !== 'homeboy/fuzz-workload/v1' || workload.metadata?.kind !== 'wordpress-plugin-fuzz') {
+    if (workload.schema !== 'homeboy/fuzz-workload/v1') {
       continue;
     }
 
-    addSetValue(fuzzWorkloadIdsByPackageRoot, packageRoot, workloadIdFromPath(file));
+    const workloadIds = new Set([workloadIdFromPath(file)]);
     if (typeof workload.id === 'string' && workload.id) {
-      addSetValue(fuzzWorkloadIdsByPackageRoot, packageRoot, workload.id);
+      workloadIds.add(workload.id);
+    }
+
+    if (!fuzzWorkloadsByPackageRoot.has(packageRoot)) {
+      fuzzWorkloadsByPackageRoot.set(packageRoot, new Map());
+    }
+
+    const packageWorkloads = fuzzWorkloadsByPackageRoot.get(packageRoot);
+    for (const workloadId of workloadIds) {
+      packageWorkloads.set(workloadId, { file, workload });
     }
   }
 
-  return fuzzWorkloadIdsByPackageRoot;
+  return fuzzWorkloadsByPackageRoot;
 }
 
-function lintBenchProfiles(rel, file, rig, fuzzWorkloadIdsByPackageRoot) {
+function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
+  if (workload.schema !== 'homeboy/fuzz-workload/v1') {
+    failures.push(`${rel}: ${context} must use schema homeboy/fuzz-workload/v1`);
+  }
+
+  for (const field of ['id', 'label', 'safety_class']) {
+    if (typeof workload[field] !== 'string' || workload[field].trim() === '') {
+      failures.push(`${rel}: ${context} must declare a non-empty string ${field}`);
+    }
+  }
+
+  if (!workload.metadata || typeof workload.metadata !== 'object' || Array.isArray(workload.metadata)) {
+    failures.push(`${rel}: ${context} must declare metadata`);
+  }
+
+  if (!workload.target || typeof workload.target !== 'object' || Array.isArray(workload.target)) {
+    failures.push(`${rel}: ${context} must declare target`);
+  }
+
+  if (!workload.workload || typeof workload.workload !== 'object' || Array.isArray(workload.workload)) {
+    failures.push(`${rel}: ${context} must declare workload`);
+  } else if (typeof workload.workload.path !== 'string' || workload.workload.path.trim() === '') {
+    failures.push(`${rel}: ${context} workload must declare a non-empty string path`);
+  } else {
+    const workloadPath = resolvePackagePath(workload.workload.path, packageRoot);
+    if (!workloadPath) {
+      failures.push(`${rel}: ${context} workload path must be resolvable`);
+    } else if (!existsSync(workloadPath)) {
+      failures.push(`${rel}: ${context} workload path ${relative(root, workloadPath)} does not exist`);
+    }
+  }
+
+  if (!Array.isArray(workload.cases) || workload.cases.length === 0) {
+    failures.push(`${rel}: ${context} must declare at least one case`);
+  }
+}
+
+function fuzzWorkloadId(workload, path) {
+  return typeof workload.id === 'string' && workload.id ? workload.id : workloadIdFromPath(path);
+}
+
+function lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot) {
+  if (!rig.fuzz_workloads) {
+    return;
+  }
+
+  const packageRoot = packageRootForRig(file);
+  const packageWorkloads = fuzzWorkloadsByPackageRoot.get(packageRoot) || new Map();
+  const rigWorkloadIds = new Map();
+
+  for (const [runner, workloads] of Object.entries(rig.fuzz_workloads)) {
+    if (!Array.isArray(workloads)) {
+      failures.push(`${rel}: fuzz_workloads ${runner} must be an array of workload declarations`);
+      continue;
+    }
+
+    for (const declaration of workloads) {
+      const declarationPath = typeof declaration === 'string' ? declaration : declaration?.path;
+      const resolvedPath = resolvePackagePath(declarationPath, packageRoot);
+      if (!resolvedPath) {
+        failures.push(`${rel}: fuzz_workloads ${runner} declaration must use a resolvable path`);
+        continue;
+      }
+
+      const declarationRel = relative(root, resolvedPath);
+      if (!existsSync(resolvedPath)) {
+        failures.push(`${rel}: fuzz_workloads ${runner} declares missing file ${declarationRel}`);
+        continue;
+      }
+
+      let workload;
+      try {
+        workload = JSON.parse(readFileSync(resolvedPath, 'utf8'));
+      } catch (error) {
+        failures.push(`${rel}: fuzz_workloads ${runner} declares invalid JSON file ${declarationRel}: ${error.message}`);
+        continue;
+      }
+
+      validateFuzzWorkloadShape(rel, workload, `fuzz workload ${declarationRel}`, packageRoot);
+
+      const workloadId = fuzzWorkloadId(workload, resolvedPath);
+      const packageWorkload = packageWorkloads.get(workloadId);
+      if (!packageWorkload || packageWorkload.file !== resolvedPath) {
+        failures.push(`${rel}: fuzz_workloads ${runner} declares ${declarationRel}, but fuzz workload id ${workloadId} is not unique within this package`);
+      }
+
+      if (rigWorkloadIds.has(workloadId)) {
+        failures.push(`${rel}: fuzz workload id ${workloadId} is declared more than once in this rig`);
+      } else {
+        rigWorkloadIds.set(workloadId, declarationRel);
+      }
+    }
+  }
+}
+
+function lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot) {
   if (!rig.bench_profiles && !rig.bench_workloads) {
     return;
   }
 
-  const fuzzWorkloadIds = fuzzWorkloadIdsByPackageRoot.get(packageRootForRig(file)) || new Set();
+  const fuzzWorkloadIds = new Set((fuzzWorkloadsByPackageRoot.get(packageRootForRig(file)) || new Map()).keys());
   const workloadIds = new Set();
   for (const workloads of Object.values(rig.bench_workloads || {})) {
     if (!Array.isArray(workloads)) {
@@ -176,7 +282,7 @@ function lintBenchProfiles(rel, file, rig, fuzzWorkloadIdsByPackageRoot) {
         workloadIds.add(workloadId);
 
         if (fuzzWorkloadIds.has(workloadId)) {
-          failures.push(`${rel}: bench_workloads declares ${workloadId}, but that id belongs to a WordPress plugin fuzz workload in this package`);
+          failures.push(`${rel}: bench_workloads declares ${workloadId}, but that id belongs to a fuzz workload in this package`);
         }
       }
     }
@@ -194,7 +300,7 @@ function lintBenchProfiles(rel, file, rig, fuzzWorkloadIdsByPackageRoot) {
 
     for (const workloadRef of workloadRefs) {
       if (fuzzWorkloadIds.has(workloadRef)) {
-        failures.push(`${rel}: bench profile ${profile} references ${workloadRef}, but that id belongs to a WordPress plugin fuzz workload in this package`);
+        failures.push(`${rel}: bench profile ${profile} references ${workloadRef}, but that id belongs to a fuzz workload in this package`);
       }
 
       if (!workloadIds.has(workloadRef)) {
@@ -306,9 +412,9 @@ function lintGeneratedStudioModelRigs() {
 
 walk(root);
 
-const wordpressPluginFuzzWorkloadIdsByPackageRoot = collectWordPressPluginFuzzWorkloadIds();
+const fuzzWorkloadsByPackageRoot = collectFuzzWorkloads();
 
-rigFiles.forEach((file) => lintRigPortability(file, wordpressPluginFuzzWorkloadIdsByPackageRoot));
+rigFiles.forEach((file) => lintRigPortability(file, fuzzWorkloadsByPackageRoot));
 fuzzWorkloadFiles.forEach(lintFuzzWorkload);
 portableSourceFiles.forEach(lintPortableSource);
 lintGeneratedStudioModelRigs();

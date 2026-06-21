@@ -15,6 +15,7 @@
     "expected_artifact_semantic_key": "fuzz.report"
   },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/performance-surfaces.json", "entry": "performance-surfaces" },
   "cases": [
     {
       "case_id": "performance-surfaces:representative-observations",

@@ -9,6 +9,7 @@
   "duration_budget_seconds": 900,
   "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "hooks-cron-options" },
   "cases": [
     {
       "case_id": "hooks-cron-options:runtime-state-inventory",

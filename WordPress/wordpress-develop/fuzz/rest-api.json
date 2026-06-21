@@ -15,6 +15,7 @@
     "expected_artifact_semantic_key": "fuzz.report"
   },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/rest-route-coverage.json", "entry": "rest-api" },
   "cases": [
     {
       "case_id": "rest-api:inventory-and-safe-cases",

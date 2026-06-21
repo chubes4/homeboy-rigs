@@ -132,10 +132,18 @@ WooCommerce plugin directory.
 ```bash
 homeboy rig up woocommerce-performance
 homeboy fuzz list --rig woocommerce-performance
+homeboy fuzz run --rig woocommerce-performance --workload cart-session-overwrite-race --run-id wc-cart-session-overwrite-race --seed 1 --max-duration 10m
 homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-atomicity --seed 1 --max-duration 10m
+homeboy fuzz run --rig woocommerce-performance --workload checkout-gateway-compatibility-matrix --run-id wc-gateway-matrix --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id wc-shipping-cache --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload layered-nav-count-cache --run-id wc-layered-nav-count-cache --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload layered-nav-catalog-crawl --run-id wc-layered-nav-catalog-crawl --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload admin-page-coverage --run-id wc-admin-coverage --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-rest-route-inventory --seed 1 --max-duration 10m
 homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-rest-generated-cases --seed 1 --max-duration 20m
+homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-rest-db-query-profile --seed 1 --max-duration 20m
+homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-inventory --seed 1 --max-duration 10m
+homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
 ```
 
 `homeboy fuzz --rig woocommerce-performance` resolves the rig's WooCommerce
@@ -143,6 +151,13 @@ component and `fuzz_workloads.wordpress` declarations. Fuzz workloads are not
 registered through `bench_workloads`, so there is no legacy bench fallback path
 for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
 admin coverage, REST coverage, DB inventory, or external HTTP guardrails.
+
+The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
+issue-focused checkout/catalog workloads above. Browser request coverage remains
+the separate `woocommerce-browser-coverage` trace profile, and performance timing
+remains in `bench_workloads`. Use Homeboy Lab for heavy `homeboy fuzz run` proof
+when the runner has a `homeboy` binary that exposes the `fuzz` command; do not
+substitute `homeboy bench` for missing fuzz support.
 
 ## Benchmark Commands
 

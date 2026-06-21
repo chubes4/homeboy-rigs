@@ -8,6 +8,22 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const fuzzDir = path.join(packageRoot, 'fuzz');
 const rig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
+const coverageManifest = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/full-surface-coverage.json'), 'utf8'));
+
+const expectedFuzzIds = new Set([
+  'admin-page-coverage',
+  'cart-session-overwrite-race',
+  'checkout-concurrent-create-order',
+  'checkout-gateway-compatibility-matrix',
+  'checkout-shipping-cache',
+  'db-inventory',
+  'generated-rest-request-cases',
+  'layered-nav-catalog-crawl',
+  'layered-nav-count-cache',
+  'rest-db-query-profile',
+  'woocommerce-external-http-guardrail',
+  'woocommerce-rest-route-inventory',
+]);
 
 const fuzzManifests = readdirSync(fuzzDir)
   .filter((file) => file.endsWith('.json'))
@@ -29,6 +45,21 @@ const benchWorkloadIds = new Set(
     .map((entry) => path.basename(entry.path, path.extname(entry.path)))
 );
 const benchProfileIds = new Set(Object.values(rig.bench_profiles || {}).flat());
+const actualFuzzIds = new Set(fuzzManifests.map(({ manifest }) => manifest.id));
+
+assert.deepEqual(actualFuzzIds, expectedFuzzIds, 'WooCommerce fuzz manifest ids drifted');
+assert.deepEqual(declaredFuzzIds, expectedFuzzIds, 'rig fuzz_workloads.wordpress ids drifted');
+
+const fullSurfaceFuzzIds = new Set([
+  ...coverageManifest.coverage_profiles['full-surface'].rest_api,
+  ...coverageManifest.coverage_profiles['full-surface'].database,
+  ...coverageManifest.coverage_profiles['full-surface'].server_requests,
+  ...coverageManifest.coverage_profiles['full-surface'].authenticated_admin_pages,
+]);
+
+for (const workloadId of fullSurfaceFuzzIds) {
+  assert.ok(declaredFuzzIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
+}
 
 for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.schema, 'homeboy/fuzz-workload/v1', `${file} schema mismatch`);
