@@ -3,8 +3,13 @@
   "id": "cart-session-overwrite-race",
   "label": "Cart session overwrite race",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["woocommerce-cart-session"],
-  "operations": ["session-write-race", "cart-hash-guardrail"],
+  "surface_ids": [
+    "woocommerce-cart-session"
+  ],
+  "operations": [
+    "session-write-race",
+    "cart-hash-guardrail"
+  ],
   "case_budget": 1,
   "duration_budget_seconds": 300,
   "metadata": {
@@ -13,5 +18,91 @@
     "workload_path": "${package.root}/bench/cart-session-overwrite-race.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/cart-session-overwrite-race.php",
+    "entry": "cart-session-overwrite-race"
+  },
+  "cases": [
+    {
+      "case_id": "cart-session-overwrite-race:default",
+      "surface_ids": [
+        "woocommerce-cart-session"
+      ],
+      "operations": [
+        "session-write-race",
+        "cart-hash-guardrail"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/cart-session-overwrite-race.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=raw_result"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "raw_result",
+          "path": "cart-session-overwrite-race/raw_result.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 1,
+    "max_duration_seconds": 300
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-cart-session"
+    ],
+    "operations": [
+      "session-write-race",
+      "cart-hash-guardrail"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "raw_result",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }

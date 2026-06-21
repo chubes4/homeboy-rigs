@@ -3,8 +3,13 @@
   "id": "woocommerce-external-http-guardrail",
   "label": "WooCommerce external HTTP guardrail",
   "safety_class": "read_only",
-  "surface_ids": ["woocommerce-external-http"],
-  "operations": ["external-http-blocklist-probe", "network-side-effect-classification"],
+  "surface_ids": [
+    "woocommerce-external-http"
+  ],
+  "operations": [
+    "external-http-blocklist-probe",
+    "network-side-effect-classification"
+  ],
   "case_budget": 1,
   "duration_budget_seconds": 300,
   "metadata": {
@@ -13,5 +18,91 @@
     "workload_path": "${package.root}/bench/woocommerce-external-http-guardrail.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/woocommerce-external-http-guardrail.php",
+    "entry": "woocommerce-external-http-guardrail"
+  },
+  "cases": [
+    {
+      "case_id": "woocommerce-external-http-guardrail:default",
+      "surface_ids": [
+        "woocommerce-external-http"
+      ],
+      "operations": [
+        "external-http-blocklist-probe",
+        "network-side-effect-classification"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/woocommerce-external-http-guardrail.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=external_http_guardrail"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "external_http_guardrail",
+          "path": "woocommerce-external-http-guardrail/external_http_guardrail.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 1,
+    "max_duration_seconds": 300
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-external-http"
+    ],
+    "operations": [
+      "external-http-blocklist-probe",
+      "network-side-effect-classification"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "external_http_guardrail",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }

@@ -3,8 +3,15 @@
   "id": "admin-page-coverage",
   "label": "WooCommerce admin page coverage",
   "safety_class": "read_only",
-  "surface_ids": ["woocommerce-admin-pages", "wordpress-admin-pages"],
-  "operations": ["admin-page-discovery", "permission-boundary-classification", "query-attribution"],
+  "surface_ids": [
+    "woocommerce-admin-pages",
+    "wordpress-admin-pages"
+  ],
+  "operations": [
+    "admin-page-discovery",
+    "permission-boundary-classification",
+    "query-attribution"
+  ],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -13,5 +20,95 @@
     "workload_path": "${package.root}/bench/admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/admin-page-coverage.php",
+    "entry": "admin-page-coverage"
+  },
+  "cases": [
+    {
+      "case_id": "admin-page-coverage:default",
+      "surface_ids": [
+        "woocommerce-admin-pages",
+        "wordpress-admin-pages"
+      ],
+      "operations": [
+        "admin-page-discovery",
+        "permission-boundary-classification",
+        "query-attribution"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/admin-page-coverage.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=admin_page_coverage"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "admin_page_coverage",
+          "path": "admin-page-coverage/admin_page_coverage.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 80,
+    "max_duration_seconds": 900
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-admin-pages",
+      "wordpress-admin-pages"
+    ],
+    "operations": [
+      "admin-page-discovery",
+      "permission-boundary-classification",
+      "query-attribution"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "admin_page_coverage",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }

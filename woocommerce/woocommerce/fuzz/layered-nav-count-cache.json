@@ -3,8 +3,13 @@
   "id": "layered-nav-count-cache",
   "label": "Layered nav count cache cap",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["woocommerce-layered-nav-count-cache"],
-  "operations": ["taxonomy-filter-count-cache", "transient-entry-cap-guardrail"],
+  "surface_ids": [
+    "woocommerce-layered-nav-count-cache"
+  ],
+  "operations": [
+    "taxonomy-filter-count-cache",
+    "transient-entry-cap-guardrail"
+  ],
   "case_budget": 25,
   "duration_budget_seconds": 600,
   "metadata": {
@@ -13,5 +18,91 @@
     "workload_path": "${package.root}/bench/layered-nav-count-cache.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/layered-nav-count-cache.php",
+    "entry": "layered-nav-count-cache"
+  },
+  "cases": [
+    {
+      "case_id": "layered-nav-count-cache:default",
+      "surface_ids": [
+        "woocommerce-layered-nav-count-cache"
+      ],
+      "operations": [
+        "taxonomy-filter-count-cache",
+        "transient-entry-cap-guardrail"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/layered-nav-count-cache.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=raw_result"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "raw_result",
+          "path": "layered-nav-count-cache/raw_result.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 25,
+    "max_duration_seconds": 600
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-layered-nav-count-cache"
+    ],
+    "operations": [
+      "taxonomy-filter-count-cache",
+      "transient-entry-cap-guardrail"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "raw_result",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }

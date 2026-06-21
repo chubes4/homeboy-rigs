@@ -3,8 +3,15 @@
   "id": "checkout-concurrent-create-order",
   "label": "Checkout create_order atomicity",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["woocommerce-checkout-create-order", "woocommerce-ajax-checkout"],
-  "operations": ["duplicate-order-repro", "concurrent-checkout-post", "session-side-effect-guardrails"],
+  "surface_ids": [
+    "woocommerce-checkout-create-order",
+    "woocommerce-ajax-checkout"
+  ],
+  "operations": [
+    "duplicate-order-repro",
+    "concurrent-checkout-post",
+    "session-side-effect-guardrails"
+  ],
   "case_budget": 10,
   "duration_budget_seconds": 600,
   "metadata": {
@@ -18,5 +25,95 @@
     ],
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report"
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/checkout-concurrent-create-order.php",
+    "entry": "checkout-concurrent-create-order"
+  },
+  "cases": [
+    {
+      "case_id": "checkout-concurrent-create-order:default",
+      "surface_ids": [
+        "woocommerce-checkout-create-order",
+        "woocommerce-ajax-checkout"
+      ],
+      "operations": [
+        "duplicate-order-repro",
+        "concurrent-checkout-post",
+        "session-side-effect-guardrails"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/checkout-concurrent-create-order.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=raw_result"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "raw_result",
+          "path": "checkout-concurrent-create-order/raw_result.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 10,
+    "max_duration_seconds": 600
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-checkout-create-order",
+      "woocommerce-ajax-checkout"
+    ],
+    "operations": [
+      "duplicate-order-repro",
+      "concurrent-checkout-post",
+      "session-side-effect-guardrails"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "raw_result",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      }
+    ]
   }
 }
