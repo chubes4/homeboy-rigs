@@ -101,33 +101,6 @@
         "concurrent-checkout-post",
         "session-side-effect-guardrails"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/checkout-concurrent-create-order.php",
-              "type=php"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=raw_result"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "raw_result",
@@ -140,6 +113,24 @@
       ],
       "metadata": {
         "safety_class": "isolated_mutation"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/checkout-concurrent-create-order.php",
+          "type": "php",
+          "entry": "checkout-concurrent-create-order"
+        },
+        "collect": [
+          {
+            "artifact": "raw_result"
+          }
+        ]
       }
     }
   ],

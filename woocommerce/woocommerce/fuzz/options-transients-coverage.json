@@ -56,34 +56,6 @@
         "action-scheduler-delta",
         "rollback-safe-option-mutation"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/db-inventory.workload.json",
-              "type=json",
-              "surface=woocommerce-options-transients"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=options_transients_coverage"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "options_transients_coverage",
@@ -96,6 +68,27 @@
       ],
       "metadata": {
         "safety_class": "isolated_mutation"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/db-inventory.workload.json",
+          "type": "json",
+          "entry": "options-transients-coverage",
+          "parameters": {
+            "surface": "woocommerce-options-transients"
+          }
+        },
+        "collect": [
+          {
+            "artifact": "options_transients_coverage"
+          }
+        ]
       }
     }
   ],

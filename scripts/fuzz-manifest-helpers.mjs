@@ -4,6 +4,7 @@ import path from 'node:path';
 
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
+export const fuzzCaseIntentSchema = 'homeboy/fuzz-workload-intent/v1';
 export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']);
 export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
 export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
@@ -65,6 +66,7 @@ export function assertGenericFuzzManifest(manifest, {
   requireExpectedArtifacts = true,
   requireExpectedArtifactSemanticKeys = false,
   requireReadinessMetadata = false,
+  requireRunnerNeutralIntent = false,
 } = {}) {
   assert.equal(manifest.schema, 'homeboy/fuzz-workload/v1', `${file} schema mismatch`);
   assert.equal(typeof manifest.id, 'string', `${file} requires id`);
@@ -101,8 +103,13 @@ export function assertGenericFuzzManifest(manifest, {
   }
   assert.deepEqual(runnerCase.surface_ids, manifest.surface_ids, `${manifest.id} case surface ids drifted`);
   assert.deepEqual(runnerCase.operations, manifest.operations, `${manifest.id} case operations drifted`);
-  assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);
-  assert.ok(runnerCase.phases.action.length > 0, `${manifest.id} requires at least one action step`);
+  if (runnerCase.intent) {
+    assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase);
+  } else {
+    assert.equal(requireRunnerNeutralIntent, false, `${manifest.id} requires runner-neutral case intent`);
+    assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);
+    assert.ok(runnerCase.phases.action.length > 0, `${manifest.id} requires at least one action step`);
+  }
   assert.ok(Array.isArray(runnerCase.artifacts), `${manifest.id} requires case artifacts`);
   assert.ok(Array.isArray(manifest.artifacts?.expected), `${manifest.id} requires expected artifacts`);
 
@@ -122,6 +129,38 @@ export function assertGenericFuzzManifest(manifest, {
   }
 
   return runnerCase;
+}
+
+export function assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase) {
+  const intent = runnerCase.intent;
+  assert.ok(intent && typeof intent === 'object' && !Array.isArray(intent), `${manifest.id} case intent must be an object`);
+  assert.equal(intent.schema, fuzzCaseIntentSchema, `${manifest.id} case intent schema mismatch`);
+  assert.equal(intent.type, 'wordpress-plugin-workload', `${manifest.id} case intent type mismatch`);
+
+  assert.ok(intent.plugin && typeof intent.plugin === 'object' && !Array.isArray(intent.plugin), `${manifest.id} case intent requires plugin`);
+  assert.equal(typeof intent.plugin.activation, 'string', `${manifest.id} case intent plugin.activation must be a string`);
+
+  assert.ok(intent.execute && typeof intent.execute === 'object' && !Array.isArray(intent.execute), `${manifest.id} case intent requires execute`);
+  assert.equal(intent.execute.workload_ref, 'default', `${manifest.id} case intent execute.workload_ref must be default`);
+  assert.equal(intent.execute.path, manifest.workload?.path, `${manifest.id} case intent execute.path must match workload.path`);
+  assert.equal(intent.execute.type, manifest.workload?.type, `${manifest.id} case intent execute.type must match workload.type`);
+  if (manifest.workload?.entry) {
+    assert.equal(intent.execute.entry, manifest.workload.entry, `${manifest.id} case intent execute.entry must match workload.entry`);
+  }
+  if (intent.execute.parameters !== undefined) {
+    assert.ok(intent.execute.parameters && typeof intent.execute.parameters === 'object' && !Array.isArray(intent.execute.parameters), `${manifest.id} case intent execute.parameters must be an object`);
+  }
+
+  assert.ok(Array.isArray(intent.collect), `${manifest.id} case intent collect must be an array`);
+  assert.ok(intent.collect.length > 0, `${manifest.id} case intent collect must declare at least one artifact`);
+  const caseArtifactNames = new Set((runnerCase.artifacts || []).map((artifact) => artifact?.name).filter(Boolean));
+  for (const artifact of intent.collect) {
+    assert.ok(artifact && typeof artifact === 'object' && !Array.isArray(artifact), `${manifest.id} case intent collect entries must be objects`);
+    assert.equal(typeof artifact.artifact, 'string', `${manifest.id} case intent collect artifact must be a string`);
+    assert.ok(caseArtifactNames.has(artifact.artifact), `${manifest.id} case intent collect artifact ${artifact.artifact} is not declared on the case`);
+  }
+
+  assert.equal(runnerCase.phases, undefined, `${manifest.id} runner-neutral case intent must not embed runner command phases`);
 }
 
 export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {}) {

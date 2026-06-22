@@ -92,6 +92,7 @@ for (const { file, manifest } of fuzzManifests) {
     requireCaseArtifacts: false,
     requireExpectedArtifacts: false,
     requireExpectedArtifactSemanticKeys: true,
+    requireRunnerNeutralIntent: true,
   });
 
   assert.equal(manifest.metadata?.fixture?.runtime, 'wp-codebox', `${manifest.id} fixture runtime must be wp-codebox`);

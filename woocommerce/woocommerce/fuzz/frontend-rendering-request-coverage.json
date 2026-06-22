@@ -67,34 +67,6 @@
         "xhr-fetch-capture",
         "skipped-destructive-action-classification"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
-              "type=trace",
-              "surface=frontend"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=frontend_rendering_request_coverage"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "frontend_rendering_request_coverage",
@@ -107,6 +79,27 @@
       ],
       "metadata": {
         "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
+          "type": "json",
+          "entry": "frontend-rendering-request-coverage",
+          "parameters": {
+            "surface": "frontend"
+          }
+        },
+        "collect": [
+          {
+            "artifact": "frontend_rendering_request_coverage"
+          }
+        ]
       }
     }
   ],

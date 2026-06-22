@@ -48,33 +48,6 @@
         "rest-query-profile",
         "query-shape-attribution"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/rest-db-query-profile.workload.json",
-              "type=json"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=rest_db_query_profile"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "rest_db_query_profile",
@@ -87,6 +60,24 @@
       ],
       "metadata": {
         "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+          "type": "json",
+          "entry": "rest-db-query-profile"
+        },
+        "collect": [
+          {
+            "artifact": "rest_db_query_profile"
+          }
+        ]
       }
     }
   ],

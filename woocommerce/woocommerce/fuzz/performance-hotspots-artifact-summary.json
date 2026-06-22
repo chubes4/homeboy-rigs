@@ -62,34 +62,6 @@
         "gateway-compatibility-summary",
         "external-http-guardrail-summary"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/rest-db-query-profile.workload.json",
-              "type=json",
-              "surface=woocommerce-performance-hotspots"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=performance_hotspots_summary"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "performance_hotspots_summary",
@@ -102,6 +74,27 @@
       ],
       "metadata": {
         "safety_class": "isolated_mutation"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+          "type": "json",
+          "entry": "performance-hotspots-artifact-summary",
+          "parameters": {
+            "surface": "woocommerce-performance-hotspots"
+          }
+        },
+        "collect": [
+          {
+            "artifact": "performance_hotspots_summary"
+          }
+        ]
       }
     }
   ],
