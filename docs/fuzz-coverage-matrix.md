@@ -17,9 +17,11 @@ artifact refs, run IDs, gap reports, and required fuzz result artifacts; no
 full-surface product row is proven by this matrix alone.
 
 Product manifest validators share generic workload-shape, rig-linkage, and
-bench/fuzz separation checks through `scripts/fuzz-manifest-helpers.mjs`.
-Product-specific validators remain responsible for product namespaces, routes,
-fixtures, thresholds, skip reasons, and proof contracts.
+bench/fuzz separation checks through `scripts/fuzz-manifest-helpers.mjs`. The
+same helper validates the shared full-surface `coverage_map` for REST, admin,
+frontend, browser, and database surfaces, plus the shared `gap_report` artifact
+schema. Product-specific validators remain responsible for product namespaces,
+routes, fixtures, thresholds, skip reasons, and proof contracts.
 
 Generic readiness metadata is available for product manifests that need an
 explicit fuzz-readiness contract without claiming proof. `metadata.readiness`

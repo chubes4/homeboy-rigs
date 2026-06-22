@@ -5,6 +5,8 @@ import path from 'node:path';
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
 export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']);
+export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
+export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
 
 export function readJson(root, ...parts) {
   return JSON.parse(readFileSync(path.join(root, ...parts), 'utf8'));
@@ -215,5 +217,50 @@ export function assertFuzzMutationReadiness(mutation, { file } = {}) {
   for (const artifact of mutation.rollback_artifacts) {
     assert.equal(typeof artifact, 'string', `${file} metadata.readiness.mutation.rollback_artifacts entries must be strings`);
     assert.notEqual(artifact.trim(), '', `${file} metadata.readiness.mutation.rollback_artifacts entries must be non-empty`);
+  }
+}
+
+export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.property } = {}) {
+  assert.equal(manifest.schema, 'homeboy-rigs/wordpress-full-surface-coverage/v1', `${file} schema mismatch`);
+  assert.equal(typeof manifest.property, 'string', `${file} requires property`);
+  assert.notEqual(manifest.property.trim(), '', `${file} requires non-empty property`);
+  assert.ok(manifest.coverage_map && typeof manifest.coverage_map === 'object' && !Array.isArray(manifest.coverage_map), `${file} requires coverage_map`);
+
+  for (const surfaceType of fullSurfaceCoverageTypes) {
+    const entry = manifest.coverage_map[surfaceType];
+    assert.ok(entry && typeof entry === 'object' && !Array.isArray(entry), `${file} coverage_map.${surfaceType} must be an object`);
+    assert.equal(entry.surface_type, surfaceType, `${file} coverage_map.${surfaceType}.surface_type mismatch`);
+    assert.equal(typeof entry.surface_id, 'string', `${file} coverage_map.${surfaceType}.surface_id must be a string`);
+    assert.notEqual(entry.surface_id.trim(), '', `${file} coverage_map.${surfaceType}.surface_id must be non-empty`);
+    assert.equal(typeof entry.coverage_goal, 'string', `${file} coverage_map.${surfaceType}.coverage_goal must be a string`);
+    assert.notEqual(entry.coverage_goal.trim(), '', `${file} coverage_map.${surfaceType}.coverage_goal must be non-empty`);
+    assertStringArray(entry.workload_ids, `${file} coverage_map.${surfaceType}.workload_ids`);
+    assertStringArray(entry.artifact_schemas, `${file} coverage_map.${surfaceType}.artifact_schemas`);
+  }
+
+  assert.ok(manifest.gap_report && typeof manifest.gap_report === 'object' && !Array.isArray(manifest.gap_report), `${file} requires gap_report`);
+  assert.equal(manifest.gap_report.schema, 'homeboy-rigs/wordpress-coverage-gap-report/v1', `${file} gap_report.schema mismatch`);
+  assertStringArray(manifest.gap_report.inputs, `${file} gap_report.inputs`);
+  assertStringArray(manifest.gap_report.required_fields, `${file} gap_report.required_fields`);
+  assert.equal(manifest.gap_report.semantic_key, 'fuzz.report', `${file} gap_report.semantic_key mismatch`);
+  assert.ok(manifest.gap_report.compare && typeof manifest.gap_report.compare === 'object' && !Array.isArray(manifest.gap_report.compare), `${file} gap_report.compare must be an object`);
+
+  const requiredFields = new Set(manifest.gap_report.required_fields);
+  for (const field of fullSurfaceGapReportFields) {
+    assert.ok(requiredFields.has(field), `${file} gap_report.required_fields missing ${field}`);
+  }
+
+  for (const surfaceType of fullSurfaceCoverageTypes) {
+    assert.equal(typeof manifest.gap_report.compare[surfaceType], 'string', `${file} gap_report.compare.${surfaceType} must be a string`);
+    assert.notEqual(manifest.gap_report.compare[surfaceType].trim(), '', `${file} gap_report.compare.${surfaceType} must be non-empty`);
+  }
+}
+
+function assertStringArray(value, label) {
+  assert.ok(Array.isArray(value), `${label} must be an array`);
+  assert.ok(value.length > 0, `${label} must not be empty`);
+  for (const entry of value) {
+    assert.equal(typeof entry, 'string', `${label} entries must be strings`);
+    assert.notEqual(entry.trim(), '', `${label} entries must be non-empty`);
   }
 }

@@ -10,6 +10,56 @@
     "wordpress-external-http-guardrail",
     "browser-request-coverage"
   ],
+  "coverage_map": {
+    "rest": {
+      "surface_type": "rest",
+      "surface_id": "rest_api",
+      "coverage_goal": "all registered Gutenberg editor REST routes and generated safe cases",
+      "workload_ids": ["gutenberg-rest-route-inventory", "generated-rest-request-cases"],
+      "artifact_schemas": ["homeboy/wordpress-rest-route-inventory/v1", "homeboy/wordpress-rest-request-cases/v1"]
+    },
+    "admin": {
+      "surface_type": "admin",
+      "surface_id": "admin_editor_pages",
+      "coverage_goal": "safe wp-admin menu, editor, site editor, template, and pattern browser GET enumeration",
+      "workload_ids": ["gutenberg-admin-page-coverage"],
+      "artifact_schemas": ["homeboy-rigs/gutenberg-admin-page-coverage/v1"]
+    },
+    "frontend": {
+      "surface_type": "frontend",
+      "surface_id": "frontend_rendering",
+      "coverage_goal": "published Gutenberg fixture rendering, dynamic block rendering, and frontend request coverage",
+      "workload_ids": ["frontend-rendering-request-coverage", "block-rendering-coverage"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "browser": {
+      "surface_type": "browser",
+      "surface_id": "browser_requests",
+      "coverage_goal": "Gutenberg editor, site editor, template, pattern, and frontend browser request coverage",
+      "workload_ids": ["post_editor", "site_editor", "template_editor", "patterns", "frontend_rendering"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "database": {
+      "surface_type": "database",
+      "surface_id": "database",
+      "coverage_goal": "Gutenberg database inventory, REST query profile, option prefix, postmeta, and entity attribution coverage",
+      "workload_ids": ["db-inventory", "rest-db-query-profile"],
+      "artifact_schemas": ["homeboy/wordpress-db-inventory/v1", "homeboy/wordpress-rest-db-query-profile/v1"]
+    }
+  },
+  "gap_report": {
+    "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+    "semantic_key": "fuzz.report",
+    "inputs": ["gutenberg-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "gutenberg-admin-page-coverage", "frontend-rendering-request-coverage", "gutenberg-browser-coverage"],
+    "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
+    "compare": {
+      "rest": "registered Gutenberg-facing route inventory minus generated safe request cases",
+      "admin": "safe admin/editor targets minus admin enumeration and captured browser request coverage scenarios",
+      "frontend": "declared frontend fixture/rendering scenarios minus captured browser request coverage scenarios",
+      "browser": "declared Gutenberg browser scenarios minus captured browser request coverage rows",
+      "database": "fixture DB inventory plus REST query profiles minus route, option prefix, postmeta, and Gutenberg entity attribution rows"
+    }
+  },
   "surfaces": {
     "rest_api": {
       "manifest": "manifests/rest-route-coverage.json",
@@ -63,34 +113,6 @@
       "fuzz_workload": "gutenberg-editor-performance-observation",
       "coverage_artifact": "homeboy/gutenberg-performance-observation/v1"
     }
-  },
-  "coverage_gap_reporting": {
-    "inputs": [
-      "gutenberg-rest-route-inventory",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory",
-      "gutenberg-external-http-guardrail",
-      "gutenberg-browser-coverage"
-    ],
-    "artifact_expectations": {
-      "rest_route_inventory": { "required": true, "semantic_key": "fuzz.report" },
-      "rest_request_cases": { "required": true, "semantic_key": "fuzz.report" },
-      "rest_db_query_profile": { "required": true, "semantic_key": "fuzz.report" },
-      "db_inventory": { "required": true, "semantic_key": "fuzz.report" },
-      "gutenberg_runtime_state": { "required": true, "semantic_key": "fuzz.report" },
-      "external_http_guardrail": { "required": true, "semantic_key": "fuzz.report" },
-      "browser_request_coverage": { "required": true, "semantic_key": "fuzz.report" }
-    },
-    "compare": {
-      "rest_routes": "registered Gutenberg-facing route inventory minus generated safe request cases",
-      "admin_editor_pages": "safe admin/editor targets minus admin enumeration and captured browser request coverage scenarios",
-      "frontend_rendering": "declared frontend fixture/rendering scenarios minus captured browser request coverage scenarios",
-      "permissions": "protected editor routes with authenticated success cases and unauthenticated 401/403 boundary cases",
-      "database": "fixture DB inventory plus REST query profiles per covered route, query attribution group, option prefix, postmeta key, and Gutenberg entity type",
-      "external_http": "observed outbound HTTP hosts minus approved Gutenberg hosts"
-    },
-    "report_shape": "homeboy-rigs/gutenberg-fuzzer-coverage-gap/v1"
   },
   "coverage_profiles": {
     "fuzzer": {
