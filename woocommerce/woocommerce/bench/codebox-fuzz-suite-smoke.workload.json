@@ -1,0 +1,44 @@
+{
+  "schema": "wp-codebox/wordpress-workload-run/v1",
+  "wordpress_version": "latest",
+  "runtime_env": {
+    "WP_CODEBOX_PUBLIC_CONTRACT_PROOF": "schema-only"
+  },
+  "before": [
+    {
+      "command": "wordpress.ensure-plugin-active",
+      "args": [
+        "plugin=woocommerce/woocommerce.php"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "command": "wp-codebox/run-fuzz-suite",
+      "args": [
+        "suite=${package.root}/manifests/codebox-fuzz-suite-smoke.json"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "codebox_fuzz_suite_result",
+      "path": "codebox-fuzz-suite-smoke/fuzz-suite-result.json",
+      "kind": "json",
+      "contentType": "application/json",
+      "required": false,
+      "metadata": {
+        "schema": "wp-codebox/fuzz-suite-result/v1",
+        "semantic_key": "fuzz.suite_result",
+        "proof_placeholder": true
+      }
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "codebox-fuzz-suite-smoke",
+    "contract": "wp-codebox/wordpress-workload-run/v1",
+    "fuzz_suite": "${package.root}/manifests/codebox-fuzz-suite-smoke.json",
+    "proof_status": "schema_only_placeholder"
+  }
+}

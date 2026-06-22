@@ -32,6 +32,7 @@ const expectedFuzzIds = new Set([
   'checkout-concurrent-create-order',
   'checkout-gateway-compatibility-matrix',
   'checkout-shipping-cache',
+  'codebox-fuzz-suite-smoke',
   'db-inventory',
   'frontend-rendering-request-coverage',
   'generated-rest-request-cases',
@@ -62,9 +63,8 @@ const requiredProofContracts = new Map([
 
 const fuzzManifests = collectFuzzManifests(packageRoot);
 
+assert.equal(fuzzManifests.length, 21, 'expected 21 WooCommerce fuzz manifests');
 assert.ok(existsSync(runtimeDependencyHelper), 'WooCommerce runtime dependency prep helper must exist');
-
-assert.equal(fuzzManifests.length, 20, 'expected 20 WooCommerce fuzz manifests');
 
 const declaredIds = declaredFuzzIds(rig);
 const benchWorkloadIds = declaredBenchWorkloadIds(rig);
@@ -242,6 +242,31 @@ for (const { file, manifest } of fuzzManifests) {
     );
   }
 }
+
+const codeboxSmokeManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'codebox-fuzz-suite-smoke')?.manifest;
+assert.ok(codeboxSmokeManifest, 'codebox-fuzz-suite-smoke manifest is missing');
+assert.equal(codeboxSmokeManifest.metadata?.readiness?.level, 'declared', 'codebox smoke must not claim proven readiness without proof artifacts');
+assert.deepEqual(codeboxSmokeManifest.metadata?.public_codebox_contracts, [
+  'wp-codebox/fuzz-suite/v1',
+  'wp-codebox/wordpress-workload-run/v1',
+  'wp-codebox/fuzz-suite-result/v1',
+]);
+assert.equal(codeboxSmokeManifest.artifacts.expected[0]?.required, false, 'codebox smoke proof artifact is a placeholder until captured');
+assert.equal(codeboxSmokeManifest.artifacts.expected[0]?.proof_placeholder, true, 'codebox smoke expected artifact must be marked as a placeholder');
+
+const codeboxWorkloadRun = readJson(packageRoot, 'bench/codebox-fuzz-suite-smoke.workload.json');
+assert.equal(codeboxWorkloadRun.schema, 'wp-codebox/wordpress-workload-run/v1');
+assert.ok(codeboxWorkloadRun.before.some((step) => step.command === 'wordpress.ensure-plugin-active'), 'codebox workload must activate WooCommerce');
+assert.ok(codeboxWorkloadRun.steps.some((step) => step.command === 'wp-codebox/run-fuzz-suite'), 'codebox workload must route through public run-fuzz-suite ability');
+assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.schema, 'wp-codebox/fuzz-suite-result/v1');
+assert.equal(codeboxWorkloadRun.artifacts[0]?.required, false, 'codebox workload proof artifact must remain optional until captured');
+
+const codeboxSuite = readJson(packageRoot, 'manifests/codebox-fuzz-suite-smoke.json');
+assert.equal(codeboxSuite.schema, 'wp-codebox/fuzz-suite/v1');
+assert.equal(codeboxSuite.target?.kind, 'rest');
+assert.equal(codeboxSuite.target?.entrypoint, '/wc/store/v1/cart');
+assert.equal(codeboxSuite.cases?.[0]?.input?.method, 'GET');
+assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'placeholder');
 
 const proofReadyContracts = {
   'rest-namespace-generated-cases': ['namespace-classification', 'generated-safe-get-cases', 'route-gap-attribution'],
