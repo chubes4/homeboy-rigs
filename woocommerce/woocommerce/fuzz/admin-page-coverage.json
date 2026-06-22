@@ -81,35 +81,6 @@
         "skipped-destructive-reason-classification",
         "query-attribution"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.fuzz-admin-pages",
-            "args": [
-              "safe_methods=GET",
-              "max_pages=80",
-              "enumerate_menus=true",
-              "classify_skips=true"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=admin_page_coverage"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "admin_page_coverage",
@@ -133,6 +104,30 @@
       ],
       "metadata": {
         "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/admin-page-coverage.php",
+          "type": "php",
+          "entry": "admin-page-coverage",
+          "parameters": {
+            "safe_methods": "GET",
+            "max_pages": "80",
+            "enumerate_menus": "true",
+            "classify_skips": "true"
+          }
+        },
+        "collect": [
+          {
+            "artifact": "admin_page_coverage"
+          }
+        ]
       }
     }
   ],

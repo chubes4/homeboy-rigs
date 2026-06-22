@@ -3,7 +3,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { assertFuzzReadinessMetadata } from './fuzz-manifest-helpers.mjs';
+import {
+  assertFuzzReadinessMetadata,
+  assertRunnerNeutralFuzzCaseIntent,
+} from './fuzz-manifest-helpers.mjs';
 
 const args = process.argv.slice(2);
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
@@ -230,6 +233,14 @@ function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
       if (runnerCase?.metadata?.safety_class && runnerCase.metadata.safety_class !== workload.safety_class) {
         failures.push(`${rel}: ${context} case ${runnerCase.case_id || '(unknown)'} metadata.safety_class must match workload safety_class ${workload.safety_class}`);
       }
+
+      if (runnerCase?.intent) {
+        try {
+          assertRunnerNeutralFuzzCaseIntent(workload, runnerCase);
+        } catch (error) {
+          failures.push(`${rel}: ${context} ${error.message}`);
+        }
+      }
     }
   }
 }
@@ -387,6 +398,14 @@ function lintFuzzWorkload(file) {
     for (const runnerCase of workload.cases) {
       if (runnerCase?.metadata?.safety_class && runnerCase.metadata.safety_class !== workload.safety_class) {
         failures.push(`${rel}: fuzz workload case ${runnerCase.case_id || '(unknown)'} metadata.safety_class must match workload safety_class ${workload.safety_class}`);
+      }
+
+      if (runnerCase?.intent) {
+        try {
+          assertRunnerNeutralFuzzCaseIntent(workload, runnerCase);
+        } catch (error) {
+          failures.push(`${rel}: ${error.message}`);
+        }
       }
     }
   }

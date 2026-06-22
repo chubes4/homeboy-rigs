@@ -16,6 +16,56 @@
     "wordpress-plugin-sync-queue-coverage",
     "wordpress-plugin-cron-sync-actions"
   ],
+  "coverage_map": {
+    "rest": {
+      "surface_type": "rest",
+      "surface_id": "rest_api",
+      "coverage_goal": "all registered Jetpack and WP.com REST routes and generated safe cases",
+      "workload_ids": ["jetpack-rest-route-inventory", "generated-rest-request-cases"],
+      "artifact_schemas": ["homeboy/wordpress-rest-route-inventory/v1", "homeboy/wordpress-rest-request-cases/v1"]
+    },
+    "admin": {
+      "surface_type": "admin",
+      "surface_id": "authenticated_admin_pages",
+      "coverage_goal": "bounded safe wp-admin Jetpack menu, submenu, hash-route, and settings-tab GET coverage",
+      "workload_ids": ["jetpack-admin-page-coverage"],
+      "artifact_schemas": ["homeboy/wordpress-admin-page-coverage/v1"]
+    },
+    "frontend": {
+      "surface_type": "frontend",
+      "surface_id": "public_frontend",
+      "coverage_goal": "public Jetpack module frontend rendering and request coverage with connected/disconnected expectations",
+      "workload_ids": ["jetpack-public-module-frontend-coverage"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "browser": {
+      "surface_type": "browser",
+      "surface_id": "browser_requests",
+      "coverage_goal": "Jetpack admin, settings, module, connection, public post, and public page browser request coverage",
+      "workload_ids": ["dashboard", "connection", "modules", "settings", "public_post_modules", "public_page_modules"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "database": {
+      "surface_type": "database",
+      "surface_id": "database",
+      "coverage_goal": "Jetpack database inventory, REST query profile, module option/table, sync queue, cron, and option matrix coverage",
+      "workload_ids": ["db-inventory", "rest-db-query-profile", "jetpack-module-option-table-inventory", "jetpack-options-matrix", "jetpack-sync-queue-coverage", "jetpack-cron-sync-actions"],
+      "artifact_schemas": ["homeboy/wordpress-db-inventory/v1", "homeboy/wordpress-rest-db-query-profile/v1", "homeboy/jetpack-module-option-table-inventory/v1"]
+    }
+  },
+  "gap_report": {
+    "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+    "semantic_key": "fuzz.report",
+    "inputs": ["jetpack-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "jetpack-admin-page-coverage", "jetpack-public-module-frontend-coverage", "jetpack-browser-coverage"],
+    "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
+    "compare": {
+      "rest": "registered Jetpack and WP.com routes minus generated safe request cases",
+      "admin": "safe Jetpack admin targets minus admin enumeration visits and skipped reason rows",
+      "frontend": "declared public module frontend scenarios minus captured rendering request rows",
+      "browser": "declared Jetpack browser scenarios minus captured browser request coverage rows",
+      "database": "Jetpack database inventory and query profiles minus module option, table, sync queue, cron, and option matrix attribution rows"
+    }
+  },
   "surfaces": {
     "rest_api": {
       "manifest": "manifests/rest-route-coverage.json",

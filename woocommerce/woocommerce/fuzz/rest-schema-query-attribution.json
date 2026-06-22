@@ -3,15 +3,115 @@
   "id": "rest-schema-query-attribution",
   "label": "WooCommerce REST schema and query attribution",
   "safety_class": "read_only",
-  "surface_ids": ["woocommerce-rest-routes", "woocommerce-database-queries", "woocommerce-rest-schema"],
-  "operations": ["rest-schema-attribution", "query-shape-attribution", "route-to-table-attribution"],
+  "surface_ids": [
+    "woocommerce-rest-routes",
+    "woocommerce-database-queries",
+    "woocommerce-rest-schema"
+  ],
+  "operations": [
+    "rest-schema-attribution",
+    "query-shape-attribution",
+    "route-to-table-attribution"
+  ],
   "case_budget": 120,
   "duration_budget_seconds": 1200,
-  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "fixture": { "runtime": "wp-codebox", "scope": "disposable-wordpress", "component": "woocommerce", "activation": "woocommerce/woocommerce.php" } },
-  "target": { "type": "wordpress-plugin", "slug": "woocommerce", "component": "woocommerce" },
-  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/rest-db-query-profile.workload.json", "entry": "rest-schema-query-attribution" },
-  "cases": [{ "case_id": "rest-schema-query-attribution:default", "surface_ids": ["woocommerce-rest-routes", "woocommerce-database-queries", "woocommerce-rest-schema"], "operations": ["rest-schema-attribution", "query-shape-attribution", "route-to-table-attribution"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=woocommerce/woocommerce.php"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/rest-db-query-profile.workload.json", "type=json", "surface=woocommerce-rest-schema-query-attribution"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_schema_query_attribution"] }] }, "artifacts": [{ "name": "rest_schema_query_attribution", "path": "rest-schema-query-attribution/rest_schema_query_attribution.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "read_only" } }],
-  "limits": { "max_cases": 120, "max_duration_seconds": 1200 },
-  "coverage": { "surface_ids": ["woocommerce-rest-routes", "woocommerce-database-queries", "woocommerce-rest-schema"], "operations": ["rest-schema-attribution", "query-shape-attribution", "route-to-table-attribution"] },
-  "artifacts": { "expected": [{ "name": "rest_schema_query_attribution", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "component": "woocommerce",
+      "activation": "woocommerce/woocommerce.php"
+    }
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+    "entry": "rest-schema-query-attribution"
+  },
+  "cases": [
+    {
+      "case_id": "rest-schema-query-attribution:default",
+      "surface_ids": [
+        "woocommerce-rest-routes",
+        "woocommerce-database-queries",
+        "woocommerce-rest-schema"
+      ],
+      "operations": [
+        "rest-schema-attribution",
+        "query-shape-attribution",
+        "route-to-table-attribution"
+      ],
+      "artifacts": [
+        {
+          "name": "rest_schema_query_attribution",
+          "path": "rest-schema-query-attribution/rest_schema_query_attribution.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+          "type": "json",
+          "entry": "rest-schema-query-attribution",
+          "parameters": {
+            "surface": "woocommerce-rest-schema-query-attribution"
+          }
+        },
+        "collect": [
+          {
+            "artifact": "rest_schema_query_attribution"
+          }
+        ]
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 120,
+    "max_duration_seconds": 1200
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-rest-routes",
+      "woocommerce-database-queries",
+      "woocommerce-rest-schema"
+    ],
+    "operations": [
+      "rest-schema-attribution",
+      "query-shape-attribution",
+      "route-to-table-attribution"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "rest_schema_query_attribution",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
 }

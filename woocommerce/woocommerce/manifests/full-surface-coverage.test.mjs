@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertFullSurfaceCoverageManifest } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -42,6 +43,10 @@ const requiredFuzzProofContracts = new Map([
   ['performance-hotspots-artifact-summary', ['artifact-summary-expectations']],
   ['woocommerce-external-http-guardrail', ['external-http-guardrails']],
 ]);
+
+test('full-surface manifest uses shared coverage-map and gap-report schema', () => {
+  assertFullSurfaceCoverageManifest(manifest, { file: 'woocommerce full-surface coverage' });
+});
 
 test('full-surface executable workloads have coverage contract metadata', () => {
   const workloadIds = executableCoverageWorkloadIds();
