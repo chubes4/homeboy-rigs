@@ -25,6 +25,12 @@ WordPress/wordpress-playground/stacks/playground-combined.json
 
 This keeps bench workloads beside the rig that uses them and makes ownership obvious when this repo becomes a shared rig package.
 
+Generic fuzz manifest validation helpers live in
+`scripts/fuzz-manifest-helpers.mjs`. Product validators should use those helpers
+for shared workload shape, rig linkage, and bench/fuzz separation checks, while
+keeping product-specific assertions beside the product manifests for namespaces,
+routes, fixtures, thresholds, skip reasons, and proof contracts.
+
 Reusable helper patterns live under `shared/`. The first shared web performance
 pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
 mark feature-not-needed and feature-needed phases, count feature/third-party

@@ -16,6 +16,11 @@ to `P` only when reviewer-facing run artifacts, bug evidence, or PR evidence are
 linked from the package docs; no full-surface product row is proven by this
 matrix alone.
 
+Product manifest validators share generic workload-shape, rig-linkage, and
+bench/fuzz separation checks through `scripts/fuzz-manifest-helpers.mjs`.
+Product-specific validators remain responsible for product namespaces, routes,
+fixtures, thresholds, skip reasons, and proof contracts.
+
 ## Summary
 
 | Project | API | DB | Admin | External HTTP | Hooks / cron / options | Frontend / rendering | Performance-related fuzz |

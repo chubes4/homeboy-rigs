@@ -1,25 +1,21 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { declaredFuzzIds, readJson } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 
-function readJson(relativePath) {
-  return JSON.parse(readFileSync(path.join(packageRoot, relativePath), 'utf8'));
-}
+const rig = readJson(packageRoot, 'rigs/wordpress-core-fuzz-coverage/rig.json');
+const hooksWorkload = readJson(packageRoot, 'fuzz/hooks-cron-options.json');
+const hooksManifest = readJson(packageRoot, 'manifests/hooks-cron-options.json');
+const performanceWorkload = readJson(packageRoot, 'fuzz/performance-surfaces.json');
+const performanceManifest = readJson(packageRoot, 'manifests/performance-surfaces.json');
 
-const rig = readJson('rigs/wordpress-core-fuzz-coverage/rig.json');
-const hooksWorkload = readJson('fuzz/hooks-cron-options.json');
-const hooksManifest = readJson('manifests/hooks-cron-options.json');
-const performanceWorkload = readJson('fuzz/performance-surfaces.json');
-const performanceManifest = readJson('manifests/performance-surfaces.json');
-
-const declaredFuzzIds = new Set((rig.fuzz_workloads?.wordpress || []).map((entry) => path.basename(entry.path, '.json')));
+const declaredIds = declaredFuzzIds(rig);
 for (const id of ['hooks-cron-options', 'performance-surfaces']) {
-  assert.ok(declaredFuzzIds.has(id), `${id} must be declared in rig fuzz_workloads.wordpress`);
+  assert.ok(declaredIds.has(id), `${id} must be declared in rig fuzz_workloads.wordpress`);
   for (const profile of ['fuzzer', 'full-surface']) {
     assert.ok(rig.fuzz_profiles?.[profile]?.includes(id), `${profile} must include ${id}`);
   }
