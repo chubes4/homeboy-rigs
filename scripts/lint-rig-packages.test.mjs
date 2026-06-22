@@ -216,6 +216,27 @@ test('rejects fuzz ids in bench workloads and profiles', () => {
   assert.match(result.stderr, /bench profile smoke references generic-fuzz, but that id belongs to a fuzz workload/);
 });
 
+test('rejects proven fuzz readiness without proof bundle linkage', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload({
+        metadata: {
+          kind: 'generic-fuzz',
+          readiness: {
+            level: 'proven',
+            coverage_contract: 'Generic fuzz coverage is proven.',
+            proof_refs: ['https://github.com/example/product/issues/123'],
+          },
+        },
+      }),
+    },
+  });
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /proven readiness requires proof_bundle/);
+});
+
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {

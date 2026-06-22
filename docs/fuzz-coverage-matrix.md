@@ -5,16 +5,16 @@ WordPress Core, Gutenberg, and Jetpack. It separates three levels of confidence:
 
 - **Declared**: the repo names the surface in a manifest, scenario file, or rig profile.
 - **Executable**: the repo contains a workload or trace file plus a rig/profile path that can run it.
-- **Proven**: the repo links the workload to reviewer-facing bug evidence, PR evidence, or a documented artifact contract. A full-surface proof bundle is not committed here.
+- **Proven**: the repo links the workload to reviewer-facing bug evidence, PR evidence, run IDs, gap reports, and required fuzz result artifacts. A full-surface proof bundle is not committed here.
 
 Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narrower workloads only, `Pending` waiting on another minion/upstream PR, `Gap` not yet represented beyond generic template guidance.
 
 This page is an inventory and coverage contract, not a proof bundle. Product
 manifest skeletons can move a row to `D` or `D/E` when they name the surface,
 wire it to a rig/profile, and declare the expected artifact shape. A row moves
-to `P` only when reviewer-facing run artifacts, bug evidence, or PR evidence are
-linked from the package docs; no full-surface product row is proven by this
-matrix alone.
+to `P` only when `metadata.readiness.proof_bundle` links reviewer-facing proof
+artifact refs, run IDs, gap reports, and required fuzz result artifacts; no
+full-surface product row is proven by this matrix alone.
 
 Product manifest validators share generic workload-shape, rig-linkage, and
 bench/fuzz separation checks through `scripts/fuzz-manifest-helpers.mjs`. The
@@ -28,15 +28,19 @@ explicit fuzz-readiness contract without claiming proof. `metadata.readiness`
 uses `level: declared|executable|proven`, a `coverage_contract` string,
 optional `proof_refs`, optional `upstream_blockers`, optional CRUD operation
 levels for `create`, `read`, `update`, and `delete`, and optional mutation
-rollback fields (`safety_boundary`, `rollback_artifacts`). Product packages can
-use this shared shape to distinguish planned CRUD/mutation coverage from
-executable workloads and reviewer-facing proof artifacts.
+rollback fields (`safety_boundary`, `rollback_artifacts`). `level: proven`
+requires a `proof_bundle` with non-local `artifact_refs`, reviewer-facing
+`run_ids`, `gap_reports`, and `fuzz_result_artifacts` that name required case or
+expected artifacts. Product packages can use this shared shape to distinguish
+planned CRUD/mutation coverage from executable workloads and reviewer-facing
+proof artifacts.
 
 The repo-wide package linter reports missing `metadata.readiness` on fuzz
 manifests as a warning. Use `node scripts/lint-rig-packages.mjs
 --strict-fuzz-readiness` when a package is ready to make readiness metadata a
 hard gate. Manifests that opt into `level: proven` must keep their proof
-artifacts required so proof claims cannot silently pass with optional output.
+artifacts required and linked through the proof bundle so proof claims cannot
+silently pass with optional output or local-only evidence.
 
 ## Summary
 

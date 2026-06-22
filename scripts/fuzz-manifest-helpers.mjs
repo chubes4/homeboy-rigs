@@ -4,6 +4,7 @@ import path from 'node:path';
 
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
+export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']);
 export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
 export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
 
@@ -133,6 +134,7 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
 
   if (readiness.level === 'proven') {
     assert.ok(Array.isArray(readiness.proof_refs) && readiness.proof_refs.length > 0, `${file} proven readiness requires proof_refs`);
+    assertFuzzProofBundle(readiness.proof_bundle, manifest, { file });
   }
 
   if (readiness.upstream_blockers !== undefined) {
@@ -150,6 +152,46 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
   if (readiness.mutation !== undefined) {
     assertFuzzMutationReadiness(readiness.mutation, { file });
   }
+}
+
+export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
+  assert.ok(proofBundle && typeof proofBundle === 'object' && !Array.isArray(proofBundle), `${file} proven readiness requires proof_bundle`);
+
+  for (const field of fuzzProofBundleFields) {
+    assert.ok(Array.isArray(proofBundle[field]) && proofBundle[field].length > 0, `${file} metadata.readiness.proof_bundle.${field} must be a non-empty array`);
+    for (const value of proofBundle[field]) {
+      assert.equal(typeof value, 'string', `${file} metadata.readiness.proof_bundle.${field} entries must be strings`);
+      assert.notEqual(value.trim(), '', `${file} metadata.readiness.proof_bundle.${field} entries must be non-empty`);
+
+      if (field !== 'fuzz_result_artifacts') {
+        assertReviewerFacingRef(value, `${file} metadata.readiness.proof_bundle.${field}`);
+      }
+    }
+  }
+
+  const requiredArtifactNames = collectRequiredArtifactNames(manifest);
+  for (const artifactName of proofBundle.fuzz_result_artifacts) {
+    assert.ok(requiredArtifactNames.has(artifactName), `${file} proof_bundle.fuzz_result_artifacts ${artifactName} must name a required case or expected artifact`);
+  }
+}
+
+function collectRequiredArtifactNames(manifest) {
+  return new Set([
+    ...(manifest.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
+    ...(manifest.artifacts?.expected || []),
+  ]
+    .filter((artifact) => artifact?.required === true)
+    .map((artifact) => artifact?.name)
+    .filter(Boolean));
+}
+
+function assertReviewerFacingRef(value, context) {
+  assert.ok(
+    /^(https:\/\/|gh:|homeboy-runs:|artifact:|run:)/.test(value),
+    `${context} entries must be reviewer-facing refs`
+  );
+  assert.ok(!/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value), `${context} entries must not use local URLs`);
+  assert.ok(!value.startsWith('/Users/'), `${context} entries must not use local filesystem paths`);
 }
 
 export function assertFuzzCrudReadiness(crud, { file } = {}) {

@@ -125,6 +125,25 @@ test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation co
   }), { file: 'product-fuzz.json' }));
 });
 
+test('assertFuzzReadinessMetadata accepts proven readiness with proof bundle linkage', () => {
+  assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      readiness: {
+        level: 'proven',
+        coverage_contract: 'Product API CRUD coverage with reviewer-facing fuzz run artifacts.',
+        proof_refs: ['https://github.com/example/product/issues/123'],
+        proof_bundle: {
+          artifact_refs: ['https://github.com/example/product/issues/123#issuecomment-456'],
+          run_ids: ['run:product-fuzz-proof'],
+          gap_reports: ['https://github.com/example/product/issues/124'],
+          fuzz_result_artifacts: ['report'],
+        },
+      },
+    },
+  }), { file: 'product-fuzz.json' }));
+});
+
 test('assertFuzzReadinessMetadata rejects proven readiness without proof refs', () => {
   assert.throws(
     () => assertFuzzReadinessMetadata(fuzzManifest({
@@ -137,6 +156,66 @@ test('assertFuzzReadinessMetadata rejects proven readiness without proof refs', 
       },
     }), { file: 'product-fuzz.json' }),
     /proven readiness requires proof_refs/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects proven readiness without proof bundle linkage', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['https://github.com/example/product/issues/123'],
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /proven readiness requires proof_bundle/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects local proof bundle refs', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['https://github.com/example/product/issues/123'],
+          proof_bundle: {
+            artifact_refs: ['https://localhost:8881/artifacts/product-fuzz'],
+            run_ids: ['run:product-fuzz-proof'],
+            gap_reports: ['https://github.com/example/product/issues/124'],
+            fuzz_result_artifacts: ['report'],
+          },
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /must not use local URLs/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects proof bundle artifacts that are not required outputs', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['https://github.com/example/product/issues/123'],
+          proof_bundle: {
+            artifact_refs: ['https://github.com/example/product/issues/123#issuecomment-456'],
+            run_ids: ['run:product-fuzz-proof'],
+            gap_reports: ['https://github.com/example/product/issues/124'],
+            fuzz_result_artifacts: ['missing-report'],
+          },
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /must name a required case or expected artifact/
   );
 });
 

@@ -33,6 +33,21 @@
         "https://github.com/chubes4/homeboy-rigs/issues/253",
         "https://github.com/chubes4/homeboy-rigs/issues/254"
       ],
+      "proof_bundle": {
+        "artifact_refs": [
+          "https://github.com/chubes4/homeboy-rigs/issues/254"
+        ],
+        "run_ids": [
+          "run:wc-checkout-atomicity"
+        ],
+        "gap_reports": [
+          "https://github.com/chubes4/homeboy-rigs/issues/253",
+          "https://github.com/chubes4/homeboy-rigs/issues/254"
+        ],
+        "fuzz_result_artifacts": [
+          "raw_result"
+        ]
+      },
       "crud": {
         "create": {
           "level": "proven"
