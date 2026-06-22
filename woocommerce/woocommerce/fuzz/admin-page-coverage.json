@@ -22,6 +22,27 @@
     "workload_path": "${package.root}/bench/admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WP Codebox can enumerate safe WooCommerce admin pages, classify skipped destructive actions, and emit the admin page coverage artifact contract.",
+      "crud": {
+        "create": {
+          "level": "declared",
+          "upstream_blocker": "Safe wp-admin mutation fixture primitives are required before create actions can execute."
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "declared",
+          "upstream_blocker": "Safe wp-admin mutation fixture primitives are required before update actions can execute."
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "Destructive wp-admin actions remain skipped until rollback-safe delete fixtures exist."
+        }
+      }
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
