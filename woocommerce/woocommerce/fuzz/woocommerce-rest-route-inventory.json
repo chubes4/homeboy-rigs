@@ -24,38 +24,17 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "WP Codebox can execute the WooCommerce REST route inventory and emit route and permission-boundary classification artifacts.",
-      "crud": {
-        "create": {
-          "level": "declared",
-          "upstream_blocker": "Safe REST mutation fixture primitives are required before create cases can execute."
-        },
-        "read": {
-          "level": "executable"
-        },
-        "update": {
-          "level": "declared",
-          "upstream_blocker": "Safe REST mutation fixture primitives are required before update cases can execute."
-        },
-        "delete": {
-          "level": "declared",
-          "upstream_blocker": "Rollback-safe delete fixtures are required before delete cases can execute."
-        }
-      }
+      "level": "declared",
+      "coverage_contract": "REST route inventory should be supplied by a generic WordPress route inventory primitive, with WooCommerce contributing namespaces and artifact expectations.",
+      "upstream_blockers": [
+        "Expose an artifact-compatible generic REST route inventory command before replacing the WooCommerce PHP workload."
+      ]
     },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
       "component": "woocommerce",
       "activation": "woocommerce/woocommerce.php"
-    },
-    "readiness": {
-      "level": "declared",
-      "coverage_contract": "REST route inventory should be supplied by a generic WordPress route inventory primitive, with WooCommerce contributing namespaces and artifact expectations.",
-      "upstream_blockers": [
-        "Expose an artifact-compatible generic REST route inventory command before replacing the WooCommerce PHP workload."
-      ]
     }
   },
   "target": {
@@ -80,33 +59,6 @@
         "route-discovery",
         "permission-boundary-classification"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/woocommerce-rest-route-inventory.php",
-              "type=php"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=route_inventory"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "route_inventory",
@@ -119,6 +71,24 @@
       ],
       "metadata": {
         "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
+          "type": "php",
+          "entry": "woocommerce-rest-route-inventory"
+        },
+        "collect": [
+          {
+            "artifact": "route_inventory"
+          }
+        ]
       }
     }
   ],

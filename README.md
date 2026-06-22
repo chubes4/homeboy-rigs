@@ -36,6 +36,11 @@ proof references, and upstream primitive blockers. Use that metadata to declare
 what the rig can safely cover without adding product-specific fallback code for
 missing upstream fuzz primitives.
 
+`metadata.readiness.level: proven` is gated by proof-bundle linkage: reviewer-
+facing artifact refs, run IDs, gap reports, and required fuzz result artifact
+names. Keep rows at declared/executable until those links exist; local paths,
+localhost URLs, and optional artifacts are not proof.
+
 Reusable helper patterns live under `shared/`. The first shared web performance
 pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
 mark feature-not-needed and feature-needed phases, count feature/third-party
