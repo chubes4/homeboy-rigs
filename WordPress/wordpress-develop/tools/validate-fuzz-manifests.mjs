@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { declaredFuzzIds, readJson } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import { assertFullSurfaceCoverageManifest, declaredFuzzIds, readJson } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -12,8 +12,11 @@ const hooksWorkload = readJson(packageRoot, 'fuzz/hooks-cron-options.json');
 const hooksManifest = readJson(packageRoot, 'manifests/hooks-cron-options.json');
 const performanceWorkload = readJson(packageRoot, 'fuzz/performance-surfaces.json');
 const performanceManifest = readJson(packageRoot, 'manifests/performance-surfaces.json');
+const fullSurfaceCoverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 
 const declaredIds = declaredFuzzIds(rig);
+assertFullSurfaceCoverageManifest(fullSurfaceCoverage, { file: 'WordPress Core full-surface coverage' });
+
 for (const id of ['hooks-cron-options', 'performance-surfaces']) {
   assert.ok(declaredIds.has(id), `${id} must be declared in rig fuzz_workloads.wordpress`);
   for (const profile of ['fuzzer', 'full-surface']) {

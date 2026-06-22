@@ -11,6 +11,56 @@
     "browser-request-coverage",
     "wordpress-authenticated-admin-page-coverage"
   ],
+  "coverage_map": {
+    "rest": {
+      "surface_type": "rest",
+      "surface_id": "rest_api",
+      "coverage_goal": "all WooCommerce REST, Store API, wc-admin, and wc-analytics safe route cases",
+      "workload_ids": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-permission-boundary-matrix", "rest-namespace-generated-cases", "rest-schema-query-attribution"],
+      "artifact_schemas": ["homeboy/wordpress-rest-route-inventory/v1", "homeboy/wordpress-rest-request-cases/v1", "homeboy/wordpress-rest-db-query-profile/v1"]
+    },
+    "admin": {
+      "surface_type": "admin",
+      "surface_id": "authenticated_admin_pages",
+      "coverage_goal": "bounded safe WooCommerce wp-admin and Woo admin menu/submenu GET coverage",
+      "workload_ids": ["admin-page-coverage"],
+      "artifact_schemas": ["homeboy-rigs/woocommerce-admin-page-coverage/v1"]
+    },
+    "frontend": {
+      "surface_type": "frontend",
+      "surface_id": "frontend_rendering",
+      "coverage_goal": "shop, product, cart, checkout, asset, XHR/fetch, and skipped-action frontend request coverage",
+      "workload_ids": ["frontend-rendering-request-coverage"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "browser": {
+      "surface_type": "browser",
+      "surface_id": "browser_requests",
+      "coverage_goal": "WooCommerce cart, checkout, product, admin, fetch, XHR, websocket, and asset browser request coverage",
+      "workload_ids": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "database": {
+      "surface_type": "database",
+      "surface_id": "database",
+      "coverage_goal": "WooCommerce database inventory, REST query profile, lookup table, option, transient, and attribution coverage",
+      "workload_ids": ["db-inventory", "rest-db-query-profile", "rest-schema-query-attribution", "action-scheduler-lookup-table-coverage", "options-transients-coverage"],
+      "artifact_schemas": ["homeboy/wordpress-db-inventory/v1", "homeboy/wordpress-rest-db-query-profile/v1", "homeboy/woocommerce-options-transients-coverage/v1"]
+    }
+  },
+  "gap_report": {
+    "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+    "semantic_key": "fuzz.report",
+    "inputs": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "admin-page-coverage", "frontend-rendering-request-coverage", "woocommerce-browser-coverage"],
+    "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
+    "compare": {
+      "rest": "registered WooCommerce routes minus generated safe request cases and permission-boundary rows",
+      "admin": "bounded safe WooCommerce admin targets minus admin enumeration visits and skips",
+      "frontend": "declared shop/product/cart/checkout frontend scenarios minus captured rendering request rows",
+      "browser": "declared WooCommerce browser scenarios minus captured browser request coverage rows",
+      "database": "WooCommerce database inventory and query profiles minus route, table, option, transient, and lookup attribution rows"
+    }
+  },
   "surfaces": {
     "rest_api": {
       "budget_manifest": "manifests/rest-route-budgets.json",

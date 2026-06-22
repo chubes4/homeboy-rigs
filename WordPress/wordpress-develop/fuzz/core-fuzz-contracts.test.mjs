@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertFullSurfaceCoverageManifest } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname( fileURLToPath( import.meta.url ) );
 const packageRoot = path.join( __dirname, '..' );
@@ -62,6 +63,7 @@ test( 'Core fuzz rig and full-surface profile include admin and frontend coverag
 	assert.ok( allProfiles.includes( 'frontend-rendering-request-coverage' ) );
 	assert.ok( ! rig.bench_workloads );
 	assert.ok( ! rig.bench_profiles );
+	assertFullSurfaceCoverageManifest( manifest, { file: 'WordPress Core full-surface coverage' } );
 	assert.ok( manifest.coverage_profiles[ 'full-surface' ].includes( 'frontend-rendering-request-coverage' ) );
 } );
 
