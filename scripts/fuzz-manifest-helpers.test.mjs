@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertGenericFuzzManifest, declaredFuzzIds, workloadIdFromPath } from './fuzz-manifest-helpers.mjs';
+import {
+  assertFuzzReadinessMetadata,
+  assertGenericFuzzManifest,
+  declaredFuzzIds,
+  workloadIdFromPath,
+} from './fuzz-manifest-helpers.mjs';
 
 function fuzzManifest(overrides = {}) {
   return {
@@ -95,4 +100,54 @@ test('assertGenericFuzzManifest can preserve product-specific optional artifact 
     requireExpectedArtifacts: false,
     requireExpectedArtifactSemanticKeys: true,
   }));
+});
+
+test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {
+  assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      readiness: {
+        level: 'executable',
+        coverage_contract: 'Catalog REST CRUD coverage with rollback-safe option mutation proof artifacts.',
+        upstream_blockers: ['homeboy fuzz runner needs durable artifact manifest links before full proof'],
+        crud: {
+          create: { level: 'declared', upstream_blocker: 'safe fixture create primitive is not available upstream' },
+          read: { level: 'executable' },
+          update: { level: 'declared', upstream_blocker: 'safe fixture update primitive is not available upstream' },
+          delete: { level: 'declared', upstream_blocker: 'safe fixture delete primitive is not available upstream' },
+        },
+        mutation: {
+          safety_boundary: 'Runs in disposable WP Codebox with rollback artifacts for changed options/transients.',
+          rollback_artifacts: ['rollback_report'],
+        },
+      },
+    },
+  }), { file: 'product-fuzz.json' }));
+});
+
+test('assertFuzzReadinessMetadata rejects proven readiness without proof refs', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /proven readiness requires proof_refs/
+  );
+});
+
+test('assertGenericFuzzManifest can require readiness metadata', () => {
+  assert.throws(
+    () => assertGenericFuzzManifest(fuzzManifest(), {
+      file: 'product-fuzz.json',
+      declaredIds: new Set(['product-fuzz']),
+      targetSlug: 'product',
+      requireReadinessMetadata: true,
+    }),
+    /requires metadata.readiness/
+  );
 });

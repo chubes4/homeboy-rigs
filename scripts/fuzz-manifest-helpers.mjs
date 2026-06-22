@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
+export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
+export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
+
 export function readJson(root, ...parts) {
   return JSON.parse(readFileSync(path.join(root, ...parts), 'utf8'));
 }
@@ -58,6 +61,7 @@ export function assertGenericFuzzManifest(manifest, {
   requireCaseArtifacts = true,
   requireExpectedArtifacts = true,
   requireExpectedArtifactSemanticKeys = false,
+  requireReadinessMetadata = false,
 } = {}) {
   assert.equal(manifest.schema, 'homeboy/fuzz-workload/v1', `${file} schema mismatch`);
   assert.equal(typeof manifest.id, 'string', `${file} requires id`);
@@ -81,6 +85,10 @@ export function assertGenericFuzzManifest(manifest, {
   assert.deepEqual(manifest.coverage?.operations, manifest.operations, `${manifest.id} coverage operations drifted`);
   assert.equal(manifest.limits?.max_cases, manifest.case_budget, `${manifest.id} max_cases must match case_budget`);
   assert.equal(manifest.limits?.max_duration_seconds, manifest.duration_budget_seconds, `${manifest.id} max_duration_seconds must match duration_budget_seconds`);
+
+  if (requireReadinessMetadata || manifest.metadata?.readiness) {
+    assertFuzzReadinessMetadata(manifest, { file });
+  }
 
   assert.equal(manifest.cases?.length, 1, `${manifest.id} requires one default runner case`);
   const [runnerCase] = manifest.cases;
@@ -111,4 +119,59 @@ export function assertGenericFuzzManifest(manifest, {
   }
 
   return runnerCase;
+}
+
+export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {}) {
+  const readiness = manifest.metadata?.readiness;
+  assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${file} requires metadata.readiness`);
+
+  assert.ok(fuzzReadinessLevels.has(readiness.level), `${file} metadata.readiness.level must be declared, executable, or proven`);
+  assert.equal(typeof readiness.coverage_contract, 'string', `${file} metadata.readiness.coverage_contract must describe the declared contract`);
+  assert.notEqual(readiness.coverage_contract.trim(), '', `${file} metadata.readiness.coverage_contract must describe the declared contract`);
+
+  if (readiness.level === 'proven') {
+    assert.ok(Array.isArray(readiness.proof_refs) && readiness.proof_refs.length > 0, `${file} proven readiness requires proof_refs`);
+  }
+
+  if (readiness.upstream_blockers !== undefined) {
+    assert.ok(Array.isArray(readiness.upstream_blockers), `${file} metadata.readiness.upstream_blockers must be an array`);
+    for (const blocker of readiness.upstream_blockers) {
+      assert.equal(typeof blocker, 'string', `${file} metadata.readiness.upstream_blockers entries must be strings`);
+      assert.notEqual(blocker.trim(), '', `${file} metadata.readiness.upstream_blockers entries must be non-empty`);
+    }
+  }
+
+  if (readiness.crud !== undefined) {
+    assertFuzzCrudReadiness(readiness.crud, { file });
+  }
+
+  if (readiness.mutation !== undefined) {
+    assertFuzzMutationReadiness(readiness.mutation, { file });
+  }
+}
+
+export function assertFuzzCrudReadiness(crud, { file } = {}) {
+  assert.ok(crud && typeof crud === 'object' && !Array.isArray(crud), `${file} metadata.readiness.crud must be an object`);
+
+  for (const operation of fuzzCrudOperations) {
+    assert.ok(crud[operation] && typeof crud[operation] === 'object' && !Array.isArray(crud[operation]), `${file} metadata.readiness.crud.${operation} must be an object`);
+    assert.ok(fuzzReadinessLevels.has(crud[operation].level), `${file} metadata.readiness.crud.${operation}.level must be declared, executable, or proven`);
+
+    if (crud[operation].upstream_blocker !== undefined) {
+      assert.equal(typeof crud[operation].upstream_blocker, 'string', `${file} metadata.readiness.crud.${operation}.upstream_blocker must be a string`);
+      assert.notEqual(crud[operation].upstream_blocker.trim(), '', `${file} metadata.readiness.crud.${operation}.upstream_blocker must be non-empty`);
+    }
+  }
+}
+
+export function assertFuzzMutationReadiness(mutation, { file } = {}) {
+  assert.ok(mutation && typeof mutation === 'object' && !Array.isArray(mutation), `${file} metadata.readiness.mutation must be an object`);
+  assert.equal(typeof mutation.safety_boundary, 'string', `${file} metadata.readiness.mutation.safety_boundary must describe rollback/isolation boundaries`);
+  assert.notEqual(mutation.safety_boundary.trim(), '', `${file} metadata.readiness.mutation.safety_boundary must describe rollback/isolation boundaries`);
+
+  assert.ok(Array.isArray(mutation.rollback_artifacts), `${file} metadata.readiness.mutation.rollback_artifacts must be an array`);
+  for (const artifact of mutation.rollback_artifacts) {
+    assert.equal(typeof artifact, 'string', `${file} metadata.readiness.mutation.rollback_artifacts entries must be strings`);
+    assert.notEqual(artifact.trim(), '', `${file} metadata.readiness.mutation.rollback_artifacts entries must be non-empty`);
+  }
 }

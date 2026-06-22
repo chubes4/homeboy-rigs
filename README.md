@@ -30,6 +30,11 @@ Generic fuzz manifest validation helpers live in
 for shared workload shape, rig linkage, and bench/fuzz separation checks, while
 keeping product-specific assertions beside the product manifests for namespaces,
 routes, fixtures, thresholds, skip reasons, and proof contracts.
+They can also opt into `metadata.readiness` validation for declared/executable/
+proven status, CRUD operation readiness, isolated mutation rollback contracts,
+proof references, and upstream primitive blockers. Use that metadata to declare
+what the rig can safely cover without adding product-specific fallback code for
+missing upstream fuzz primitives.
 
 Reusable helper patterns live under `shared/`. The first shared web performance
 pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
