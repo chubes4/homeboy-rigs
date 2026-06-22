@@ -48,6 +48,50 @@
     "path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
     "entry": "woocommerce-rest-route-inventory"
   },
+  "plan": {
+    "schema": "wordpress-fuzz-plan/v1",
+    "id": "woocommerce-rest-route-inventory",
+    "targets": [
+      {
+        "id": "woocommerce-rest-routes",
+        "surface_id": "woocommerce-rest-routes",
+        "operation_id": "route-discovery",
+        "cases": [
+          {
+            "id": "woocommerce-rest-route-inventory:default",
+            "operation_id": "route-discovery",
+            "required_capabilities": [
+              "wordpress.inventory-rest-routes"
+            ],
+            "command": "wordpress.inventory-rest-routes",
+            "input": {
+              "plugin": "woocommerce/woocommerce.php",
+              "namespaces": [
+                "wc/v1",
+                "wc/v2",
+                "wc/v3",
+                "wc/store/v1",
+                "wc/store/v2",
+                "wc-admin",
+                "wc-analytics"
+              ],
+              "artifact": "route_inventory"
+            },
+            "metadata": {
+              "safety_class": "read_only",
+              "expected_artifact": "route_inventory"
+            }
+          }
+        ],
+        "metadata": {
+          "primitive": "wordpress.inventory-rest-routes"
+        }
+      }
+    ],
+    "metadata": {
+      "blocked_until": "wordpress.inventory-rest-routes"
+    }
+  },
   "cases": [
     {
       "case_id": "woocommerce-rest-route-inventory:default",
