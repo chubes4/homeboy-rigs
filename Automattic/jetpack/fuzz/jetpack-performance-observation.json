@@ -4,7 +4,7 @@
   "label": "Jetpack performance observation summary",
   "safety_class": "read_only",
   "surface_ids": ["jetpack-performance", "jetpack-rest-routes", "jetpack-admin-pages", "jetpack-public-frontend", "jetpack-sync", "performance-guardrails"],
-  "operations": ["request-timing-summary", "query-count-summary", "asset-summary", "sync-queue-summary", "external-http-guardrail-summary"],
+  "operations": ["request-timing-summary", "query-count-summary", "asset-summary", "sync-queue-summary", "external-http-guardrail-summary", "slow-surface-classification"],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/full-surface-coverage.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },

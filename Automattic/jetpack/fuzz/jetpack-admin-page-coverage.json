@@ -4,7 +4,7 @@
   "label": "Jetpack admin page coverage",
   "safety_class": "read_only",
   "surface_ids": ["jetpack-admin-pages", "wordpress-admin-pages"],
-  "operations": ["admin-page-discovery", "permission-boundary-classification", "query-attribution"],
+  "operations": ["admin-page-discovery", "permission-boundary-classification", "query-attribution", "menu-page-enumeration", "destructive-skip-classification"],
   "case_budget": 40,
   "duration_budget_seconds": 600,
   "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/full-surface-coverage.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
