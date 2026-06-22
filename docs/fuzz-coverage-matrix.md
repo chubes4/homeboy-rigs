@@ -9,6 +9,13 @@ WordPress Core, Gutenberg, and Jetpack. It separates three levels of confidence:
 
 Status key: `D` declared, `E` executable, `P` proven, `Partial` covered by narrower workloads only, `Pending` waiting on another minion/upstream PR, `Gap` not yet represented beyond generic template guidance.
 
+This page is an inventory and coverage contract, not a proof bundle. Product
+manifest skeletons can move a row to `D` or `D/E` when they name the surface,
+wire it to a rig/profile, and declare the expected artifact shape. A row moves
+to `P` only when reviewer-facing run artifacts, bug evidence, or PR evidence are
+linked from the package docs; no full-surface product row is proven by this
+matrix alone.
+
 ## Summary
 
 | Project | API | DB | Admin | External HTTP | Hooks / cron / options | Frontend / rendering | Performance-related fuzz |
