@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { declaredFuzzIds, readJson } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import { assertFuzzReadinessMetadata, declaredFuzzIds, readJson } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -22,6 +22,7 @@ for (const id of ['hooks-cron-options', 'performance-surfaces']) {
 }
 
 assert.equal(hooksWorkload.workload?.path, '${package.root}/manifests/hooks-cron-options.json', 'hooks workload must use the runtime-state coverage manifest');
+assertFuzzReadinessMetadata(hooksWorkload, { file: 'hooks-cron-options.json' });
 assert.deepEqual(hooksWorkload.coverage?.surface_ids, hooksWorkload.surface_ids, 'hooks coverage surface ids drifted');
 assert.deepEqual(hooksWorkload.coverage?.operations, hooksWorkload.operations, 'hooks coverage operations drifted');
 assert.equal(hooksWorkload.limits?.max_cases, hooksWorkload.case_budget, 'hooks max_cases must match case_budget');
@@ -39,6 +40,7 @@ for (const kind of ['hooks', 'cron', 'options', 'transients', 'rewrite_rules']) 
 }
 
 assert.deepEqual(performanceWorkload.coverage?.surface_ids, performanceWorkload.surface_ids, 'performance coverage surface ids drifted');
+assertFuzzReadinessMetadata(performanceWorkload, { file: 'performance-surfaces.json' });
 assert.deepEqual(performanceWorkload.coverage?.operations, performanceWorkload.operations, 'performance coverage operations drifted');
 assert.equal(performanceWorkload.limits?.max_cases, performanceWorkload.case_budget, 'performance max_cases must match case_budget');
 assert.equal(performanceWorkload.artifacts?.expected?.[0]?.required, true, 'performance summary artifact must be required');

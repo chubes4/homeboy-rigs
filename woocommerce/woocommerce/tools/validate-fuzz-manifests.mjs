@@ -96,6 +96,12 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.metadata?.fixture?.component, 'woocommerce', `${manifest.id} fixture component must be woocommerce`);
   assert.equal(manifest.metadata?.fixture?.activation, 'woocommerce/woocommerce.php', `${manifest.id} fixture activation must be woocommerce/woocommerce.php`);
 
+  if (manifest.metadata?.readiness?.level === 'proven') {
+    const proofBundle = manifest.metadata.readiness.proof_bundle;
+    assert.ok(proofBundle, `${manifest.id} proven readiness must link a proof bundle`);
+    assert.ok(proofBundle.run_ids.length > 0, `${manifest.id} proven readiness must link at least one run id`);
+  }
+
   const requiredContractIds = requiredProofContracts.get(manifest.id) || [];
   if (requiredContractIds.length > 0) {
     const proofContracts = manifest.proof_contracts || [];
