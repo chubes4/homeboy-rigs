@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+const targetInventory = readJson(packageRoot, 'manifests/target-inventory.json');
 const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
 
 assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
@@ -107,6 +109,64 @@ const requiredArtifactWorkloadIds = fullSurfaceRequiredArtifactIds(coverageManif
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
 }
+
+const generatedTargetInventory = JSON.parse(execFileSync(process.execPath, [
+  path.join(packageRoot, 'tools/generate-target-inventory.mjs'),
+], { encoding: 'utf8' }));
+
+assert.deepEqual(targetInventory, generatedTargetInventory, 'WooCommerce target inventory artifact must match the generator output');
+assert.equal(coverageManifest.target_inventory_manifest, 'manifests/target-inventory.json', 'full-surface coverage must point at the target inventory manifest');
+assert.equal(targetInventory.schema, 'homeboy-rigs/wordpress-target-inventory/v1', 'target inventory schema drifted');
+assert.equal(targetInventory.runtime?.runner, 'wp-codebox', 'target inventory must run through WP Codebox');
+assert.equal(targetInventory.runtime?.activation, 'woocommerce/woocommerce.php', 'target inventory must activate WooCommerce');
+assert.deepEqual(new Set(targetInventory.declared_fuzz_workloads), expectedFuzzIds, 'target inventory declared fuzz workloads drifted');
+
+const requiredTargetSurfaces = new Set([
+  'rest_routes',
+  'admin_pages',
+  'frontend_pages',
+  'database',
+  'blocks',
+  'options_transients',
+  'performance_hotspots',
+]);
+
+assert.deepEqual(new Set(Object.keys(targetInventory.targets)), requiredTargetSurfaces, 'target inventory surfaces drifted');
+assert.deepEqual(new Set(Object.keys(targetInventory.inventory_primitives)), requiredTargetSurfaces, 'target inventory primitive surfaces drifted');
+
+for (const surface of requiredTargetSurfaces) {
+  const primitive = targetInventory.inventory_primitives[surface];
+  const target = targetInventory.targets[surface];
+
+  assert.equal(primitive.status, 'preferred', `${surface} must prefer the generic WP Codebox/Homeboy Extensions primitive`);
+  assert.equal(typeof primitive.command, 'string', `${surface} requires primitive command`);
+  assert.ok(primitive.command.startsWith('wordpress.'), `${surface} primitive command must be WordPress-scoped`);
+  assert.equal(typeof primitive.artifact_schema, 'string', `${surface} requires artifact schema`);
+  assert.ok(Array.isArray(primitive.workload_ids), `${surface} requires workload_ids`);
+  assert.ok(primitive.workload_ids.length > 0, `${surface} must map to at least one workload`);
+  assert.ok(Array.isArray(target.required_sections), `${surface} target requires required_sections`);
+  assert.ok(target.required_sections.length > 0, `${surface} target required_sections must not be empty`);
+
+  for (const workloadId of primitive.workload_ids) {
+    assert.ok(declaredIds.has(workloadId), `${surface} target inventory workload ${workloadId} is not declared in rig fuzz_workloads.wordpress`);
+  }
+}
+
+for (const namespace of ['wc/v3', 'wc/store/v1', 'wc-admin', 'wc-analytics']) {
+  assert.ok(targetInventory.targets.rest_routes.namespaces.includes(namespace), `REST target inventory missing ${namespace}`);
+}
+
+for (const scenario of ['shop', 'product', 'cart', 'checkout']) {
+  assert.ok(targetInventory.targets.frontend_pages.scenarios.includes(scenario), `frontend target inventory missing ${scenario}`);
+  assert.ok(targetInventory.targets.blocks.frontend_contexts.includes(scenario), `block target inventory missing ${scenario}`);
+}
+
+assert.ok(targetInventory.targets.blocks.block_name_prefixes.includes('woocommerce/'), 'block target inventory must include WooCommerce block namespace');
+assert.ok(targetInventory.targets.database.table_prefixes.includes('woocommerce_'), 'database target inventory must include WooCommerce table prefix');
+assert.ok(targetInventory.targets.database.table_prefixes.includes('actionscheduler_'), 'database target inventory must include Action Scheduler table prefix');
+assert.ok(targetInventory.targets.options_transients.option_prefixes.includes('woocommerce_'), 'options/transients target inventory must include WooCommerce option prefix');
+assert.ok(targetInventory.targets.performance_hotspots.focus_areas.includes('checkout'), 'performance target inventory must include checkout focus area');
+assert.ok(targetInventory.targets.performance_hotspots.focus_areas.includes('catalog_layered_navigation'), 'performance target inventory must include catalog layered navigation focus area');
 
 for (const { file, manifest } of fuzzManifests) {
   const runnerCase = assertGenericFuzzManifest(manifest, {
