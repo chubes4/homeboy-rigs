@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -18,6 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
 
 assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
 
@@ -58,6 +60,8 @@ const requiredProofContracts = new Map([
 
 const fuzzManifests = collectFuzzManifests(packageRoot);
 
+assert.ok(existsSync(runtimeDependencyHelper), 'WooCommerce runtime dependency prep helper must exist');
+
 assert.equal(fuzzManifests.length, 20, 'expected 20 WooCommerce fuzz manifests');
 
 const declaredIds = declaredFuzzIds(rig);
@@ -70,6 +74,27 @@ const coverageProfileWorkloadIds = new Set(Object.entries(coverageManifest.cover
 
 assert.deepEqual(actualFuzzIds, expectedFuzzIds, 'WooCommerce fuzz manifest ids drifted');
 assert.deepEqual(declaredIds, expectedFuzzIds, 'rig fuzz_workloads.wordpress ids drifted');
+
+const runtimePrepFiles = new Set([
+  '${components.woocommerce.path}/vendor/autoload_packages.php',
+  '${components.woocommerce.path}/includes/react-admin/feature-config.php',
+  '${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php',
+]);
+const runtimePrepCheckSteps = (rig.pipeline?.check || []).filter((step) => runtimePrepFiles.has(step.file));
+
+assert.equal(runtimePrepCheckSteps.length, runtimePrepFiles.size, 'WooCommerce runtime dependency prep must be declared once in check');
+
+for (const step of runtimePrepCheckSteps) {
+  assert.equal(step.kind, 'requirement', `${step.file} prep step must use a requirement declaration`);
+  assert.deepEqual(step.prepare_phases, ['up', 'bench_prepare'], `${step.file} prep phases drifted`);
+  assert.match(step.prepare_command, /tools\/prepare-runtime-dependency\.sh/, `${step.file} must use the shared WooCommerce runtime dependency helper`);
+}
+
+for (const phase of ['up', 'bench_prepare']) {
+  const duplicatedPrepSteps = (rig.pipeline?.[phase] || []).filter((step) => runtimePrepFiles.has(step.file) || /prepare-runtime-dependency\.sh/.test(step.prepare_command || ''));
+  assert.equal(duplicatedPrepSteps.length, 0, `WooCommerce runtime dependency prep must not be duplicated in pipeline.${phase}`);
+}
+
 for (const workloadId of coverageProfileWorkloadIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface profile entry must route through fuzz_workloads.wordpress`);
 }
