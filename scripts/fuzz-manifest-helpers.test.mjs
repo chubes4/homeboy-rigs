@@ -4,6 +4,8 @@ import {
   assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
   declaredFuzzIds,
+  fullSurfaceRequiredArtifactIds,
+  fuzzManifestHasExecutableArtifactContract,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
 
@@ -100,6 +102,38 @@ test('assertGenericFuzzManifest can preserve product-specific optional artifact 
     requireExpectedArtifacts: false,
     requireExpectedArtifactSemanticKeys: true,
   }));
+});
+
+test('fullSurfaceRequiredArtifactIds follows reviewer-facing coverage artifact expectations', () => {
+  assert.deepEqual(fullSurfaceRequiredArtifactIds({
+    coverage_profiles: {
+      'full-surface': {
+        rest_api: ['route-inventory', 'route-cases'],
+        browser_requests: ['shop'],
+      },
+    },
+    workloads: {
+      'route-inventory': { artifact_expectations: { required: ['metrics'] } },
+      'route-cases': { artifact_expectations: { required: [] } },
+      shop: { artifact_expectations: { required: ['browser trace'] } },
+    },
+  }), new Set(['route-inventory']));
+});
+
+test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked contracts', () => {
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest()), true);
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      readiness: { level: 'declared' },
+    },
+  })), false);
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      generic_primitive: { status: 'blocked' },
+    },
+  })), false);
 });
 
 test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {
