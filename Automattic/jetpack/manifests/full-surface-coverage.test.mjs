@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertFullSurfaceCoverageManifest } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -20,6 +21,10 @@ const expectedSafetyClassifications = new Set([
   'performance_observation',
   'read_only_inventory',
 ]);
+
+test('Jetpack full-surface manifest uses shared coverage-map and gap-report schema', () => {
+  assertFullSurfaceCoverageManifest(manifest, { file: 'Jetpack full-surface coverage' });
+});
 
 function workloadIdFromPath(workloadPath) {
   return path.basename(workloadPath).replace(/\.json$/, '');

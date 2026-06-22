@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertFullSurfaceCoverageManifest,
   assertGenericFuzzManifest,
   collectFuzzManifests,
   declaredBenchProfileIds,
@@ -15,6 +16,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+
+assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
 
 const expectedFuzzIds = new Set([
   'action-scheduler-lookup-table-coverage',
