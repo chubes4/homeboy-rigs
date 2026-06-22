@@ -4,7 +4,7 @@
   "label": "Jetpack public module frontend coverage",
   "safety_class": "read_only",
   "surface_ids": ["jetpack-public-frontend", "jetpack-modules", "browser-requests"],
-  "operations": ["module-frontend-render", "asset-request-capture", "xhr-fetch-capture", "connected-disconnected-classification"],
+  "operations": ["module-frontend-render", "asset-request-capture", "xhr-fetch-capture", "connected-disconnected-classification", "public-route-enumeration"],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/full-surface-coverage.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
