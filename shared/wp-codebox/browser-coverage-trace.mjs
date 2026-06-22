@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { wpCodeboxBrowserArtifacts } from './artifacts.mjs';
 import { runWpCodeboxRecipe } from './recipe.mjs';
 
 export async function runBrowserCoverageTrace( config ) {
@@ -116,13 +117,18 @@ export async function runBrowserCoverageTrace( config ) {
 		} );
 
 		const output = result.json || JSON.parse( result.stdout );
-		const bundleDir = output.artifacts?.directory;
-		const browserDir = bundleDir ? path.join( bundleDir, 'files', 'browser' ) : '';
-		const summaryPath = browserDir ? path.join( browserDir, 'action-summary.json' ) : '';
-		const networkPath = browserDir ? path.join( browserDir, 'network.jsonl' ) : '';
-		const requestCoveragePath = browserDir ? path.join( browserDir, 'request-coverage.json' ) : '';
-		const errorsPath = browserDir ? path.join( browserDir, 'errors.jsonl' ) : '';
-		const stepsPath = browserDir ? path.join( browserDir, 'steps.jsonl' ) : '';
+		const browserArtifacts = wpCodeboxBrowserArtifacts( output, [
+			'action-summary.json',
+			'network.jsonl',
+			'request-coverage.json',
+			'errors.jsonl',
+			'steps.jsonl',
+		] );
+		const summaryPath = browserArtifacts['action-summary.json'];
+		const networkPath = browserArtifacts['network.jsonl'];
+		const requestCoveragePath = browserArtifacts['request-coverage.json'];
+		const errorsPath = browserArtifacts['errors.jsonl'];
+		const stepsPath = browserArtifacts['steps.jsonl'];
 		const summary = await readJsonAsync( summaryPath );
 		const requestCoverage = await readJsonAsync( requestCoveragePath );
 		const network = await readJsonl( networkPath );
