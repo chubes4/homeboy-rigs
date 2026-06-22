@@ -12,7 +12,12 @@
     "wordpress_runner": "wp-codebox",
     "coverage_manifest": "${package.root}/manifests/performance-surfaces.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WordPress Core representative frontend, REST, admin, editor, server, and database performance surface observations.",
+      "upstream_blockers": ["persisted run artifact refs are required before representative performance coverage can be marked proven"]
+    }
   },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/performance-surfaces.json", "entry": "performance-surfaces" },

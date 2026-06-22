@@ -17,6 +17,15 @@
     "artifact_expectations": {
       "required": ["cron_events", "sync_actions", "queue_option_deltas", "rollback_rows"],
       "optional": ["blocked_dispatch_attempts", "serialized_action_samples", "skipped_actions"]
+    },
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Jetpack cron, sync action, queue option delta, and rollback-safe cron mutation inventory with external HTTP blocked.",
+      "upstream_blockers": ["durable rollback artifact manifests and persisted proof links are required before proven status"],
+      "mutation": {
+        "safety_boundary": "Runs in isolated WP Codebox fixtures with remote dispatch disabled, original values restored, rollback required, and external HTTP guarded.",
+        "rollback_artifacts": ["cron_sync_actions"]
+      }
     }
   },
   "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },

@@ -7,7 +7,18 @@
   "operations": ["request-timing-summary", "query-count-summary", "asset-fanout-summary", "site-editor-summary", "block-rendering-summary", "pattern-preview-summary", "notes-unsaved-attachment-summary", "external-http-guardrail-summary"],
   "case_budget": 80,
   "duration_budget_seconds": 900,
-  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/fuzzer-profile.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/manifests/fuzzer-profile.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Gutenberg editor performance observation summary across post editor, Site Editor, block rendering, pattern preview, notes attachment, and external HTTP guardrail sections.",
+      "upstream_blockers": ["full proven status needs persisted run artifact refs for every required performance observation section"]
+    }
+  },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "gutenberg-editor-performance-observation" },
   "cases": [{ "case_id": "gutenberg-editor-performance-observation:default", "surface_ids": ["gutenberg-performance-observation", "gutenberg-block-editor", "gutenberg-site-editor", "gutenberg-block-renderer", "performance-guardrails"], "operations": ["request-timing-summary", "query-count-summary", "asset-fanout-summary", "site-editor-summary", "block-rendering-summary", "pattern-preview-summary", "notes-unsaved-attachment-summary", "external-http-guardrail-summary"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/manifests/fuzzer-profile.json", "type=json", "surface=gutenberg-performance-observation"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=gutenberg_performance_observation"] }] }, "artifacts": [{ "name": "gutenberg_performance_observation", "path": "gutenberg-editor-performance-observation/gutenberg_performance_observation.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy/gutenberg-performance-observation/v1", "summary_sections": ["post_editor", "site_editor", "block_rendering", "pattern_preview", "notes_unsaved_attachment", "external_http_guardrail"] } }], "metadata": { "safety_class": "read_only" } }],

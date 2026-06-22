@@ -12,7 +12,18 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/jetpack-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Jetpack REST route discovery and permission-boundary classification for local Jetpack and WP.com compatibility namespaces.",
+      "upstream_blockers": ["connected-site and WP.com-dependent route proof needs durable skipped/forbidden artifact links before proven status"],
+      "crud": {
+        "create": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" },
+        "read": { "level": "executable" },
+        "update": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" },
+        "delete": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" }
+      }
+    }
   },
   "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
   "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/jetpack-rest-route-inventory.php", "entry": "jetpack-rest-route-inventory" },

@@ -12,7 +12,18 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/gutenberg-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Gutenberg REST route inventory and permission-boundary classification for wp/v2 and __experimental editor routes.",
+      "upstream_blockers": ["durable proof artifact links are required before promoting route inventory coverage to proven"],
+      "crud": {
+        "create": { "level": "declared", "upstream_blocker": "safe fixture creation primitive is not available for Gutenberg REST mutations" },
+        "read": { "level": "executable" },
+        "update": { "level": "declared", "upstream_blocker": "safe fixture update primitive is not available for Gutenberg REST mutations" },
+        "delete": { "level": "declared", "upstream_blocker": "safe fixture delete primitive is not available for Gutenberg REST mutations" }
+      }
+    }
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "workload": {
