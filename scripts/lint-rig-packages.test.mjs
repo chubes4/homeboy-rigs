@@ -156,6 +156,37 @@ test('rejects fuzz case safety classes that drift from the workload', () => {
   assert.match(result.stderr, /case generic-fuzz:default metadata\.safety_class must match workload safety_class read_only/);
 });
 
+test('rejects runner-neutral fuzz intent that embeds command phases', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload({
+        cases: [
+          {
+            case_id: 'generic-fuzz:default',
+            phases: { action: [{ command: 'wordpress.run-workload' }] },
+            artifacts: [{ name: 'generic_report' }],
+            intent: {
+              schema: 'homeboy/fuzz-workload-intent/v1',
+              type: 'wordpress-plugin-workload',
+              plugin: { activation: 'generic/generic.php' },
+              execute: {
+                workload_ref: 'default',
+                path: '${package.root}/bench/generic.workload.json',
+                type: 'json',
+              },
+              collect: [{ artifact: 'generic_report' }],
+            },
+          },
+        ],
+      }),
+    },
+  });
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runner-neutral case intent must not embed runner command phases/);
+});
+
 test('rejects missing fuzz workload backing files', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {

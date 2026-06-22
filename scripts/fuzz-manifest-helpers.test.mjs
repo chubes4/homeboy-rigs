@@ -25,7 +25,17 @@ function fuzzManifest(overrides = {}) {
         case_id: 'product-fuzz:default',
         surface_ids: ['product-api'],
         operations: ['route-inventory'],
-        phases: { action: [{ command: 'product.inventory' }] },
+        intent: {
+          schema: 'homeboy/fuzz-workload-intent/v1',
+          type: 'wordpress-plugin-workload',
+          plugin: { activation: 'product/product.php' },
+          execute: {
+            workload_ref: 'default',
+            path: '${package.root}/bench/product.workload.json',
+            type: 'json',
+          },
+          collect: [{ artifact: 'report' }],
+        },
         artifacts: [{ name: 'report', path: 'report.json', required: true }],
         metadata: { safety_class: 'read_only' },
       },
@@ -61,9 +71,33 @@ test('assertGenericFuzzManifest accepts a linked generic fuzz workload contract'
     targetSlug: 'product',
     requireCaseSafetyClass: true,
     requireExpectedArtifactSemanticKeys: true,
+    requireRunnerNeutralIntent: true,
   });
 
   assert.equal(runnerCase.case_id, 'product-fuzz:default');
+});
+
+test('assertGenericFuzzManifest rejects runner commands when intent is required', () => {
+  assert.throws(
+    () => assertGenericFuzzManifest(fuzzManifest({
+      cases: [
+        {
+          case_id: 'product-fuzz:default',
+          surface_ids: ['product-api'],
+          operations: ['route-inventory'],
+          phases: { action: [{ command: 'wordpress.run-workload' }] },
+          artifacts: [{ name: 'report', path: 'report.json', required: true }],
+          metadata: { safety_class: 'read_only' },
+        },
+      ],
+    }), {
+      file: 'product-fuzz.json',
+      declaredIds: new Set(['product-fuzz']),
+      targetSlug: 'product',
+      requireRunnerNeutralIntent: true,
+    }),
+    /requires runner-neutral case intent/
+  );
 });
 
 test('assertGenericFuzzManifest rejects fuzz workloads that leak into bench paths', () => {
@@ -85,7 +119,17 @@ test('assertGenericFuzzManifest can preserve product-specific optional artifact 
         case_id: 'product-fuzz:default',
         surface_ids: ['product-api'],
         operations: ['route-inventory'],
-        phases: { action: [{ command: 'product.inventory' }] },
+        intent: {
+          schema: 'homeboy/fuzz-workload-intent/v1',
+          type: 'wordpress-plugin-workload',
+          plugin: { activation: 'product/product.php' },
+          execute: {
+            workload_ref: 'default',
+            path: '${package.root}/bench/product.workload.json',
+            type: 'json',
+          },
+          collect: [{ artifact: 'diagnostic' }],
+        },
         artifacts: [{ name: 'diagnostic', path: 'diagnostic.json', required: false }],
       },
     ],
