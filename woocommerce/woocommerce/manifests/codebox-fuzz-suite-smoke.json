@@ -1,0 +1,35 @@
+{
+  "schema": "wp-codebox/fuzz-suite/v1",
+  "id": "woocommerce-codebox-fuzz-suite-smoke",
+  "version": "1.0.0",
+  "target": {
+    "kind": "rest",
+    "id": "woocommerce-store-api-cart",
+    "entrypoint": "/wc/store/v1/cart",
+    "label": "WooCommerce Store API cart read smoke",
+    "metadata": {
+      "component": "woocommerce",
+      "plugin": "woocommerce/woocommerce.php"
+    }
+  },
+  "cases": [
+    {
+      "id": "woocommerce-store-api-cart-read-only",
+      "description": "Schema-level public Codebox fuzz-suite smoke case for a read-only WooCommerce Store API route.",
+      "input": {
+        "method": "GET",
+        "path": "/wc/store/v1/cart",
+        "params": {}
+      },
+      "metadata": {
+        "safety_class": "read_only",
+        "proof_status": "placeholder"
+      }
+    }
+  ],
+  "metadata": {
+    "component": "woocommerce",
+    "contract": "wp-codebox/fuzz-suite/v1",
+    "proof_status": "schema_only_placeholder"
+  }
+}

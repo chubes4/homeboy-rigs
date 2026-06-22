@@ -1,0 +1,134 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "codebox-fuzz-suite-smoke",
+  "label": "Codebox public fuzz-suite smoke contract",
+  "safety_class": "read_only",
+  "surface_ids": [
+    "woocommerce-store-api",
+    "wp-codebox-public-fuzz-suite"
+  ],
+  "operations": [
+    "public-fuzz-suite-contract",
+    "run-wordpress-workload-contract",
+    "schema-only-proof-placeholder"
+  ],
+  "case_budget": 1,
+  "duration_budget_seconds": 60,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/codebox-fuzz-suite-smoke.workload.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.suite_result",
+    "public_codebox_contracts": [
+      "wp-codebox/fuzz-suite/v1",
+      "wp-codebox/wordpress-workload-run/v1",
+      "wp-codebox/fuzz-suite-result/v1"
+    ],
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Schema-level smoke path for WooCommerce through public WP Codebox fuzz-suite and run-wordpress-workload contracts. This does not claim full-surface proof until a real fuzz-suite-result artifact is captured."
+    },
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "component": "woocommerce",
+      "activation": "woocommerce/woocommerce.php",
+      "suite_manifest": "${package.root}/manifests/codebox-fuzz-suite-smoke.json"
+    }
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/codebox-fuzz-suite-smoke.workload.json",
+    "entry": "wp-codebox/run-fuzz-suite"
+  },
+  "cases": [
+    {
+      "case_id": "codebox-fuzz-suite-smoke:default",
+      "surface_ids": [
+        "woocommerce-store-api",
+        "wp-codebox-public-fuzz-suite"
+      ],
+      "operations": [
+        "public-fuzz-suite-contract",
+        "run-wordpress-workload-contract",
+        "schema-only-proof-placeholder"
+      ],
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=woocommerce/woocommerce.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/codebox-fuzz-suite-smoke.workload.json",
+              "type=json"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=codebox_fuzz_suite_result"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "codebox_fuzz_suite_result",
+          "path": "codebox-fuzz-suite-smoke/fuzz-suite-result.json",
+          "required": false,
+          "metadata": {
+            "schema": "wp-codebox/fuzz-suite-result/v1",
+            "semantic_key": "fuzz.suite_result",
+            "proof_placeholder": true
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 1,
+    "max_duration_seconds": 60
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-store-api",
+      "wp-codebox-public-fuzz-suite"
+    ],
+    "operations": [
+      "public-fuzz-suite-contract",
+      "run-wordpress-workload-contract",
+      "schema-only-proof-placeholder"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "codebox_fuzz_suite_result",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.suite_result",
+        "schema": "wp-codebox/fuzz-suite-result/v1",
+        "required": false,
+        "proof_placeholder": true
+      }
+    ]
+  }
+}

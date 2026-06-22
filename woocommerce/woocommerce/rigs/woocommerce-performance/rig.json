@@ -90,6 +90,7 @@
       { "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json" },
       { "path": "${package.root}/fuzz/options-transients-coverage.json" },
       { "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json" },
+      { "path": "${package.root}/fuzz/codebox-fuzz-suite-smoke.json" },
       { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
       { "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json" },
       { "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json" }
