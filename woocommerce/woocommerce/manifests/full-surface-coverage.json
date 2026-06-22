@@ -415,6 +415,18 @@
         "optional": ["rollback verification rows", "skipped sensitive option reasons"]
       }
     },
+    "codebox-fuzz-suite-smoke": {
+      "surface": "wp_codebox_public_fuzz_suite",
+      "coverage_shape": "Schema-level public WP Codebox fuzz-suite smoke contract for a read-only WooCommerce Store API cart route",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Validates public WP Codebox fuzz-suite and workload-run contract shapes", "Uses a read-only Store API cart route and records placeholder proof status until executable artifacts exist"]
+      },
+      "artifact_expectations": {
+        "required": ["fuzz suite manifest", "wordpress workload-run manifest"],
+        "optional": ["wp-codebox/fuzz-suite-result/v1 artifact"]
+      }
+    },
     "frontend-rendering-request-coverage": {
       "surface": "frontend_rendering_requests",
       "coverage_shape": "Shop, product, cart, and checkout frontend render/request coverage with assets, XHR/fetch requests, and skipped destructive action reason codes",
