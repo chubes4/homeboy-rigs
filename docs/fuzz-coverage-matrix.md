@@ -21,6 +21,15 @@ bench/fuzz separation checks through `scripts/fuzz-manifest-helpers.mjs`.
 Product-specific validators remain responsible for product namespaces, routes,
 fixtures, thresholds, skip reasons, and proof contracts.
 
+Generic readiness metadata is available for product manifests that need an
+explicit fuzz-readiness contract without claiming proof. `metadata.readiness`
+uses `level: declared|executable|proven`, a `coverage_contract` string,
+optional `proof_refs`, optional `upstream_blockers`, optional CRUD operation
+levels for `create`, `read`, `update`, and `delete`, and optional mutation
+rollback fields (`safety_boundary`, `rollback_artifacts`). Product packages can
+use this shared shape to distinguish planned CRUD/mutation coverage from
+executable workloads and reviewer-facing proof artifacts.
+
 ## Summary
 
 | Project | API | DB | Admin | External HTTP | Hooks / cron / options | Frontend / rendering | Performance-related fuzz |
@@ -41,6 +50,14 @@ fixtures, thresholds, skip reasons, and proof contracts.
 | Hooks / cron / options | D/E/P partial | `fuzz/options-transients-coverage.json`, `fuzz/action-scheduler-lookup-table-coverage.json`, `fuzz/rollback-safe-options-transients-mutations.json`, `checkout-shortcode-place-order-latency.php`, gateway readiness/matrix workloads, fixture option setup in Woo and Stripe rigs | Action Scheduler deltas, lookup tables, gateway option state, checkout session mutation, option/transient inventory, rollback-safe isolated option mutation, and page-option setup are covered by targeted workloads. General hook inventory remains D/E only until run artifacts exist. |
 | Frontend / rendering | D/E/P partial | `fuzz/frontend-rendering-request-coverage.json`, `bench/woocommerce-browser-coverage.trace.mjs`, `browser-scenarios/shop.json`, `product.json`, `cart.json`, `checkout.json`, `rigs/woocommerce-browser-coverage/rig.json`, `cart-session-overwrite-race.trace.mjs` | Shop/product/cart/checkout, frontend request capture, skipped-destructive reason codes, and browser cart-session race coverage are executable. Checkout duplicate-order and cart/session bug coverage is issue-linked; broader visual/rendering parity is not claimed. |
 | Performance-related fuzz | D/E/P partial | `fuzz/performance-hotspots-artifact-summary.json`, `checkout-concurrent-create-order.php`, `checkout-shipping-cache.php`, `layered-nav-count-cache.php`, `layered-nav-catalog-crawl.php`, `admin-dashboard-physical-products-query.php`, `cart-session-overwrite-race.php` | Proven for the documented checkout duplicate-order, shipping cache, layered-nav transient, and admin dashboard query bug clusters listed in `woocommerce/woocommerce/README.md`. Full-surface performance summary remains D/E until new run artifacts exist. |
+
+CRUD/mutation readiness: read paths are executable across REST route inventory,
+generated safe requests, browser rendering, and DB/query attribution. Create and
+update are proven only for targeted catalog, checkout, cart/session, option, and
+transient bug clusters; delete remains declared-only unless a workload records a
+rollback-safe destructive fixture. Upstream blockers are safe CRUD fixture
+primitives, durable fuzz artifact manifests, and reviewer-facing run links for
+full namespace proof.
 
 WooCommerce fuzz manifests also carry explicit WP Codebox fixture metadata
 (`wp-codebox`, disposable WordPress, WooCommerce component activation) and
@@ -66,6 +83,13 @@ benchmark-fallback path for the canonical Core fuzz rig.
 | Frontend / rendering | D/E | `WordPress/wordpress-develop/fuzz/frontend-rendering-request-coverage.json`; legacy compatibility: `WordPress/wordpress/browser-scenarios/front_page.json`, posts/pages/media/users scenarios, `WordPress/wordpress/bench/wordpress-core-browser-coverage.trace.mjs` | Frontend request/rendering coverage is declared for front page, singular posts/pages, archive, search, feed, attachment, and browser request capture. Rendering correctness and visual comparison are not claimed. |
 | Performance-related fuzz | D/E partial | `WordPress/wordpress-develop/fuzz/performance-surfaces.json`, `WordPress/wordpress-develop/manifests/performance-surfaces.json`; legacy compatibility: REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | The full-surface profile declares representative frontend, REST, admin, editor, cron, media, option/autoload, request-timing, query-count, and asset observations, but no targeted core performance bug proof is linked. |
 
+CRUD/mutation readiness: read coverage is declared/executable for REST, admin,
+frontend, media, user, option, postmeta, hook, cron, and rewrite inventories.
+Create/update/delete remain declared-only until upstream fuzz runner primitives
+provide rollback-safe Core fixture mutation and durable artifact manifests. The
+legacy `WordPress/wordpress` package should not grow product-specific mutation
+workarounds; canonical contracts belong under `WordPress/wordpress-develop`.
+
 ## Gutenberg
 
 | Surface | Status | Current assets | Proven / missing edge |
@@ -77,6 +101,14 @@ benchmark-fallback path for the canonical Core fuzz rig.
 | Hooks / cron / options | D/E | `fuzz/gutenberg-hooks-options-inventory.json`, `manifests/fuzzer-profile.json`, `bench/notes-unsaved-attachment.trace.mjs` | The fuzzer profile declares hook, option-prefix, postmeta, template/pattern/entity, cron/state, transient, and editor-state inventory with required artifact expectations. Notes unsaved attachment state is included in the runtime/performance artifact contracts. Proof artifacts are pending. |
 | Frontend / rendering | D/E/P partial | `fuzz/frontend-rendering-request-coverage.json`, `fuzz/block-rendering-coverage.json`, `bench/gutenberg-browser-coverage.trace.mjs`, `browser-scenarios/frontend_rendering.json`, `bench/pattern-preview-assets.trace.mjs`, `rigs/gutenberg-pattern-preview-assets/rig.json` | Pattern preview asset fan-out is linked to WordPress/gutenberg#68979 and #71547 in `WordPress/gutenberg/README.md`. Frontend fixture rendering and dynamic block request coverage are declared/executable; broader visual proof remains pending. |
 | Performance-related fuzz | D/E/P partial | `fuzz/gutenberg-editor-performance-observation.json`, `manifests/fuzzer-profile.json`, `docs/fuzzer-profile.md`, pattern preview, notes unsaved attachment, browser coverage, DB query profile, and external HTTP guardrail traces | The pattern-preview workload is a proven targeted performance repro. Editor, Site Editor, block-rendering, notes unsaved attachment, HTTP guardrail, and artifact-summary contracts are declared and validated; they still need accumulated proof artifacts before P. |
+
+CRUD/mutation readiness: read coverage is executable for REST route inventory,
+editor/admin/browser surfaces, block rendering, template/pattern entities, and DB
+query attribution. Create/update are partially executable through editor state
+and fixture traces but proven only for targeted pattern-preview and notes-related
+bugs. Delete remains declared-only until upstream fixture rollback primitives can
+exercise template, pattern, and block-entity deletion without product-specific
+cleanup shims.
 
 ## Jetpack
 
@@ -90,9 +122,18 @@ benchmark-fallback path for the canonical Core fuzz rig.
 | Frontend / rendering | D/E | `fuzz/jetpack-public-module-frontend-coverage.json`, `bench/jetpack-browser-coverage.trace.mjs`, browser scenarios for dashboard/connection/modules/settings/public post/public page | Admin rendering/request and public-module frontend rendering/request coverage, request classes, connected/disconnected classification, and skip reason artifacts are declared/executable. Proof artifacts are pending. |
 | Performance-related fuzz | D/E partial | `fuzz/jetpack-performance-observation.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | Executable observation surfaces now include timing, query counts, assets, sync, HTTP guardrails, skip counts, and slow-surface summaries, but no targeted Jetpack performance bug repro is linked in this package yet. |
 
+CRUD/mutation readiness: read coverage is executable for REST inventory,
+connected/disconnected fixtures, module option/table inventory, sync queues,
+admin/browser paths, public modules, and external HTTP guardrails. Option/module
+state mutations are declared with rollback-safe expectations but remain D/E until
+run artifacts prove rollback behavior. Create/update/delete for connected remote
+state are upstream-blocked on safe WP.com/Jetpack sandbox primitives and should
+not be emulated with local product-specific fallbacks.
+
 ## Pending Cross-Project Work
 
 - Core REST permission-boundary, DB schema/query attribution, admin safe-page enumeration, and hook/cron/options/postmeta/rewrite inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
 - Jetpack module option/table inventory, sync/cron action coverage, rollback-safe mutation rows, connected/disconnected fixtures, public-module frontend scenarios, and performance observation summaries are D/E; they still need proof artifacts before P.
 - All four projects need durable proof bundles or linked run artifacts before the full-surface rows can move from `D/E` to `P`; WooCommerce admin coverage has the contract shape but still needs fresh reviewer-facing fuzz run artifacts for any newly discovered admin surfaces.
 - Visual rendering correctness remains outside this matrix unless a workload explicitly uses WP Codebox visual comparison or another reviewer-facing visual artifact.
+- Safe CRUD/mutation execution across Core, Gutenberg, and Jetpack is blocked on upstream fuzz runner primitives for disposable fixture mutation, rollback artifact manifests, and durable proof links. Product rigs should declare those blockers in `metadata.readiness.upstream_blockers` instead of adding cleanup shims.
