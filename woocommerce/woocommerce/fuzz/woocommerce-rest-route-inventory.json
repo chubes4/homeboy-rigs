@@ -16,6 +16,10 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": {
+      "command": "wordpress.inventory-rest-routes",
+      "status": "blocked"
+    },
     "workload_path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
@@ -45,6 +49,13 @@
       "scope": "disposable-wordpress",
       "component": "woocommerce",
       "activation": "woocommerce/woocommerce.php"
+    },
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "REST route inventory should be supplied by a generic WordPress route inventory primitive, with WooCommerce contributing namespaces and artifact expectations.",
+      "upstream_blockers": [
+        "Expose an artifact-compatible generic REST route inventory command before replacing the WooCommerce PHP workload."
+      ]
     }
   },
   "target": {

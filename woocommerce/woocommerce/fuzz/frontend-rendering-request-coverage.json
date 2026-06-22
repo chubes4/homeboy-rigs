@@ -20,6 +20,10 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": {
+      "command": "wordpress.trace-browser-coverage",
+      "status": "blocked"
+    },
     "workload_path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
@@ -28,6 +32,13 @@
       "scope": "disposable-wordpress",
       "component": "woocommerce",
       "activation": "woocommerce/woocommerce.php"
+    },
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Frontend rendering coverage should be supplied by a generic browser coverage primitive, with WooCommerce contributing route lists and skip policies.",
+      "upstream_blockers": [
+        "Expose an artifact-compatible generic browser coverage command before replacing the WooCommerce trace workload."
+      ]
     }
   },
   "target": {

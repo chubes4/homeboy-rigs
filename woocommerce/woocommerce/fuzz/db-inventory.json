@@ -16,6 +16,10 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": {
+      "command": "wordpress.inventory-database",
+      "status": "blocked"
+    },
     "workload_path": "${package.root}/bench/db-inventory.workload.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
@@ -24,6 +28,13 @@
       "scope": "disposable-wordpress",
       "component": "woocommerce",
       "activation": "woocommerce/woocommerce.php"
+    },
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Database inventory should be supplied by a generic WordPress database inventory primitive, with WooCommerce contributing table prefixes and artifact expectations.",
+      "upstream_blockers": [
+        "Expose an artifact-compatible generic database inventory command before replacing the WooCommerce JSON workload."
+      ]
     }
   },
   "target": {

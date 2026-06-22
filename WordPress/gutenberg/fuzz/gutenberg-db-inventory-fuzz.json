@@ -10,9 +10,11 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": { "command": "wordpress.inventory-database", "status": "blocked" },
     "workload_path": "${package.root}/bench/db-inventory.workload.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": { "level": "declared", "coverage_contract": "Database inventory should be supplied by a generic WordPress database inventory primitive, with Gutenberg contributing option prefixes, postmeta keys, entity types, and artifact expectations.", "upstream_blockers": ["Expose an artifact-compatible generic database inventory command before replacing the Gutenberg JSON workload."] }
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/db-inventory.workload.json", "entry": "db-inventory" },
