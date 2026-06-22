@@ -56,7 +56,7 @@
         {
           "name": "action_scheduler_lookup_table_coverage",
           "path": "action-scheduler-lookup-table-coverage/action_scheduler_lookup_table_coverage.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -110,7 +110,7 @@
         "name": "action_scheduler_lookup_table_coverage",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

@@ -52,7 +52,7 @@
         {
           "name": "rest_db_query_profile",
           "path": "rest-db-query-profile/rest_db_query_profile.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -101,7 +101,7 @@
         "name": "rest_db_query_profile",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

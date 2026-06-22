@@ -58,7 +58,7 @@
         {
           "name": "rest_permission_boundary_matrix",
           "path": "rest-permission-boundary-matrix/rest_permission_boundary_matrix.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -113,7 +113,7 @@
         "name": "rest_permission_boundary_matrix",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

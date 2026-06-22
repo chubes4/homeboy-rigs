@@ -9,6 +9,8 @@ import {
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
   declaredFuzzIds,
+  fullSurfaceRequiredArtifactIds,
+  fuzzManifestHasExecutableArtifactContract,
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
@@ -75,6 +77,7 @@ for (const workloadId of coverageProfileWorkloadIds) {
 const fullSurfaceFuzzIds = new Set(Object.entries(coverageManifest.coverage_profiles['full-surface'])
   .filter(([surface]) => surface !== 'browser_requests')
   .flatMap(([, workloadIds]) => workloadIds));
+const requiredArtifactWorkloadIds = fullSurfaceRequiredArtifactIds(coverageManifest);
 
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
@@ -107,6 +110,15 @@ for (const { file, manifest } of fuzzManifests) {
   }
 
   const requiredContractIds = requiredProofContracts.get(manifest.id) || [];
+  if (requiredArtifactWorkloadIds.has(manifest.id) && fuzzManifestHasExecutableArtifactContract(manifest)) {
+    for (const artifact of runnerCase.artifacts) {
+      assert.equal(artifact.required, true, `${manifest.id} full-surface executable case artifact ${artifact.name} must be required`);
+    }
+    for (const artifact of manifest.artifacts.expected) {
+      assert.equal(artifact.required, true, `${manifest.id} full-surface executable expected artifact ${artifact.name} must be required`);
+    }
+  }
+
   if (requiredContractIds.length > 0) {
     const proofContracts = manifest.proof_contracts || [];
     assert.ok(Array.isArray(proofContracts), `${manifest.id} proof_contracts must be an array`);

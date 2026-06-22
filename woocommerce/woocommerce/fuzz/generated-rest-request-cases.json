@@ -50,7 +50,7 @@
         {
           "name": "rest_request_cases",
           "path": "generated-rest-request-cases/rest_request_cases.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -98,7 +98,7 @@
         "name": "rest_request_cases",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

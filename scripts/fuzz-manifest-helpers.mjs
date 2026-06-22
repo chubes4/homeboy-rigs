@@ -53,6 +53,21 @@ export function collectFuzzManifests(packageRoot, { declaredIds } = {}) {
     }));
 }
 
+export function fullSurfaceRequiredArtifactIds(coverageManifest, profile = 'full-surface') {
+  const workloadIds = Object.entries(coverageManifest.coverage_profiles?.[profile] || {})
+    .filter(([surface]) => surface !== 'browser_requests')
+    .flatMap(([, ids]) => ids);
+
+  return new Set(workloadIds.filter((workloadId) => (
+    coverageManifest.workloads?.[workloadId]?.artifact_expectations?.required || []
+  ).length > 0));
+}
+
+export function fuzzManifestHasExecutableArtifactContract(manifest) {
+  return manifest.metadata?.readiness?.level !== 'declared'
+    && manifest.metadata?.generic_primitive?.status !== 'blocked';
+}
+
 export function assertGenericFuzzManifest(manifest, {
   file,
   declaredIds,
