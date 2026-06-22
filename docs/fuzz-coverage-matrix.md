@@ -30,6 +30,12 @@ rollback fields (`safety_boundary`, `rollback_artifacts`). Product packages can
 use this shared shape to distinguish planned CRUD/mutation coverage from
 executable workloads and reviewer-facing proof artifacts.
 
+The repo-wide package linter reports missing `metadata.readiness` on fuzz
+manifests as a warning. Use `node scripts/lint-rig-packages.mjs
+--strict-fuzz-readiness` when a package is ready to make readiness metadata a
+hard gate. Manifests that opt into `level: proven` must keep their proof
+artifacts required so proof claims cannot silently pass with optional output.
+
 ## Summary
 
 | Project | API | DB | Admin | External HTTP | Hooks / cron / options | Frontend / rendering | Performance-related fuzz |

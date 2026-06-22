@@ -20,6 +20,32 @@
     "workload_path": "${package.root}/bench/checkout-gateway-compatibility-matrix.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WP Codebox can execute the checkout gateway compatibility matrix and emit gateway readiness, dependency classification, and create-order idempotency observations; reviewer-facing proof links are still required before marking this proven.",
+      "crud": {
+        "create": {
+          "level": "executable"
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "declared",
+          "upstream_blocker": "Gateway update cases need rollback-safe checkout/gateway fixture mutation primitives."
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "Gateway delete cases need rollback-safe cleanup fixtures."
+        }
+      },
+      "mutation": {
+        "safety_boundary": "Gateway and checkout state is exercised only inside a disposable WP Codebox WordPress fixture.",
+        "rollback_artifacts": [
+          "gateway_matrix"
+        ]
+      }
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",

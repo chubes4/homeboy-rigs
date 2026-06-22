@@ -3,8 +3,12 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { assertFuzzReadinessMetadata } from './fuzz-manifest-helpers.mjs';
 
-const root = process.argv[2] ? resolve(process.cwd(), process.argv[2]) : process.cwd();
+const args = process.argv.slice(2);
+const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
+const rootArg = args.find((arg) => !arg.startsWith('--'));
+const root = rootArg ? resolve(process.cwd(), rootArg) : process.cwd();
 const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
 const rigFiles = [];
@@ -13,6 +17,7 @@ const fuzzWorkloadFiles = [];
 const portableSourceFiles = [];
 const fuzzManifestValidators = [];
 const failures = [];
+const warnings = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
 const personalPathPrefix = '/Users/' + 'chubes/';
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
@@ -394,6 +399,8 @@ function lintFuzzWorkload(file) {
     failures.push(`${rel}: fuzz workload must define metadata.kind`);
   }
 
+  lintFuzzReadinessMetadata(rel, workload);
+
   if (workload.limits) {
     if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
       failures.push(`${rel}: limits.max_cases must be a positive integer`);
@@ -405,6 +412,40 @@ function lintFuzzWorkload(file) {
   }
 
   lintWordPressCoreFuzzContract(rel, workload);
+}
+
+function lintFuzzReadinessMetadata(rel, workload) {
+  if (!workload.metadata?.readiness) {
+    const message = `${rel}: fuzz workload should declare metadata.readiness.level and coverage_contract`;
+    if (strictFuzzReadiness) {
+      failures.push(message);
+    } else {
+      warnings.push(message);
+    }
+    return;
+  }
+
+  try {
+    assertFuzzReadinessMetadata(workload, { file: rel });
+  } catch (error) {
+    failures.push(error.message);
+    return;
+  }
+
+  const readinessLevel = workload.metadata.readiness.level;
+  const optionalArtifactNames = [
+    ...(workload.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
+    ...(workload.artifacts?.expected || []),
+  ]
+    .filter((artifact) => artifact?.required !== true)
+    .map((artifact) => artifact?.name)
+    .filter(Boolean);
+
+  if (readinessLevel === 'proven' && optionalArtifactNames.length > 0) {
+    failures.push(`${rel}: proven fuzz readiness requires required proof artifacts (${[...new Set(optionalArtifactNames)].join(', ')})`);
+  } else if (readinessLevel === 'executable' && optionalArtifactNames.length > 0) {
+    warnings.push(`${rel}: executable fuzz readiness has optional artifact(s): ${[...new Set(optionalArtifactNames)].join(', ')}`);
+  }
 }
 
 function assertIncludesAll(rel, workload, field, expectedValues) {
@@ -525,6 +566,17 @@ function reportFailures() {
   process.exit(1);
 }
 
+function reportWarnings() {
+  if (warnings.length === 0) {
+    return;
+  }
+
+  console.warn('Rig package lint warnings:');
+  for (const warning of warnings) {
+    console.warn(`- ${warning}`);
+  }
+}
+
 function lintGeneratedStudioModelRigs() {
   if (!existsSync(studioModelRigGenerator)) {
     return;
@@ -560,6 +612,7 @@ lintFuzzManifestValidators();
 reportFailures();
 
 if (!hasPhp()) {
+  reportWarnings();
   console.warn(`PHP not found; skipped syntax checks for ${phpFiles.length} PHP file(s).`);
   process.exit(0);
 }
@@ -567,6 +620,8 @@ if (!hasPhp()) {
 phpFiles.forEach(lintPhp);
 
 reportFailures();
+
+reportWarnings();
 
 console.log('Rig package lint passed.');
 console.log(`- PHP syntax: ${phpFiles.length} file(s)`);

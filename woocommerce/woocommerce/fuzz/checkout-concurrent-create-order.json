@@ -25,6 +25,37 @@
     ],
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "proven",
+      "coverage_contract": "WP Codebox can execute the checkout create_order concurrency workload and emit duplicate-order/session side-effect proof artifacts for the linked bug cluster.",
+      "proof_refs": [
+        "https://github.com/woocommerce/woocommerce/issues/62659",
+        "https://github.com/chubes4/homeboy-rigs/issues/253",
+        "https://github.com/chubes4/homeboy-rigs/issues/254"
+      ],
+      "crud": {
+        "create": {
+          "level": "proven"
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "declared",
+          "upstream_blocker": "Checkout update cases need rollback-safe order/session mutation fixtures."
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "Checkout delete cases need rollback-safe order cleanup fixtures."
+        }
+      },
+      "mutation": {
+        "safety_boundary": "Orders and sessions are created only inside a disposable WP Codebox WordPress fixture.",
+        "rollback_artifacts": [
+          "raw_result"
+        ]
+      }
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
@@ -86,7 +117,7 @@
         {
           "name": "raw_result",
           "path": "checkout-concurrent-create-order/raw_result.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -118,7 +149,7 @@
         "name": "raw_result",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }

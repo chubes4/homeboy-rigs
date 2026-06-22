@@ -18,6 +18,31 @@
     "workload_path": "${package.root}/bench/cart-session-overwrite-race.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WP Codebox can execute the cart/session overwrite race workload and emit the cart-session race artifact contract; reviewer-facing proof links are still required before marking this proven.",
+      "crud": {
+        "create": {
+          "level": "executable"
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "executable"
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "Rollback-safe cart/session delete fixtures are required before delete cases can execute."
+        }
+      },
+      "mutation": {
+        "safety_boundary": "Cart/session state is mutated only inside a disposable WP Codebox WordPress fixture.",
+        "rollback_artifacts": [
+          "raw_result"
+        ]
+      }
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",

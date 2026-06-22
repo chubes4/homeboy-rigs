@@ -19,6 +19,27 @@
     "workload_path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WP Codebox can execute the WooCommerce REST route inventory and emit route and permission-boundary classification artifacts.",
+      "crud": {
+        "create": {
+          "level": "declared",
+          "upstream_blocker": "Safe REST mutation fixture primitives are required before create cases can execute."
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "declared",
+          "upstream_blocker": "Safe REST mutation fixture primitives are required before update cases can execute."
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "Rollback-safe delete fixtures are required before delete cases can execute."
+        }
+      }
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
@@ -79,7 +100,7 @@
         {
           "name": "route_inventory",
           "path": "woocommerce-rest-route-inventory/route_inventory.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -110,7 +131,7 @@
         "name": "route_inventory",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }
