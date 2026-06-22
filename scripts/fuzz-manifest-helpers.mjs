@@ -4,6 +4,10 @@ import path from 'node:path';
 
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
+export const fuzzCaseIntentSchema = 'homeboy/fuzz-workload-intent/v1';
+export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']);
+export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
+export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
 
 export function readJson(root, ...parts) {
   return JSON.parse(readFileSync(path.join(root, ...parts), 'utf8'));
@@ -49,6 +53,21 @@ export function collectFuzzManifests(packageRoot, { declaredIds } = {}) {
     }));
 }
 
+export function fullSurfaceRequiredArtifactIds(coverageManifest, profile = 'full-surface') {
+  const workloadIds = Object.entries(coverageManifest.coverage_profiles?.[profile] || {})
+    .filter(([surface]) => surface !== 'browser_requests')
+    .flatMap(([, ids]) => ids);
+
+  return new Set(workloadIds.filter((workloadId) => (
+    coverageManifest.workloads?.[workloadId]?.artifact_expectations?.required || []
+  ).length > 0));
+}
+
+export function fuzzManifestHasExecutableArtifactContract(manifest) {
+  return manifest.metadata?.readiness?.level !== 'declared'
+    && manifest.metadata?.generic_primitive?.status !== 'blocked';
+}
+
 export function assertGenericFuzzManifest(manifest, {
   file,
   declaredIds,
@@ -62,6 +81,7 @@ export function assertGenericFuzzManifest(manifest, {
   requireExpectedArtifacts = true,
   requireExpectedArtifactSemanticKeys = false,
   requireReadinessMetadata = false,
+  requireRunnerNeutralIntent = false,
 } = {}) {
   assert.equal(manifest.schema, 'homeboy/fuzz-workload/v1', `${file} schema mismatch`);
   assert.equal(typeof manifest.id, 'string', `${file} requires id`);
@@ -98,8 +118,13 @@ export function assertGenericFuzzManifest(manifest, {
   }
   assert.deepEqual(runnerCase.surface_ids, manifest.surface_ids, `${manifest.id} case surface ids drifted`);
   assert.deepEqual(runnerCase.operations, manifest.operations, `${manifest.id} case operations drifted`);
-  assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);
-  assert.ok(runnerCase.phases.action.length > 0, `${manifest.id} requires at least one action step`);
+  if (runnerCase.intent) {
+    assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase);
+  } else {
+    assert.equal(requireRunnerNeutralIntent, false, `${manifest.id} requires runner-neutral case intent`);
+    assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);
+    assert.ok(runnerCase.phases.action.length > 0, `${manifest.id} requires at least one action step`);
+  }
   assert.ok(Array.isArray(runnerCase.artifacts), `${manifest.id} requires case artifacts`);
   assert.ok(Array.isArray(manifest.artifacts?.expected), `${manifest.id} requires expected artifacts`);
 
@@ -121,6 +146,38 @@ export function assertGenericFuzzManifest(manifest, {
   return runnerCase;
 }
 
+export function assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase) {
+  const intent = runnerCase.intent;
+  assert.ok(intent && typeof intent === 'object' && !Array.isArray(intent), `${manifest.id} case intent must be an object`);
+  assert.equal(intent.schema, fuzzCaseIntentSchema, `${manifest.id} case intent schema mismatch`);
+  assert.equal(intent.type, 'wordpress-plugin-workload', `${manifest.id} case intent type mismatch`);
+
+  assert.ok(intent.plugin && typeof intent.plugin === 'object' && !Array.isArray(intent.plugin), `${manifest.id} case intent requires plugin`);
+  assert.equal(typeof intent.plugin.activation, 'string', `${manifest.id} case intent plugin.activation must be a string`);
+
+  assert.ok(intent.execute && typeof intent.execute === 'object' && !Array.isArray(intent.execute), `${manifest.id} case intent requires execute`);
+  assert.equal(intent.execute.workload_ref, 'default', `${manifest.id} case intent execute.workload_ref must be default`);
+  assert.equal(intent.execute.path, manifest.workload?.path, `${manifest.id} case intent execute.path must match workload.path`);
+  assert.equal(intent.execute.type, manifest.workload?.type, `${manifest.id} case intent execute.type must match workload.type`);
+  if (manifest.workload?.entry) {
+    assert.equal(intent.execute.entry, manifest.workload.entry, `${manifest.id} case intent execute.entry must match workload.entry`);
+  }
+  if (intent.execute.parameters !== undefined) {
+    assert.ok(intent.execute.parameters && typeof intent.execute.parameters === 'object' && !Array.isArray(intent.execute.parameters), `${manifest.id} case intent execute.parameters must be an object`);
+  }
+
+  assert.ok(Array.isArray(intent.collect), `${manifest.id} case intent collect must be an array`);
+  assert.ok(intent.collect.length > 0, `${manifest.id} case intent collect must declare at least one artifact`);
+  const caseArtifactNames = new Set((runnerCase.artifacts || []).map((artifact) => artifact?.name).filter(Boolean));
+  for (const artifact of intent.collect) {
+    assert.ok(artifact && typeof artifact === 'object' && !Array.isArray(artifact), `${manifest.id} case intent collect entries must be objects`);
+    assert.equal(typeof artifact.artifact, 'string', `${manifest.id} case intent collect artifact must be a string`);
+    assert.ok(caseArtifactNames.has(artifact.artifact), `${manifest.id} case intent collect artifact ${artifact.artifact} is not declared on the case`);
+  }
+
+  assert.equal(runnerCase.phases, undefined, `${manifest.id} runner-neutral case intent must not embed runner command phases`);
+}
+
 export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {}) {
   const readiness = manifest.metadata?.readiness;
   assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${file} requires metadata.readiness`);
@@ -131,6 +188,7 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
 
   if (readiness.level === 'proven') {
     assert.ok(Array.isArray(readiness.proof_refs) && readiness.proof_refs.length > 0, `${file} proven readiness requires proof_refs`);
+    assertFuzzProofBundle(readiness.proof_bundle, manifest, { file });
   }
 
   if (readiness.upstream_blockers !== undefined) {
@@ -148,6 +206,46 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
   if (readiness.mutation !== undefined) {
     assertFuzzMutationReadiness(readiness.mutation, { file });
   }
+}
+
+export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
+  assert.ok(proofBundle && typeof proofBundle === 'object' && !Array.isArray(proofBundle), `${file} proven readiness requires proof_bundle`);
+
+  for (const field of fuzzProofBundleFields) {
+    assert.ok(Array.isArray(proofBundle[field]) && proofBundle[field].length > 0, `${file} metadata.readiness.proof_bundle.${field} must be a non-empty array`);
+    for (const value of proofBundle[field]) {
+      assert.equal(typeof value, 'string', `${file} metadata.readiness.proof_bundle.${field} entries must be strings`);
+      assert.notEqual(value.trim(), '', `${file} metadata.readiness.proof_bundle.${field} entries must be non-empty`);
+
+      if (field !== 'fuzz_result_artifacts') {
+        assertReviewerFacingRef(value, `${file} metadata.readiness.proof_bundle.${field}`);
+      }
+    }
+  }
+
+  const requiredArtifactNames = collectRequiredArtifactNames(manifest);
+  for (const artifactName of proofBundle.fuzz_result_artifacts) {
+    assert.ok(requiredArtifactNames.has(artifactName), `${file} proof_bundle.fuzz_result_artifacts ${artifactName} must name a required case or expected artifact`);
+  }
+}
+
+function collectRequiredArtifactNames(manifest) {
+  return new Set([
+    ...(manifest.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
+    ...(manifest.artifacts?.expected || []),
+  ]
+    .filter((artifact) => artifact?.required === true)
+    .map((artifact) => artifact?.name)
+    .filter(Boolean));
+}
+
+function assertReviewerFacingRef(value, context) {
+  assert.ok(
+    /^(https:\/\/|gh:|homeboy-runs:|artifact:|run:)/.test(value),
+    `${context} entries must be reviewer-facing refs`
+  );
+  assert.ok(!/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value), `${context} entries must not use local URLs`);
+  assert.ok(!value.startsWith('/Users/'), `${context} entries must not use local filesystem paths`);
 }
 
 export function assertFuzzCrudReadiness(crud, { file } = {}) {
@@ -173,5 +271,50 @@ export function assertFuzzMutationReadiness(mutation, { file } = {}) {
   for (const artifact of mutation.rollback_artifacts) {
     assert.equal(typeof artifact, 'string', `${file} metadata.readiness.mutation.rollback_artifacts entries must be strings`);
     assert.notEqual(artifact.trim(), '', `${file} metadata.readiness.mutation.rollback_artifacts entries must be non-empty`);
+  }
+}
+
+export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.property } = {}) {
+  assert.equal(manifest.schema, 'homeboy-rigs/wordpress-full-surface-coverage/v1', `${file} schema mismatch`);
+  assert.equal(typeof manifest.property, 'string', `${file} requires property`);
+  assert.notEqual(manifest.property.trim(), '', `${file} requires non-empty property`);
+  assert.ok(manifest.coverage_map && typeof manifest.coverage_map === 'object' && !Array.isArray(manifest.coverage_map), `${file} requires coverage_map`);
+
+  for (const surfaceType of fullSurfaceCoverageTypes) {
+    const entry = manifest.coverage_map[surfaceType];
+    assert.ok(entry && typeof entry === 'object' && !Array.isArray(entry), `${file} coverage_map.${surfaceType} must be an object`);
+    assert.equal(entry.surface_type, surfaceType, `${file} coverage_map.${surfaceType}.surface_type mismatch`);
+    assert.equal(typeof entry.surface_id, 'string', `${file} coverage_map.${surfaceType}.surface_id must be a string`);
+    assert.notEqual(entry.surface_id.trim(), '', `${file} coverage_map.${surfaceType}.surface_id must be non-empty`);
+    assert.equal(typeof entry.coverage_goal, 'string', `${file} coverage_map.${surfaceType}.coverage_goal must be a string`);
+    assert.notEqual(entry.coverage_goal.trim(), '', `${file} coverage_map.${surfaceType}.coverage_goal must be non-empty`);
+    assertStringArray(entry.workload_ids, `${file} coverage_map.${surfaceType}.workload_ids`);
+    assertStringArray(entry.artifact_schemas, `${file} coverage_map.${surfaceType}.artifact_schemas`);
+  }
+
+  assert.ok(manifest.gap_report && typeof manifest.gap_report === 'object' && !Array.isArray(manifest.gap_report), `${file} requires gap_report`);
+  assert.equal(manifest.gap_report.schema, 'homeboy-rigs/wordpress-coverage-gap-report/v1', `${file} gap_report.schema mismatch`);
+  assertStringArray(manifest.gap_report.inputs, `${file} gap_report.inputs`);
+  assertStringArray(manifest.gap_report.required_fields, `${file} gap_report.required_fields`);
+  assert.equal(manifest.gap_report.semantic_key, 'fuzz.report', `${file} gap_report.semantic_key mismatch`);
+  assert.ok(manifest.gap_report.compare && typeof manifest.gap_report.compare === 'object' && !Array.isArray(manifest.gap_report.compare), `${file} gap_report.compare must be an object`);
+
+  const requiredFields = new Set(manifest.gap_report.required_fields);
+  for (const field of fullSurfaceGapReportFields) {
+    assert.ok(requiredFields.has(field), `${file} gap_report.required_fields missing ${field}`);
+  }
+
+  for (const surfaceType of fullSurfaceCoverageTypes) {
+    assert.equal(typeof manifest.gap_report.compare[surfaceType], 'string', `${file} gap_report.compare.${surfaceType} must be a string`);
+    assert.notEqual(manifest.gap_report.compare[surfaceType].trim(), '', `${file} gap_report.compare.${surfaceType} must be non-empty`);
+  }
+}
+
+function assertStringArray(value, label) {
+  assert.ok(Array.isArray(value), `${label} must be an array`);
+  assert.ok(value.length > 0, `${label} must not be empty`);
+  for (const entry of value) {
+    assert.equal(typeof entry, 'string', `${label} entries must be strings`);
+    assert.notEqual(entry.trim(), '', `${label} entries must be non-empty`);
   }
 }

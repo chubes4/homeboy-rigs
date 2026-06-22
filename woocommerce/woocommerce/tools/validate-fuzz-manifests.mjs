@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertFullSurfaceCoverageManifest,
   assertGenericFuzzManifest,
   collectFuzzManifests,
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
   declaredFuzzIds,
+  fullSurfaceRequiredArtifactIds,
+  fuzzManifestHasExecutableArtifactContract,
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
@@ -17,6 +21,9 @@ const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const targetInventory = readJson(packageRoot, 'manifests/target-inventory.json');
+const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
+
+assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
 
 const expectedFuzzIds = new Set([
   'action-scheduler-lookup-table-coverage',
@@ -55,6 +62,8 @@ const requiredProofContracts = new Map([
 
 const fuzzManifests = collectFuzzManifests(packageRoot);
 
+assert.ok(existsSync(runtimeDependencyHelper), 'WooCommerce runtime dependency prep helper must exist');
+
 assert.equal(fuzzManifests.length, 20, 'expected 20 WooCommerce fuzz manifests');
 
 const declaredIds = declaredFuzzIds(rig);
@@ -67,6 +76,27 @@ const coverageProfileWorkloadIds = new Set(Object.entries(coverageManifest.cover
 
 assert.deepEqual(actualFuzzIds, expectedFuzzIds, 'WooCommerce fuzz manifest ids drifted');
 assert.deepEqual(declaredIds, expectedFuzzIds, 'rig fuzz_workloads.wordpress ids drifted');
+
+const runtimePrepFiles = new Set([
+  '${components.woocommerce.path}/vendor/autoload_packages.php',
+  '${components.woocommerce.path}/includes/react-admin/feature-config.php',
+  '${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php',
+]);
+const runtimePrepCheckSteps = (rig.pipeline?.check || []).filter((step) => runtimePrepFiles.has(step.file));
+
+assert.equal(runtimePrepCheckSteps.length, runtimePrepFiles.size, 'WooCommerce runtime dependency prep must be declared once in check');
+
+for (const step of runtimePrepCheckSteps) {
+  assert.equal(step.kind, 'requirement', `${step.file} prep step must use a requirement declaration`);
+  assert.deepEqual(step.prepare_phases, ['up', 'bench_prepare'], `${step.file} prep phases drifted`);
+  assert.match(step.prepare_command, /tools\/prepare-runtime-dependency\.sh/, `${step.file} must use the shared WooCommerce runtime dependency helper`);
+}
+
+for (const phase of ['up', 'bench_prepare']) {
+  const duplicatedPrepSteps = (rig.pipeline?.[phase] || []).filter((step) => runtimePrepFiles.has(step.file) || /prepare-runtime-dependency\.sh/.test(step.prepare_command || ''));
+  assert.equal(duplicatedPrepSteps.length, 0, `WooCommerce runtime dependency prep must not be duplicated in pipeline.${phase}`);
+}
+
 for (const workloadId of coverageProfileWorkloadIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface profile entry must route through fuzz_workloads.wordpress`);
 }
@@ -74,6 +104,7 @@ for (const workloadId of coverageProfileWorkloadIds) {
 const fullSurfaceFuzzIds = new Set(Object.entries(coverageManifest.coverage_profiles['full-surface'])
   .filter(([surface]) => surface !== 'browser_requests')
   .flatMap(([, workloadIds]) => workloadIds));
+const requiredArtifactWorkloadIds = fullSurfaceRequiredArtifactIds(coverageManifest);
 
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
@@ -149,6 +180,7 @@ for (const { file, manifest } of fuzzManifests) {
     requireCaseArtifacts: false,
     requireExpectedArtifacts: false,
     requireExpectedArtifactSemanticKeys: true,
+    requireRunnerNeutralIntent: true,
   });
 
   assert.equal(manifest.metadata?.fixture?.runtime, 'wp-codebox', `${manifest.id} fixture runtime must be wp-codebox`);
@@ -156,7 +188,22 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.metadata?.fixture?.component, 'woocommerce', `${manifest.id} fixture component must be woocommerce`);
   assert.equal(manifest.metadata?.fixture?.activation, 'woocommerce/woocommerce.php', `${manifest.id} fixture activation must be woocommerce/woocommerce.php`);
 
+  if (manifest.metadata?.readiness?.level === 'proven') {
+    const proofBundle = manifest.metadata.readiness.proof_bundle;
+    assert.ok(proofBundle, `${manifest.id} proven readiness must link a proof bundle`);
+    assert.ok(proofBundle.run_ids.length > 0, `${manifest.id} proven readiness must link at least one run id`);
+  }
+
   const requiredContractIds = requiredProofContracts.get(manifest.id) || [];
+  if (requiredArtifactWorkloadIds.has(manifest.id) && fuzzManifestHasExecutableArtifactContract(manifest)) {
+    for (const artifact of runnerCase.artifacts) {
+      assert.equal(artifact.required, true, `${manifest.id} full-surface executable case artifact ${artifact.name} must be required`);
+    }
+    for (const artifact of manifest.artifacts.expected) {
+      assert.equal(artifact.required, true, `${manifest.id} full-surface executable expected artifact ${artifact.name} must be required`);
+    }
+  }
+
   if (requiredContractIds.length > 0) {
     const proofContracts = manifest.proof_contracts || [];
     assert.ok(Array.isArray(proofContracts), `${manifest.id} proof_contracts must be an array`);

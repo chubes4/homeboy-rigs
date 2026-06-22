@@ -4,6 +4,8 @@ import {
   assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
   declaredFuzzIds,
+  fullSurfaceRequiredArtifactIds,
+  fuzzManifestHasExecutableArtifactContract,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
 
@@ -25,7 +27,17 @@ function fuzzManifest(overrides = {}) {
         case_id: 'product-fuzz:default',
         surface_ids: ['product-api'],
         operations: ['route-inventory'],
-        phases: { action: [{ command: 'product.inventory' }] },
+        intent: {
+          schema: 'homeboy/fuzz-workload-intent/v1',
+          type: 'wordpress-plugin-workload',
+          plugin: { activation: 'product/product.php' },
+          execute: {
+            workload_ref: 'default',
+            path: '${package.root}/bench/product.workload.json',
+            type: 'json',
+          },
+          collect: [{ artifact: 'report' }],
+        },
         artifacts: [{ name: 'report', path: 'report.json', required: true }],
         metadata: { safety_class: 'read_only' },
       },
@@ -61,9 +73,33 @@ test('assertGenericFuzzManifest accepts a linked generic fuzz workload contract'
     targetSlug: 'product',
     requireCaseSafetyClass: true,
     requireExpectedArtifactSemanticKeys: true,
+    requireRunnerNeutralIntent: true,
   });
 
   assert.equal(runnerCase.case_id, 'product-fuzz:default');
+});
+
+test('assertGenericFuzzManifest rejects runner commands when intent is required', () => {
+  assert.throws(
+    () => assertGenericFuzzManifest(fuzzManifest({
+      cases: [
+        {
+          case_id: 'product-fuzz:default',
+          surface_ids: ['product-api'],
+          operations: ['route-inventory'],
+          phases: { action: [{ command: 'wordpress.run-workload' }] },
+          artifacts: [{ name: 'report', path: 'report.json', required: true }],
+          metadata: { safety_class: 'read_only' },
+        },
+      ],
+    }), {
+      file: 'product-fuzz.json',
+      declaredIds: new Set(['product-fuzz']),
+      targetSlug: 'product',
+      requireRunnerNeutralIntent: true,
+    }),
+    /requires runner-neutral case intent/
+  );
 });
 
 test('assertGenericFuzzManifest rejects fuzz workloads that leak into bench paths', () => {
@@ -85,7 +121,17 @@ test('assertGenericFuzzManifest can preserve product-specific optional artifact 
         case_id: 'product-fuzz:default',
         surface_ids: ['product-api'],
         operations: ['route-inventory'],
-        phases: { action: [{ command: 'product.inventory' }] },
+        intent: {
+          schema: 'homeboy/fuzz-workload-intent/v1',
+          type: 'wordpress-plugin-workload',
+          plugin: { activation: 'product/product.php' },
+          execute: {
+            workload_ref: 'default',
+            path: '${package.root}/bench/product.workload.json',
+            type: 'json',
+          },
+          collect: [{ artifact: 'diagnostic' }],
+        },
         artifacts: [{ name: 'diagnostic', path: 'diagnostic.json', required: false }],
       },
     ],
@@ -100,6 +146,38 @@ test('assertGenericFuzzManifest can preserve product-specific optional artifact 
     requireExpectedArtifacts: false,
     requireExpectedArtifactSemanticKeys: true,
   }));
+});
+
+test('fullSurfaceRequiredArtifactIds follows reviewer-facing coverage artifact expectations', () => {
+  assert.deepEqual(fullSurfaceRequiredArtifactIds({
+    coverage_profiles: {
+      'full-surface': {
+        rest_api: ['route-inventory', 'route-cases'],
+        browser_requests: ['shop'],
+      },
+    },
+    workloads: {
+      'route-inventory': { artifact_expectations: { required: ['metrics'] } },
+      'route-cases': { artifact_expectations: { required: [] } },
+      shop: { artifact_expectations: { required: ['browser trace'] } },
+    },
+  }), new Set(['route-inventory']));
+});
+
+test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked contracts', () => {
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest()), true);
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      readiness: { level: 'declared' },
+    },
+  })), false);
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      generic_primitive: { status: 'blocked' },
+    },
+  })), false);
 });
 
 test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {
@@ -125,6 +203,25 @@ test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation co
   }), { file: 'product-fuzz.json' }));
 });
 
+test('assertFuzzReadinessMetadata accepts proven readiness with proof bundle linkage', () => {
+  assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      readiness: {
+        level: 'proven',
+        coverage_contract: 'Product API CRUD coverage with reviewer-facing fuzz run artifacts.',
+        proof_refs: ['https://github.com/example/product/issues/123'],
+        proof_bundle: {
+          artifact_refs: ['https://github.com/example/product/issues/123#issuecomment-456'],
+          run_ids: ['run:product-fuzz-proof'],
+          gap_reports: ['https://github.com/example/product/issues/124'],
+          fuzz_result_artifacts: ['report'],
+        },
+      },
+    },
+  }), { file: 'product-fuzz.json' }));
+});
+
 test('assertFuzzReadinessMetadata rejects proven readiness without proof refs', () => {
   assert.throws(
     () => assertFuzzReadinessMetadata(fuzzManifest({
@@ -137,6 +234,66 @@ test('assertFuzzReadinessMetadata rejects proven readiness without proof refs', 
       },
     }), { file: 'product-fuzz.json' }),
     /proven readiness requires proof_refs/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects proven readiness without proof bundle linkage', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['https://github.com/example/product/issues/123'],
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /proven readiness requires proof_bundle/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects local proof bundle refs', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['https://github.com/example/product/issues/123'],
+          proof_bundle: {
+            artifact_refs: ['https://localhost:8881/artifacts/product-fuzz'],
+            run_ids: ['run:product-fuzz-proof'],
+            gap_reports: ['https://github.com/example/product/issues/124'],
+            fuzz_result_artifacts: ['report'],
+          },
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /must not use local URLs/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects proof bundle artifacts that are not required outputs', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['https://github.com/example/product/issues/123'],
+          proof_bundle: {
+            artifact_refs: ['https://github.com/example/product/issues/123#issuecomment-456'],
+            run_ids: ['run:product-fuzz-proof'],
+            gap_reports: ['https://github.com/example/product/issues/124'],
+            fuzz_result_artifacts: ['missing-report'],
+          },
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /must name a required case or expected artifact/
   );
 });
 

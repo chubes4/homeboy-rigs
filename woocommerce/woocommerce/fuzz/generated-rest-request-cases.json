@@ -46,38 +46,11 @@
         "generated-rest-case-plan",
         "request-case-execution"
       ],
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=woocommerce/woocommerce.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/generated-rest-request-cases.workload.json",
-              "type=json"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=rest_request_cases"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "rest_request_cases",
           "path": "generated-rest-request-cases/rest_request_cases.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -85,6 +58,24 @@
       ],
       "metadata": {
         "safety_class": "isolated_mutation"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+          "type": "json",
+          "entry": "generated-rest-request-cases"
+        },
+        "collect": [
+          {
+            "artifact": "rest_request_cases"
+          }
+        ]
       }
     }
   ],
@@ -107,7 +98,7 @@
         "name": "rest_request_cases",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       }
     ]
   }
