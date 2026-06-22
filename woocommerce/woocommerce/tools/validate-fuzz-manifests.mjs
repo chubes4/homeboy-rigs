@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertFullSurfaceCoverageManifest,
   assertGenericFuzzManifest,
   collectFuzzManifests,
   declaredBenchProfileIds,
@@ -15,6 +16,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+
+assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
 
 const expectedFuzzIds = new Set([
   'action-scheduler-lookup-table-coverage',
@@ -96,6 +99,12 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.metadata?.fixture?.scope, 'disposable-wordpress', `${manifest.id} fixture scope must be disposable-wordpress`);
   assert.equal(manifest.metadata?.fixture?.component, 'woocommerce', `${manifest.id} fixture component must be woocommerce`);
   assert.equal(manifest.metadata?.fixture?.activation, 'woocommerce/woocommerce.php', `${manifest.id} fixture activation must be woocommerce/woocommerce.php`);
+
+  if (manifest.metadata?.readiness?.level === 'proven') {
+    const proofBundle = manifest.metadata.readiness.proof_bundle;
+    assert.ok(proofBundle, `${manifest.id} proven readiness must link a proof bundle`);
+    assert.ok(proofBundle.run_ids.length > 0, `${manifest.id} proven readiness must link at least one run id`);
+  }
 
   const requiredContractIds = requiredProofContracts.get(manifest.id) || [];
   if (requiredContractIds.length > 0) {

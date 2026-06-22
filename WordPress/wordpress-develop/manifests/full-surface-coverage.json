@@ -1,5 +1,5 @@
 {
-  "schema": "homeboy-rigs/wordpress-core-full-surface-coverage/v1",
+  "schema": "homeboy-rigs/wordpress-full-surface-coverage/v1",
   "property": "WordPress/wordpress-develop",
   "description": "Coverage targets for WordPress Core fuzzing across API, database, admin, runtime registration, content, media, users, and performance surfaces.",
   "requires_primitives": [
@@ -19,23 +19,60 @@
     "wordpress-media-user-permission-coverage",
     "wordpress-performance-observation"
   ],
+  "coverage_map": {
+    "rest": {
+      "surface_type": "rest",
+      "surface_id": "rest-api",
+      "coverage_goal": "registered Core REST routes, generated safe request cases, and role permission-boundary rows",
+      "workload_ids": ["rest-api"],
+      "artifact_schemas": ["homeboy/wordpress-rest-route-inventory/v1", "homeboy/wordpress-rest-request-cases/v1"]
+    },
+    "admin": {
+      "surface_type": "admin",
+      "surface_id": "admin-page-coverage",
+      "coverage_goal": "safe Core wp-admin page enumeration with role boundaries, skipped reasons, and query attribution",
+      "workload_ids": ["admin-page-coverage"],
+      "artifact_schemas": ["homeboy-rigs/wordpress-core-admin-page-coverage/v1"]
+    },
+    "frontend": {
+      "surface_type": "frontend",
+      "surface_id": "frontend-rendering-request-coverage",
+      "coverage_goal": "front page, singular, archive, search, feed, attachment, and request/rendering coverage",
+      "workload_ids": ["frontend-rendering-request-coverage"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "browser": {
+      "surface_type": "browser",
+      "surface_id": "wordpress-core-browser-coverage",
+      "coverage_goal": "Core frontend, posts, pages, media, users, editor, and site editor browser request coverage",
+      "workload_ids": ["front_page", "posts_list", "post_editor", "pages_list", "page_editor", "site_editor", "media_library", "media_new", "users_list", "profile"],
+      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
+    },
+    "database": {
+      "surface_type": "database",
+      "surface_id": "db-inventory-query-profile",
+      "coverage_goal": "Core schema inventory, query profiles, options, postmeta, rewrite, and runtime-state attribution coverage",
+      "workload_ids": ["db-inventory-query-profile", "hooks-cron-options"],
+      "artifact_schemas": ["homeboy/wordpress-db-inventory/v1", "homeboy/wordpress-rest-db-query-profile/v1", "homeboy/wordpress-runtime-state-coverage/v1"]
+    }
+  },
+  "gap_report": {
+    "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+    "semantic_key": "fuzz.report",
+    "inputs": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options", "wordpress-core-browser-coverage"],
+    "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
+    "compare": {
+      "rest": "registered Core REST routes minus generated safe request cases and role permission-boundary rows",
+      "admin": "manifest admin pages minus captured readiness and query attribution artifacts",
+      "frontend": "front page, singular, archive, search, feed, attachment, and request coverage artifacts minus captured rendering rows",
+      "browser": "declared Core browser scenarios minus captured browser request coverage rows",
+      "database": "Core schema inventory and query profiles minus options, postmeta, rewrite, hook, cron, and transient attribution rows"
+    }
+  },
   "coverage_profiles": {
     "smoke": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage"],
     "fuzzer": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options", "content-types-taxonomies", "media-users", "performance-surfaces"],
     "full-surface": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options", "content-types-taxonomies", "media-users", "performance-surfaces"]
-  },
-  "coverage_gap_reporting": {
-    "report_shape": "homeboy-rigs/wordpress-core-fuzzer-coverage-gap/v1",
-    "compare": {
-      "rest_api": "registered core REST routes minus generated safe request cases and role permission-boundary rows",
-      "database": "core schema inventory plus query profiles per covered REST case with options, postmeta, and rewrite attribution",
-      "admin_pages": "manifest admin pages minus captured readiness and query attribution artifacts",
-      "runtime_state": "registered hooks, cron events, rewrite rules, postmeta keys, autoloaded options, and transients minus inventory rows",
-      "frontend_rendering": "front page, singular, archive, search, feed, attachment, and request coverage artifacts minus captured rendering/readiness rows",
-      "content": "registered post types, statuses, taxonomies, terms, and permalink structures minus inventory rows",
-      "media_users": "attachment, user, role, and capability surfaces minus permission coverage rows",
-      "performance": "declared representative performance surfaces minus observation artifacts"
-    }
   },
   "proof_artifact_contract": {
     "declared": ["manifest row exists", "fuzz workload references manifest", "rig profile references workload id"],

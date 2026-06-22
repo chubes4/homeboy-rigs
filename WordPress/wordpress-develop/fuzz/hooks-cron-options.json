@@ -12,7 +12,14 @@
     "wordpress_runner": "wp-codebox",
     "coverage_manifest": "${package.root}/manifests/hooks-cron-options.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WordPress Core hook, cron, option, transient, postmeta, and rewrite inventories can run through the declared WP Codebox fuzz workload and emit required runtime-state artifacts before any proof claim.",
+      "upstream_blockers": [
+        "Reviewer-facing run artifacts, gap reports, and durable fuzz result artifact refs are required before this row can move to proven."
+      ]
+    }
   },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/hooks-cron-options.json", "entry": "hooks-cron-options" },

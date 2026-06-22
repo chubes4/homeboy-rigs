@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertFullSurfaceCoverageManifest,
   assertGenericFuzzManifest,
   collectFuzzManifests,
   declaredBenchProfileIds,
@@ -24,6 +25,7 @@ assert.equal(fuzzManifests.length, declaredIds.size, 'expected one manifest per 
 
 const fuzzerProfile = readJson(packageRoot, 'manifests/fuzzer-profile.json');
 const apiDbLabCell = readJson(packageRoot, 'manifests/api-db-lab-cell.json');
+const fullSurfaceCoverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const restRouteCoverage = readJson(packageRoot, 'manifests/rest-route-coverage.json');
 const restCases = readJson(packageRoot, 'bench/generated-rest-request-cases.workload.json');
 const dbInventory = readJson(packageRoot, 'bench/db-inventory.workload.json');
@@ -45,6 +47,8 @@ const requiredSurfaces = new Set([
   'gutenberg-performance-observation',
 ]);
 const coveredSurfaces = new Set();
+
+assertFullSurfaceCoverageManifest(fullSurfaceCoverage, { file: 'Gutenberg full-surface coverage' });
 
 for (const { file, manifest } of fuzzManifests) {
   assertGenericFuzzManifest(manifest, {
