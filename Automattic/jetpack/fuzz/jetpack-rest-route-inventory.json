@@ -10,13 +10,17 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": { "command": "wordpress.inventory-rest-routes", "status": "blocked" },
     "workload_path": "${package.root}/bench/jetpack-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "executable",
       "coverage_contract": "Jetpack REST route discovery and permission-boundary classification for local Jetpack and WP.com compatibility namespaces.",
-      "upstream_blockers": ["connected-site and WP.com-dependent route proof needs durable skipped/forbidden artifact links before proven status"],
+      "upstream_blockers": [
+        "connected-site and WP.com-dependent route proof needs durable skipped/forbidden artifact links before proven status",
+        "Expose an artifact-compatible generic REST route inventory command before replacing the Jetpack PHP workload."
+      ],
       "crud": {
         "create": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" },
         "read": { "level": "executable" },

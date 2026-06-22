@@ -10,13 +10,17 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": { "command": "wordpress.inventory-rest-routes", "status": "blocked" },
     "workload_path": "${package.root}/bench/gutenberg-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "executable",
       "coverage_contract": "Gutenberg REST route inventory and permission-boundary classification for wp/v2 and __experimental editor routes.",
-      "upstream_blockers": ["durable proof artifact links are required before promoting route inventory coverage to proven"],
+      "upstream_blockers": [
+        "durable proof artifact links are required before promoting route inventory coverage to proven",
+        "Expose an artifact-compatible generic REST route inventory command before replacing the Gutenberg PHP workload."
+      ],
       "crud": {
         "create": { "level": "declared", "upstream_blocker": "safe fixture creation primitive is not available for Gutenberg REST mutations" },
         "read": { "level": "executable" },

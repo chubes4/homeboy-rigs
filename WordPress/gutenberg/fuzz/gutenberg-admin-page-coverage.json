@@ -10,6 +10,7 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": { "command": "wordpress.fuzz-admin-pages", "status": "preferred" },
     "workload_path": "${package.root}/bench/gutenberg-admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
@@ -24,7 +25,7 @@
       "operations": ["admin-page-discovery", "editor-page-enumeration", "skipped-destructive-action-classification"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
-        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-admin-page-coverage.php", "type=php"] }],
+        "action": [{ "command": "wordpress.fuzz-admin-pages", "args": ["safe_methods=GET", "max_pages=80", "enumerate_menus=true", "classify_skips=true"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=gutenberg_admin_page_coverage"] }]
       },
       "artifacts": [{ "name": "gutenberg_admin_page_coverage", "path": "gutenberg-admin-page-coverage/admin-page-coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],

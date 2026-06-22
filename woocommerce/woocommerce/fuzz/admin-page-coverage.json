@@ -19,6 +19,10 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
+    "generic_primitive": {
+      "command": "wordpress.fuzz-admin-pages",
+      "status": "preferred"
+    },
     "workload_path": "${package.root}/bench/admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
@@ -88,10 +92,12 @@
         ],
         "action": [
           {
-            "command": "wordpress.run-workload",
+            "command": "wordpress.fuzz-admin-pages",
             "args": [
-              "path=${package.root}/bench/admin-page-coverage.php",
-              "type=php"
+              "safe_methods=GET",
+              "max_pages=80",
+              "enumerate_menus=true",
+              "classify_skips=true"
             ]
           }
         ],
