@@ -9,8 +9,12 @@
     "wordpress-db-inventory",
     "wordpress-external-http-guardrail",
     "browser-request-coverage",
-    "wordpress-authenticated-admin-page-coverage"
+    "wordpress-authenticated-admin-page-coverage",
+    "wordpress-block-inventory",
+    "wordpress-options-transients-inventory",
+    "wordpress-performance-hotspots-summary"
   ],
+  "target_inventory_manifest": "manifests/target-inventory.json",
   "surfaces": {
     "rest_api": {
       "budget_manifest": "manifests/rest-route-budgets.json",
