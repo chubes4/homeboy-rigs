@@ -12,7 +12,22 @@
     "wordpress_runner": "wp-codebox",
     "coverage_manifest": "${package.root}/manifests/rest-route-coverage.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "WordPress Core REST route inventory, generated safe request cases, and role permission-boundary execution for representative core routes.",
+      "upstream_blockers": ["reviewer-facing execution summary and permission-boundary proof artifacts are required before proven status"],
+      "crud": {
+        "create": { "level": "declared", "upstream_blocker": "safe disposable REST mutation fixture creation primitive is not available" },
+        "read": { "level": "executable" },
+        "update": { "level": "declared", "upstream_blocker": "safe disposable REST mutation fixture update primitive is not available" },
+        "delete": { "level": "declared", "upstream_blocker": "safe disposable REST mutation fixture deletion primitive is not available" }
+      },
+      "mutation": {
+        "safety_boundary": "Core fixtures are isolated in WP Codebox; destructive REST methods are excluded from generated cases until rollback primitives exist.",
+        "rollback_artifacts": []
+      }
+    }
   },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/rest-route-coverage.json", "entry": "rest-api" },
