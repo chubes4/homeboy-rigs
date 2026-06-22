@@ -139,7 +139,7 @@ test('Jetpack inventory fuzz workloads define module option/table and cron sync 
   const moduleInventory = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-module-option-table-inventory.json'), 'utf8'));
   const cronSyncActions = JSON.parse(readFileSync(path.join(fuzzRoot, 'jetpack-cron-sync-actions.json'), 'utf8'));
 
-  assert.equal(moduleInventory.safety_class, 'read_only_inventory');
+  assert.equal(moduleInventory.safety_class, 'read_only');
   assert.ok(moduleInventory.coverage.operations.includes('module-option-inventory'));
   assert.ok(moduleInventory.coverage.operations.includes('module-table-inventory'));
   assert.ok(moduleInventory.cases[0].inputs.read_only);

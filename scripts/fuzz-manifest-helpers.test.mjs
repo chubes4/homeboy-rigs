@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { assertGenericFuzzManifest, declaredFuzzIds, workloadIdFromPath } from './fuzz-manifest-helpers.mjs';
+
+function fuzzManifest(overrides = {}) {
+  return {
+    schema: 'homeboy/fuzz-workload/v1',
+    id: 'product-fuzz',
+    label: 'Product fuzz',
+    safety_class: 'read_only',
+    surface_ids: ['product-api'],
+    operations: ['route-inventory'],
+    case_budget: 10,
+    duration_budget_seconds: 60,
+    metadata: { workload_path: '${package.root}/bench/product.workload.json' },
+    target: { type: 'wordpress-plugin', slug: 'product' },
+    workload: { runner: 'wp-codebox', type: 'json', path: '${package.root}/bench/product.workload.json' },
+    cases: [
+      {
+        case_id: 'product-fuzz:default',
+        surface_ids: ['product-api'],
+        operations: ['route-inventory'],
+        phases: { action: [{ command: 'product.inventory' }] },
+        artifacts: [{ name: 'report', path: 'report.json', required: true }],
+        metadata: { safety_class: 'read_only' },
+      },
+    ],
+    limits: { max_cases: 10, max_duration_seconds: 60 },
+    coverage: { surface_ids: ['product-api'], operations: ['route-inventory'] },
+    artifacts: { expected: [{ name: 'report', semantic_key: 'fuzz.report', required: true }] },
+    ...overrides,
+  };
+}
+
+test('workloadIdFromPath strips supported workload suffixes', () => {
+  assert.equal(workloadIdFromPath('${package.root}/fuzz/product-fuzz.json'), 'product-fuzz');
+  assert.equal(workloadIdFromPath('${package.root}/bench/product-fuzz.workload.json'), 'product-fuzz');
+  assert.equal(workloadIdFromPath('${package.root}/bench/product-fuzz.php'), 'product-fuzz');
+});
+
+test('declaredFuzzIds accepts object and string workload declarations', () => {
+  assert.deepEqual(declaredFuzzIds({
+    fuzz_workloads: {
+      wordpress: [
+        { path: '${package.root}/fuzz/product-fuzz.json' },
+        '${package.root}/fuzz/other-fuzz.json',
+      ],
+    },
+  }), new Set(['product-fuzz', 'other-fuzz']));
+});
+
+test('assertGenericFuzzManifest accepts a linked generic fuzz workload contract', () => {
+  const runnerCase = assertGenericFuzzManifest(fuzzManifest(), {
+    file: 'product-fuzz.json',
+    declaredIds: new Set(['product-fuzz']),
+    targetSlug: 'product',
+    requireCaseSafetyClass: true,
+    requireExpectedArtifactSemanticKeys: true,
+  });
+
+  assert.equal(runnerCase.case_id, 'product-fuzz:default');
+});
+
+test('assertGenericFuzzManifest rejects fuzz workloads that leak into bench paths', () => {
+  assert.throws(
+    () => assertGenericFuzzManifest(fuzzManifest(), {
+      file: 'product-fuzz.json',
+      declaredIds: new Set(['product-fuzz']),
+      benchWorkloadIds: new Set(['product-fuzz']),
+      targetSlug: 'product',
+    }),
+    /must not appear in bench_workloads/
+  );
+});
+
+test('assertGenericFuzzManifest can preserve product-specific optional artifact semantics', () => {
+  const manifest = fuzzManifest({
+    cases: [
+      {
+        case_id: 'product-fuzz:default',
+        surface_ids: ['product-api'],
+        operations: ['route-inventory'],
+        phases: { action: [{ command: 'product.inventory' }] },
+        artifacts: [{ name: 'diagnostic', path: 'diagnostic.json', required: false }],
+      },
+    ],
+    artifacts: { expected: [{ name: 'diagnostic', semantic_key: 'fuzz.diagnostic', required: false }] },
+  });
+
+  assert.doesNotThrow(() => assertGenericFuzzManifest(manifest, {
+    file: 'product-fuzz.json',
+    declaredIds: new Set(['product-fuzz']),
+    targetSlug: 'product',
+    requireCaseArtifacts: false,
+    requireExpectedArtifacts: false,
+    requireExpectedArtifactSemanticKeys: true,
+  }));
+});
