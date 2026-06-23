@@ -3,7 +3,10 @@
   "id": "jetpack-admin-page-coverage",
   "label": "Jetpack admin page coverage",
   "safety_class": "read_only",
-  "surface_ids": ["jetpack-admin-pages", "wordpress-admin-pages"],
+  "surface_ids": [
+    "jetpack-admin-pages",
+    "wordpress-admin-pages"
+  ],
   "operations": [
     "admin-page-discovery",
     "permission-boundary-classification",
@@ -21,11 +24,18 @@
     "expected_artifact_semantic_key": "fuzz.report",
     "admin_target_contract": {
       "product": "jetpack",
-      "discovery_sources": ["global_menu", "global_submenu", "registered_pages", "jetpack_admin_page_registry"],
+      "discovery_sources": [
+        "global_menu",
+        "global_submenu",
+        "registered_pages",
+        "jetpack_admin_page_registry"
+      ],
       "default_role": "administrator",
       "default_capability": "manage_options",
       "request_policy": {
-        "safe_methods": ["GET"],
+        "safe_methods": [
+          "GET"
+        ],
         "get_first": true,
         "follow_redirects": false,
         "submit_forms": false,
@@ -35,47 +45,86 @@
       "skip_reasons": [
         {
           "code": "destructive_action",
-          "matches": ["action=delete", "action=remove", "action=trash", "action=reset"],
+          "matches": [
+            "action=delete",
+            "action=remove",
+            "action=trash",
+            "action=reset"
+          ],
           "reason": "Would delete, remove, trash, or reset local Jetpack data."
         },
         {
           "code": "plugin_install_or_update",
-          "matches": ["action=install", "action=update", "update.php", "plugin-install.php"],
+          "matches": [
+            "action=install",
+            "action=update",
+            "update.php",
+            "plugin-install.php"
+          ],
           "reason": "Would install or update plugin code instead of observing admin rendering."
         },
         {
           "code": "module_state_mutation",
-          "matches": ["action=activate", "action=deactivate", "module=", "activate-module", "deactivate-module"],
+          "matches": [
+            "action=activate",
+            "action=deactivate",
+            "module=",
+            "activate-module",
+            "deactivate-module"
+          ],
           "reason": "Would alter Jetpack module state; module mutations belong to the module-state lane."
         },
         {
           "code": "connection_mutation",
-          "matches": ["action=disconnect", "connect_url", "jetpack_reconnect", "jetpack_disconnect"],
+          "matches": [
+            "action=disconnect",
+            "connect_url",
+            "jetpack_reconnect",
+            "jetpack_disconnect"
+          ],
           "reason": "Would connect, reconnect, or disconnect a site from WordPress.com."
         },
         {
           "code": "nonce_required",
-          "matches": ["_wpnonce=", "_ajax_nonce="],
+          "matches": [
+            "_wpnonce=",
+            "_ajax_nonce="
+          ],
           "reason": "Nonce-bearing action URLs are classified instead of replayed."
         },
         {
           "code": "credential_unavailable",
-          "matches": ["calypso", "wordpress.com", "wpcom"],
+          "matches": [
+            "calypso",
+            "wordpress.com",
+            "wpcom"
+          ],
           "reason": "Live WordPress.com credentials are not available in the local fixture."
         },
         {
           "code": "capability_denied",
-          "matches": ["capability_mismatch"],
+          "matches": [
+            "capability_mismatch"
+          ],
           "reason": "The target requires a capability not held by the tested role."
         },
         {
           "code": "external_service_required",
-          "matches": ["external_service", "oauth", "public-api.wordpress.com"],
+          "matches": [
+            "external_service",
+            "oauth",
+            "public-api.wordpress.com"
+          ],
           "reason": "The target requires a live external service boundary."
         },
         {
           "code": "unsupported_method",
-          "matches": ["POST", "PUT", "PATCH", "DELETE"],
+          "matches": [
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ],
           "reason": "The admin coverage lane only performs GET requests."
         }
       ],
@@ -87,9 +136,18 @@
           "hash_route": "#/dashboard",
           "label": "Jetpack dashboard",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "expected_states": ["connected", "disconnected"],
-          "proof_artifacts": ["admin_page_coverage", "admin_menu_enumeration", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "expected_states": [
+            "connected",
+            "disconnected"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_menu_enumeration",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-connection",
@@ -98,10 +156,21 @@
           "hash_route": "#/connection",
           "label": "Jetpack connection",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "expected_states": ["connected", "disconnected"],
-          "destructive_skip_codes": ["connection_mutation", "credential_unavailable"],
-          "proof_artifacts": ["admin_page_coverage", "admin_skip_reasons"]
+          "safe_methods": [
+            "GET"
+          ],
+          "expected_states": [
+            "connected",
+            "disconnected"
+          ],
+          "destructive_skip_codes": [
+            "connection_mutation",
+            "credential_unavailable"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_skip_reasons"
+          ]
         },
         {
           "id": "jetpack-settings-general",
@@ -110,8 +179,13 @@
           "hash_route": "#/settings",
           "label": "Jetpack settings",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "proof_artifacts": ["admin_page_coverage", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-settings-performance",
@@ -120,8 +194,13 @@
           "hash_route": "#/settings?term=performance",
           "label": "Jetpack performance settings",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "proof_artifacts": ["admin_page_coverage", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-settings-writing",
@@ -130,8 +209,13 @@
           "hash_route": "#/settings?term=writing",
           "label": "Jetpack writing settings",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "proof_artifacts": ["admin_page_coverage", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-settings-sharing",
@@ -140,8 +224,13 @@
           "hash_route": "#/settings?term=sharing",
           "label": "Jetpack sharing settings",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "proof_artifacts": ["admin_page_coverage", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-settings-discussion",
@@ -150,8 +239,13 @@
           "hash_route": "#/settings?term=discussion",
           "label": "Jetpack discussion settings",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "proof_artifacts": ["admin_page_coverage", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-settings-security",
@@ -160,8 +254,13 @@
           "hash_route": "#/settings?term=security",
           "label": "Jetpack security settings",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "proof_artifacts": ["admin_page_coverage", "admin_query_attribution"]
+          "safe_methods": [
+            "GET"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_query_attribution"
+          ]
         },
         {
           "id": "jetpack-modules",
@@ -169,36 +268,81 @@
           "admin_path": "/wp-admin/admin.php?page=jetpack_modules",
           "label": "Jetpack modules",
           "required_capability": "manage_options",
-          "safe_methods": ["GET"],
-          "destructive_skip_codes": ["module_state_mutation", "nonce_required"],
-          "proof_artifacts": ["admin_page_coverage", "admin_menu_enumeration", "admin_skip_reasons"]
+          "safe_methods": [
+            "GET"
+          ],
+          "destructive_skip_codes": [
+            "module_state_mutation",
+            "nonce_required"
+          ],
+          "proof_artifacts": [
+            "admin_page_coverage",
+            "admin_menu_enumeration",
+            "admin_skip_reasons"
+          ]
         }
       ],
       "proof_artifact_expectations": [
         {
           "name": "admin_page_coverage",
           "semantic_key": "fuzz.report",
-          "required_fields": ["target_id", "admin_path", "method", "status", "role", "required_capability", "state", "evidence_refs"]
+          "required_fields": [
+            "target_id",
+            "admin_path",
+            "method",
+            "status",
+            "role",
+            "required_capability",
+            "state",
+            "evidence_refs"
+          ]
         },
         {
           "name": "admin_menu_enumeration",
           "semantic_key": "fuzz.admin_menu_enumeration",
-          "required_fields": ["source", "menu_slug", "admin_path", "required_capability", "included"]
+          "required_fields": [
+            "source",
+            "menu_slug",
+            "admin_path",
+            "required_capability",
+            "included"
+          ]
         },
         {
           "name": "admin_skip_reasons",
           "semantic_key": "fuzz.skip_reasons",
-          "required_fields": ["target_id", "skip_code", "matched_pattern", "reason"]
+          "required_fields": [
+            "target_id",
+            "skip_code",
+            "matched_pattern",
+            "reason"
+          ]
         },
         {
           "name": "admin_query_attribution",
           "semantic_key": "fuzz.admin_query_attribution",
-          "required_fields": ["target_id", "query_count", "slow_queries", "caller_summary"]
+          "required_fields": [
+            "target_id",
+            "query_count",
+            "slow_queries",
+            "caller_summary"
+          ]
         }
+      ]
+    },
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Jetpack admin page/menu loading, capability boundaries, safe GET-only requests, skipped destructive actions, and query-attribution proof artifacts.",
+      "upstream_blockers": [
+        "Reviewer-facing fuzz run artifacts are required before this workload can be marked proven."
       ]
     }
   },
-  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "jetpack",
+    "component": "jetpack"
+  },
   "workload": {
     "runner": "wp-codebox",
     "type": "generic",
@@ -208,7 +352,10 @@
   "cases": [
     {
       "case_id": "jetpack-admin-page-coverage:default",
-      "surface_ids": ["jetpack-admin-pages", "wordpress-admin-pages"],
+      "surface_ids": [
+        "jetpack-admin-pages",
+        "wordpress-admin-pages"
+      ],
       "operations": [
         "admin-page-discovery",
         "permission-boundary-classification",
@@ -216,14 +363,23 @@
         "menu-page-enumeration",
         "destructive-skip-classification"
       ],
-      "metadata": { "safety_class": "read_only" },
+      "metadata": {
+        "safety_class": "read_only"
+      },
       "inputs": {
-        "roles": ["administrator"],
+        "roles": [
+          "administrator"
+        ],
         "capability_requirements": {
           "default": "manage_options",
           "per_target_field": "required_capability"
         },
-        "menu_sources": ["global_menu", "global_submenu", "registered_pages", "jetpack_admin_page_registry"],
+        "menu_sources": [
+          "global_menu",
+          "global_submenu",
+          "registered_pages",
+          "jetpack_admin_page_registry"
+        ],
         "include_menu_slugs": [
           "jetpack",
           "jetpack#/dashboard",
@@ -237,7 +393,9 @@
           "jetpack_modules"
         ],
         "page_targets_ref": "metadata.admin_target_contract.page_targets",
-        "safe_methods": ["GET"],
+        "safe_methods": [
+          "GET"
+        ],
         "get_first": true,
         "submit_forms": false,
         "follow_redirects": false,
@@ -269,7 +427,14 @@
         "proof_artifact_expectations_ref": "metadata.admin_target_contract.proof_artifact_expectations"
       },
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }],
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=jetpack/jetpack.php"
+            ]
+          }
+        ],
         "action": [
           {
             "command": "wordpress.fuzz-admin-pages",
@@ -285,39 +450,60 @@
             ]
           }
         ],
-        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=admin_page_coverage"] }]
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=admin_page_coverage"
+            ]
+          }
+        ]
       },
       "artifacts": [
         {
           "name": "admin_page_coverage",
           "path": "jetpack-admin-page-coverage/admin_page_coverage.json",
-          "required": false,
-          "metadata": { "semantic_key": "fuzz.report" }
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
         },
         {
           "name": "admin_menu_enumeration",
           "path": "jetpack-admin-page-coverage/admin_menu_enumeration.json",
-          "required": false,
-          "metadata": { "semantic_key": "fuzz.admin_menu_enumeration" }
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.admin_menu_enumeration"
+          }
         },
         {
           "name": "admin_skip_reasons",
           "path": "jetpack-admin-page-coverage/admin_skip_reasons.json",
-          "required": false,
-          "metadata": { "semantic_key": "fuzz.skip_reasons" }
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.skip_reasons"
+          }
         },
         {
           "name": "admin_query_attribution",
           "path": "jetpack-admin-page-coverage/admin_query_attribution.json",
-          "required": false,
-          "metadata": { "semantic_key": "fuzz.admin_query_attribution" }
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.admin_query_attribution"
+          }
         }
       ]
     }
   ],
-  "limits": { "max_cases": 40, "max_duration_seconds": 600 },
+  "limits": {
+    "max_cases": 40,
+    "max_duration_seconds": 600
+  },
   "coverage": {
-    "surface_ids": ["jetpack-admin-pages", "wordpress-admin-pages"],
+    "surface_ids": [
+      "jetpack-admin-pages",
+      "wordpress-admin-pages"
+    ],
     "operations": [
       "admin-page-discovery",
       "permission-boundary-classification",
@@ -328,19 +514,29 @@
   },
   "artifacts": {
     "expected": [
-      { "name": "admin_page_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false },
+      {
+        "name": "admin_page_coverage",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      },
       {
         "name": "admin_menu_enumeration",
         "role": "coverage_inventory",
         "semantic_key": "fuzz.admin_menu_enumeration",
-        "required": false
+        "required": true
       },
-      { "name": "admin_skip_reasons", "role": "safety_report", "semantic_key": "fuzz.skip_reasons", "required": false },
+      {
+        "name": "admin_skip_reasons",
+        "role": "safety_report",
+        "semantic_key": "fuzz.skip_reasons",
+        "required": true
+      },
       {
         "name": "admin_query_attribution",
         "role": "query_attribution",
         "semantic_key": "fuzz.admin_query_attribution",
-        "required": false
+        "required": true
       }
     ]
   }
