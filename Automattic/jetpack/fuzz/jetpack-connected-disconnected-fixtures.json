@@ -3,8 +3,18 @@
   "id": "jetpack-connected-disconnected-fixtures",
   "label": "Jetpack connected and disconnected fixture coverage",
   "safety_class": "isolated_mutation",
-  "surface_ids": ["jetpack-connection", "jetpack-modules", "jetpack-sync", "wordpress-options"],
-  "operations": ["connected-fixture-state", "disconnected-fixture-state", "token-placeholder-serialization", "skip-reason-classification"],
+  "surface_ids": [
+    "jetpack-connection",
+    "jetpack-modules",
+    "jetpack-sync",
+    "wordpress-options"
+  ],
+  "operations": [
+    "connected-fixture-state",
+    "disconnected-fixture-state",
+    "token-placeholder-serialization",
+    "skip-reason-classification"
+  ],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -13,21 +23,40 @@
     "workload_path": "${package.root}/manifests/full-surface-coverage.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
-    "fixture_states": ["connected", "disconnected"],
+    "fixture_states": [
+      "connected",
+      "disconnected"
+    ],
     "fixture_state_contract": {
       "connected": {
         "description": "Synthetic local connected-site shape with placeholder blog/user IDs and fake token material only.",
-        "required_options": ["jetpack_options", "jetpack_private_options", "jetpack_active_modules"],
+        "required_options": [
+          "jetpack_options",
+          "jetpack_private_options",
+          "jetpack_active_modules"
+        ],
         "expected_connection_state": "locally_connected_without_wpcom_sandbox",
-        "allowed_secret_values": ["__JETPACK_FAKE_BLOG_TOKEN__", "__JETPACK_FAKE_USER_TOKEN__"],
-        "expected_skip_reasons": ["credential_unavailable", "external_service_required"],
+        "allowed_secret_values": [
+          "__JETPACK_FAKE_BLOG_TOKEN__",
+          "__JETPACK_FAKE_USER_TOKEN__"
+        ],
+        "expected_skip_reasons": [
+          "credential_unavailable",
+          "external_service_required"
+        ],
         "network_calls_allowed": false
       },
       "disconnected": {
         "description": "Clean local disconnected-site shape with connection options absent or reset to empty defaults.",
-        "required_absent_options": ["jetpack_private_options.blog_token", "jetpack_private_options.user_tokens"],
+        "required_absent_options": [
+          "jetpack_private_options.blog_token",
+          "jetpack_private_options.user_tokens"
+        ],
         "expected_connection_state": "disconnected_without_wpcom_sandbox",
-        "expected_skip_reasons": ["connection_required", "disconnected_expected"],
+        "expected_skip_reasons": [
+          "connection_required",
+          "disconnected_expected"
+        ],
         "network_calls_allowed": false
       }
     },
@@ -35,9 +64,20 @@
       "real_wpcom_credentials_allowed": false,
       "real_tokens_allowed": false,
       "placeholder_tokens_only": true,
-      "redact_token_fields": ["blog_token", "user_token", "token", "secret", "access_token"],
+      "redact_token_fields": [
+        "blog_token",
+        "user_token",
+        "token",
+        "secret",
+        "access_token"
+      ],
       "redaction_placeholder": "[redacted:jetpack-fixture-token]",
-      "artifact_must_not_contain_patterns": ["Bearer ", "token_secret", "oauth_token_secret", "public-api.wordpress.com/rest/v1.1/me"]
+      "artifact_must_not_contain_patterns": [
+        "Bearer ",
+        "token_secret",
+        "oauth_token_secret",
+        "public-api.wordpress.com/rest/v1.1/me"
+      ]
     },
     "wpcom_sandbox_blockers": [
       "No WP.com OAuth application, sandbox blog, or service account is provisioned for this fixture lane.",
@@ -45,9 +85,22 @@
       "The Jetpack external HTTP guardrail owns network blocking proof for this lane."
     ],
     "module_availability_expectations": {
-      "available_in_both_states": ["shortcodes", "markdown", "widget-visibility"],
-      "connected_fixture_may_enable": ["stats", "publicize", "related-posts", "protect"],
-      "requires_connected_or_wpcom_service": ["stats", "publicize", "protect"],
+      "available_in_both_states": [
+        "shortcodes",
+        "markdown",
+        "widget-visibility"
+      ],
+      "connected_fixture_may_enable": [
+        "stats",
+        "publicize",
+        "related-posts",
+        "protect"
+      ],
+      "requires_connected_or_wpcom_service": [
+        "stats",
+        "publicize",
+        "protect"
+      ],
       "unavailable_reason": "credential_unavailable"
     },
     "reset_contract": {
@@ -55,25 +108,261 @@
       "restore_original_values": true,
       "rollback_required": true,
       "reset_after_each_state": true,
-      "option_patterns": ["jetpack_options", "jetpack_private_options", "jetpack_active_modules", "jetpack_sync_settings_*"],
-      "transient_patterns": ["jetpack_%", "jp_%"],
+      "option_patterns": [
+        "jetpack_options",
+        "jetpack_private_options",
+        "jetpack_active_modules",
+        "jetpack_sync_settings_*"
+      ],
+      "transient_patterns": [
+        "jetpack_%",
+        "jp_%"
+      ],
       "failure_policy": "fail_if_fixture_state_leaks_after_assert"
     },
     "mutation_policy": "snapshot_connection_options_restore_after_assert",
     "artifact_expectations": {
-      "required": ["connected_fixture_rows", "disconnected_fixture_rows", "token_placeholder_serialization", "skip_reason_rows", "rollback_reset_rows", "redaction_rows"],
-      "optional": ["module_state_diffs", "sync_queue_diffs"]
+      "required": [
+        "connected_fixture_rows",
+        "disconnected_fixture_rows",
+        "token_placeholder_serialization",
+        "skip_reason_rows",
+        "rollback_reset_rows",
+        "redaction_rows"
+      ],
+      "optional": [
+        "module_state_diffs",
+        "sync_queue_diffs"
+      ]
     },
     "proof_artifact_expectations": {
-      "connection_fixture_matrix": ["state", "connection_state", "option_snapshot_hash", "module_expectations", "skip_reasons"],
-      "connection_skip_reasons": ["state", "surface", "reason_code", "blocked_by_wpcom_sandbox"],
-      "connection_reset_report": ["state", "restored_options", "restored_transients", "leaked_keys", "passed"]
+      "connection_fixture_matrix": [
+        "state",
+        "connection_state",
+        "option_snapshot_hash",
+        "module_expectations",
+        "skip_reasons"
+      ],
+      "connection_skip_reasons": [
+        "state",
+        "surface",
+        "reason_code",
+        "blocked_by_wpcom_sandbox"
+      ],
+      "connection_reset_report": [
+        "state",
+        "restored_options",
+        "restored_transients",
+        "leaked_keys",
+        "passed"
+      ]
+    },
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Jetpack connected and disconnected fixture states using placeholder tokens, redaction checks, skip-reason classification, and rollback/reset artifacts.",
+      "upstream_blockers": [
+        "Reviewer-facing fuzz run artifacts are required before this workload can be marked proven."
+      ]
     }
   },
-  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
-  "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "jetpack-connected-disconnected-fixtures" },
-  "cases": [{ "case_id": "jetpack-connected-disconnected-fixtures:default", "surface_ids": ["jetpack-connection", "jetpack-modules", "jetpack-sync", "wordpress-options"], "operations": ["connected-fixture-state", "disconnected-fixture-state", "token-placeholder-serialization", "skip-reason-classification"], "inputs": { "states": ["connected", "disconnected"], "fixture_states": ["connected", "disconnected"], "explicit_fixture_states": { "connected": "synthetic_placeholder_connection_without_wpcom_sandbox", "disconnected": "clean_local_disconnect_without_wpcom_sandbox" }, "connection_options": ["jetpack_options", "jetpack_private_options", "jetpack_active_modules", "jetpack_sync_settings_sync_wait_time"], "fixture_options": ["jetpack_options", "jetpack_private_options", "jetpack_active_modules", "jetpack_sync_settings_*"], "redact_option_fields": ["blog_token", "user_token", "token", "secret", "access_token"], "allowed_fake_tokens": ["__JETPACK_FAKE_BLOG_TOKEN__", "__JETPACK_FAKE_USER_TOKEN__"], "real_wpcom_credentials_allowed": false, "real_tokens_allowed": false, "network_calls_allowed": false, "wpcom_sandbox_required": false, "secret_placeholders_only": true, "restore_original_values": true, "reset_after_each_state": true, "rollback_required": true, "module_availability_expectations": { "available_in_both_states": ["shortcodes", "markdown", "widget-visibility"], "connected_fixture_may_enable": ["stats", "publicize", "related-posts", "protect"], "requires_connected_or_wpcom_service": ["stats", "publicize", "protect"] }, "skip_reason_codes": ["credential_unavailable", "external_service_required", "connection_required", "disconnected_expected", "connected_required", "destructive_action", "unsupported_fixture"] }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.fuzz-plugin-connection-fixtures", "args": ["states=connected,disconnected", "secret_placeholders_only=true", "restore_original_values=true", "rollback_required=true", "classify_skips=true"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=connection_fixture_matrix"] }] }, "artifacts": [{ "name": "connection_fixture_matrix", "path": "jetpack-connected-disconnected-fixtures/connection_fixture_matrix.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }, { "name": "connection_skip_reasons", "path": "jetpack-connected-disconnected-fixtures/connection_skip_reasons.json", "required": false, "metadata": { "semantic_key": "fuzz.skip_reasons" } }, { "name": "connection_reset_report", "path": "jetpack-connected-disconnected-fixtures/connection_reset_report.json", "required": false, "metadata": { "semantic_key": "fuzz.rollback_report" } }], "metadata": { "safety_class": "isolated_mutation", "mutation_policy": "snapshot_connection_options_restore_after_assert" } }],
-  "limits": { "max_cases": 80, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["jetpack-connection", "jetpack-modules", "jetpack-sync", "wordpress-options"], "operations": ["connected-fixture-state", "disconnected-fixture-state", "token-placeholder-serialization", "skip-reason-classification"] },
-  "artifacts": { "expected": [{ "name": "connection_fixture_matrix", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }, { "name": "connection_skip_reasons", "role": "safety_report", "semantic_key": "fuzz.skip_reasons", "required": false }, { "name": "connection_reset_report", "role": "rollback_report", "semantic_key": "fuzz.rollback_report", "required": false }] }
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "jetpack",
+    "component": "jetpack"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "generic",
+    "path": "${package.root}/manifests/full-surface-coverage.json",
+    "entry": "jetpack-connected-disconnected-fixtures"
+  },
+  "cases": [
+    {
+      "case_id": "jetpack-connected-disconnected-fixtures:default",
+      "surface_ids": [
+        "jetpack-connection",
+        "jetpack-modules",
+        "jetpack-sync",
+        "wordpress-options"
+      ],
+      "operations": [
+        "connected-fixture-state",
+        "disconnected-fixture-state",
+        "token-placeholder-serialization",
+        "skip-reason-classification"
+      ],
+      "inputs": {
+        "states": [
+          "connected",
+          "disconnected"
+        ],
+        "fixture_states": [
+          "connected",
+          "disconnected"
+        ],
+        "explicit_fixture_states": {
+          "connected": "synthetic_placeholder_connection_without_wpcom_sandbox",
+          "disconnected": "clean_local_disconnect_without_wpcom_sandbox"
+        },
+        "connection_options": [
+          "jetpack_options",
+          "jetpack_private_options",
+          "jetpack_active_modules",
+          "jetpack_sync_settings_sync_wait_time"
+        ],
+        "fixture_options": [
+          "jetpack_options",
+          "jetpack_private_options",
+          "jetpack_active_modules",
+          "jetpack_sync_settings_*"
+        ],
+        "redact_option_fields": [
+          "blog_token",
+          "user_token",
+          "token",
+          "secret",
+          "access_token"
+        ],
+        "allowed_fake_tokens": [
+          "__JETPACK_FAKE_BLOG_TOKEN__",
+          "__JETPACK_FAKE_USER_TOKEN__"
+        ],
+        "real_wpcom_credentials_allowed": false,
+        "real_tokens_allowed": false,
+        "network_calls_allowed": false,
+        "wpcom_sandbox_required": false,
+        "secret_placeholders_only": true,
+        "restore_original_values": true,
+        "reset_after_each_state": true,
+        "rollback_required": true,
+        "module_availability_expectations": {
+          "available_in_both_states": [
+            "shortcodes",
+            "markdown",
+            "widget-visibility"
+          ],
+          "connected_fixture_may_enable": [
+            "stats",
+            "publicize",
+            "related-posts",
+            "protect"
+          ],
+          "requires_connected_or_wpcom_service": [
+            "stats",
+            "publicize",
+            "protect"
+          ]
+        },
+        "skip_reason_codes": [
+          "credential_unavailable",
+          "external_service_required",
+          "connection_required",
+          "disconnected_expected",
+          "connected_required",
+          "destructive_action",
+          "unsupported_fixture"
+        ]
+      },
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=jetpack/jetpack.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.fuzz-plugin-connection-fixtures",
+            "args": [
+              "states=connected,disconnected",
+              "secret_placeholders_only=true",
+              "restore_original_values=true",
+              "rollback_required=true",
+              "classify_skips=true"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=connection_fixture_matrix"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "connection_fixture_matrix",
+          "path": "jetpack-connected-disconnected-fixtures/connection_fixture_matrix.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        },
+        {
+          "name": "connection_skip_reasons",
+          "path": "jetpack-connected-disconnected-fixtures/connection_skip_reasons.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.skip_reasons"
+          }
+        },
+        {
+          "name": "connection_reset_report",
+          "path": "jetpack-connected-disconnected-fixtures/connection_reset_report.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.rollback_report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "mutation_policy": "snapshot_connection_options_restore_after_assert"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 80,
+    "max_duration_seconds": 900
+  },
+  "coverage": {
+    "surface_ids": [
+      "jetpack-connection",
+      "jetpack-modules",
+      "jetpack-sync",
+      "wordpress-options"
+    ],
+    "operations": [
+      "connected-fixture-state",
+      "disconnected-fixture-state",
+      "token-placeholder-serialization",
+      "skip-reason-classification"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "connection_fixture_matrix",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      },
+      {
+        "name": "connection_skip_reasons",
+        "role": "safety_report",
+        "semantic_key": "fuzz.skip_reasons",
+        "required": true
+      },
+      {
+        "name": "connection_reset_report",
+        "role": "rollback_report",
+        "semantic_key": "fuzz.rollback_report",
+        "required": true
+      }
+    ]
+  }
 }
