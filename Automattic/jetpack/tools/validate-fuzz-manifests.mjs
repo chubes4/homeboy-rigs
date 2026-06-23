@@ -200,7 +200,30 @@ const externalHttp = manifestFor('jetpack-external-http-guardrail');
 assert.equal(externalHttp.network_guardrail.block_network, true, 'Jetpack external HTTP guardrail must block network probes');
 assert.equal(externalHttp.network_guardrail.real_external_service_calls_allowed, false, 'Jetpack external HTTP guardrail must not permit live service calls');
 assert.ok(externalHttp.network_guardrail.allowlist_domains.includes('public-api.wordpress.com'), 'Jetpack external HTTP guardrail must declare WP.com boundary');
+assert.ok(externalHttp.network_guardrail.blocked_domains.includes('jetpack-homeboy-guardrail.invalid'), 'Jetpack external HTTP guardrail must declare blocked hosts');
 assert.ok(externalHttp.network_guardrail.probe_hosts.includes('jetpack-homeboy-guardrail.invalid'), 'Jetpack external HTTP guardrail must use synthetic probe host');
+assert.deepEqual(
+  new Set(externalHttp.metadata.endpoint_classes.map((endpointClass) => endpointClass.class)),
+  new Set(['connection-api', 'sync-dispatch', 'module-service-api', 'synthetic-blocked-probe']),
+  'Jetpack external HTTP guardrail endpoint classes drifted'
+);
+assert.deepEqual(
+  new Set(externalHttp.metadata.host_policy.allowed_boundaries.map((boundary) => boundary.host)),
+  new Set(['public-api.wordpress.com']),
+  'Jetpack external HTTP guardrail allowed host policy drifted'
+);
+assert.deepEqual(
+  new Set(externalHttp.metadata.host_policy.blocked_hosts.map((boundary) => boundary.host)),
+  new Set(['jetpack-homeboy-guardrail.invalid']),
+  'Jetpack external HTTP guardrail blocked host policy drifted'
+);
+assert.equal(externalHttp.metadata.secret_redaction.raw_secret_values_allowed_in_artifacts, false, 'Jetpack external HTTP guardrail must redact raw secrets from artifacts');
+assert.ok(externalHttp.metadata.secret_redaction.expectations.includes('jetpack_blog_token_redacted'), 'Jetpack external HTTP guardrail must redact Jetpack blog tokens');
+assert.equal(externalHttp.metadata.connection_requirements.real_wpcom_credentials_allowed, false, 'Jetpack external HTTP guardrail must not require live WPCOM credentials');
+assert.ok(externalHttp.metadata.proof_artifact_expectations.required_before_proven.includes('redaction_assertion_rows'), 'Jetpack external HTTP guardrail proof must include redaction assertions');
+assert.ok(externalHttp.metadata.proof_artifact_expectations.required_before_proven.includes('connection_state_skip_rows'), 'Jetpack external HTTP guardrail proof must include connection skip rows');
+assert.equal(externalHttp.cases[0].inputs.real_external_service_calls_allowed, false, 'Jetpack external HTTP guardrail case must disallow live external service calls');
+assert.equal(externalHttp.cases[0].inputs.secret_redaction_required, true, 'Jetpack external HTTP guardrail case must require redaction checks');
 
 const performance = manifestFor('jetpack-performance-observation');
 assert.ok(performance.cases[0].inputs.observation_surfaces.includes('external_http_guardrail'), 'Jetpack performance observation must summarize HTTP guardrails');

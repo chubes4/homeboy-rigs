@@ -7,12 +7,195 @@
   "operations": ["external-http-blocklist-probe", "network-side-effect-classification"],
   "case_budget": 1,
   "duration_budget_seconds": 300,
-  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/bench/jetpack-external-http-guardrail.php", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "network_policy": "block_synthetic_external_requests_and_classify_wpcom_boundaries" },
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/jetpack-external-http-guardrail.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "network_policy": "block_synthetic_external_requests_and_classify_wpcom_boundaries",
+    "endpoint_classes": [
+      {
+        "class": "connection-api",
+        "description": "Jetpack site registration, connection status, and token verification calls that normally target WordPress.com APIs.",
+        "connected_state": "connected_required",
+        "hosts": ["public-api.wordpress.com"],
+        "path_prefixes": ["/rest/v1.1/sites/", "/rest/v1.2/sites/"],
+        "fixture_policy": "classify_without_live_credentials"
+      },
+      {
+        "class": "sync-dispatch",
+        "description": "Jetpack sync sender, action queue, and retry dispatch boundaries.",
+        "connected_state": "connected_required",
+        "hosts": ["public-api.wordpress.com"],
+        "path_prefixes": ["/rest/v1.1/sites/", "/rest/v1.2/sites/"],
+        "fixture_policy": "record_blocked_or_skipped_dispatch"
+      },
+      {
+        "class": "module-service-api",
+        "description": "Module-owned service calls such as stats, publicize, subscriptions, protect, and related posts.",
+        "connected_state": "module_and_connection_dependent",
+        "hosts": ["public-api.wordpress.com"],
+        "path_prefixes": ["/rest/v1.1/", "/rest/v1.2/"],
+        "fixture_policy": "classify_module_boundary_without_external_call"
+      },
+      {
+        "class": "synthetic-blocked-probe",
+        "description": "Rig-owned synthetic probes used to prove unapproved outbound requests are intercepted before leaving the runner.",
+        "connected_state": "not_required",
+        "hosts": ["jetpack-homeboy-guardrail.invalid"],
+        "path_prefixes": ["/rest/v1.1/sites/", "/guardrail-probe"],
+        "fixture_policy": "must_be_blocked"
+      }
+    ],
+    "host_policy": {
+      "allowed_boundaries": [
+        {
+          "host": "public-api.wordpress.com",
+          "purpose": "WordPress.com REST API boundary for Jetpack connection, sync, and module service calls.",
+          "call_policy": "declared_boundary_only_not_called",
+          "credential_policy": "no_live_wpcom_credentials"
+        }
+      ],
+      "blocked_hosts": [
+        {
+          "host": "jetpack-homeboy-guardrail.invalid",
+          "purpose": "Synthetic blocked-probe host controlled by the rig.",
+          "call_policy": "must_not_leave_runner"
+        }
+      ],
+      "unknown_hosts": "blocked_and_reported"
+    },
+    "secret_redaction": {
+      "expectations": [
+        "authorization_headers_redacted",
+        "oauth_token_query_params_redacted",
+        "jetpack_blog_token_redacted",
+        "jetpack_user_token_redacted",
+        "signed_request_secrets_redacted",
+        "cookie_and_nonce_values_redacted"
+      ],
+      "redaction_placeholder": "[redacted]",
+      "raw_secret_values_allowed_in_artifacts": false
+    },
+    "connection_requirements": {
+      "states": ["connected", "disconnected"],
+      "real_wpcom_credentials_allowed": false,
+      "connected_required_classes": ["connection-api", "sync-dispatch", "module-service-api"],
+      "disconnected_expectation": "classify_as_connection_required_or_credential_unavailable_without_calling_wpcom",
+      "placeholder_credentials_only": true
+    },
+    "proof_artifact_expectations": {
+      "required_before_proven": [
+        "external_http_guardrail",
+        "blocked_request_rows",
+        "allowlisted_boundary_rows",
+        "redaction_assertion_rows",
+        "connection_state_skip_rows"
+      ],
+      "semantic_keys": [
+        "fuzz.report",
+        "fuzz.external_http_guardrail",
+        "fuzz.secret_redaction",
+        "fuzz.skip_reasons"
+      ],
+      "reviewer_facing_refs_required": true,
+      "local_paths_allowed_as_proof_refs": false
+    }
+  },
   "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
-  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/jetpack-external-http-guardrail.php", "entry": "jetpack-external-http-guardrail" },
-  "network_guardrail": { "block_network": true, "allowlist_domains": ["public-api.wordpress.com"], "probe_hosts": ["jetpack-homeboy-guardrail.invalid", "public-api.wordpress.com"], "real_external_service_calls_allowed": false, "expectations": [{ "host": "jetpack-homeboy-guardrail.invalid", "classification": "blocked", "reason": "synthetic .invalid host must never leave the runner" }, { "host": "public-api.wordpress.com", "classification": "allowlisted_boundary_not_called", "reason": "declares the WP.com boundary without live credentials or real service calls" }] },
-  "cases": [{ "case_id": "jetpack-external-http-guardrail:default", "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"], "operations": ["external-http-blocklist-probe", "network-side-effect-classification"], "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }, { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=public-api.wordpress.com", "block_network=true"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-external-http-guardrail.php", "type=php"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=external_http_guardrail"] }] }, "artifacts": [{ "name": "external_http_guardrail", "path": "jetpack-external-http-guardrail/external_http_guardrail.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "read_only" } }],
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/jetpack-external-http-guardrail.php",
+    "entry": "jetpack-external-http-guardrail"
+  },
+  "network_guardrail": {
+    "block_network": true,
+    "allowlist_domains": ["public-api.wordpress.com"],
+    "blocked_domains": ["jetpack-homeboy-guardrail.invalid"],
+    "probe_hosts": ["jetpack-homeboy-guardrail.invalid", "public-api.wordpress.com"],
+    "real_external_service_calls_allowed": false,
+    "expectations": [
+      {
+        "host": "jetpack-homeboy-guardrail.invalid",
+        "classification": "blocked",
+        "reason": "synthetic .invalid host must never leave the runner",
+        "endpoint_class": "synthetic-blocked-probe",
+        "connected_state_required": false,
+        "redaction_required": true
+      },
+      {
+        "host": "public-api.wordpress.com",
+        "classification": "allowlisted_boundary_not_called",
+        "reason": "declares the WP.com boundary without live credentials or real service calls",
+        "endpoint_class": "connection-api",
+        "connected_state_required": true,
+        "redaction_required": true
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "jetpack-external-http-guardrail:default",
+      "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"],
+      "operations": ["external-http-blocklist-probe", "network-side-effect-classification"],
+      "inputs": {
+        "endpoint_classes": ["connection-api", "sync-dispatch", "module-service-api", "synthetic-blocked-probe"],
+        "allowlist_domains": ["public-api.wordpress.com"],
+        "blocked_domains": ["jetpack-homeboy-guardrail.invalid"],
+        "real_external_service_calls_allowed": false,
+        "real_wpcom_credentials_allowed": false,
+        "states": ["connected", "disconnected"],
+        "secret_redaction_required": true,
+        "proof_artifacts_required_before_proven": true,
+        "skip_reason_codes": ["connection_required", "credential_unavailable", "external_service_required", "blocked_external_http"]
+      },
+      "phases": {
+        "setup": [
+          { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] },
+          { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=public-api.wordpress.com", "block_network=true"] }
+        ],
+        "action": [
+          { "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-external-http-guardrail.php", "type=php"] }
+        ],
+        "assert": [
+          { "command": "wordpress.collect-workload-result", "args": ["artifact=external_http_guardrail"] }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "external_http_guardrail",
+          "path": "jetpack-external-http-guardrail/external_http_guardrail.json",
+          "required": false,
+          "metadata": { "semantic_key": "fuzz.report" }
+        },
+        {
+          "name": "external_http_redaction_assertions",
+          "path": "jetpack-external-http-guardrail/external_http_redaction_assertions.json",
+          "required": false,
+          "metadata": { "semantic_key": "fuzz.secret_redaction" }
+        },
+        {
+          "name": "external_http_skip_reasons",
+          "path": "jetpack-external-http-guardrail/external_http_skip_reasons.json",
+          "required": false,
+          "metadata": { "semantic_key": "fuzz.skip_reasons" }
+        }
+      ],
+      "metadata": { "safety_class": "read_only" }
+    }
+  ],
   "limits": { "max_cases": 1, "max_duration_seconds": 300 },
-  "coverage": { "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"], "operations": ["external-http-blocklist-probe", "network-side-effect-classification"] },
-  "artifacts": { "expected": [{ "name": "external_http_guardrail", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "coverage": {
+    "surface_ids": ["jetpack-external-http", "jetpack-connection", "jetpack-sync"],
+    "operations": ["external-http-blocklist-probe", "network-side-effect-classification"]
+  },
+  "artifacts": {
+    "expected": [
+      { "name": "external_http_guardrail", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false },
+      { "name": "external_http_redaction_assertions", "role": "fuzz_report", "semantic_key": "fuzz.secret_redaction", "required": false },
+      { "name": "external_http_skip_reasons", "role": "fuzz_report", "semantic_key": "fuzz.skip_reasons", "required": false }
+    ]
+  }
 }

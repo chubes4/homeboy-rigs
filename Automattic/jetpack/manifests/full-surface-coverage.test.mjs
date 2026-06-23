@@ -80,13 +80,41 @@ test('Jetpack fuzz workload manifests carry coverage contract metadata', () => {
 
 test('Jetpack external HTTP guardrail blocks synthetic probes', () => {
   const guardrail = readFuzzManifest('jetpack-external-http-guardrail');
+  const metadata = guardrail.metadata;
+  const caseInputs = defaultCase(guardrail).inputs;
 
   assert.equal(guardrail.network_guardrail.block_network, true);
   assert.ok(guardrail.network_guardrail.allowlist_domains.includes('public-api.wordpress.com'));
+  assert.ok(guardrail.network_guardrail.blocked_domains.includes('jetpack-homeboy-guardrail.invalid'));
   assert.equal(guardrail.network_guardrail.real_external_service_calls_allowed, false);
   assert.ok(guardrail.network_guardrail.probe_hosts.includes('jetpack-homeboy-guardrail.invalid'));
   assert.ok(guardrail.network_guardrail.expectations.some((expectation) => expectation.classification === 'blocked'));
   assert.ok(guardrail.network_guardrail.expectations.some((expectation) => expectation.classification === 'allowlisted_boundary_not_called'));
+  assert.deepEqual(
+    new Set(metadata.endpoint_classes.map((endpointClass) => endpointClass.class)),
+    new Set(['connection-api', 'sync-dispatch', 'module-service-api', 'synthetic-blocked-probe'])
+  );
+  assert.deepEqual(
+    new Set(metadata.host_policy.allowed_boundaries.map((boundary) => boundary.host)),
+    new Set(['public-api.wordpress.com'])
+  );
+  assert.deepEqual(
+    new Set(metadata.host_policy.blocked_hosts.map((boundary) => boundary.host)),
+    new Set(['jetpack-homeboy-guardrail.invalid'])
+  );
+  assert.equal(metadata.host_policy.unknown_hosts, 'blocked_and_reported');
+  assert.equal(metadata.secret_redaction.raw_secret_values_allowed_in_artifacts, false);
+  assert.ok(metadata.secret_redaction.expectations.includes('authorization_headers_redacted'));
+  assert.ok(metadata.secret_redaction.expectations.includes('jetpack_blog_token_redacted'));
+  assert.equal(metadata.connection_requirements.real_wpcom_credentials_allowed, false);
+  assert.ok(metadata.connection_requirements.states.includes('connected'));
+  assert.ok(metadata.connection_requirements.states.includes('disconnected'));
+  assert.ok(metadata.proof_artifact_expectations.required_before_proven.includes('redaction_assertion_rows'));
+  assert.ok(metadata.proof_artifact_expectations.required_before_proven.includes('connection_state_skip_rows'));
+  assert.equal(caseInputs.real_external_service_calls_allowed, false);
+  assert.equal(caseInputs.real_wpcom_credentials_allowed, false);
+  assert.equal(caseInputs.secret_redaction_required, true);
+  assert.ok(caseInputs.skip_reason_codes.includes('blocked_external_http'));
 });
 
 test('Jetpack REST request cases cover namespaces and permission classes', () => {
