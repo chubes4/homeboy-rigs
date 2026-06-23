@@ -3,8 +3,31 @@
   "property": "Automattic/jetpack",
   "description": "Jetpack REST route inventory coverage shape for proof-ready API performance primitive adapters.",
   "namespaces": [
-    { "namespace": "jetpack/v4", "route_prefix": "/jetpack/v4/", "permission_class": "mixed_public_authenticated_and_connected" },
-    { "namespace": "wpcom/v2", "route_prefix": "/wpcom/v2/", "permission_class": "mixed_public_authenticated_and_wpcom_dependent" }
+    { "namespace": "jetpack/v4", "route_prefix": "/jetpack/v4/", "permission_class": "mixed_public_authenticated_and_connected", "target": "local Jetpack plugin routes" },
+    { "namespace": "wpcom/v2", "route_prefix": "/wpcom/v2/", "permission_class": "mixed_public_authenticated_and_wpcom_dependent", "target": "Jetpack-provided WordPress.com compatibility routes" }
+  ],
+  "target_selection": {
+    "plugin_slug": "jetpack",
+    "route_namespace_allowlist": ["jetpack/v4", "wpcom/v2"],
+    "route_prefix_allowlist": ["/jetpack/v4/", "/wpcom/v2/"],
+    "method_allowlist": ["GET"],
+    "excluded_methods": ["POST", "PUT", "PATCH", "DELETE"],
+    "excluded_route_families": ["wp/v2 core routes", "Jetpack routes requiring live WordPress.com OAuth mutation fixtures"],
+    "personas": [
+      { "id": "anonymous", "role": "none", "purpose": "permission-boundary denial and public read classification" },
+      { "id": "administrator", "role": "administrator", "purpose": "local authenticated read coverage for Jetpack admin surfaces" },
+      { "id": "connected-site-placeholder", "role": "administrator", "purpose": "declares connected-site requirement without supplying real WP.com credentials", "optional": true }
+    ]
+  },
+  "artifact_expectations": {
+    "required_for_executable": ["rest_request_cases", "rest_skip_reasons"],
+    "optional_until_connected_fixture": ["connected_site_response_samples", "wpcom_credentialed_response_samples"]
+  },
+  "skip_reason_codes": [
+    "connected_required",
+    "credential_unavailable",
+    "route_absent",
+    "wpcom_dependent"
   ],
   "route_prefixes": [
     "/jetpack/v4/",
@@ -48,14 +71,14 @@
     }
   ],
   "required_generated_cases": [
-    { "id": "jetpack-site", "method": "GET", "path": "/jetpack/v4/site", "permission_class": "authenticated_local" },
-    { "id": "jetpack-modules", "method": "GET", "path": "/jetpack/v4/modules", "permission_class": "authenticated_local" },
-    { "id": "jetpack-module-stats", "method": "GET", "path": "/jetpack/v4/modules/stats", "permission_class": "authenticated_local" },
-    { "id": "jetpack-settings", "method": "GET", "path": "/jetpack/v4/settings", "permission_class": "administrator_required" },
-    { "id": "jetpack-connection", "method": "GET", "path": "/jetpack/v4/connection", "permission_class": "connected_site_required" },
-    { "id": "jetpack-connection-status", "method": "GET", "path": "/jetpack/v4/connection/status", "permission_class": "connected_site_required" },
-    { "id": "wpcom-publicize-services", "method": "GET", "path": "/wpcom/v2/publicize/services", "permission_class": "public_read_or_wpcom_dependent" },
-    { "id": "wpcom-site-settings", "method": "GET", "path": "/wpcom/v2/sites/example.wordpress.com/settings", "permission_class": "wpcom_dependent", "placeholder_parameters": { "site": "example.wordpress.com" } }
+    { "id": "jetpack-site", "method": "GET", "path": "/jetpack/v4/site", "permission_class": "authenticated_local", "persona": "administrator" },
+    { "id": "jetpack-modules", "method": "GET", "path": "/jetpack/v4/modules", "permission_class": "authenticated_local", "persona": "administrator" },
+    { "id": "jetpack-module-stats", "method": "GET", "path": "/jetpack/v4/modules/stats", "permission_class": "authenticated_local", "persona": "administrator", "optional_if_module_absent": true, "skip_reason": "route_absent" },
+    { "id": "jetpack-settings", "method": "GET", "path": "/jetpack/v4/settings", "permission_class": "administrator_required", "persona": "administrator" },
+    { "id": "jetpack-connection", "method": "GET", "path": "/jetpack/v4/connection", "permission_class": "connected_site_required", "persona": "connected-site-placeholder", "skip_reason": "connected_required" },
+    { "id": "jetpack-connection-status", "method": "GET", "path": "/jetpack/v4/connection/status", "permission_class": "connected_site_required", "persona": "connected-site-placeholder", "skip_reason": "connected_required" },
+    { "id": "wpcom-publicize-services", "method": "GET", "path": "/wpcom/v2/publicize/services", "permission_class": "public_read_or_wpcom_dependent", "persona": "anonymous", "skip_reason": "wpcom_dependent" },
+    { "id": "wpcom-site-settings", "method": "GET", "path": "/wpcom/v2/sites/example.wordpress.com/settings", "permission_class": "wpcom_dependent", "persona": "connected-site-placeholder", "placeholder_parameters": { "site": "example.wordpress.com" }, "skip_reason": "credential_unavailable" }
   ],
   "future_primitives": [
     "route inventory",
