@@ -1,0 +1,37 @@
+{
+  "schema": "homeboy-rigs/wordpress-coverage-gap-report-declaration/v1",
+  "id": "woocommerce-db-api-performance-fuzzer-gap-report",
+  "description": "Standalone declaration for the WooCommerce DB/API performance fuzzer gap report. This is declarative only and does not define an executable workload.",
+  "profile_id": "db-api-performance-fuzzer",
+  "source_gap_report": "manifests/full-surface-coverage.json#gap_report",
+  "semantic_key": "fuzz.report",
+  "inputs": [
+    "woocommerce-rest-route-inventory",
+    "generated-rest-request-cases",
+    "rest-db-query-profile",
+    "db-inventory",
+    "rest-schema-query-attribution",
+    "performance-hotspots-artifact-summary"
+  ],
+  "required_fields": [
+    "surface_type",
+    "expected",
+    "covered",
+    "gaps",
+    "status",
+    "evidence_refs"
+  ],
+  "compare": {
+    "rest": "registered WooCommerce routes minus generated safe request cases and schema/query attribution rows",
+    "database": "WooCommerce database inventory and REST DB query profiles minus route, table, option, transient, and lookup attribution rows",
+    "performance_hotspots": "declared WooCommerce performance hotspot focus areas minus hotspot summary evidence refs"
+  },
+  "readiness": {
+    "level": "declared",
+    "execution": "not_executable",
+    "upstream_blockers": [
+      "Coverage gap reporting currently comes from manifests/full-surface-coverage.json#gap_report rather than a standalone executable gap-report workload.",
+      "Public fuzz-suite execution must emit reviewer-facing fuzz-suite-result artifacts before this declaration can be proven."
+    ]
+  }
+}

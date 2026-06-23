@@ -113,6 +113,14 @@
       "db-inventory",
       "admin-page-coverage"
     ],
+    "db-api-performance-fuzzer": [
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "rest-schema-query-attribution",
+      "performance-hotspots-artifact-summary"
+    ],
     "fuzzer": [
       "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
@@ -161,6 +169,50 @@
       "performance-hotspots-artifact-summary",
       "woocommerce-external-http-guardrail"
     ]
+  },
+  "fuzz_profile_metadata": {
+    "db-api-performance-fuzzer": {
+      "description": "Focused WooCommerce DB/API performance fuzzer profile built only from declared REST inventory, generated REST cases, REST DB query profile, DB inventory, schema/query attribution, and performance hotspot summary workloads.",
+      "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
+      "source_gap_report": "manifests/full-surface-coverage.json#gap_report",
+      "required_primitives": [
+        "wordpress.inventory-rest-routes",
+        "wordpress.generate-rest-request-cases",
+        "wordpress.profile-rest-db-queries",
+        "wordpress.inventory-database",
+        "wordpress.attribute-rest-schema-queries",
+        "wordpress.summarize-performance-hotspots"
+      ],
+      "readiness": {
+        "level": "declared",
+        "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; it does not claim CRUD or mutating REST execution until upstream rollback-safe primitives exist.",
+        "crud": {
+          "create": {
+            "level": "declared",
+            "upstream_blocker": "No generic rollback-safe REST create primitive is declared for DB/API performance fuzzing."
+          },
+          "read": {
+            "level": "executable"
+          },
+          "update": {
+            "level": "declared",
+            "upstream_blocker": "No generic rollback-safe REST update primitive is declared for DB/API performance fuzzing."
+          },
+          "delete": {
+            "level": "declared",
+            "upstream_blocker": "No generic rollback-safe REST delete primitive is declared for DB/API performance fuzzing."
+          }
+        },
+        "mutation": {
+          "safety_boundary": "Profile execution is read-only until upstream provides isolated fixture mutation, rollback artifact, and delete-boundary primitives for REST CRUD cases.",
+          "rollback_artifacts": [],
+          "upstream_blockers": [
+            "Generic REST mutation runner must emit rollback artifacts before create/update/delete cases can join this profile.",
+            "Coverage gap reporting currently comes from manifests/full-surface-coverage.json rather than a standalone executable gap-report workload."
+          ]
+        }
+      }
+    }
   },
   "pipeline": {
     "check": [
