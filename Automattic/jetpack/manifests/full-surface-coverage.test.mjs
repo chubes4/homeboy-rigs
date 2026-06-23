@@ -123,6 +123,12 @@ test('Jetpack REST request cases cover namespaces and permission classes', () =>
   const casesById = new Map(generatedCases.rest_request_cases.map((restCase) => [restCase.id, restCase]));
 
   assert.deepEqual(new Set(routeCoverage.namespaces.map((entry) => entry.namespace)), new Set(['jetpack/v4', 'wpcom/v2']));
+  assert.deepEqual(new Set(routeCoverage.target_selection.route_namespace_allowlist), new Set(['jetpack/v4', 'wpcom/v2']));
+  assert.deepEqual(new Set(routeCoverage.target_selection.method_allowlist), new Set(['GET']));
+  assert.ok(routeCoverage.target_selection.excluded_methods.includes('POST'));
+  assert.ok(routeCoverage.artifact_expectations.required_for_executable.includes('rest_request_cases'));
+  assert.ok(routeCoverage.artifact_expectations.required_for_executable.includes('rest_skip_reasons'));
+  assert.ok(routeCoverage.artifact_expectations.optional_until_connected_fixture.includes('connected_site_response_samples'));
 
   for (const requiredCase of routeCoverage.required_generated_cases) {
     const generatedCase = casesById.get(requiredCase.id);
@@ -130,9 +136,33 @@ test('Jetpack REST request cases cover namespaces and permission classes', () =>
     assert.equal(generatedCase.method, requiredCase.method);
     assert.equal(generatedCase.path, requiredCase.path);
     assert.equal(generatedCase.permission_class, requiredCase.permission_class);
+    assert.equal(generatedCase.persona, requiredCase.persona);
+    assert.equal(generatedCase.mutating, false);
     assert.equal(typeof generatedCase.permission_class, 'string');
     assert.ok(Array.isArray(generatedCase.expected_statuses), `${requiredCase.id} needs explicit expected statuses`);
+    if (requiredCase.skip_reason) {
+      assert.equal(generatedCase.skip_reason, requiredCase.skip_reason);
+    }
   }
+
+  assert.equal(generatedCases.metadata.mutating_methods_allowed, false);
+  assert.equal(generatedCases.metadata.real_wpcom_credentials_allowed, false);
+  assert.ok(generatedCases.metadata.required_artifacts.includes('rest_request_cases'));
+  assert.ok(generatedCases.metadata.required_artifacts.includes('rest_skip_reasons'));
+});
+
+test('Jetpack generated REST fuzz manifest requires executable artifacts and skip reasons', () => {
+  const generatedRest = readFuzzManifest('generated-rest-request-cases');
+  const testCase = defaultCase(generatedRest);
+
+  assert.equal(generatedRest.metadata.readiness.level, 'executable');
+  assert.deepEqual(new Set(testCase.inputs.methods), new Set(['GET']));
+  assert.equal(testCase.inputs.real_wpcom_credentials_allowed, false);
+  assert.equal(testCase.inputs.mutating_methods_allowed, false);
+  assert.ok(testCase.inputs.skip_reason_codes.includes('connected_required'));
+  assert.ok(testCase.inputs.skip_reason_codes.includes('credential_unavailable'));
+  assert.ok(testCase.artifacts.every((artifact) => artifact.required === true));
+  assert.ok(generatedRest.artifacts.expected.every((artifact) => artifact.required === true));
 });
 
 test('Jetpack DB inventory declares module tables and options', () => {

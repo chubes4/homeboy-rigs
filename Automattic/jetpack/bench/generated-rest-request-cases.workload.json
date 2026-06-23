@@ -8,6 +8,9 @@
       "path": "/jetpack/v4/site",
       "capture-response": true,
       "permission_class": "authenticated_local",
+      "persona": "administrator",
+      "auth_required": true,
+      "mutating": false,
       "expected_statuses": [200, 401, 403]
     },
     {
@@ -16,6 +19,9 @@
       "path": "/jetpack/v4/modules",
       "capture-response": true,
       "permission_class": "authenticated_local",
+      "persona": "administrator",
+      "auth_required": true,
+      "mutating": false,
       "expected_statuses": [200, 401, 403]
     },
     {
@@ -24,6 +30,11 @@
       "path": "/jetpack/v4/modules/stats",
       "capture-response": true,
       "permission_class": "authenticated_local",
+      "persona": "administrator",
+      "auth_required": true,
+      "mutating": false,
+      "optional": true,
+      "skip_reason": "route_absent",
       "expected_statuses": [200, 401, 403, 404]
     },
     {
@@ -32,6 +43,9 @@
       "path": "/jetpack/v4/settings",
       "capture-response": true,
       "permission_class": "administrator_required",
+      "persona": "administrator",
+      "auth_required": true,
+      "mutating": false,
       "expected_statuses": [200, 401, 403]
     },
     {
@@ -40,6 +54,10 @@
       "path": "/jetpack/v4/connection",
       "capture-response": true,
       "permission_class": "connected_site_required",
+      "persona": "connected-site-placeholder",
+      "auth_required": true,
+      "mutating": false,
+      "skip_reason": "connected_required",
       "expected_statuses": [200, 401, 403, 404]
     },
     {
@@ -48,6 +66,10 @@
       "path": "/jetpack/v4/connection/status",
       "capture-response": true,
       "permission_class": "connected_site_required",
+      "persona": "connected-site-placeholder",
+      "auth_required": true,
+      "mutating": false,
+      "skip_reason": "connected_required",
       "expected_statuses": [200, 401, 403, 404]
     },
     {
@@ -56,6 +78,10 @@
       "path": "/wpcom/v2/publicize/services",
       "capture-response": true,
       "permission_class": "public_read_or_wpcom_dependent",
+      "persona": "anonymous",
+      "auth_required": false,
+      "mutating": false,
+      "skip_reason": "wpcom_dependent",
       "expected_statuses": [200, 401, 403, 404]
     },
     {
@@ -64,6 +90,11 @@
       "path": "/wpcom/v2/sites/example.wordpress.com/settings",
       "capture-response": true,
       "permission_class": "wpcom_dependent",
+      "persona": "connected-site-placeholder",
+      "auth_required": true,
+      "mutating": false,
+      "placeholder_parameters": { "site": "example.wordpress.com" },
+      "skip_reason": "credential_unavailable",
       "expected_statuses": [401, 403, 404],
       "boundary": "No live WordPress.com credentials are supplied in the fixture; forbidden or skipped is expected."
     }
@@ -73,6 +104,13 @@
     "workload": "generated-rest-request-cases",
     "coverage_shape": "generated safe Jetpack REST request cases",
     "manifest": "manifests/rest-route-coverage.json",
+    "method_allowlist": ["GET"],
+    "mutating_methods_allowed": false,
+    "real_wpcom_credentials_allowed": false,
+    "personas": ["anonymous", "administrator", "connected-site-placeholder"],
+    "skip_reason_codes": ["connected_required", "credential_unavailable", "route_absent", "wpcom_dependent"],
+    "required_artifacts": ["rest_request_cases", "rest_skip_reasons"],
+    "optional_artifacts": ["connected_site_response_samples", "wpcom_credentialed_response_samples"],
     "permission_classifications": ["public_read_or_wpcom_dependent", "authenticated_local", "administrator_required", "connected_site_required", "wpcom_dependent"]
   }
 }

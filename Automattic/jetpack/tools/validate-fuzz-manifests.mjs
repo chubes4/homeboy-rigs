@@ -138,12 +138,37 @@ for (const { file, manifest } of fuzzManifests) {
 }
 
 assert.deepEqual(new Set(restRouteCoverage.namespaces.map((entry) => entry.namespace)), new Set(['jetpack/v4', 'wpcom/v2']), 'Jetpack REST namespaces drifted');
+assert.deepEqual(new Set(restRouteCoverage.target_selection.route_namespace_allowlist), new Set(['jetpack/v4', 'wpcom/v2']), 'Jetpack REST target namespace allowlist drifted');
+assert.deepEqual(new Set(restRouteCoverage.target_selection.method_allowlist), new Set(['GET']), 'Jetpack REST generated cases must stay GET-only');
+assert.ok(restRouteCoverage.target_selection.excluded_methods.includes('POST'), 'Jetpack REST mutating methods must remain excluded');
+assert.ok(restRouteCoverage.artifact_expectations.required_for_executable.includes('rest_request_cases'), 'Jetpack REST executable cases require request-case artifacts');
+assert.ok(restRouteCoverage.artifact_expectations.required_for_executable.includes('rest_skip_reasons'), 'Jetpack REST executable cases require skip-reason artifacts');
+assert.ok(restRouteCoverage.artifact_expectations.optional_until_connected_fixture.includes('connected_site_response_samples'), 'connected-site samples must remain optional until fixtures exist');
+assert.ok(restRouteCoverage.skip_reason_codes.includes('credential_unavailable'), 'Jetpack REST skip reasons must classify unavailable WP.com credentials');
 
 const generatedCaseIds = new Set(generatedRestCases.rest_request_cases.map((restCase) => restCase.id));
 for (const requiredCase of restRouteCoverage.required_generated_cases) {
+  const generatedCase = generatedRestCases.rest_request_cases.find((restCase) => restCase.id === requiredCase.id);
   assert.ok(generatedCaseIds.has(requiredCase.id), `generated REST cases missing ${requiredCase.id}`);
   assert.equal(typeof requiredCase.permission_class, 'string', `${requiredCase.id} must classify permission boundary`);
+  assert.equal(generatedCase.method, 'GET', `${requiredCase.id} generated request case must stay GET-only`);
+  assert.equal(generatedCase.mutating, false, `${requiredCase.id} generated request case must not claim mutating coverage`);
+  assert.equal(generatedCase.persona, requiredCase.persona, `${requiredCase.id} generated request case persona drifted`);
+  if (requiredCase.skip_reason) {
+    assert.equal(generatedCase.skip_reason, requiredCase.skip_reason, `${requiredCase.id} generated request case skip reason drifted`);
+  }
 }
+
+assert.equal(generatedRestCases.metadata.mutating_methods_allowed, false, 'Jetpack generated REST workload must not allow mutating methods');
+assert.equal(generatedRestCases.metadata.real_wpcom_credentials_allowed, false, 'Jetpack generated REST workload must not require real WP.com credentials');
+assert.ok(generatedRestCases.metadata.required_artifacts.includes('rest_request_cases'), 'Jetpack generated REST workload must require request-case artifact');
+assert.ok(generatedRestCases.metadata.required_artifacts.includes('rest_skip_reasons'), 'Jetpack generated REST workload must require skip-reason artifact');
+
+const generatedRestManifest = manifestFor('generated-rest-request-cases');
+assert.ok(generatedRestManifest.cases[0].inputs.skip_reason_codes.includes('connected_required'), 'generated REST fuzz manifest must declare connected skip reasons');
+assert.equal(generatedRestManifest.cases[0].inputs.real_wpcom_credentials_allowed, false, 'generated REST fuzz manifest must not allow real WP.com credentials');
+assert.equal(generatedRestManifest.cases[0].inputs.mutating_methods_allowed, false, 'generated REST fuzz manifest must not allow mutating methods');
+assert.ok(generatedRestManifest.cases[0].artifacts.every((artifact) => artifact.required === true), 'executable generated REST case artifacts must be required');
 
 const dbRun = dbInventory.run?.[0] || {};
 assert.equal(dbRun['include-options'], true, 'Jetpack DB inventory must include options');
