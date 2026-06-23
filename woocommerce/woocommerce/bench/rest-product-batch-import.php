@@ -1754,6 +1754,156 @@ return function (): array {
 		'variation_create'        => max( 1, count( $variation_ids ) ),
 		'variation_update'        => max( 1, count( $variation_update ) ),
 	);
+	$hotspot_operations = array(
+		'variable_parent_create' => 'product-batch-create',
+		'variable_parent_update' => 'product-batch-update',
+		'simple_create'          => 'product-batch-create',
+		'simple_update'          => 'product-batch-update',
+		'variation_create'       => 'variation-batch-create',
+		'variation_update'       => 'variation-batch-update',
+		'duplicate_sku_retry'    => 'product-batch-create',
+	);
+	$build_hotspot_item = static function ( array $item ): array {
+		return array_filter(
+			$item,
+			static fn( $value ): bool => null !== $value && array() !== $value
+		);
+	};
+	$build_hotspots = static function () use ( $rows, $phase_item_counts, $hotspot_operations, $build_hotspot_item ): array {
+		$items = array();
+		foreach ( $rows as $phase => $row ) {
+			$item_count = max( 1, (int) ( $phase_item_counts[ $phase ] ?? 1 ) );
+			$operation  = (string) ( $hotspot_operations[ $phase ] ?? $phase );
+			$items[]    = $build_hotspot_item(
+				array(
+					'name'                 => $phase,
+					'category'             => 'phase',
+					'phase'                => $phase,
+					'operation'            => $operation,
+					'count'                => $item_count,
+					'duration_ms'          => (float) ( $row['elapsed_ms'] ?? 0 ),
+					'duration_ms_per_item' => (float) ( $row['elapsed_ms'] ?? 0 ) / $item_count,
+					'query_count'          => (int) ( $row['query_count'] ?? 0 ),
+					'query_count_per_item' => (float) ( $row['query_count'] ?? 0 ) / $item_count,
+					'value'                => (float) ( $row['elapsed_ms'] ?? 0 ),
+					'value_unit'           => 'ms',
+					'rank_basis'           => 'duration_ms',
+				)
+			);
+
+			foreach ( (array) ( $row['query_profile']['categories'] ?? array() ) as $query_family => $count ) {
+				$items[] = $build_hotspot_item(
+					array(
+						'name'                 => $phase . ':' . $query_family,
+						'category'             => 'query-family',
+						'phase'                => $phase,
+						'operation'            => $operation,
+						'query_family'         => (string) $query_family,
+						'count'                => (int) $count,
+						'count_per_item'       => (float) $count / $item_count,
+						'value'                => (float) $count,
+						'value_unit'           => 'queries',
+						'rank_basis'           => 'count',
+					)
+				);
+			}
+
+			foreach ( (array) ( $row['query_profile']['operation_tables'] ?? array() ) as $operation_table => $count ) {
+				$query_parts = explode( ':', (string) $operation_table, 2 );
+				$items[]     = $build_hotspot_item(
+					array(
+						'name'                 => $phase . ':' . $operation_table,
+						'category'             => 'operation',
+						'phase'                => $phase,
+						'operation'            => $operation,
+						'query_operation'      => (string) ( $query_parts[0] ?? $operation_table ),
+						'query_table'          => (string) ( $query_parts[1] ?? 'unknown' ),
+						'count'                => (int) $count,
+						'count_per_item'       => (float) $count / $item_count,
+						'value'                => (float) $count,
+						'value_unit'           => 'queries',
+						'rank_basis'           => 'count',
+					)
+				);
+			}
+
+			foreach ( (array) ( $row['counter_delta'] ?? array() ) as $hook => $count ) {
+				if ( 0 === (int) $count ) {
+					continue;
+				}
+				$items[] = $build_hotspot_item(
+					array(
+						'name'                 => $phase . ':' . $hook,
+						'category'             => 'hook',
+						'phase'                => $phase,
+						'operation'            => $operation,
+						'hook'                 => (string) $hook,
+						'count'                => (int) $count,
+						'count_per_item'       => (float) $count / $item_count,
+						'value'                => (float) $count,
+						'value_unit'           => 'calls',
+						'rank_basis'           => 'count',
+					)
+				);
+			}
+
+			foreach ( (array) ( $row['phase_profile']['spans'] ?? array() ) as $span_name => $span ) {
+				$items[] = $build_hotspot_item(
+					array(
+						'name'                 => $phase . ':' . $span_name,
+						'category'             => 'phase-span',
+						'phase'                => $phase,
+						'operation'            => $operation,
+						'span'                 => (string) $span_name,
+						'count'                => (int) ( $span['count'] ?? 0 ),
+						'duration_ms'          => (float) ( $span['elapsed_ms'] ?? 0 ),
+						'duration_ms_per_item' => (float) ( $span['elapsed_ms'] ?? 0 ) / $item_count,
+						'value'                => (float) ( $span['elapsed_ms'] ?? 0 ),
+						'value_unit'           => 'ms',
+						'rank_basis'           => 'duration_ms',
+					)
+				);
+			}
+		}
+
+		$max_by_category = array();
+		foreach ( $items as $item ) {
+			$category = (string) $item['category'];
+			$max_by_category[ $category ] = max( (float) ( $max_by_category[ $category ] ?? 0 ), (float) ( $item['value'] ?? 0 ) );
+		}
+		usort(
+			$items,
+			static function ( array $left, array $right ): int {
+				$category_compare = strcmp( (string) $left['category'], (string) $right['category'] );
+				if ( 0 !== $category_compare ) {
+					return $category_compare;
+				}
+				return (float) $right['value'] <=> (float) $left['value'];
+			}
+		);
+
+		$ranks_by_category = array();
+		foreach ( $items as &$item ) {
+			$category = (string) $item['category'];
+			$ranks_by_category[ $category ] = (int) ( $ranks_by_category[ $category ] ?? 0 ) + 1;
+			$max_value = (float) ( $max_by_category[ $category ] ?? 0 );
+			$item['rank'] = $ranks_by_category[ $category ];
+			$item['relative_value'] = $max_value > 0 ? (float) $item['value'] / $max_value : 0;
+		}
+		unset( $item );
+
+		return array(
+			'schema'             => 'homeboy/fuzz-hotspots/v1',
+			'ranking'            => array(
+				'value_field'    => 'value',
+				'relative_field' => 'relative_value',
+				'rank_scope'     => 'category',
+			),
+			'categories'         => array_values( array_unique( array_column( $items, 'category' ) ) ),
+			'items'              => $items,
+		);
+	};
+	$hotspots       = $build_hotspots();
 	$focused_result = $phase_results[ $focus_phase ];
 	$focused_count  = $phase_item_counts[ $focus_phase ];
 	$variation_core_meta_keys = array(
@@ -2239,6 +2389,7 @@ return function (): array {
 					'attribute_taxonomies'  => $attribute_taxonomies,
 					'rows'                  => $rows,
 					'metrics'               => $summary,
+					'hotspots'              => $hotspots,
 					'side_effects'          => array(
 						'invariant_failures'                          => $invariant_failures,
 						'invariant_failure_names'                     => $invariant_failure_names,
