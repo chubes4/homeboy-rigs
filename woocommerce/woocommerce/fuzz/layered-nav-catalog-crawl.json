@@ -18,7 +18,7 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/layered-nav-catalog-crawl.php",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report",
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "Layered nav catalog crawl cache cap is executable as a isolated_mutation fuzz workload for facet-url-crawl, transient-entry-cap-guardrail. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",

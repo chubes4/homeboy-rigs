@@ -213,7 +213,7 @@
         {
           "name": "module_state_matrix",
           "path": "jetpack-module-state-matrix/module_state_matrix.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -221,7 +221,7 @@
         {
           "name": "module_state_rollback_plan",
           "path": "jetpack-module-state-matrix/module_state_rollback_plan.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.rollback_plan"
           }
@@ -258,13 +258,13 @@
         "name": "module_state_matrix",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       },
       {
         "name": "module_state_rollback_plan",
         "role": "rollback_plan",
         "semantic_key": "fuzz.rollback_plan",
-        "required": false
+        "required": true
       }
     ]
   }

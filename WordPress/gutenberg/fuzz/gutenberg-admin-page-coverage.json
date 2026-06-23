@@ -13,7 +13,7 @@
     "generic_primitive": { "command": "wordpress.fuzz-admin-pages", "status": "preferred" },
     "workload_path": "${package.root}/bench/gutenberg-admin-page-coverage.php",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report",
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "Gutenberg safe wp-admin and editor page enumeration is executable as a read_only fuzz workload for admin-page-discovery, editor-page-enumeration, skipped-destructive-action-classification. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "skipped_reason_codes": ["install_update_import_export_screen", "nonce_action_url", "unsafe_query_arg_action", "unsafe_query_arg_action2", "unsafe_query_arg_delete", "unsafe_query_arg_trash", "unsafe_query_arg_untrash", "unsafe_query_arg_activate", "unsafe_query_arg_deactivate", "unsafe_query_arg_reset"]
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },

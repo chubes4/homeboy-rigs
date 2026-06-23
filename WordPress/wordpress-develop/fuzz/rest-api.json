@@ -42,10 +42,10 @@
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_api_coverage"] }]
       },
       "artifacts": [
-        { "name": "rest_api_coverage", "path": "rest-api/rest_api_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } },
-        { "name": "rest_route_inventory", "path": "rest-api/rest_route_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.rest.route_inventory" } },
-        { "name": "generated_rest_request_cases", "path": "rest-api/generated_rest_request_cases.json", "required": false, "metadata": { "semantic_key": "fuzz.rest.generated_cases" } },
-        { "name": "rest_permission_boundaries", "path": "rest-api/rest_permission_boundaries.json", "required": false, "metadata": { "semantic_key": "fuzz.rest.permission_boundaries" } }
+        { "name": "rest_api_coverage", "path": "rest-api/rest_api_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } },
+        { "name": "rest_route_inventory", "path": "rest-api/rest_route_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.rest.route_inventory" } },
+        { "name": "generated_rest_request_cases", "path": "rest-api/generated_rest_request_cases.json", "required": true, "metadata": { "semantic_key": "fuzz.rest.generated_cases" } },
+        { "name": "rest_permission_boundaries", "path": "rest-api/rest_permission_boundaries.json", "required": true, "metadata": { "semantic_key": "fuzz.rest.permission_boundaries" } }
       ],
       "metadata": { "safety_class": "isolated_mutation" }
     }
@@ -53,9 +53,9 @@
   "limits": { "max_cases": 250, "max_duration_seconds": 1200 },
   "coverage": { "surface_ids": ["wordpress-core-rest-routes"], "operations": ["rest-route-inventory", "generated-rest-case-plan", "request-case-execution", "permission-boundary-classification", "role-boundary-execution"] },
   "artifacts": { "expected": [
-    { "name": "rest_api_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false },
-    { "name": "rest_route_inventory", "role": "route_inventory", "semantic_key": "fuzz.rest.route_inventory", "required": false },
-    { "name": "generated_rest_request_cases", "role": "generated_cases", "semantic_key": "fuzz.rest.generated_cases", "required": false },
-    { "name": "rest_permission_boundaries", "role": "permission_boundaries", "semantic_key": "fuzz.rest.permission_boundaries", "required": false }
+    { "name": "rest_api_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true },
+    { "name": "rest_route_inventory", "role": "route_inventory", "semantic_key": "fuzz.rest.route_inventory", "required": true },
+    { "name": "generated_rest_request_cases", "role": "generated_cases", "semantic_key": "fuzz.rest.generated_cases", "required": true },
+    { "name": "rest_permission_boundaries", "role": "permission_boundaries", "semantic_key": "fuzz.rest.permission_boundaries", "required": true }
   ] }
 }

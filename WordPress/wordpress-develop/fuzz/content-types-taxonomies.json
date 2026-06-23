@@ -7,7 +7,7 @@
   "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution", "post-list-rendering", "page-list-rendering", "post-editor-readiness", "page-editor-readiness"],
   "case_budget": 160,
   "duration_budget_seconds": 1200,
-  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "WordPress Core post type, status, taxonomy, term, and permalink coverage is executable as a isolated_mutation fuzz workload for post-type-inventory, post-status-inventory, taxonomy-inventory, term-fixture-matrix, permalink-resolution, post-list-rendering, page-list-rendering, post-editor-readiness, page-editor-readiness. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] } },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "content-types-taxonomies" },
   "cases": [

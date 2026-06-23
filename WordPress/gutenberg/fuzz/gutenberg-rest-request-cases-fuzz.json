@@ -12,7 +12,7 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "Generated Gutenberg REST request cases is executable as a isolated_mutation fuzz workload for generated-rest-case-plan, request-case-execution, permission-boundary-case-execution. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] }
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "workload": {

@@ -12,7 +12,7 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/gutenberg-external-http-guardrail.php",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "Gutenberg external HTTP guardrail coverage is executable as a read_only fuzz workload for external-http-host-inventory, unapproved-host-blocking. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] }
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "network_guardrail": { "block_network": true, "allowlist_domains": ["api.wordpress.org"], "probe_hosts": ["patterns.wordpress.org"], "real_external_service_calls_allowed": false, "expected_blocked_hosts": ["patterns.wordpress.org"] },

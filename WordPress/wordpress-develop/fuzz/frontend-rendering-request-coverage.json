@@ -11,7 +11,7 @@
     "kind": "wordpress-core-fuzz",
     "wordpress_runner": "wp-codebox",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report"
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "WordPress Core frontend request and rendering coverage is executable as a isolated_mutation fuzz workload for frontend-request-capture, template-rendering-readiness, post-rendering, page-rendering, archive-rendering, search-rendering, media-rendering, skipped-destructive-classification. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] }
   },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "frontend-rendering-request-coverage" },
