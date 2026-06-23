@@ -10,10 +10,12 @@ if [ -z "$task" ] || [ -z "$woocommerce_component_source" ]; then
 fi
 
 woocommerce_plugin_source="$woocommerce_component_source"
-if [ -n "${HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT:-}" ]; then
-  woocommerce_plugin_source="$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT"
-  if [ -n "${HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH:-}" ]; then
-    woocommerce_plugin_source="$woocommerce_plugin_source/$HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH"
+woocommerce_source_root="${HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT:-${HOMEBOY_SETTINGS_COMPONENTS_WOOCOMMERCE_EXTENSIONS_WORDPRESS_WP_CODEBOX_SOURCE_ROOT:-}}"
+woocommerce_source_subpath="${HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_SUBPATH:-${HOMEBOY_SETTINGS_COMPONENTS_WOOCOMMERCE_EXTENSIONS_WORDPRESS_WP_CODEBOX_SOURCE_SUBPATH:-}}"
+if [ -n "$woocommerce_source_root" ]; then
+  woocommerce_plugin_source="$woocommerce_source_root"
+  if [ -n "$woocommerce_source_subpath" ]; then
+    woocommerce_plugin_source="$woocommerce_plugin_source/$woocommerce_source_subpath"
   fi
 fi
 
@@ -32,7 +34,6 @@ case "$task" in
     fi
     ;;
   admin-assets)
-    woocommerce_source_root="${HOMEBOY_SETTINGS_WP_CODEBOX_SOURCE_ROOT:-}"
     if [ -z "$woocommerce_source_root" ]; then
       woocommerce_source_root=$(cd "$woocommerce_component_source/../.." && pwd)
     fi
