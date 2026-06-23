@@ -161,6 +161,24 @@
     ],
     "up": [],
     "bench_prepare": [],
+    "fuzz_prepare": [
+      {
+        "kind": "requirement",
+        "label": "WooCommerce Composer package autoloader exists or can be prepared",
+        "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}\"",
+        "prepare_phases": ["fuzz_prepare"],
+        "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
+      },
+      {
+        "kind": "requirement",
+        "label": "WooCommerce generated feature config exists or can be prepared",
+        "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}\"",
+        "prepare_phases": ["fuzz_prepare"],
+        "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
+      }
+    ],
     "down": []
   }
 }
