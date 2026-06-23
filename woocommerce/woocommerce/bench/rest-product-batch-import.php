@@ -1625,6 +1625,40 @@ return function (): array {
 	$record_invariant( 'variation_lookup_rows_exist', 0 === $count_missing_lookup_rows( $variation_ids ) );
 	$record_invariant( 'variation_attribute_lookup_rows_exist_after_callbacks', 0 === $attribute_lookup_missing_rows, array( 'missing_rows' => $attribute_lookup_missing_rows, 'expected_rows' => count( $expected_attribute_lookup_rows ), 'actual_variation_rows' => $attribute_lookup_variation_rows ) );
 
+	$retry_duplicate_sku_create_items = array_values( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) );
+	$summarize_response_item = static function ( $item ): array {
+		if ( is_wp_error( $item ) ) {
+			return array(
+				'type'    => 'WP_Error',
+				'code'    => $item->get_error_code(),
+				'message' => $item->get_error_message(),
+			);
+		}
+		if ( is_object( $item ) ) {
+			return array(
+				'type'  => get_class( $item ),
+				'keys'  => array_slice( array_keys( get_object_vars( $item ) ), 0, 20 ),
+			);
+		}
+		if ( is_array( $item ) ) {
+			return array_filter(
+				array(
+					'type'    => 'array',
+					'keys'    => array_slice( array_keys( $item ), 0, 20 ),
+					'id'      => isset( $item['id'] ) ? (int) $item['id'] : null,
+					'code'    => isset( $item['code'] ) ? (string) $item['code'] : null,
+					'message' => isset( $item['message'] ) ? substr( (string) $item['message'], 0, 200 ) : null,
+					'sku'     => isset( $item['sku'] ) ? substr( (string) $item['sku'], 0, 120 ) : null,
+				),
+				static fn( $value ) => null !== $value
+			);
+		}
+
+		return array( 'type' => gettype( $item ) );
+	};
+	$retry_duplicate_sku_create_item_summaries = array_map( $summarize_response_item, $retry_duplicate_sku_create_items );
+	$invariant_failure_names = array_values( array_map( static fn( array $failure ): string => (string) ( $failure['name'] ?? '' ), $invariant_failures ) );
+
 	$rows = array(
 		'variable_parent_create' => $variable_parent_create_result,
 		'variable_parent_update' => $variable_parent_update_result,
@@ -2091,6 +2125,10 @@ return function (): array {
 		'side_effect_variation_create_response_errors' => $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ),
 		'side_effect_variation_update_response_errors' => $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) ),
 		'side_effect_duplicate_sku_retry_response_errors' => $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ),
+		'side_effect_duplicate_sku_retry_create_item_count' => count( $retry_duplicate_sku_create_items ),
+		'side_effect_duplicate_sku_retry_create_item_has_id_count' => count( array_filter( $retry_duplicate_sku_create_items, static fn( $item ): bool => is_array( $item ) && isset( $item['id'] ) ) ),
+		'side_effect_duplicate_sku_retry_create_item_summaries' => wp_json_encode( array_slice( $retry_duplicate_sku_create_item_summaries, 0, 5 ) ),
+		'side_effect_invariant_failure_names' => implode( ',', $invariant_failure_names ),
 		'side_effect_duplicate_sku_retry_internal_meta_row_delta' => $retry_internal_meta_row_delta,
 		'side_effect_duplicate_sku_retry_internal_meta_rows_before' => $retry_internal_meta_rows_before,
 		'side_effect_duplicate_sku_retry_internal_meta_rows_after' => $retry_internal_meta_rows_after,
@@ -2203,6 +2241,8 @@ return function (): array {
 					'metrics'               => $summary,
 					'side_effects'          => array(
 						'invariant_failures'                          => $invariant_failures,
+						'invariant_failure_names'                     => $invariant_failure_names,
+						'duplicate_sku_retry_create_item_summaries'    => $retry_duplicate_sku_create_item_summaries,
 						'media_image_mode'                             => $image_mode,
 						'media_fixture_attachment_ids'                 => $media_attachment_ids,
 						'expected_simple_image_ids'                    => $expected_simple_image_ids,
