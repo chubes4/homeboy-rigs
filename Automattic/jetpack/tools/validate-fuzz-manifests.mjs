@@ -205,6 +205,10 @@ assert.ok(externalHttp.network_guardrail.probe_hosts.includes('jetpack-homeboy-g
 const performance = manifestFor('jetpack-performance-observation');
 assert.ok(performance.cases[0].inputs.observation_surfaces.includes('external_http_guardrail'), 'Jetpack performance observation must summarize HTTP guardrails');
 assert.equal(performance.cases[0].inputs.proof_required_before_status_p, true, 'Jetpack performance observation must not claim status without proof');
+assertPerformanceObservationContract(performance);
+
+const restQueryProfile = manifestFor('rest-db-query-profile');
+assertRestQueryProfileContract(restQueryProfile);
 
 for (const warning of warnings) {
   console.warn(`Warning: ${warning}`);
@@ -228,5 +232,46 @@ function assertBoundary(workloadId, { safetyClass, operations, inputs }) {
   }
   for (const [key, value] of Object.entries(inputs)) {
     assert.equal(runnerCase.inputs?.[key], value, `${workloadId} input ${key} drifted`);
+  }
+}
+
+function assertPerformanceObservationContract(manifest) {
+  const budgets = manifest.metadata?.product_budgets || {};
+  assert.equal(budgets.max_external_http_attempts, 0, 'Jetpack performance observation must budget zero external HTTP attempts');
+  assert.equal(budgets.max_sync_queue_delta, 0, 'Jetpack performance observation must budget zero sync queue delta');
+  assert.ok(budgets.max_rest_p95_duration_ms > 0, 'Jetpack performance observation must declare REST latency budget');
+  assert.ok(budgets.max_admin_p95_duration_ms > 0, 'Jetpack performance observation must declare admin latency budget');
+  assert.ok(manifest.metadata.observed_surfaces.includes('db-query-profile'), 'Jetpack performance observation must include DB query profile surface');
+  assert.ok(manifest.metadata.hotspot_classes.includes('duplicate-db-query'), 'Jetpack performance observation must classify duplicate DB query hotspots');
+  assert.equal(manifest.metadata.query_attribution_expectations.source_artifact, 'rest_db_query_profile', 'Jetpack performance observation query attribution source drifted');
+  assert.deepEqual(new Set(manifest.cases[0].inputs.states), new Set(['connected', 'disconnected']), 'Jetpack performance observation must caveat connected and disconnected states');
+  assert.ok(manifest.metadata.connected_state_caveats.length >= 2, 'Jetpack performance observation must document connected-state caveats');
+  assertArtifactContains(manifest, 'jetpack_performance_observation', ['product_budget_comparison', 'hotspot_classification', 'query_attribution_summary', 'connected_state_caveats']);
+  assertArtifactContains(manifest, 'jetpack_performance_surface_summary', ['surface_rollups', 'budget_status', 'artifact_inputs', 'skip_reason_rollups']);
+}
+
+function assertRestQueryProfileContract(manifest) {
+  const budgets = manifest.metadata?.product_budgets || {};
+  assert.equal(budgets.max_profiled_rest_cases, manifest.case_budget, 'Jetpack REST DB query profile case budget drifted');
+  assert.equal(budgets.max_slow_queries_per_case, 0, 'Jetpack REST DB query profile must budget zero slow queries per case');
+  assert.ok(manifest.metadata.observed_surfaces.includes('jetpack/v4'), 'Jetpack REST DB query profile must cover Jetpack REST namespace');
+  assert.ok(manifest.metadata.observed_surfaces.includes('wpcom/v2'), 'Jetpack REST DB query profile must cover WPCOM REST namespace');
+  assert.ok(manifest.metadata.hotspot_classes.includes('sync-queue-table-read'), 'Jetpack REST DB query profile must classify sync queue table reads');
+  assert.ok(manifest.metadata.query_attribution_expectations.required_fields.includes('callers'), 'Jetpack REST DB query profile must require caller attribution');
+  assert.equal(manifest.cases[0].inputs.query_attribution_required, true, 'Jetpack REST DB query profile must require query attribution');
+  assert.equal(manifest.cases[0].inputs.external_service_calls_allowed, false, 'Jetpack REST DB query profile must not allow external service calls');
+  assert.deepEqual(new Set(manifest.cases[0].inputs.states), new Set(['connected', 'disconnected']), 'Jetpack REST DB query profile must caveat connected and disconnected states');
+  assert.ok(manifest.metadata.connected_state_caveats.length >= 2, 'Jetpack REST DB query profile must document connected-state caveats');
+  assertArtifactContains(manifest, 'rest_db_query_profile', ['per_route_query_counts', 'hotspot_classification', 'query_attribution', 'budget_comparison', 'connected_state_caveats']);
+}
+
+function assertArtifactContains(manifest, artifactName, expectedFields) {
+  const caseArtifact = manifest.cases[0].artifacts.find((artifact) => artifact.name === artifactName);
+  const expectedArtifact = manifest.artifacts.expected.find((artifact) => artifact.name === artifactName);
+  assert.ok(caseArtifact, `${manifest.id} case artifact ${artifactName} is missing`);
+  assert.ok(expectedArtifact, `${manifest.id} expected artifact ${artifactName} is missing`);
+  for (const field of expectedFields) {
+    assert.ok(caseArtifact.metadata?.contains?.includes(field), `${manifest.id} case artifact ${artifactName} must contain ${field}`);
+    assert.ok(expectedArtifact.contains?.includes(field), `${manifest.id} expected artifact ${artifactName} must contain ${field}`);
   }
 }
