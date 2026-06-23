@@ -186,6 +186,33 @@ test('Jetpack inventory fuzz workloads define module option/table and cron sync 
   assert.ok(cronSyncActions.cases[0].inputs.synthetic_actions.length > 0);
 });
 
+test('Jetpack cron and sync manifests declare product-specific hooks, blockers, fixtures, and proof artifacts', () => {
+  const cronSyncActions = readFuzzManifest('jetpack-cron-sync-actions');
+  const syncQueueCoverage = readFuzzManifest('jetpack-sync-queue-coverage');
+  const cronInputs = defaultCase(cronSyncActions).inputs;
+  const queueInputs = defaultCase(syncQueueCoverage).inputs;
+
+  assert.ok(cronInputs.product_hook_inventory.some((entry) => entry.hook === 'jetpack_sync_cron'));
+  assert.ok(cronInputs.product_hook_inventory.some((entry) => entry.disconnected_blocker === 'connected_required'));
+  assert.ok(cronInputs.product_action_inventory.every((entry) => entry.action.startsWith('jetpack_sync_')));
+  assert.ok(cronInputs.queue_surfaces.some((surface) => surface.name === 'jpsq_sync_checkout'));
+  assert.ok(cronInputs.connection_state_blockers.some((blocker) => blocker.reason_code === 'wpcom_boundary_blocked'));
+  assert.ok(cronInputs.replay_fixture_requirements.includes('external_http_guardrail'));
+  assert.ok(cronInputs.proof_artifact_expectations.includes('proof artifact index'));
+
+  assert.ok(queueInputs.product_action_inventory.every((entry) => entry.action.startsWith('jetpack_sync_')));
+  assert.ok(queueInputs.queue_surfaces.some((surface) => surface.name === 'incremental_sync_queue'));
+  assert.ok(queueInputs.connection_state_blockers.some((blocker) => blocker.reason_code === 'connected_required'));
+  assert.ok(queueInputs.replay_fixture_requirements.includes('synthetic_connection_placeholders'));
+  assert.ok(queueInputs.proof_artifact_expectations.includes('queue option before/after/restore rows'));
+
+  for (const workload of [cronSyncActions, syncQueueCoverage]) {
+    assert.ok(workload.metadata.readiness.upstream_blockers.some((blocker) => blocker.includes('does not add a generic')));
+    assert.ok(workload.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.replay_fixture' && artifact.required === true));
+    assert.ok(workload.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.proof_index' && artifact.required === true));
+  }
+});
+
 test('Jetpack admin page coverage enumerates wp-admin menus with explicit skip reasons', () => {
   const admin = readFuzzManifest('jetpack-admin-page-coverage');
   const testCase = defaultCase(admin);

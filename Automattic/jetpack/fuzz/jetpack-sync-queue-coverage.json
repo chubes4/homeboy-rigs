@@ -7,11 +7,87 @@
   "operations": ["sync-queue-discovery", "sync-action-inventory", "action-serialization", "retry-boundary-classification", "queue-option-rollback"],
   "case_budget": 80,
   "duration_budget_seconds": 900,
-  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/full-surface-coverage.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "network_policy": "block_all_synthetic_external_requests", "mutation_policy": "snapshot_queue_options_restore_after_assert", "artifact_expectations": { "required": ["sync_queue", "serialized_action_samples", "queue_rollback_rows"], "optional": ["retry_boundary_rows", "blocked_dispatch_attempts"] } },
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "network_policy": "block_all_synthetic_external_requests",
+    "mutation_policy": "snapshot_queue_options_restore_after_assert",
+    "artifact_expectations": {
+      "required": ["sync_queue", "serialized_action_samples", "queue_rollback_rows", "queue_surface_inventory", "connected_disconnected_blockers", "replay_fixture_manifest", "proof_artifact_index"],
+      "optional": ["retry_boundary_rows", "blocked_dispatch_attempts", "queue_drain_skipped_rows"]
+    },
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Jetpack sync queue surface inventory, local action serialization, retry-boundary classification, connected/disconnected blockers, replay fixtures, and queue option rollback without remote dispatch.",
+      "upstream_blockers": [
+        "durable rollback artifact manifests and persisted proof links are required before proven status",
+        "connected Jetpack queue dispatch requires synthetic token fixtures or reviewer-approved fixture credentials before credential-gated replay can be proven",
+        "queue execution proof must come from a disposable fixture; this manifest does not add a generic sync queue executor primitive"
+      ],
+      "mutation": {
+        "safety_boundary": "Runs only against isolated WP Codebox queue options and synthetic action payloads with remote dispatch disabled, original values restored, rollback required, and external HTTP guarded.",
+        "rollback_artifacts": ["sync_queue_coverage", "queue_rollback_rows", "queue_option_restore_rows"]
+      }
+    }
+  },
   "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
   "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "wordpress-plugin-sync-queue-coverage" },
-  "cases": [{ "case_id": "jetpack-sync-queue-coverage:default", "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["sync-queue-discovery", "sync-action-inventory", "action-serialization", "retry-boundary-classification", "queue-option-rollback"], "inputs": { "remote_dispatch": false, "synthetic_actions": ["post_save", "option_update", "comment_status", "module_toggle", "user_update"], "queue_options": ["jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started", "jetpack_sync_settings_sync_wait_time"], "force_http_guardrail": true, "restore_original_values": true, "rollback_required": true }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }, { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }], "action": [{ "command": "wordpress.fuzz-plugin-sync-queue", "args": ["remote_dispatch=false", "force_http_guardrail=true", "restore_original_values=true", "rollback_required=true"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=sync_queue_coverage"] }] }, "artifacts": [{ "name": "sync_queue_coverage", "path": "jetpack-sync-queue-coverage/sync_queue_coverage.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }], "metadata": { "safety_class": "isolated_mutation", "mutation_policy": "snapshot_queue_options_restore_after_assert" } }],
+  "cases": [
+    {
+      "case_id": "jetpack-sync-queue-coverage:default",
+      "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"],
+      "operations": ["sync-queue-discovery", "sync-action-inventory", "action-serialization", "retry-boundary-classification", "queue-option-rollback"],
+      "inputs": {
+        "remote_dispatch": false,
+        "synthetic_actions": ["jetpack_sync_save_post", "jetpack_sync_save_option", "jetpack_sync_save_comment", "jetpack_sync_save_user", "jetpack_sync_module_toggle"],
+        "product_action_inventory": [
+          { "action": "jetpack_sync_save_post", "queue_surface": "incremental_sync", "trigger_fixture": "post_crud_fixture", "payload_shape": "post_id_and_post_after", "serialization_expectation": "json_safe_without_secrets", "connected_state": "any", "replay_required": true },
+          { "action": "jetpack_sync_save_option", "queue_surface": "incremental_sync", "trigger_fixture": "option_update_fixture", "payload_shape": "option_name_old_value_new_value", "serialization_expectation": "redacted_secret_like_values", "connected_state": "any", "replay_required": true },
+          { "action": "jetpack_sync_save_comment", "queue_surface": "incremental_sync", "trigger_fixture": "comment_crud_fixture", "payload_shape": "comment_id_and_comment_after", "serialization_expectation": "json_safe_without_secrets", "connected_state": "any", "replay_required": true },
+          { "action": "jetpack_sync_save_user", "queue_surface": "incremental_sync", "trigger_fixture": "user_profile_fixture", "payload_shape": "user_id_and_user_after", "serialization_expectation": "redacted_pii_like_values", "connected_state": "any", "replay_required": true },
+          { "action": "jetpack_sync_module_toggle", "queue_surface": "module_state_sync", "trigger_fixture": "module_state_fixture", "payload_shape": "module_slug_previous_state_next_state", "serialization_expectation": "json_safe_without_secrets", "connected_state": "connected_placeholder", "connected_blocker": "wpcom_boundary_blocked", "replay_required": true }
+        ],
+        "queue_options": ["jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started", "jetpack_sync_settings_sync_wait_time", "jetpack_sync_non_blocking", "jetpack_sync_checksum"],
+        "queue_surfaces": [
+          { "name": "incremental_sync_queue", "kind": "option_backed_queue", "options": ["jpsq_sync_checkout", "jpsq_sync_started"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "snapshot_restore" },
+          { "name": "full_sync_queue", "kind": "option_backed_queue", "options": ["jpsq_full_sync_started"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "snapshot_restore" },
+          { "name": "sync_settings", "kind": "option_state", "options": ["jetpack_sync_settings_sync_wait_time", "jetpack_sync_non_blocking", "jetpack_sync_checksum"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "snapshot_restore" }
+        ],
+        "connection_state_blockers": [
+          { "state": "disconnected", "classification": "blocked", "reason_code": "connected_required", "applies_to": ["remote_dispatch", "module_state_sync"] },
+          { "state": "connected_placeholder", "classification": "guarded", "reason_code": "wpcom_boundary_blocked", "applies_to": ["remote_dispatch", "queue_drain"] }
+        ],
+        "retry_boundary_classification": ["no_retry_without_remote_dispatch", "queue_option_restore_required", "blocked_dispatch_attempt_recorded"],
+        "replay_fixture_requirements": ["isolated_wp_codebox_site", "jetpack_plugin_active", "fixture_post_comment_user_option_rows", "synthetic_connection_placeholders", "external_http_guardrail", "pre_action_queue_snapshot", "post_action_queue_restore"],
+        "proof_artifact_expectations": ["queue surface inventory", "serialized action sample rows", "retry boundary rows", "connected/disconnected blocker rows", "queue option before/after/restore rows", "replay fixture manifest", "external HTTP guardrail assertion", "proof artifact index"],
+        "force_http_guardrail": true,
+        "restore_original_values": true,
+        "rollback_required": true
+      },
+      "phases": {
+        "setup": [
+          { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] },
+          { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }
+        ],
+        "action": [{ "command": "wordpress.fuzz-plugin-sync-queue", "args": ["remote_dispatch=false", "force_http_guardrail=true", "restore_original_values=true", "rollback_required=true"] }],
+        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=sync_queue_coverage"] }]
+      },
+      "artifacts": [
+        { "name": "sync_queue_coverage", "path": "jetpack-sync-queue-coverage/sync_queue_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } },
+        { "name": "sync_queue_replay_fixture", "path": "jetpack-sync-queue-coverage/replay_fixture.json", "required": true, "metadata": { "semantic_key": "fuzz.replay_fixture" } },
+        { "name": "sync_queue_proof_index", "path": "jetpack-sync-queue-coverage/proof_index.json", "required": true, "metadata": { "semantic_key": "fuzz.proof_index" } }
+      ],
+      "metadata": { "safety_class": "isolated_mutation", "mutation_policy": "snapshot_queue_options_restore_after_assert" }
+    }
+  ],
   "limits": { "max_cases": 80, "max_duration_seconds": 900 },
   "coverage": { "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["sync-queue-discovery", "sync-action-inventory", "action-serialization", "retry-boundary-classification", "queue-option-rollback"] },
-  "artifacts": { "expected": [{ "name": "sync_queue_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }] }
+  "artifacts": { "expected": [
+    { "name": "sync_queue_coverage", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true },
+    { "name": "sync_queue_replay_fixture", "role": "fixture_manifest", "semantic_key": "fuzz.replay_fixture", "required": true },
+    { "name": "sync_queue_proof_index", "role": "proof_index", "semantic_key": "fuzz.proof_index", "required": true }
+  ] }
 }
