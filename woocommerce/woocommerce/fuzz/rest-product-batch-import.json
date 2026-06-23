@@ -1,0 +1,121 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "rest-product-batch-import",
+  "label": "REST product batch import guardrails",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "woocommerce-rest-products-batch",
+    "woocommerce-rest-product-variations-batch"
+  ],
+  "operations": [
+    "product-batch-create-update",
+    "variation-batch-create-update",
+    "lookup-pressure-guardrails",
+    "duplicate-meta-readback"
+  ],
+  "case_budget": 25,
+  "duration_budget_seconds": 1200,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/rest-product-batch-import.php",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "component": "woocommerce",
+      "activation": "woocommerce/woocommerce.php"
+    }
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/rest-product-batch-import.php",
+    "entry": "rest-product-batch-import"
+  },
+  "cases": [
+    {
+      "case_id": "rest-product-batch-import:default",
+      "surface_ids": [
+        "woocommerce-rest-products-batch",
+        "woocommerce-rest-product-variations-batch"
+      ],
+      "operations": [
+        "product-batch-create-update",
+        "variation-batch-create-update",
+        "lookup-pressure-guardrails",
+        "duplicate-meta-readback"
+      ],
+      "artifacts": [
+        {
+          "name": "raw_result",
+          "path": "rest-product-batch-import/raw_result.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/rest-product-batch-import.php",
+          "type": "php",
+          "entry": "rest-product-batch-import"
+        },
+        "collect": [
+          {
+            "artifact": "raw_result"
+          }
+        ]
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 25,
+    "max_duration_seconds": 1200
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-rest-products-batch",
+      "woocommerce-rest-product-variations-batch"
+    ],
+    "operations": [
+      "product-batch-create-update",
+      "variation-batch-create-update",
+      "lookup-pressure-guardrails",
+      "duplicate-meta-readback"
+    ]
+  },
+  "proof_contracts": [
+    {
+      "id": "rest-product-batch-import-performance",
+      "description": "Artifact must include product and variation batch REST phase metrics, query buckets, side-effect guardrails, duplicate meta/readback checks, and focused phase pass/fail classification.",
+      "required_artifact": "raw_result"
+    }
+  ],
+  "artifacts": {
+    "expected": [
+      {
+        "name": "raw_result",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
+}

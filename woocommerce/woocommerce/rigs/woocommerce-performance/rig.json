@@ -80,6 +80,7 @@
       { "path": "${package.root}/fuzz/admin-page-coverage.json" },
       { "path": "${package.root}/fuzz/layered-nav-count-cache.json" },
       { "path": "${package.root}/fuzz/layered-nav-catalog-crawl.json" },
+      { "path": "${package.root}/fuzz/rest-product-batch-import.json" },
       { "path": "${package.root}/fuzz/woocommerce-rest-route-inventory.json" },
       { "path": "${package.root}/fuzz/generated-rest-request-cases.json" },
       { "path": "${package.root}/fuzz/rest-db-query-profile.json" },
