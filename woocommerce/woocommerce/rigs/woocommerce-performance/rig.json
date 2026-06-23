@@ -67,8 +67,7 @@
   "bench_workloads": {
     "wordpress": [
       { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
-      { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" },
-      { "path": "${package.root}/bench/rest-product-batch-import.php" }
+      { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" }
     ]
   },
   "fuzz_workloads": {
@@ -100,13 +99,11 @@
   "bench_profiles": {
     "smoke": [
       "checkout-shortcode-place-order-latency",
-      "admin-dashboard-physical-products-query",
-      "rest-product-batch-import"
+      "admin-dashboard-physical-products-query"
     ],
     "hot": [
       "checkout-shortcode-place-order-latency",
-      "admin-dashboard-physical-products-query",
-      "rest-product-batch-import"
+      "admin-dashboard-physical-products-query"
     ]
   },
   "fuzz_profiles": {

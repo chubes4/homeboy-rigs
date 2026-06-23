@@ -40,6 +40,7 @@ const expectedFuzzIds = new Set([
   'layered-nav-count-cache',
   'options-transients-coverage',
   'performance-hotspots-artifact-summary',
+  'rest-product-batch-import',
   'rest-namespace-generated-cases',
   'rest-permission-boundary-matrix',
   'rest-schema-query-attribution',
@@ -63,7 +64,7 @@ const requiredProofContracts = new Map([
 
 const fuzzManifests = collectFuzzManifests(packageRoot);
 
-assert.equal(fuzzManifests.length, 21, 'expected 21 WooCommerce fuzz manifests');
+assert.equal(fuzzManifests.length, 22, 'expected 22 WooCommerce fuzz manifests');
 assert.ok(existsSync(runtimeDependencyHelper), 'WooCommerce runtime dependency prep helper must exist');
 
 const declaredIds = declaredFuzzIds(rig);
