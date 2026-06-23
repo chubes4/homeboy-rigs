@@ -158,7 +158,11 @@
           "connected",
           "disconnected"
         ],
-        "proof_required_before_status_p": true
+        "proof_required_before_status_p": true,
+        "skip_reason_codes": [
+          "connection_required",
+          "credential_unavailable"
+        ]
       },
       "phases": {
         "setup": [

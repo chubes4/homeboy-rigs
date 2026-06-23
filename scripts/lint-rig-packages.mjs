@@ -5,6 +5,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import {
   assertFuzzReadinessMetadata,
+  assertJetpackFuzzManifestReadinessContract,
   assertRunnerNeutralFuzzCaseIntent,
 } from './fuzz-manifest-helpers.mjs';
 
@@ -419,6 +420,7 @@ function lintFuzzWorkload(file) {
   }
 
   lintFuzzReadinessMetadata(rel, workload);
+  lintJetpackFuzzContract(rel, workload);
 
   if (workload.limits) {
     if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
@@ -464,6 +466,23 @@ function lintFuzzReadinessMetadata(rel, workload) {
     failures.push(`${rel}: proven fuzz readiness requires required proof artifacts (${[...new Set(optionalArtifactNames)].join(', ')})`);
   } else if (readinessLevel === 'executable' && optionalArtifactNames.length > 0) {
     warnings.push(`${rel}: executable fuzz readiness has optional artifact(s): ${[...new Set(optionalArtifactNames)].join(', ')}`);
+  }
+}
+
+function lintJetpackFuzzContract(rel, workload) {
+  const isJetpackFuzz = rel.startsWith('Automattic/jetpack/fuzz/')
+    || (rel.startsWith('fuzz/') && root.endsWith('/Automattic/jetpack'))
+    || workload.target?.slug === 'jetpack'
+    || workload.target?.component === 'jetpack';
+
+  if (!isJetpackFuzz) {
+    return;
+  }
+
+  try {
+    assertJetpackFuzzManifestReadinessContract(workload, { file: rel });
+  } catch (error) {
+    failures.push(error.message);
   }
 }
 

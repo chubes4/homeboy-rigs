@@ -3,14 +3,23 @@
   "id": "jetpack-rest-route-inventory",
   "label": "Jetpack REST route inventory",
   "safety_class": "read_only",
-  "surface_ids": ["jetpack-rest-routes", "wordpress-rest-api"],
-  "operations": ["route-discovery", "permission-boundary-classification"],
+  "surface_ids": [
+    "jetpack-rest-routes",
+    "wordpress-rest-api"
+  ],
+  "operations": [
+    "route-discovery",
+    "permission-boundary-classification"
+  ],
   "case_budget": 1,
   "duration_budget_seconds": 300,
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "generic_primitive": { "command": "wordpress.inventory-rest-routes", "status": "blocked" },
+    "generic_primitive": {
+      "command": "wordpress.inventory-rest-routes",
+      "status": "blocked"
+    },
     "workload_path": "${package.root}/bench/jetpack-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
@@ -22,37 +31,146 @@
         "Expose an artifact-compatible generic REST route inventory command before replacing the Jetpack PHP workload."
       ],
       "crud": {
-        "create": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" },
-        "read": { "level": "executable" },
-        "update": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" },
-        "delete": { "level": "declared", "upstream_blocker": "safe connected-site mutation fixtures are not available" }
+        "create": {
+          "level": "declared",
+          "upstream_blocker": "safe connected-site mutation fixtures are not available"
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "declared",
+          "upstream_blocker": "safe connected-site mutation fixtures are not available"
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "safe connected-site mutation fixtures are not available"
+        }
       }
     },
     "target_selection": {
-      "route_namespace_allowlist": ["jetpack/v4", "wpcom/v2"],
-      "route_prefix_allowlist": ["/jetpack/v4/", "/wpcom/v2/"],
-      "excluded_route_families": ["wp/v2 core routes"],
+      "route_namespace_allowlist": [
+        "jetpack/v4",
+        "wpcom/v2"
+      ],
+      "route_prefix_allowlist": [
+        "/jetpack/v4/",
+        "/wpcom/v2/"
+      ],
+      "excluded_route_families": [
+        "wp/v2 core routes"
+      ],
       "inventory_only": true
     }
   },
-  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
-  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/jetpack-rest-route-inventory.php", "entry": "jetpack-rest-route-inventory" },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "jetpack",
+    "component": "jetpack"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "php",
+    "path": "${package.root}/bench/jetpack-rest-route-inventory.php",
+    "entry": "jetpack-rest-route-inventory"
+  },
   "cases": [
     {
       "case_id": "jetpack-rest-route-inventory:default",
-      "surface_ids": ["jetpack-rest-routes", "wordpress-rest-api"],
-      "operations": ["route-discovery", "permission-boundary-classification"],
+      "surface_ids": [
+        "jetpack-rest-routes",
+        "wordpress-rest-api"
+      ],
+      "operations": [
+        "route-discovery",
+        "permission-boundary-classification"
+      ],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }],
-        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-rest-route-inventory.php", "type=php"] }],
-        "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=route_inventory"] }]
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=jetpack/jetpack.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/jetpack-rest-route-inventory.php",
+              "type=php"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=route_inventory"
+            ]
+          }
+        ]
       },
-      "inputs": { "route_namespace_allowlist": ["jetpack/v4", "wpcom/v2"], "inventory_only": true, "execute_routes": false },
-      "artifacts": [{ "name": "route_inventory", "path": "jetpack-rest-route-inventory/route_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }, { "name": "route_namespace_counts", "path": "jetpack-rest-route-inventory/route_namespace_counts.json", "required": false, "metadata": { "semantic_key": "fuzz.rest.route_namespace_counts" } }],
-      "metadata": { "safety_class": "read_only" }
+      "inputs": {
+        "route_namespace_allowlist": [
+          "jetpack/v4",
+          "wpcom/v2"
+        ],
+        "inventory_only": true,
+        "execute_routes": false
+      },
+      "artifacts": [
+        {
+          "name": "route_inventory",
+          "path": "jetpack-rest-route-inventory/route_inventory.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        },
+        {
+          "name": "route_namespace_counts",
+          "path": "jetpack-rest-route-inventory/route_namespace_counts.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.rest.route_namespace_counts"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      }
     }
   ],
-  "limits": { "max_cases": 1, "max_duration_seconds": 300 },
-  "coverage": { "surface_ids": ["jetpack-rest-routes", "wordpress-rest-api"], "operations": ["route-discovery", "permission-boundary-classification"] },
-  "artifacts": { "expected": [{ "name": "route_inventory", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }, { "name": "route_namespace_counts", "role": "coverage_summary", "semantic_key": "fuzz.rest.route_namespace_counts", "required": false }] }
+  "limits": {
+    "max_cases": 1,
+    "max_duration_seconds": 300
+  },
+  "coverage": {
+    "surface_ids": [
+      "jetpack-rest-routes",
+      "wordpress-rest-api"
+    ],
+    "operations": [
+      "route-discovery",
+      "permission-boundary-classification"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "route_inventory",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      },
+      {
+        "name": "route_namespace_counts",
+        "role": "coverage_summary",
+        "semantic_key": "fuzz.rest.route_namespace_counts",
+        "required": true
+      }
+    ]
+  }
 }
