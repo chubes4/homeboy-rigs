@@ -192,7 +192,7 @@
         "classification": "bounded_authenticated_read",
         "notes": ["GET-only admin visits with explicit skips for destructive/update/install screens", "Per-role and per-page limits bound request volume"]
       },
-      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact", "admin menu enumeration artifact", "admin skip reason artifact"], "optional": ["request logs"] }
+      "artifact_expectations": { "required": ["metrics", "admin_page_coverage json artifact", "admin menu enumeration artifact", "admin skip reason artifact", "admin query attribution artifact"], "optional": ["request logs"] }
     },
     "jetpack-module-state-matrix": {
       "surface": "modules",

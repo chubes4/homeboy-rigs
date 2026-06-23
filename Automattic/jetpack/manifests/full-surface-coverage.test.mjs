@@ -247,16 +247,51 @@ test('Jetpack admin page coverage enumerates wp-admin menus with explicit skip r
   const admin = readFuzzManifest('jetpack-admin-page-coverage');
   const testCase = defaultCase(admin);
   const inputs = testCase.inputs;
+  const targetContract = admin.metadata.admin_target_contract;
 
   assert.ok(inputs.menu_sources.includes('global_menu'));
   assert.ok(inputs.menu_sources.includes('global_submenu'));
   assert.ok(inputs.include_menu_slugs.includes('jetpack'));
   assert.ok(inputs.include_menu_slugs.includes('jetpack_modules'));
   assert.ok(inputs.include_menu_slugs.includes('jetpack#/settings?term=performance'));
+  assert.equal(targetContract.product, 'jetpack');
+  assert.equal(targetContract.default_capability, 'manage_options');
+  assert.equal(targetContract.request_policy.get_first, true);
+  assert.deepEqual(targetContract.request_policy.safe_methods, ['GET']);
+  assert.equal(targetContract.request_policy.mutating_methods_allowed, false);
   assert.ok(inputs.skip_reason_codes.includes('destructive_action'));
   assert.ok(inputs.skip_reason_codes.includes('credential_unavailable'));
   assert.ok(testCase.artifacts.some((artifact) => artifact.metadata?.semantic_key === 'fuzz.admin_menu_enumeration'));
   assert.ok(testCase.artifacts.some((artifact) => artifact.metadata?.semantic_key === 'fuzz.skip_reasons'));
+});
+
+test('Jetpack admin page coverage declares product-specific page targets and proof artifacts', () => {
+  const admin = readFuzzManifest('jetpack-admin-page-coverage');
+  const targetContract = admin.metadata.admin_target_contract;
+  const targetsById = new Map(targetContract.page_targets.map((target) => [target.id, target]));
+  const skipReasonsByCode = new Map(targetContract.skip_reasons.map((skipReason) => [skipReason.code, skipReason]));
+  const proofArtifactsByName = new Map(targetContract.proof_artifact_expectations.map((artifact) => [artifact.name, artifact]));
+
+  assert.ok(targetsById.has('jetpack-dashboard'));
+  assert.ok(targetsById.has('jetpack-connection'));
+  assert.ok(targetsById.has('jetpack-settings-performance'));
+  assert.ok(targetsById.has('jetpack-modules'));
+
+  for (const target of targetContract.page_targets) {
+    assert.equal(target.required_capability, 'manage_options', `${target.id} must declare its capability requirement`);
+    assert.deepEqual(target.safe_methods, ['GET'], `${target.id} must stay GET-only`);
+    assert.ok(target.admin_path.startsWith('/wp-admin/admin.php?page='), `${target.id} needs a concrete admin.php target`);
+    assert.ok(target.proof_artifacts.includes('admin_page_coverage'), `${target.id} needs page coverage proof`);
+  }
+
+  assert.equal(targetsById.get('jetpack-connection').hash_route, '#/connection');
+  assert.ok(targetsById.get('jetpack-connection').destructive_skip_codes.includes('connection_mutation'));
+  assert.ok(targetsById.get('jetpack-modules').destructive_skip_codes.includes('module_state_mutation'));
+  assert.ok(skipReasonsByCode.get('module_state_mutation').reason.includes('module-state lane'));
+  assert.ok(skipReasonsByCode.get('connection_mutation').reason.includes('WordPress.com'));
+  assert.ok(proofArtifactsByName.get('admin_page_coverage').required_fields.includes('required_capability'));
+  assert.ok(proofArtifactsByName.get('admin_skip_reasons').required_fields.includes('matched_pattern'));
+  assert.ok(proofArtifactsByName.get('admin_query_attribution').required_fields.includes('caller_summary'));
 });
 
 test('Jetpack public frontend coverage declares module routes, request classes, and state skips', () => {
