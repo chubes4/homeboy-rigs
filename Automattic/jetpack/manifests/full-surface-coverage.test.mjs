@@ -179,12 +179,26 @@ test('Jetpack DB inventory declares module tables and options', () => {
 
 test('Jetpack option/module/sync fuzz workloads declare rollback-safe boundaries', () => {
   const workloadIds = [
-    'jetpack-options-matrix',
-    'jetpack-module-state-matrix',
     'jetpack-sync-queue-coverage',
     'jetpack-cron-sync-actions',
     'jetpack-connected-disconnected-fixtures',
   ];
+
+  const planningWorkloadIds = [
+    'jetpack-options-matrix',
+    'jetpack-module-state-matrix',
+  ];
+
+  for (const workloadId of planningWorkloadIds) {
+    const workload = JSON.parse(readFileSync(path.join(fuzzRoot, `${workloadId}.json`), 'utf8'));
+    const firstCase = workload.cases[0];
+    const serializedInputs = JSON.stringify(firstCase.inputs || {});
+    const serializedArgs = JSON.stringify(firstCase.phases?.action || []);
+
+    assert.equal(workload.safety_class, 'read_only', `${workloadId} should stay read-only until mutation execution is isolated`);
+    assert.ok(serializedInputs.includes('rollback') || serializedArgs.includes('rollback'), `${workloadId} must declare rollback-safe mutation planning`);
+    assert.ok(serializedInputs.includes('restore_original_values') || serializedArgs.includes('restore_original_values'), `${workloadId} must declare original-value restoration planning`);
+  }
 
   for (const workloadId of workloadIds) {
     const workload = JSON.parse(readFileSync(path.join(fuzzRoot, `${workloadId}.json`), 'utf8'));
