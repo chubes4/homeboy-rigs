@@ -2442,6 +2442,7 @@ return function (): array {
 
 	return array(
 		'metrics'   => $summary,
+		'hotspots'  => $hotspots,
 		'metadata'  => array(
 			'runner'       => 'wp-codebox',
 			'workload'     => 'rest-product-batch-import',
