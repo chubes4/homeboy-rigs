@@ -20,6 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+const dbApiPerformanceFuzzerGapReport = readJson(packageRoot, 'manifests/db-api-performance-fuzzer-gap-report.json');
 const targetInventory = readJson(packageRoot, 'manifests/target-inventory.json');
 const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
 
@@ -106,6 +107,14 @@ const fullSurfaceFuzzIds = new Set(Object.entries(coverageManifest.coverage_prof
   .filter(([surface]) => surface !== 'browser_requests')
   .flatMap(([, workloadIds]) => workloadIds));
 const requiredArtifactWorkloadIds = fullSurfaceRequiredArtifactIds(coverageManifest);
+const dbApiPerformanceFuzzerWorkloadIds = [
+  'woocommerce-rest-route-inventory',
+  'generated-rest-request-cases',
+  'rest-db-query-profile',
+  'db-inventory',
+  'rest-schema-query-attribution',
+  'performance-hotspots-artifact-summary',
+];
 
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
@@ -253,8 +262,21 @@ assert.deepEqual(codeboxSmokeManifest.metadata?.required_primitive_contracts, [
   'wordpress.inventory-rest-routes',
   'wordpress.generate-rest-request-cases',
   'wordpress.profile-rest-db-queries',
+  'wordpress.inventory-database',
+  'wordpress.attribute-rest-schema-queries',
+  'wordpress.summarize-performance-hotspots',
 ]);
-assert.equal(codeboxSmokeManifest.metadata?.readiness?.upstream_blockers?.length, 2, 'codebox smoke declared readiness must name upstream blockers');
+assert.equal(codeboxSmokeManifest.metadata?.readiness?.upstream_blockers?.length, 4, 'codebox smoke declared readiness must name upstream blockers');
+assert.equal(codeboxSmokeManifest.metadata?.readiness?.crud?.read?.level, 'executable', 'DB/API profile read CRUD boundary must be executable');
+for (const operation of ['create', 'update', 'delete']) {
+  assert.equal(codeboxSmokeManifest.metadata?.readiness?.crud?.[operation]?.level, 'declared', `DB/API profile ${operation} CRUD boundary must be declared`);
+  assert.equal(typeof codeboxSmokeManifest.metadata?.readiness?.crud?.[operation]?.upstream_blocker, 'string', `DB/API profile ${operation} CRUD boundary must declare its upstream blocker`);
+}
+assert.match(
+  codeboxSmokeManifest.metadata?.readiness?.mutation?.safety_boundary || '',
+  /read-only until isolated fixture mutation/,
+  'DB/API profile mutation readiness must declare the read-only boundary'
+);
 assert.deepEqual(codeboxSmokeManifest.metadata?.public_codebox_contracts, [
   'wp-codebox/fuzz-suite/v1',
   'wp-codebox/wordpress-workload-run/v1',
@@ -279,12 +301,37 @@ assert.deepEqual(codeboxSuite.target?.metadata?.required_primitives, [
   'wordpress.inventory-rest-routes',
   'wordpress.generate-rest-request-cases',
   'wordpress.profile-rest-db-queries',
+  'wordpress.inventory-database',
+  'wordpress.attribute-rest-schema-queries',
+  'wordpress.summarize-performance-hotspots',
 ]);
 assert.deepEqual(codeboxSuite.target?.metadata?.source_manifests, [
   'fuzz/woocommerce-rest-route-inventory.json',
   'fuzz/generated-rest-request-cases.json',
+  'fuzz/rest-db-query-profile.json',
+  'fuzz/db-inventory.json',
   'fuzz/rest-schema-query-attribution.json',
+  'fuzz/performance-hotspots-artifact-summary.json',
+  'manifests/db-api-performance-fuzzer-gap-report.json',
 ]);
+assert.deepEqual(rig.fuzz_profiles?.['db-api-performance-fuzzer'], dbApiPerformanceFuzzerWorkloadIds, 'DB/API performance fuzzer profile workload ids drifted');
+assert.deepEqual(codeboxSuite.target?.metadata?.profile?.workload_ids, dbApiPerformanceFuzzerWorkloadIds, 'Codebox suite DB/API profile workload ids drifted');
+assert.equal(codeboxSuite.target?.metadata?.profile?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'Codebox suite must link the standalone DB/API gap report declaration');
+assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'DB/API profile must link the standalone gap report declaration');
+assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API profile must identify the source full-surface gap report');
+assert.equal(dbApiPerformanceFuzzerGapReport.schema, 'homeboy-rigs/wordpress-coverage-gap-report-declaration/v1', 'DB/API gap report declaration schema drifted');
+assert.equal(dbApiPerformanceFuzzerGapReport.id, 'woocommerce-db-api-performance-fuzzer-gap-report', 'DB/API gap report declaration id drifted');
+assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuzzer', 'DB/API gap report declaration must target the DB/API fuzzer profile');
+assert.equal(dbApiPerformanceFuzzerGapReport.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API gap report declaration must point at the full-surface gap report source');
+assert.deepEqual(dbApiPerformanceFuzzerGapReport.inputs, dbApiPerformanceFuzzerWorkloadIds, 'DB/API gap report declaration inputs drifted');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'declared', 'DB/API gap report declaration readiness must stay declared');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'not_executable', 'DB/API gap report declaration must not claim execution');
+assert.ok(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers?.length > 0, 'DB/API gap report declaration must name upstream blockers');
+assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.read?.level, 'executable', 'DB/API rig profile read CRUD boundary must be executable');
+for (const operation of ['create', 'update', 'delete']) {
+  assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.level, 'declared', `DB/API rig profile ${operation} CRUD boundary must be declared`);
+  assert.equal(typeof rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.upstream_blocker, 'string', `DB/API rig profile ${operation} CRUD boundary must declare its upstream blocker`);
+}
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.route_inventory_artifact, 'route_inventory');
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.request_cases_artifact, 'rest_request_cases');
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.query_attribution_artifact, 'rest_schema_query_attribution');
