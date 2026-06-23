@@ -246,6 +246,14 @@ for (const { file, manifest } of fuzzManifests) {
 const codeboxSmokeManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'codebox-fuzz-suite-smoke')?.manifest;
 assert.ok(codeboxSmokeManifest, 'codebox-fuzz-suite-smoke manifest is missing');
 assert.equal(codeboxSmokeManifest.metadata?.readiness?.level, 'declared', 'codebox smoke must not claim proven readiness without proof artifacts');
+assert.ok(codeboxSmokeManifest.operations.includes('generated-route-inventory-contract'), 'codebox smoke must depend on generated route inventory contracts');
+assert.ok(codeboxSmokeManifest.operations.includes('rest-db-query-attribution-contract'), 'codebox smoke must depend on REST DB query attribution contracts');
+assert.deepEqual(codeboxSmokeManifest.metadata?.required_primitive_contracts, [
+  'wordpress.inventory-rest-routes',
+  'wordpress.generate-rest-request-cases',
+  'wordpress.profile-rest-db-queries',
+]);
+assert.equal(codeboxSmokeManifest.metadata?.readiness?.upstream_blockers?.length, 2, 'codebox smoke declared readiness must name upstream blockers');
 assert.deepEqual(codeboxSmokeManifest.metadata?.public_codebox_contracts, [
   'wp-codebox/fuzz-suite/v1',
   'wp-codebox/wordpress-workload-run/v1',
@@ -256,6 +264,7 @@ assert.equal(codeboxSmokeManifest.artifacts.expected[0]?.proof_placeholder, true
 
 const codeboxWorkloadRun = readJson(packageRoot, 'bench/codebox-fuzz-suite-smoke.workload.json');
 assert.equal(codeboxWorkloadRun.schema, 'wp-codebox/wordpress-workload-run/v1');
+assert.equal(codeboxWorkloadRun.runtime_env?.WP_CODEBOX_PUBLIC_CONTRACT_PROOF, 'generated-contract-only');
 assert.ok(codeboxWorkloadRun.before.some((step) => step.command === 'wordpress.ensure-plugin-active'), 'codebox workload must activate WooCommerce');
 assert.ok(codeboxWorkloadRun.steps.some((step) => step.command === 'wp-codebox/run-fuzz-suite'), 'codebox workload must route through public run-fuzz-suite ability');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.schema, 'wp-codebox/fuzz-suite-result/v1');
@@ -263,10 +272,23 @@ assert.equal(codeboxWorkloadRun.artifacts[0]?.required, false, 'codebox workload
 
 const codeboxSuite = readJson(packageRoot, 'manifests/codebox-fuzz-suite-smoke.json');
 assert.equal(codeboxSuite.schema, 'wp-codebox/fuzz-suite/v1');
-assert.equal(codeboxSuite.target?.kind, 'rest');
-assert.equal(codeboxSuite.target?.entrypoint, '/wc/store/v1/cart');
-assert.equal(codeboxSuite.cases?.[0]?.input?.method, 'GET');
-assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'placeholder');
+assert.equal(codeboxSuite.target?.kind, 'rest-generated-contract');
+assert.equal(codeboxSuite.target?.entrypoint, undefined, 'codebox suite must not pin a hand-picked static REST route');
+assert.deepEqual(codeboxSuite.target?.metadata?.required_primitives, [
+  'wordpress.inventory-rest-routes',
+  'wordpress.generate-rest-request-cases',
+  'wordpress.profile-rest-db-queries',
+]);
+assert.deepEqual(codeboxSuite.target?.metadata?.source_manifests, [
+  'fuzz/woocommerce-rest-route-inventory.json',
+  'fuzz/generated-rest-request-cases.json',
+  'fuzz/rest-schema-query-attribution.json',
+]);
+assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.route_inventory_artifact, 'route_inventory');
+assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.request_cases_artifact, 'rest_request_cases');
+assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.query_attribution_artifact, 'rest_schema_query_attribution');
+assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'contract_only_placeholder');
+assert.equal(codeboxSuite.metadata?.readiness_level, 'declared');
 
 const proofReadyContracts = {
   'rest-namespace-generated-cases': ['namespace-classification', 'generated-safe-get-cases', 'route-gap-attribution'],

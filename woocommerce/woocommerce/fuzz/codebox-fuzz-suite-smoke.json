@@ -10,7 +10,8 @@
   "operations": [
     "public-fuzz-suite-contract",
     "run-wordpress-workload-contract",
-    "schema-only-proof-placeholder"
+    "generated-route-inventory-contract",
+    "rest-db-query-attribution-contract"
   ],
   "case_budget": 1,
   "duration_budget_seconds": 60,
@@ -25,9 +26,18 @@
       "wp-codebox/wordpress-workload-run/v1",
       "wp-codebox/fuzz-suite-result/v1"
     ],
+    "required_primitive_contracts": [
+      "wordpress.inventory-rest-routes",
+      "wordpress.generate-rest-request-cases",
+      "wordpress.profile-rest-db-queries"
+    ],
     "readiness": {
       "level": "declared",
-      "coverage_contract": "Schema-level smoke path for WooCommerce through public WP Codebox fuzz-suite and run-wordpress-workload contracts. This does not claim full-surface proof until a real fuzz-suite-result artifact is captured."
+      "coverage_contract": "Schema-level public WP Codebox fuzz-suite handoff for WooCommerce generated REST route inventory, generated safe GET cases, and REST DB query attribution. This stays declared until non-local fuzz-suite-result artifacts prove the generated contracts executed.",
+      "upstream_blockers": [
+        "Public fuzz-suite execution must consume generated route inventory and request-case artifacts instead of static route fixtures.",
+        "REST DB query attribution must be emitted as reviewer-facing fuzz-suite-result artifacts before this can become executable or proven."
+      ]
     },
     "fixture": {
       "runtime": "wp-codebox",
@@ -58,7 +68,8 @@
       "operations": [
         "public-fuzz-suite-contract",
         "run-wordpress-workload-contract",
-        "schema-only-proof-placeholder"
+        "generated-route-inventory-contract",
+        "rest-db-query-attribution-contract"
       ],
       "artifacts": [
         {
@@ -107,7 +118,8 @@
     "operations": [
       "public-fuzz-suite-contract",
       "run-wordpress-workload-contract",
-      "schema-only-proof-placeholder"
+      "generated-route-inventory-contract",
+      "rest-db-query-attribution-contract"
     ]
   },
   "artifacts": {

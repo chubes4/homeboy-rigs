@@ -2,7 +2,7 @@
   "schema": "wp-codebox/wordpress-workload-run/v1",
   "wordpress_version": "latest",
   "runtime_env": {
-    "WP_CODEBOX_PUBLIC_CONTRACT_PROOF": "schema-only"
+    "WP_CODEBOX_PUBLIC_CONTRACT_PROOF": "generated-contract-only"
   },
   "before": [
     {
@@ -39,6 +39,6 @@
     "workload": "codebox-fuzz-suite-smoke",
     "contract": "wp-codebox/wordpress-workload-run/v1",
     "fuzz_suite": "${package.root}/manifests/codebox-fuzz-suite-smoke.json",
-    "proof_status": "schema_only_placeholder"
+    "proof_status": "contract_only_placeholder"
   }
 }
