@@ -381,15 +381,24 @@ homeboy trace --rig gutenberg-browser-coverage --profile fuzzer
 
 ## Automattic/jetpack
 
-`rigs/jetpack-api-route-inventory/rig.json` is the initial Jetpack REST route
-inventory scaffold. It records registered Jetpack/WPCOM-compatible route
-metadata and keeps Jetpack-specific coverage groups beside the rig package.
+`rigs/jetpack-api-route-inventory/rig.json` is the Jetpack REST route inventory
+and fuzz declaration scaffold. It records registered Jetpack/WPCOM-compatible
+route metadata, keeps Jetpack-specific coverage groups beside the rig package,
+and validates generic fuzz manifest contracts without treating bench workloads as
+proof of full fuzz execution.
 
 ```bash
 homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/Automattic/jetpack
 homeboy rig check jetpack-api-route-inventory
-homeboy bench --rig jetpack-api-route-inventory --scenario jetpack-rest-route-inventory --iterations 1 --shared-state /tmp/jetpack-api-inventory
+node Automattic/jetpack/tools/validate-fuzz-manifests.mjs
 ```
+
+Jetpack product-layer wins are declared for REST/API, DB/query inventory, admin
+and browser request coverage, external HTTP guardrails, module option/table
+inventory, public-module frontend scenarios, and mutation contracts for options,
+modules, sync queues, cron, and connected/disconnected fixtures. P status still
+needs generic upstream fuzz runner artifacts, rollback manifests, WP.com/Jetpack
+sandbox primitives, coverage gap reports, and non-local proof links.
 
 ## woocommerce/woocommerce
 

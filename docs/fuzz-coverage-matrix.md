@@ -49,7 +49,7 @@ silently pass with optional output or local-only evidence.
 | WooCommerce | D/E/P partial | D/E/P partial | D/E/P partial | D/E | D/E/P partial | D/E/P partial | D/E/P partial |
 | WordPress Core | D/E | D/E | D/E | D/E | D/E | D/E | D/E partial |
 | Gutenberg | D/E | D/E | D/E | D/E | D/E | D/E/P partial | D/E/P partial |
-| Jetpack | D/E | D/E | D/E | D/E | D/E | D/E | D/E partial |
+| Jetpack | D/E | D/E read-only, D mutation | D/E | D/E | D/E read-only, D mutation | D/E partial | D partial |
 
 ## WooCommerce
 
@@ -126,26 +126,35 @@ cleanup shims.
 
 | Surface | Status | Current assets | Proven / missing edge |
 |---|---|---|---|
-| API | D/E | `Automattic/jetpack/manifests/rest-route-coverage.json`, `bench/jetpack-rest-route-inventory.php`, `bench/generated-rest-request-cases.workload.json` | Jetpack/WP.com route inventory and generated cases are executable. Proof artifacts are pending. |
-| DB | D/E | `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Connected-site fixture DB inventory/profile and read-only module option/table fixtures are declared and executable. Proof artifacts are pending. |
-| Admin | D/E | `fuzz/jetpack-admin-page-coverage.json`, `browser-scenarios/dashboard.json`, `connection.json`, `modules.json`, `settings.json`, `rigs/jetpack-browser-coverage/rig.json` | Jetpack wp-admin menu/submenu/hash-route enumeration, destructive skip reason codes, and browser scenarios are executable declarations. Proof artifacts are pending. |
-| External HTTP | D/E | `bench/jetpack-external-http-guardrail.php` | Connection, WP.com, sync, and module HTTP guardrails are declared/executable. Reviewer-facing proof artifacts are pending. |
-| Hooks / cron / options | D/E | `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-sync-queue-coverage.json`, `fuzz/jetpack-cron-sync-actions.json`, `fuzz/jetpack-module-state-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Module option/table inventory, sync queue actions, cron/sync action inventory, serialization boundaries, connected/disconnected fixtures, and rollback-safe option/module/queue mutations are declared. Proof artifacts are pending. |
-| Frontend / rendering | D/E | `fuzz/jetpack-public-module-frontend-coverage.json`, `bench/jetpack-browser-coverage.trace.mjs`, browser scenarios for dashboard/connection/modules/settings/public post/public page | Admin rendering/request and public-module frontend rendering/request coverage, request classes, connected/disconnected classification, and skip reason artifacts are declared/executable. Proof artifacts are pending. |
-| Performance-related fuzz | D/E partial | `fuzz/jetpack-performance-observation.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | Executable observation surfaces now include timing, query counts, assets, sync, HTTP guardrails, skip counts, and slow-surface summaries, but no targeted Jetpack performance bug repro is linked in this package yet. |
+| API | D/E | `Automattic/jetpack/manifests/rest-route-coverage.json`, `bench/jetpack-rest-route-inventory.php`, `bench/generated-rest-request-cases.workload.json`, `fuzz/jetpack-rest-route-inventory.json` | Jetpack/WP.com route inventory and generated safe GET case contracts are declared with existing rig entry points. P status needs generic REST fuzz runner artifacts, route coverage diffs, run IDs, and a gap report; this package does not claim complete Jetpack REST fuzz execution. |
+| DB | D/E read-only, D mutation | `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json`, `fuzz/db-inventory.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Read-only DB inventory/profile and module option/table inventory are declared with executable entry points. Option write/rollback and connected-fixture mutation remain declared until generic database inventory/profile, isolated mutation, rollback artifact, and fixture-restore primitives produce reviewer-facing artifacts. |
+| Admin | D/E | `fuzz/jetpack-admin-page-coverage.json`, `browser-scenarios/dashboard.json`, `connection.json`, `modules.json`, `settings.json`, `rigs/jetpack-browser-coverage/rig.json` | Jetpack wp-admin menu/submenu/hash-route enumeration, destructive skip reason codes, and browser scenarios are declared with executable rig/trace paths. P status needs admin-page coverage artifacts, skip-reason artifacts, request logs, run IDs, and a gap report from the generic admin coverage runner. |
+| External HTTP | D/E | `fuzz/jetpack-external-http-guardrail.json`, `bench/jetpack-external-http-guardrail.php` | Connection, WP.com, sync, and module HTTP guardrails declare blocked synthetic probes and WP.com boundary classification. Proof needs persisted guardrail collection artifacts and run IDs; live WordPress.com service calls are not part of the fixture. |
+| Hooks / cron / options | D/E read-only, D mutation | `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-sync-queue-coverage.json`, `fuzz/jetpack-cron-sync-actions.json`, `fuzz/jetpack-module-state-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Module option/table inventory is the executable read-only win. Option/module/sync/cron mutation rows are product-layer declarations tied to generic plugin option, module-state, sync-queue, cron-action, rollback, and artifact-manifest primitives; they are not proven fuzz execution yet. |
+| Frontend / rendering | D/E partial | `fuzz/jetpack-public-module-frontend-coverage.json`, `bench/jetpack-browser-coverage.trace.mjs`, browser scenarios for dashboard/connection/modules/settings/public post/public page | Browser/admin and public-module request coverage are declared with executable trace paths for local fixture states and skip classifications. Rendering correctness, connected remote behavior, and full module coverage need browser request artifacts, module scenario matrices, skip-reason artifacts, run IDs, and gap reports. |
+| Performance-related fuzz | D partial | `fuzz/jetpack-performance-observation.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | Performance observation is currently a manifest-level summary contract for timing, query counts, assets, sync, HTTP guardrails, skip counts, and slow-surface summaries. No targeted Jetpack performance bug repro or reviewer-facing fuzz proof bundle is linked in this package yet. |
 
-CRUD/mutation readiness: read coverage is executable for REST inventory,
-connected/disconnected fixtures, module option/table inventory, sync queues,
-admin/browser paths, public modules, and external HTTP guardrails. Option/module
-state mutations are declared with rollback-safe expectations but remain D/E until
-run artifacts prove rollback behavior. Create/update/delete for connected remote
-state are upstream-blocked on safe WP.com/Jetpack sandbox primitives and should
-not be emulated with local product-specific fallbacks.
+CRUD/mutation readiness: read coverage is executable or traceable for REST
+inventory, DB/query inventory, module option/table inventory, admin/browser
+paths, public-module fixture pages, and external HTTP guardrails. Option/module
+state, sync queue, cron, and connected/disconnected fixture mutations are
+declared as product-layer contracts only until generic upstream primitives can
+run isolated mutations, restore fixture state, and emit rollback artifacts.
+Create/update/delete for connected remote state are blocked on safe WP.com and
+Jetpack sandbox primitives and should not be emulated with local product-specific
+fallbacks.
+
+Next Jetpack proof artifacts: non-local `homeboy fuzz run` IDs, REST route
+coverage diffs, admin and browser request coverage artifacts, DB inventory/query
+profile artifacts, external HTTP guardrail collections, module/option/sync/cron
+rollback rows, connected/disconnected skip-reason artifacts, coverage gap
+reports, and `metadata.readiness.proof_bundle.fuzz_result_artifacts` entries for
+any row promoted to P.
 
 ## Pending Cross-Project Work
 
 - Core REST permission-boundary, DB schema/query attribution, admin safe-page enumeration, and hook/cron/options/postmeta/rewrite inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
-- Jetpack module option/table inventory, sync/cron action coverage, rollback-safe mutation rows, connected/disconnected fixtures, public-module frontend scenarios, and performance observation summaries are D/E; they still need proof artifacts before P.
+- Jetpack module option/table inventory, public-module frontend scenarios, and external HTTP guardrails have declared executable entry points, while sync/cron action coverage, rollback-safe mutation rows, connected/disconnected fixture mutation, and performance observation summaries remain contract-level until generic upstream fuzz primitives emit proof artifacts.
 - All four projects need durable proof bundles or linked run artifacts before the full-surface rows can move from `D/E` to `P`; WooCommerce admin coverage has the contract shape but still needs fresh reviewer-facing fuzz run artifacts for any newly discovered admin surfaces.
 - Visual rendering correctness remains outside this matrix unless a workload explicitly uses WP Codebox visual comparison or another reviewer-facing visual artifact.
 - Safe CRUD/mutation execution across Core, Gutenberg, and Jetpack is blocked on upstream fuzz runner primitives for disposable fixture mutation, rollback artifact manifests, and durable proof links. Product rigs should declare those blockers in `metadata.readiness.upstream_blockers` instead of adding cleanup shims.
