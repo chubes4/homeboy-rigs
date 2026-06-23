@@ -16,6 +16,17 @@
         { "id": "woocommerce-store-cart", "method": "GET", "path": "/wc/store/v1/cart" },
         { "id": "woocommerce-v3-products", "method": "GET", "path": "/wc/v3/products", "params": { "per_page": 1 } }
       ]
+    },
+    {
+      "type": "hook-hotspot-sampler",
+      "metric-prefix": "wp_hook_hotspot",
+      "sampleLimit": 50,
+      "hookLimit": 100,
+      "rest_request_cases": [
+        { "id": "woocommerce-store-products-hooks", "method": "GET", "path": "/wc/store/v1/products", "params": { "per_page": 1 } },
+        { "id": "woocommerce-store-cart-hooks", "method": "GET", "path": "/wc/store/v1/cart" },
+        { "id": "woocommerce-v3-products-hooks", "method": "GET", "path": "/wc/v3/products", "params": { "per_page": 1 } }
+      ]
     }
   ],
   "metadata": {
