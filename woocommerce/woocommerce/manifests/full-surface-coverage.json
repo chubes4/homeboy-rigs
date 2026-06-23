@@ -292,7 +292,7 @@
       },
       "artifact_expectations": {
         "required": ["metrics"],
-        "optional": ["batch phase timings", "bench transcript"]
+        "optional": ["batch phase timings"]
       }
     },
     "woocommerce-external-http-guardrail": {
