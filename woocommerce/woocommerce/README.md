@@ -162,7 +162,11 @@ for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
   admin coverage, REST coverage, namespace generated cases, permission
   boundaries, schema/query attribution, DB inventory, Action Scheduler, lookup
   tables, rollback-safe options/transients, frontend rendering, performance
-  summaries, or external HTTP guardrails.
+summaries, or external HTTP guardrails.
+
+The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
+orchestration. These profiles only group existing fuzz workload declarations;
+they do not change readiness levels or convert declarations into proof.
 
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance

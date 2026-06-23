@@ -45,6 +45,42 @@
       { "path": "${package.root}/fuzz/gutenberg-external-http-guardrail-fuzz.json" }
     ]
   },
+  "fuzz_profiles": {
+    "smoke": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
+      "block-editor-browser-coverage"
+    ],
+    "fuzzer": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
+      "block-editor-browser-coverage",
+      "site-editor-browser-coverage",
+      "block-rendering-coverage",
+      "frontend-rendering-request-coverage",
+      "gutenberg-db-inventory-fuzz",
+      "gutenberg-rest-db-query-profile-fuzz",
+      "gutenberg-hooks-options-inventory",
+      "gutenberg-editor-performance-observation",
+      "gutenberg-external-http-guardrail-fuzz"
+    ],
+    "full-surface": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
+      "block-editor-browser-coverage",
+      "site-editor-browser-coverage",
+      "block-rendering-coverage",
+      "frontend-rendering-request-coverage",
+      "gutenberg-db-inventory-fuzz",
+      "gutenberg-rest-db-query-profile-fuzz",
+      "gutenberg-hooks-options-inventory",
+      "gutenberg-editor-performance-observation",
+      "gutenberg-external-http-guardrail-fuzz"
+    ]
+  },
   "pipeline": {
     "check": [
       {

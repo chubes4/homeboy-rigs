@@ -48,6 +48,46 @@
       { "path": "${package.root}/fuzz/jetpack-external-http-guardrail.json" }
     ]
   },
+  "fuzz_profiles": {
+    "smoke": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
+    ],
+    "fuzzer": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "jetpack-admin-page-coverage",
+      "jetpack-module-state-matrix",
+      "jetpack-module-option-table-inventory",
+      "jetpack-options-matrix",
+      "jetpack-sync-queue-coverage",
+      "jetpack-cron-sync-actions",
+      "jetpack-connected-disconnected-fixtures",
+      "jetpack-public-module-frontend-coverage",
+      "jetpack-performance-observation",
+      "jetpack-external-http-guardrail"
+    ],
+    "full-surface": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "jetpack-admin-page-coverage",
+      "jetpack-module-state-matrix",
+      "jetpack-module-option-table-inventory",
+      "jetpack-options-matrix",
+      "jetpack-sync-queue-coverage",
+      "jetpack-cron-sync-actions",
+      "jetpack-connected-disconnected-fixtures",
+      "jetpack-public-module-frontend-coverage",
+      "jetpack-performance-observation",
+      "jetpack-external-http-guardrail"
+    ]
+  },
   "pipeline": {
     "check": [
       {

@@ -109,6 +109,62 @@
       "rest-product-batch-import"
     ]
   },
+  "fuzz_profiles": {
+    "smoke": [
+      "codebox-fuzz-suite-smoke",
+      "woocommerce-rest-route-inventory",
+      "db-inventory",
+      "admin-page-coverage"
+    ],
+    "fuzzer": [
+      "cart-session-overwrite-race",
+      "checkout-concurrent-create-order",
+      "checkout-gateway-compatibility-matrix",
+      "checkout-shipping-cache",
+      "admin-page-coverage",
+      "layered-nav-count-cache",
+      "layered-nav-catalog-crawl",
+      "rest-product-batch-import",
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "rest-permission-boundary-matrix",
+      "rest-namespace-generated-cases",
+      "rest-schema-query-attribution",
+      "action-scheduler-lookup-table-coverage",
+      "options-transients-coverage",
+      "rollback-safe-options-transients-mutations",
+      "codebox-fuzz-suite-smoke",
+      "frontend-rendering-request-coverage",
+      "performance-hotspots-artifact-summary",
+      "woocommerce-external-http-guardrail"
+    ],
+    "full-surface": [
+      "cart-session-overwrite-race",
+      "checkout-concurrent-create-order",
+      "checkout-gateway-compatibility-matrix",
+      "checkout-shipping-cache",
+      "admin-page-coverage",
+      "layered-nav-count-cache",
+      "layered-nav-catalog-crawl",
+      "rest-product-batch-import",
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "rest-permission-boundary-matrix",
+      "rest-namespace-generated-cases",
+      "rest-schema-query-attribution",
+      "action-scheduler-lookup-table-coverage",
+      "options-transients-coverage",
+      "rollback-safe-options-transients-mutations",
+      "codebox-fuzz-suite-smoke",
+      "frontend-rendering-request-coverage",
+      "performance-hotspots-artifact-summary",
+      "woocommerce-external-http-guardrail"
+    ]
+  },
   "pipeline": {
     "check": [
       {

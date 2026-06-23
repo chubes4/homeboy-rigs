@@ -97,6 +97,7 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
   }
 
   lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot);
+  lintFuzzProfiles(rel, rig);
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
 }
 
@@ -299,6 +300,40 @@ function lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot) {
         failures.push(`${rel}: fuzz workload id ${workloadId} is declared more than once in this rig`);
       } else {
         rigWorkloadIds.set(workloadId, declarationRel);
+      }
+    }
+  }
+}
+
+function lintFuzzProfiles(rel, rig) {
+  if (!rig.fuzz_profiles) {
+    return;
+  }
+
+  const workloadIds = new Set();
+
+  for (const workloads of Object.values(rig.fuzz_workloads || {})) {
+    if (!Array.isArray(workloads)) {
+      continue;
+    }
+
+    for (const workload of workloads) {
+      const path = typeof workload === 'string' ? workload : workload?.path;
+      if (path) {
+        workloadIds.add(workloadIdFromPath(path));
+      }
+    }
+  }
+
+  for (const [profile, workloadRefs] of Object.entries(rig.fuzz_profiles)) {
+    if (!Array.isArray(workloadRefs)) {
+      failures.push(`${rel}: fuzz profile ${profile} must be an array of workload ids`);
+      continue;
+    }
+
+    for (const workloadRef of workloadRefs) {
+      if (!workloadIds.has(workloadRef)) {
+        failures.push(`${rel}: fuzz profile ${profile} references ${workloadRef}, but fuzz_workloads does not declare a matching workload file`);
       }
     }
   }

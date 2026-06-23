@@ -75,7 +75,7 @@ Run Homeboy's package checks through the installed rig before opening rig packag
 homeboy rig check studio-combined
 ```
 
-`homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a lightweight package lint for PHP syntax, portable source paths, generated rig drift, and WordPress plugin fuzz workload IDs accidentally reappearing in `bench_workloads` or `bench_profiles`:
+`homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a lightweight package lint for PHP syntax, portable source paths, generated rig drift, `fuzz_profiles` references that drift from `fuzz_workloads`, and WordPress plugin fuzz workload IDs accidentally reappearing in `bench_workloads` or `bench_profiles`:
 
 ```bash
 node scripts/lint-rig-packages.mjs

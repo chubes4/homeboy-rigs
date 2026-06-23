@@ -11,7 +11,7 @@ function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, benchProfiles = {} } = {}) {
+function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, benchProfiles = {}, fuzzProfiles = {} } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-lint-'));
   const packageRoot = join(directory, 'Vendor', 'product');
   const rigRoot = join(packageRoot, 'rigs', 'generic-rig');
@@ -37,6 +37,7 @@ function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, b
     },
     bench_workloads: benchWorkloads,
     bench_profiles: benchProfiles,
+    fuzz_profiles: fuzzProfiles,
     ...rig,
   });
 
@@ -258,6 +259,21 @@ test('rejects fuzz ids in bench workloads and profiles', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /bench_workloads declares generic-fuzz, but that id belongs to a fuzz workload/);
   assert.match(result.stderr, /bench profile smoke references generic-fuzz, but that id belongs to a fuzz workload/);
+});
+
+test('rejects fuzz profiles that reference undeclared fuzz workloads', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+    fuzzProfiles: {
+      smoke: ['generic-fuzz', 'missing-fuzz'],
+    },
+  });
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /fuzz profile smoke references missing-fuzz, but fuzz_workloads does not declare a matching workload file/);
 });
 
 test('rejects proven fuzz readiness without proof bundle linkage', () => {
