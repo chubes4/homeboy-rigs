@@ -144,6 +144,15 @@
           "max_external_http_attempts",
           "max_sync_queue_delta"
         ],
+        "product_budgets": {
+          "max_rest_p95_duration_ms": 750,
+          "max_admin_p95_duration_ms": 1200,
+          "max_public_frontend_p95_duration_ms": 1000,
+          "max_queries_per_rest_case": 75,
+          "max_assets_per_public_request": 35,
+          "max_external_http_attempts": 0,
+          "max_sync_queue_delta": 0
+        },
         "hotspot_classes": [
           "slow-rest-route",
           "slow-admin-screen",
@@ -175,10 +184,55 @@
         ],
         "action": [
           {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/rest-db-query-profile.workload.json",
+              "type=json",
+              "artifact=rest_db_query_profile"
+            ]
+          },
+          {
+            "command": "wordpress.fuzz-admin-pages",
+            "args": [
+              "safe_methods=GET",
+              "get_first=true",
+              "submit_forms=false",
+              "follow_redirects=false",
+              "max_pages=40",
+              "enumerate_menus=true",
+              "classify_skips=true"
+            ]
+          },
+          {
+            "command": "wordpress.trace-browser-coverage",
+            "args": [
+              "surface=jetpack-public-modules",
+              "states=connected,disconnected",
+              "classify_skips=true",
+              "artifact=public_module_frontend_coverage"
+            ]
+          },
+          {
+            "command": "wordpress.ensure-external-http-guardrail",
+            "args": [
+              "allowlist=public-api.wordpress.com",
+              "block_network=true"
+            ]
+          },
+          {
+            "command": "wordpress.run-workload",
+            "args": [
+              "path=${package.root}/bench/jetpack-external-http-guardrail.php",
+              "type=php",
+              "artifact=external_http_guardrail"
+            ]
+          },
+          {
             "command": "wordpress.summarize-fuzz-artifacts",
             "args": [
               "surface=jetpack-performance",
-              "include=timing,queries,assets,sync,http,skips"
+              "include=timing,queries,assets,sync,http,skips",
+              "artifact=jetpack_performance_observation,jetpack_performance_surface_summary"
             ]
           }
         ],
@@ -192,6 +246,30 @@
         ]
       },
       "artifacts": [
+        {
+          "name": "rest_db_query_profile",
+          "path": "jetpack-performance-observation/rest_db_query_profile.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.rest_db_query_profile"
+          }
+        },
+        {
+          "name": "public_module_frontend_coverage",
+          "path": "jetpack-performance-observation/public_module_frontend_coverage.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.browser_request_coverage"
+          }
+        },
+        {
+          "name": "external_http_guardrail",
+          "path": "jetpack-performance-observation/external_http_guardrail.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.external_http_guardrail"
+          }
+        },
         {
           "name": "jetpack_performance_observation",
           "path": "jetpack-performance-observation/jetpack_performance_observation.json",

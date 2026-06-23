@@ -4,6 +4,7 @@
   "components": {
     "jetpack": {
       "path": "~/Developer/jetpack/projects/plugins/jetpack",
+      "checkout_root": "~/Developer/jetpack",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
