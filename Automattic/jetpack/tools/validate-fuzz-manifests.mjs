@@ -198,9 +198,10 @@ assertBoundary('jetpack-cron-sync-actions', {
 });
 assertBoundary('jetpack-connected-disconnected-fixtures', {
   safetyClass: 'isolated_mutation',
-  operations: ['connected-fixture-state', 'disconnected-fixture-state', 'token-placeholder-serialization'],
-  inputs: { real_wpcom_credentials_allowed: false, secret_placeholders_only: true, restore_original_values: true, rollback_required: true },
+  operations: ['connected-fixture-state', 'disconnected-fixture-state', 'token-placeholder-serialization', 'skip-reason-classification'],
+  inputs: { real_wpcom_credentials_allowed: false, real_tokens_allowed: false, network_calls_allowed: false, wpcom_sandbox_required: false, secret_placeholders_only: true, restore_original_values: true, reset_after_each_state: true, rollback_required: true },
 });
+assertConnectedDisconnectedFixtureContract();
 
 const moduleInventory = manifestFor('jetpack-module-option-table-inventory');
 assert.equal(moduleInventory.safety_class, 'read_only', 'Jetpack module inventory must remain read-only');
@@ -322,4 +323,50 @@ function assertArtifactContains(manifest, artifactName, expectedFields) {
     assert.ok(caseArtifact.metadata?.contains?.includes(field), `${manifest.id} case artifact ${artifactName} must contain ${field}`);
     assert.ok(expectedArtifact.contains?.includes(field), `${manifest.id} expected artifact ${artifactName} must contain ${field}`);
   }
+}
+
+function assertConnectedDisconnectedFixtureContract() {
+  const manifest = manifestFor('jetpack-connected-disconnected-fixtures');
+  const runnerCase = manifest.cases[0];
+  const metadata = manifest.metadata || {};
+  const states = new Set(['connected', 'disconnected']);
+
+  assert.deepEqual(new Set(metadata.fixture_states), states, 'Jetpack connection fixture metadata states drifted');
+  assert.deepEqual(new Set(runnerCase.inputs?.fixture_states), states, 'Jetpack connection fixture input states drifted');
+  assert.deepEqual(new Set(Object.keys(metadata.fixture_state_contract || {})), states, 'Jetpack connection fixture state contract must describe both states');
+  assert.deepEqual(new Set(Object.keys(runnerCase.inputs?.explicit_fixture_states || {})), states, 'Jetpack connection fixture inputs must name both explicit fixture states');
+
+  assert.equal(metadata.fixture_state_contract.connected.network_calls_allowed, false, 'Connected fixture contract must not allow network calls');
+  assert.equal(metadata.fixture_state_contract.disconnected.network_calls_allowed, false, 'Disconnected fixture contract must not allow network calls');
+  assert.equal(metadata.fake_token_policy?.real_wpcom_credentials_allowed, false, 'Connection fixture must forbid real WP.com credentials');
+  assert.equal(metadata.fake_token_policy?.real_tokens_allowed, false, 'Connection fixture must forbid real tokens');
+  assert.equal(metadata.fake_token_policy?.placeholder_tokens_only, true, 'Connection fixture must use placeholder tokens only');
+  assert.ok(metadata.fake_token_policy.redact_token_fields.includes('blog_token'), 'Connection fixture must redact blog_token fields');
+  assert.ok(metadata.fake_token_policy.redact_token_fields.includes('user_token'), 'Connection fixture must redact user_token fields');
+  assert.ok(metadata.fake_token_policy.artifact_must_not_contain_patterns.includes('Bearer '), 'Connection fixture must forbid bearer-token artifacts');
+  assert.ok(runnerCase.inputs.allowed_fake_tokens.every((token) => token.startsWith('__JETPACK_FAKE_')), 'Connection fixture fake tokens must be obvious placeholders');
+
+  assert.ok(Array.isArray(metadata.wpcom_sandbox_blockers) && metadata.wpcom_sandbox_blockers.length >= 2, 'Connection fixture must declare WP.com sandbox blockers');
+  assert.ok(metadata.wpcom_sandbox_blockers.some((blocker) => blocker.includes('No WP.com OAuth')), 'Connection fixture must document missing WP.com OAuth sandbox');
+  assert.ok(runnerCase.inputs.skip_reason_codes.includes('credential_unavailable'), 'Connection fixture must classify credential skips');
+  assert.ok(runnerCase.inputs.skip_reason_codes.includes('external_service_required'), 'Connection fixture must classify external service skips');
+  assert.ok(runnerCase.inputs.skip_reason_codes.includes('connection_required'), 'Connection fixture must classify connection-required skips');
+
+  assert.ok(metadata.module_availability_expectations.available_in_both_states.includes('shortcodes'), 'Connection fixture must document state-independent modules');
+  assert.ok(metadata.module_availability_expectations.requires_connected_or_wpcom_service.includes('stats'), 'Connection fixture must document WP.com-dependent modules');
+  assert.ok(runnerCase.inputs.module_availability_expectations.requires_connected_or_wpcom_service.includes('publicize'), 'Connection fixture inputs must preserve module availability expectations');
+
+  assert.equal(metadata.reset_contract.snapshot_before_mutation, true, 'Connection fixture must snapshot before mutation');
+  assert.equal(metadata.reset_contract.restore_original_values, true, 'Connection fixture must restore original values');
+  assert.equal(metadata.reset_contract.rollback_required, true, 'Connection fixture must require rollback');
+  assert.equal(metadata.reset_contract.reset_after_each_state, true, 'Connection fixture must reset after each state');
+  assert.ok(metadata.reset_contract.option_patterns.includes('jetpack_private_options'), 'Connection fixture reset contract must include private options');
+  assert.ok(metadata.artifact_expectations.required.includes('rollback_reset_rows'), 'Connection fixture must require rollback reset artifact rows');
+  assert.ok(metadata.artifact_expectations.required.includes('redaction_rows'), 'Connection fixture must require redaction artifact rows');
+
+  assert.ok(runnerCase.artifacts.some((artifact) => artifact.name === 'connection_reset_report' && artifact.metadata?.semantic_key === 'fuzz.rollback_report'), 'Connection fixture must declare a reset report case artifact');
+  assert.ok(manifest.artifacts.expected.some((artifact) => artifact.name === 'connection_reset_report' && artifact.semantic_key === 'fuzz.rollback_report'), 'Connection fixture must declare a reset report expected artifact');
+  assert.ok(metadata.proof_artifact_expectations.connection_fixture_matrix.includes('module_expectations'), 'Connection fixture proof matrix must include module expectations');
+  assert.ok(metadata.proof_artifact_expectations.connection_skip_reasons.includes('blocked_by_wpcom_sandbox'), 'Connection fixture skip proof must include WP.com blocker status');
+  assert.ok(metadata.proof_artifact_expectations.connection_reset_report.includes('leaked_keys'), 'Connection fixture reset proof must include leaked key checks');
 }
