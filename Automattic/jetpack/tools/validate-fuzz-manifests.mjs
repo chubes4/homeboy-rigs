@@ -177,14 +177,14 @@ assert.ok(dbRun.option_names.includes('jetpack_active_modules'), 'Jetpack DB inv
 assert.ok(dbRun.module_inventory.expected_modules.includes('stats'), 'Jetpack DB inventory must include representative modules');
 
 assertBoundary('jetpack-options-matrix', {
-  safetyClass: 'isolated_mutation',
-  operations: ['option-default-read', 'option-update-rollback', 'serialization-boundary-classification'],
-  inputs: { secret_placeholders_only: true, restore_original_values: true, rollback_required: true },
+  safetyClass: 'read_only',
+  operations: ['option-default-read', 'option-update-rollback-plan', 'read-update-safety-classification', 'connected-state-blocker-classification', 'serialization-boundary-classification'],
+  inputs: { secret_placeholders_only: true, execute_mutations: false, mutation_mode: 'declared_plan', connected_state_required_for_mutation: true, runtime_isolation_required_for_mutation: true, restore_original_values: true, rollback_required: true },
 });
 assertBoundary('jetpack-module-state-matrix', {
-  safetyClass: 'isolated_mutation',
-  operations: ['module-discovery', 'module-activate-deactivate', 'rollback-safe-module-state'],
-  inputs: { synthetic_connection: false, external_dispatch: false, restore_original_values: true, rollback_required: true },
+  safetyClass: 'read_only',
+  operations: ['module-discovery', 'module-group-inventory', 'module-activate-deactivate-plan', 'connected-state-blocker-classification', 'rollback-requirement-plan'],
+  inputs: { external_dispatch: false, execute_mutations: false, mutation_mode: 'declared_plan', connected_state_required_for_mutation: true, runtime_isolation_required_for_mutation: true, restore_original_values: true, rollback_required: true },
 });
 assertBoundary('jetpack-sync-queue-coverage', {
   safetyClass: 'isolated_mutation',
@@ -209,6 +209,25 @@ assert.ok(moduleInventory.coverage.operations.includes('module-option-inventory'
 assert.ok(moduleInventory.coverage.operations.includes('module-table-inventory'), 'Jetpack module inventory must cover module tables');
 assert.equal(moduleInventory.cases[0].inputs.read_only, true, 'Jetpack module inventory must use a read-only primitive');
 assert.equal(moduleInventory.cases[0].inputs.secret_placeholders_only, true, 'Jetpack module inventory must not expose secrets');
+assert.ok(moduleInventory.cases[0].inputs.option_keys.includes('jetpack_active_modules'), 'Jetpack module inventory must enumerate product-specific active module option');
+assert.ok(moduleInventory.cases[0].inputs.option_keys.includes('jetpack_private_options'), 'Jetpack module inventory must enumerate private option placeholders');
+assert.ok(moduleInventory.cases[0].inputs.option_keys.includes('jpsq_sync_checkout'), 'Jetpack module inventory must enumerate sync queue option keys');
+assert.ok(moduleInventory.cases[0].inputs.read_safe_option_keys.includes('jetpack_options'), 'Jetpack module inventory must classify read-safe options');
+assert.ok(moduleInventory.cases[0].inputs.update_planned_option_keys.includes('jetpack_sync_settings'), 'Jetpack module inventory must keep connected option writes planned');
+assert.ok(moduleInventory.cases[0].inputs.connected_state_blocked_option_keys.includes('jetpack_private_options'), 'Jetpack module inventory must classify connected-state blockers');
+assert.ok(Object.keys(moduleInventory.cases[0].inputs.module_groups).includes('security'), 'Jetpack module inventory must group security modules');
+assert.ok(moduleInventory.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.inventory'), 'Jetpack module inventory must declare safety inventory artifact');
+
+const optionsMatrix = manifestFor('jetpack-options-matrix');
+assert.ok(optionsMatrix.cases[0].inputs.option_keys.includes('jetpack_active_modules'), 'Jetpack options matrix must enumerate active module option');
+assert.ok(optionsMatrix.cases[0].inputs.option_keys.includes('jetpack_private_options'), 'Jetpack options matrix must enumerate private option placeholders');
+assert.ok(optionsMatrix.cases[0].inputs.connected_state_blocked_option_keys.includes('jpsq_sync_checkout'), 'Jetpack options matrix must classify sync queue connected-state blockers');
+assert.ok(optionsMatrix.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.rollback_plan'), 'Jetpack options matrix must declare rollback plan artifact');
+
+const moduleState = manifestFor('jetpack-module-state-matrix');
+assert.ok(Object.keys(moduleState.cases[0].inputs.module_groups).includes('traffic'), 'Jetpack module state matrix must group traffic modules');
+assert.ok(moduleState.cases[0].inputs.connected_state_blockers.includes('publicize'), 'Jetpack module state matrix must classify connected-state module blockers');
+assert.ok(moduleState.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.rollback_plan'), 'Jetpack module state matrix must declare rollback plan artifact');
 
 const adminPageCoverage = manifestFor('jetpack-admin-page-coverage');
 assert.ok(adminPageCoverage.cases[0].inputs.include_menu_slugs.includes('jetpack'), 'Jetpack admin coverage must include dashboard menu');
