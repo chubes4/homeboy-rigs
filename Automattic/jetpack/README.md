@@ -26,6 +26,10 @@ homeboy fuzz list --rig jetpack-api-route-inventory
 
 Use offloaded Lab runners for proof campaigns. Listing workloads confirms declarations only; P status requires persisted `homeboy fuzz run` artifacts, coverage gap reports, and non-local proof references.
 
+The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
+orchestration. These profiles only group existing fuzz workload declarations;
+they do not change readiness levels or convert declarations into proof.
+
 The coverage manifests live under `manifests/`, with executable/declarative fuzz workload manifests under `fuzz/`. REST cases declare permission classifications for public, local-authenticated, administrator, connected-site, and WP.com-dependent boundaries. DB inventory declares Jetpack table prefixes plus module/options state. External HTTP guardrail probes block `.invalid` synthetic hosts, declare `public-api.wordpress.com` as the WP.com allowlisted boundary, and still disallow real external service calls in the fixture. Mutation-style manifests depend on generic upstream primitives for isolated fixture mutation, rollback artifact manifests, and durable fuzz result artifacts.
 
 Current Jetpack coverage status:

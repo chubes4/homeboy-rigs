@@ -162,7 +162,11 @@ for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
   admin coverage, REST coverage, namespace generated cases, permission
   boundaries, schema/query attribution, DB inventory, Action Scheduler, lookup
   tables, rollback-safe options/transients, frontend rendering, performance
-  summaries, or external HTTP guardrails.
+summaries, or external HTTP guardrails.
+
+The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
+orchestration. These profiles only group existing fuzz workload declarations;
+they do not change readiness levels or convert declarations into proof.
 
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance
@@ -183,7 +187,6 @@ drift and case safety classes that do not match the workload safety class.
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-order-latency --iterations 1 --shared-state /tmp/woocommerce-shortcode-checkout
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products --setting-json 'bench_env={"WC_ADMIN_DASHBOARD_PRODUCTS":"500","WC_ADMIN_DASHBOARD_TERMS":"20"}'
-homeboy bench --rig woocommerce-performance --scenario rest-product-batch-import --iterations 1 --shared-state /tmp/woocommerce-rest-product-batch-import
 homeboy bench --rig woocommerce-performance --profile hot --iterations 1 --shared-state /tmp/woocommerce-performance-hot --force-hot
 ```
 

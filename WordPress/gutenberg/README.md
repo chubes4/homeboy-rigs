@@ -39,6 +39,10 @@ homeboy fuzz list --rig gutenberg-api-route-inventory
 homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
 
+The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
+orchestration. These profiles only group existing fuzz workload declarations;
+they do not change readiness levels or convert declarations into proof.
+
 Use an offloaded Lab runner for heavy proof campaigns. A `homeboy fuzz list` result is only a declaration check; P status requires persisted `homeboy fuzz run` evidence and artifacts.
 
 See `docs/fuzzer-profile.md` for the gap-report contract and current limits.
