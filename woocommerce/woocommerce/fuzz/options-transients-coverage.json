@@ -22,7 +22,7 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/db-inventory.workload.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report",
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "WooCommerce options and transients coverage is executable as a isolated_mutation fuzz workload for option-inventory, transient-growth-attribution, action-scheduler-delta, rollback-safe-option-mutation. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",

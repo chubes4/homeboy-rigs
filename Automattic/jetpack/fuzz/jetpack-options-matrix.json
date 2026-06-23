@@ -227,7 +227,7 @@
         {
           "name": "options_matrix",
           "path": "jetpack-options-matrix/options_matrix.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
@@ -235,7 +235,7 @@
         {
           "name": "option_write_rollback_plan",
           "path": "jetpack-options-matrix/option_write_rollback_plan.json",
-          "required": false,
+          "required": true,
           "metadata": {
             "semantic_key": "fuzz.rollback_plan"
           }
@@ -272,13 +272,13 @@
         "name": "options_matrix",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": false
+        "required": true
       },
       {
         "name": "option_write_rollback_plan",
         "role": "rollback_plan",
         "semantic_key": "fuzz.rollback_plan",
-        "required": false
+        "required": true
       }
     ]
   }

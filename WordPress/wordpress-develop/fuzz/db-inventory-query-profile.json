@@ -7,7 +7,7 @@
   "operations": ["db-inventory", "schema-inventory", "rest-query-profile", "query-shape-attribution", "options-query-attribution", "postmeta-query-attribution", "rewrite-query-attribution"],
   "case_budget": 100,
   "duration_budget_seconds": 900,
-  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report" },
+  "metadata": { "kind": "wordpress-core-fuzz", "wordpress_runner": "wp-codebox", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "WordPress Core DB inventory and query profile is executable as a read_only fuzz workload for db-inventory, schema-inventory, rest-query-profile, query-shape-attribution, options-query-attribution, postmeta-query-attribution, rewrite-query-attribution. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] } },
   "target": { "type": "wordpress-core", "component": "wordpress-develop" },
   "workload": { "runner": "wp-codebox", "type": "declarative", "path": "${package.root}/manifests/fuzzer-profile.json", "entry": "db-inventory-query-profile" },
   "cases": [
@@ -21,10 +21,10 @@
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=db_inventory_query_profile"] }]
       },
       "artifacts": [
-        { "name": "db_inventory_query_profile", "path": "db-inventory-query-profile/db_inventory_query_profile.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } },
-        { "name": "db_schema_inventory", "path": "db-inventory-query-profile/db_schema_inventory.json", "required": false, "metadata": { "semantic_key": "fuzz.db.schema_inventory" } },
-        { "name": "rest_query_attribution", "path": "db-inventory-query-profile/rest_query_attribution.json", "required": false, "metadata": { "semantic_key": "fuzz.db.rest_query_attribution" } },
-        { "name": "options_postmeta_rewrite_attribution", "path": "db-inventory-query-profile/options_postmeta_rewrite_attribution.json", "required": false, "metadata": { "semantic_key": "fuzz.db.options_postmeta_rewrite_attribution" } }
+        { "name": "db_inventory_query_profile", "path": "db-inventory-query-profile/db_inventory_query_profile.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } },
+        { "name": "db_schema_inventory", "path": "db-inventory-query-profile/db_schema_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.db.schema_inventory" } },
+        { "name": "rest_query_attribution", "path": "db-inventory-query-profile/rest_query_attribution.json", "required": true, "metadata": { "semantic_key": "fuzz.db.rest_query_attribution" } },
+        { "name": "options_postmeta_rewrite_attribution", "path": "db-inventory-query-profile/options_postmeta_rewrite_attribution.json", "required": true, "metadata": { "semantic_key": "fuzz.db.options_postmeta_rewrite_attribution" } }
       ],
       "metadata": { "safety_class": "read_only" }
     }
@@ -32,9 +32,9 @@
   "limits": { "max_cases": 100, "max_duration_seconds": 900 },
   "coverage": { "surface_ids": ["wordpress-core-database", "wordpress-core-rest-routes", "wordpress-core-options", "wordpress-core-postmeta", "wordpress-core-rewrites"], "operations": ["db-inventory", "schema-inventory", "rest-query-profile", "query-shape-attribution", "options-query-attribution", "postmeta-query-attribution", "rewrite-query-attribution"] },
   "artifacts": { "expected": [
-    { "name": "db_inventory_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false },
-    { "name": "db_schema_inventory", "role": "schema_inventory", "semantic_key": "fuzz.db.schema_inventory", "required": false },
-    { "name": "rest_query_attribution", "role": "query_attribution", "semantic_key": "fuzz.db.rest_query_attribution", "required": false },
-    { "name": "options_postmeta_rewrite_attribution", "role": "query_attribution", "semantic_key": "fuzz.db.options_postmeta_rewrite_attribution", "required": false }
+    { "name": "db_inventory_query_profile", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true },
+    { "name": "db_schema_inventory", "role": "schema_inventory", "semantic_key": "fuzz.db.schema_inventory", "required": true },
+    { "name": "rest_query_attribution", "role": "query_attribution", "semantic_key": "fuzz.db.rest_query_attribution", "required": true },
+    { "name": "options_postmeta_rewrite_attribution", "role": "query_attribution", "semantic_key": "fuzz.db.options_postmeta_rewrite_attribution", "required": true }
   ] }
 }

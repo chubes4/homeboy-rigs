@@ -11,7 +11,7 @@
     "kind": "wordpress-core-fuzz",
     "wordpress_runner": "wp-codebox",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report",
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "WordPress Core admin page coverage is executable as a read_only fuzz workload for safe-admin-page-enumeration, admin-page-discovery, browser-readiness, permission-boundary-classification, query-attribution, skipped-destructive-classification. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "admin_enumeration_contract": "WooCommerce admin-page coverage equivalent for safe Core wp-admin GET screens",
     "destructive_policy": "skip-and-report"
   },

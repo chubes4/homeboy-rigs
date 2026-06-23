@@ -12,7 +12,7 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report",
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "Gutenberg frontend rendering and request coverage is executable as a read_only fuzz workload for frontend-page-render, dynamic-block-render, asset-request-capture, xhr-fetch-capture, skipped-destructive-action-classification. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "skipped_reason_codes": ["no_form_submission", "no_post_delete_trash", "no_template_save", "no_global_styles_save"]
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },

@@ -18,7 +18,7 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report",
+    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "REST DB query profile coverage is executable as a read_only fuzz workload for rest-query-profile, query-shape-attribution. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
