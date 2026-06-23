@@ -3,33 +3,48 @@
   "id": "woocommerce-codebox-fuzz-suite-smoke",
   "version": "1.0.0",
   "target": {
-    "kind": "rest",
-    "id": "woocommerce-store-api-cart",
-    "entrypoint": "/wc/store/v1/cart",
-    "label": "WooCommerce Store API cart read smoke",
+    "kind": "rest-generated-contract",
+    "id": "woocommerce-generated-rest-db-readiness",
+    "label": "WooCommerce generated REST and DB fuzz readiness contract",
     "metadata": {
       "component": "woocommerce",
-      "plugin": "woocommerce/woocommerce.php"
+      "plugin": "woocommerce/woocommerce.php",
+      "required_primitives": [
+        "wordpress.inventory-rest-routes",
+        "wordpress.generate-rest-request-cases",
+        "wordpress.profile-rest-db-queries"
+      ],
+      "source_manifests": [
+        "fuzz/woocommerce-rest-route-inventory.json",
+        "fuzz/generated-rest-request-cases.json",
+        "fuzz/rest-schema-query-attribution.json"
+      ]
     }
   },
   "cases": [
     {
-      "id": "woocommerce-store-api-cart-read-only",
-      "description": "Schema-level public Codebox fuzz-suite smoke case for a read-only WooCommerce Store API route.",
+      "id": "woocommerce-generated-rest-db-readiness-contract",
+      "description": "Schema-level public Codebox fuzz-suite contract for generated WooCommerce REST route inventory, generated safe GET cases, and REST DB query attribution. This is not a hand-picked route smoke case.",
       "input": {
-        "method": "GET",
-        "path": "/wc/store/v1/cart",
-        "params": {}
+        "generated_from": {
+          "route_inventory_artifact": "route_inventory",
+          "request_cases_artifact": "rest_request_cases",
+          "query_attribution_artifact": "rest_schema_query_attribution",
+          "safe_methods": ["GET"],
+          "namespaces": ["wc/v3", "wc/store/v1", "wc-admin", "wc-analytics"]
+        }
       },
       "metadata": {
         "safety_class": "read_only",
-        "proof_status": "placeholder"
+        "proof_status": "contract_only_placeholder",
+        "readiness_level": "declared"
       }
     }
   ],
   "metadata": {
     "component": "woocommerce",
     "contract": "wp-codebox/fuzz-suite/v1",
-    "proof_status": "schema_only_placeholder"
+    "proof_status": "contract_only_placeholder",
+    "readiness_level": "declared"
   }
 }
