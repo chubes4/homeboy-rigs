@@ -11,6 +11,8 @@ const packageRoot = path.join(__dirname, '..');
 const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-coverage.json'), 'utf8'));
 const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
 const browserRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
+const generatedRestCases = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/generated-rest-request-cases.json'), 'utf8'));
+const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
 
@@ -111,4 +113,50 @@ test('fuzz workload metadata does not fall back to benchmark transcripts', () =>
       `${workloadId} must not declare benchmark transcript fallback proof`
     );
   }
+});
+
+test('generated REST request cases are driven by route inventory coverage semantics', () => {
+  const contract = manifest.surfaces.rest_api.generated_request_cases;
+
+  assert.equal(contract.workload, 'bench/generated-rest-request-cases.php');
+  assert.deepEqual(contract.safe_methods, ['GET']);
+  assert.deepEqual(
+    new Set(contract.surfaces),
+    new Set(['store_api', 'wc_rest_api', 'wc_admin_api', 'wc_analytics_api'])
+  );
+  assert.equal(contract.coverage_gap_artifact.schema, 'homeboy-rigs/woocommerce-rest-route-coverage-gap/v1');
+  assert.deepEqual(
+    new Set(contract.coverage_gap_artifact.required_fields),
+    new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs'])
+  );
+  assert.deepEqual(
+    new Set(contract.coverage_gap_artifact.skip_reason_codes),
+    new Set(['dynamic_path_parameter', 'no_safe_read_method'])
+  );
+
+  assert.equal(generatedRestCases.safety_class, 'read_only');
+  assert.equal(generatedRestCases.workload.type, 'php');
+  assert.equal(generatedRestCases.workload.path, '${package.root}/bench/generated-rest-request-cases.php');
+  assert.equal(generatedRestCases.cases[0].intent.execute.type, 'php');
+  assert.ok(
+    manifest.workloads['generated-rest-request-cases'].artifact_expectations.required.includes('coverage gap artifact'),
+    'generated REST workload must require the route coverage gap artifact'
+  );
+});
+
+test('performance hotspot summary contract uses relative ranking instead of hard thresholds', () => {
+  const artifactSchema = performanceHotspots.metadata.artifact_schema;
+
+  assert.equal(artifactSchema.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1');
+  assert.equal(artifactSchema.ranking.mode, 'relative');
+  assert.deepEqual(
+    new Set(artifactSchema.ranking.surfaces),
+    new Set(['checkout', 'cart', 'catalog', 'admin', 'api'])
+  );
+  assert.deepEqual(
+    new Set(artifactSchema.ranking.required_fields),
+    new Set(['rank', 'surface', 'relative_score', 'request_attribution', 'query_attribution', 'fixture_scale', 'run_refs'])
+  );
+  assert.equal(artifactSchema.threshold_policy, 'relative_ranking_only');
+  assert.equal(performanceHotspots.thresholds, undefined, 'hotspot summary must not declare hardcoded thresholds');
 });

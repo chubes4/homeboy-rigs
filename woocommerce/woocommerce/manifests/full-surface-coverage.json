@@ -70,14 +70,19 @@
       "budget_manifest": "manifests/rest-route-budgets.json",
       "coverage_goal": "all_wc_v3_wc_store_wc_admin_routes_and_generated_safe_cases",
       "generated_request_cases": {
-        "workload": "bench/generated-rest-request-cases.workload.json",
+        "workload": "bench/generated-rest-request-cases.php",
         "status_contract": {
           "public_read_success": "Store API catalog GET cases should return 200.",
           "public_session_read_success": "Store API cart/checkout GET cases should return 200 without credentials.",
           "auth_boundary": "Woo REST and wc-admin GET cases intentionally run without credentials and should return 401 or 403; 2xx, 404, or 5xx statuses are actionable coverage failures."
         },
         "safe_methods": ["GET"],
-        "surfaces": ["store_api", "wc_rest_api", "wc_admin_api"],
+        "surfaces": ["store_api", "wc_rest_api", "wc_admin_api", "wc_analytics_api"],
+        "coverage_gap_artifact": {
+          "schema": "homeboy-rigs/woocommerce-rest-route-coverage-gap/v1",
+          "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
+          "skip_reason_codes": ["dynamic_path_parameter", "no_safe_read_method"]
+        },
         "permission_boundary_workload": "fuzz/rest-permission-boundary-matrix.json",
         "namespace_generated_cases_workload": "fuzz/rest-namespace-generated-cases.json",
         "schema_query_attribution_workload": "fuzz/rest-schema-query-attribution.json"
@@ -309,14 +314,14 @@
     },
     "generated-rest-request-cases": {
       "surface": "rest_api",
-      "coverage_shape": "generated safe WooCommerce Store API, REST API, and admin REST request cases with captured responses",
+      "coverage_shape": "route-inventory-generated safe WooCommerce Store API, wc/v*, wc-admin, and wc-analytics GET request cases with captured responses and route gap attribution",
       "safety": {
         "classification": "bounded_authenticated_read",
-        "notes": ["Uses explicit GET request cases against local WooCommerce routes", "Response capture is intended for reviewable route-contract evidence"]
+        "notes": ["Generates GET request cases from the registered local WooCommerce REST route inventory", "Skips dynamic path parameters and non-GET routes with explicit reason codes", "Response capture is intended for reviewable route-contract evidence"]
       },
       "artifact_expectations": {
-        "required": ["metadata", "captured REST responses"],
-        "optional": ["request case timing"]
+        "required": ["metadata", "generated REST request cases", "captured REST responses", "coverage gap artifact"],
+        "optional": ["request case timing", "skip reason rows"]
       }
     },
     "rest-db-query-profile": {

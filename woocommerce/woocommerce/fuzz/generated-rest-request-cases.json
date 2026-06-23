@@ -2,7 +2,7 @@
   "schema": "homeboy/fuzz-workload/v1",
   "id": "generated-rest-request-cases",
   "label": "Generated WooCommerce REST request cases",
-  "safety_class": "isolated_mutation",
+  "safety_class": "read_only",
   "surface_ids": [
     "woocommerce-rest-routes"
   ],
@@ -15,9 +15,13 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "workload_path": "${package.root}/bench/generated-rest-request-cases.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Generate bounded GET request cases from the live WooCommerce Store API, wc/v*, wc-admin, and wc-analytics route inventory, execute them locally, and emit response plus route coverage gap artifacts. This is executable but not proven until offloaded run artifacts are linked."
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
@@ -32,8 +36,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "json",
-    "path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "type": "php",
+    "path": "${package.root}/bench/generated-rest-request-cases.php",
     "entry": "generated-rest-request-cases"
   },
   "cases": [
@@ -57,7 +61,7 @@
         }
       ],
       "metadata": {
-        "safety_class": "isolated_mutation"
+        "safety_class": "read_only"
       },
       "intent": {
         "schema": "homeboy/fuzz-workload-intent/v1",
@@ -67,8 +71,8 @@
         },
         "execute": {
           "workload_ref": "default",
-          "path": "${package.root}/bench/generated-rest-request-cases.workload.json",
-          "type": "json",
+          "path": "${package.root}/bench/generated-rest-request-cases.php",
+          "type": "php",
           "entry": "generated-rest-request-cases"
         },
         "collect": [

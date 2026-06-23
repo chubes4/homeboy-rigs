@@ -26,11 +26,24 @@
     "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Summarize WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. This remains declared until real run artifacts produce the summary."
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
       "component": "woocommerce",
       "activation": "woocommerce/woocommerce.php"
+    },
+    "artifact_schema": {
+      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "ranking": {
+        "mode": "relative",
+        "surfaces": ["checkout", "cart", "catalog", "admin", "api"],
+        "required_fields": ["rank", "surface", "relative_score", "request_attribution", "query_attribution", "fixture_scale", "run_refs"]
+      },
+      "threshold_policy": "relative_ranking_only"
     }
   },
   "target": {
@@ -122,7 +135,7 @@
   "proof_contracts": [
     {
       "id": "artifact-summary-expectations",
-      "description": "Artifact must summarize checkout/cart/catalog/admin/API timing, query counts, cache invalidation, transient growth, gateway compatibility, and external HTTP guardrail evidence without falling back to benchmark transcripts.",
+      "description": "Artifact must summarize checkout/cart/catalog/admin/API timing, query counts, cache invalidation, transient growth, gateway compatibility, and external HTTP guardrail evidence as relative rankings with request attribution, query attribution, fixture scale, and run refs, without hardcoded failure thresholds or benchmark transcript fallbacks.",
       "required_artifact": "performance_hotspots_summary"
     }
   ],
