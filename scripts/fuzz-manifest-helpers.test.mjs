@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
+  assertJetpackFuzzManifestReadinessContract,
   declaredFuzzIds,
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
@@ -165,7 +166,13 @@ test('fullSurfaceRequiredArtifactIds follows reviewer-facing coverage artifact e
 });
 
 test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked contracts', () => {
-  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest()), true);
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest()), false);
+  assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
+    metadata: {
+      workload_path: '${package.root}/bench/product.workload.json',
+      readiness: { level: 'executable', coverage_contract: 'Executable product fuzz contract.' },
+    },
+  })), true);
   assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
     metadata: {
       workload_path: '${package.root}/bench/product.workload.json',
@@ -175,9 +182,65 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
   assert.equal(fuzzManifestHasExecutableArtifactContract(fuzzManifest({
     metadata: {
       workload_path: '${package.root}/bench/product.workload.json',
+      readiness: { level: 'executable', coverage_contract: 'Blocked product fuzz contract.' },
       generic_primitive: { status: 'blocked' },
     },
   })), false);
+});
+
+test('assertJetpackFuzzManifestReadinessContract rejects executable readiness with optional artifacts', () => {
+  assert.throws(
+    () => assertJetpackFuzzManifestReadinessContract(fuzzManifest({
+      target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: { level: 'executable', coverage_contract: 'Jetpack executable fuzz contract.' },
+      },
+      cases: [
+        {
+          case_id: 'product-fuzz:default',
+          surface_ids: ['product-api'],
+          operations: ['route-inventory'],
+          artifacts: [{ name: 'report', path: 'report.json', required: false }],
+        },
+      ],
+    }), { file: 'jetpack-fuzz.json' }),
+    /executable Jetpack readiness requires case artifact report to be required/
+  );
+});
+
+test('assertJetpackFuzzManifestReadinessContract requires blockers for declared blocked primitives', () => {
+  assert.throws(
+    () => assertJetpackFuzzManifestReadinessContract(fuzzManifest({
+      target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        generic_primitive: { command: 'wordpress.inventory-database', status: 'blocked' },
+        readiness: { level: 'declared', coverage_contract: 'Jetpack placeholder contract.' },
+      },
+    }), { file: 'jetpack-fuzz.json' }),
+    /blocked generic primitive requires readiness upstream_blockers/
+  );
+});
+
+test('assertJetpackFuzzManifestReadinessContract enforces connected-state blocker classification', () => {
+  assert.throws(
+    () => assertJetpackFuzzManifestReadinessContract(fuzzManifest({
+      target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
+      surface_ids: ['jetpack-connection'],
+      operations: ['connected-fixture-state', 'token-placeholder-serialization'],
+      cases: [
+        {
+          case_id: 'product-fuzz:default',
+          surface_ids: ['jetpack-connection'],
+          operations: ['connected-fixture-state', 'token-placeholder-serialization'],
+          inputs: { states: ['connected'], skip_reason_codes: ['unsupported_fixture'] },
+          artifacts: [{ name: 'report', path: 'report.json', required: false }],
+        },
+      ],
+    }), { file: 'jetpack-fuzz.json' }),
+    /connected-state cases must classify connection_required skips/
+  );
 });
 
 test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {

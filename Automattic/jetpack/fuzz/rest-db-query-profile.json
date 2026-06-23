@@ -118,7 +118,11 @@
           "remote-service-short-circuit"
         ],
         "query_attribution_required": true,
-        "external_service_calls_allowed": false
+        "external_service_calls_allowed": false,
+        "skip_reason_codes": [
+          "connection_required",
+          "credential_unavailable"
+        ]
       },
       "phases": {
         "setup": [

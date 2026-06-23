@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   assertFullSurfaceCoverageManifest,
   assertGenericFuzzManifest,
+  assertJetpackFuzzManifestReadinessContract,
   collectFuzzManifests,
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
@@ -116,6 +117,7 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.metadata?.kind, 'wordpress-plugin-fuzz', `${manifest.id} metadata.kind mismatch`);
   assert.equal(manifest.metadata?.wordpress_runner, 'wp-codebox', `${manifest.id} metadata.wordpress_runner must be wp-codebox`);
   assert.equal(manifest.target?.component, 'jetpack', `${manifest.id} target.component mismatch`);
+  assertJetpackFuzzManifestReadinessContract(manifest, { file });
 
   if (!manifest.metadata?.readiness) {
     warnings.push(`${manifest.id} does not declare metadata.readiness; treating coverage as declared, not proven`);

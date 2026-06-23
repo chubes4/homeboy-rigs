@@ -3,15 +3,283 @@
   "id": "jetpack-options-matrix",
   "label": "Jetpack options matrix",
   "safety_class": "read_only",
-  "surface_ids": ["jetpack-options", "wordpress-options"],
-  "operations": ["option-default-read", "option-inventory", "option-update-rollback-plan", "read-update-safety-classification", "connected-state-blocker-classification", "serialization-boundary-classification", "autoload-classification"],
+  "surface_ids": [
+    "jetpack-options",
+    "wordpress-options"
+  ],
+  "operations": [
+    "option-default-read",
+    "option-inventory",
+    "option-update-rollback-plan",
+    "read-update-safety-classification",
+    "connected-state-blocker-classification",
+    "serialization-boundary-classification",
+    "autoload-classification"
+  ],
   "case_budget": 120,
   "duration_budget_seconds": 900,
-  "metadata": { "kind": "wordpress-plugin-fuzz", "wordpress_runner": "wp-codebox", "workload_path": "${package.root}/manifests/full-surface-coverage.json", "expected_artifact_role": "fuzz_report", "expected_artifact_semantic_key": "fuzz.report", "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists", "generic_primitive": { "status": "blocked", "reason": "Option writes remain planned until disposable runtime isolation, connected-state fixtures, and rollback artifacts are explicitly available." }, "readiness": { "level": "declared", "coverage_contract": "Jetpack option inventory, default reads, serialization/autoload classification, connected-state blockers, and option write rollback plans. Mutating writes are not executed without isolated runtime and connected-state fixtures.", "upstream_blockers": ["isolated runtime fixture must guarantee option writes are disposable", "connected-state fixture must provide synthetic Jetpack connection state for connection-sensitive options", "rollback artifact capture must persist before/after/restore rows before option writes are enabled"], "crud": { "create": { "level": "declared", "upstream_blocker": "new option writes require disposable runtime isolation and rollback artifacts" }, "read": { "level": "executable" }, "update": { "level": "declared", "upstream_blocker": "option updates require connected-state fixtures and rollback artifacts" }, "delete": { "level": "declared", "upstream_blocker": "option deletion is out of scope without rollback artifact proof" } }, "mutation": { "safety_boundary": "Planned only. Execution requires disposable WP Codebox isolation, synthetic Jetpack connected/disconnected fixtures, secret placeholders, and before/after/restore artifacts for every changed option.", "rollback_artifacts": ["option_write_rollback_plan", "option_before_after_restore_rows"] } }, "artifact_expectations": { "required": ["option_matrix", "read_update_safety_rows", "connected_state_blockers", "rollback_requirement_rows", "serialization_boundary_rows"], "optional": ["autoload_counts", "secret_placeholder_classifications", "planned_write_rows"] } },
-  "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
-  "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "wordpress-plugin-option-matrix" },
-  "cases": [{ "case_id": "jetpack-options-matrix:default", "surface_ids": ["jetpack-options", "wordpress-options"], "operations": ["option-default-read", "option-inventory", "option-update-rollback-plan", "read-update-safety-classification", "connected-state-blocker-classification", "serialization-boundary-classification", "autoload-classification"], "inputs": { "option_keys": ["jetpack_active_modules", "jetpack_options", "jetpack_private_options", "jetpack_available_modules", "jetpack_sync_settings", "jetpack_sync_error_idc", "jetpack_idc_options", "jetpack_connection_active_plugins", "jetpack_connection_xmlrpc_verified_errors", "stats_options", "sharedaddy_options", "sharing-options", "jetpack_protect_key", "jetpack_protect_error", "jetpack_monitor_active", "jetpack_subscriptions", "jetpack_relatedposts", "jetpack_sitemap_state", "jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started"], "option_prefixes": ["jetpack_", "jetpack_%", "jpsq_", "stats_options", "sharedaddy_options", "sharing-options"], "read_safe_option_keys": ["jetpack_active_modules", "jetpack_options", "jetpack_available_modules", "stats_options", "sharedaddy_options", "sharing-options", "jetpack_relatedposts", "jetpack_sitemap_state"], "update_planned_option_keys": ["jetpack_active_modules", "jetpack_options", "jetpack_sync_settings", "jetpack_idc_options", "stats_options", "sharedaddy_options", "sharing-options"], "connected_state_blocked_option_keys": ["jetpack_private_options", "jetpack_sync_settings", "jetpack_connection_active_plugins", "jetpack_connection_xmlrpc_verified_errors", "jetpack_protect_key", "jetpack_monitor_active", "jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started"], "serialization_boundaries": ["scalar", "array", "object-placeholder", "empty-string", "falsey", "oversized-json"], "secret_placeholders_only": true, "connected_state_required_for_mutation": true, "runtime_isolation_required_for_mutation": true, "execute_mutations": false, "mutation_mode": "declared_plan", "restore_original_values": true, "rollback_required": true, "rollback_requirements": ["snapshot original option rows before write", "record autoload and serialized value shape before and after", "restore original values before assertions complete", "fail closed when connected/disconnected fixture state is unavailable"] }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.fuzz-plugin-options", "args": ["secret_placeholders_only=true", "execute_mutations=false", "mutation_mode=declared_plan", "connected_state_required_for_mutation=true", "runtime_isolation_required_for_mutation=true", "rollback_required=true"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=options_matrix"] }] }, "artifacts": [{ "name": "options_matrix", "path": "jetpack-options-matrix/options_matrix.json", "required": false, "metadata": { "semantic_key": "fuzz.report" } }, { "name": "option_write_rollback_plan", "path": "jetpack-options-matrix/option_write_rollback_plan.json", "required": false, "metadata": { "semantic_key": "fuzz.rollback_plan" } }], "metadata": { "safety_class": "read_only", "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists" } }],
-  "limits": { "max_cases": 120, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["jetpack-options", "wordpress-options"], "operations": ["option-default-read", "option-inventory", "option-update-rollback-plan", "read-update-safety-classification", "connected-state-blocker-classification", "serialization-boundary-classification", "autoload-classification"] },
-  "artifacts": { "expected": [{ "name": "options_matrix", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": false }, { "name": "option_write_rollback_plan", "role": "rollback_plan", "semantic_key": "fuzz.rollback_plan", "required": false }] }
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "expected_artifact_role": "fuzz_report",
+    "expected_artifact_semantic_key": "fuzz.report",
+    "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists",
+    "generic_primitive": {
+      "status": "blocked",
+      "reason": "Option writes remain planned until disposable runtime isolation, connected-state fixtures, and rollback artifacts are explicitly available."
+    },
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Jetpack option inventory, default reads, serialization/autoload classification, connected-state blockers, and option write rollback plans. Mutating writes are not executed without isolated runtime and connected-state fixtures.",
+      "upstream_blockers": [
+        "isolated runtime fixture must guarantee option writes are disposable",
+        "connected-state fixture must provide synthetic Jetpack connection state for connection-sensitive options",
+        "rollback artifact capture must persist before/after/restore rows before option writes are enabled"
+      ],
+      "crud": {
+        "create": {
+          "level": "declared",
+          "upstream_blocker": "new option writes require disposable runtime isolation and rollback artifacts"
+        },
+        "read": {
+          "level": "executable"
+        },
+        "update": {
+          "level": "declared",
+          "upstream_blocker": "option updates require connected-state fixtures and rollback artifacts"
+        },
+        "delete": {
+          "level": "declared",
+          "upstream_blocker": "option deletion is out of scope without rollback artifact proof"
+        }
+      },
+      "mutation": {
+        "safety_boundary": "Planned only. Execution requires disposable WP Codebox isolation, synthetic Jetpack connected/disconnected fixtures, secret placeholders, and before/after/restore artifacts for every changed option.",
+        "rollback_artifacts": [
+          "option_write_rollback_plan",
+          "option_before_after_restore_rows"
+        ]
+      }
+    },
+    "artifact_expectations": {
+      "required": [
+        "option_matrix",
+        "read_update_safety_rows",
+        "connected_state_blockers",
+        "rollback_requirement_rows",
+        "serialization_boundary_rows"
+      ],
+      "optional": [
+        "autoload_counts",
+        "secret_placeholder_classifications",
+        "planned_write_rows"
+      ]
+    }
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "jetpack",
+    "component": "jetpack"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "generic",
+    "path": "${package.root}/manifests/full-surface-coverage.json",
+    "entry": "wordpress-plugin-option-matrix"
+  },
+  "cases": [
+    {
+      "case_id": "jetpack-options-matrix:default",
+      "surface_ids": [
+        "jetpack-options",
+        "wordpress-options"
+      ],
+      "operations": [
+        "option-default-read",
+        "option-inventory",
+        "option-update-rollback-plan",
+        "read-update-safety-classification",
+        "connected-state-blocker-classification",
+        "serialization-boundary-classification",
+        "autoload-classification"
+      ],
+      "inputs": {
+        "option_keys": [
+          "jetpack_active_modules",
+          "jetpack_options",
+          "jetpack_private_options",
+          "jetpack_available_modules",
+          "jetpack_sync_settings",
+          "jetpack_sync_error_idc",
+          "jetpack_idc_options",
+          "jetpack_connection_active_plugins",
+          "jetpack_connection_xmlrpc_verified_errors",
+          "stats_options",
+          "sharedaddy_options",
+          "sharing-options",
+          "jetpack_protect_key",
+          "jetpack_protect_error",
+          "jetpack_monitor_active",
+          "jetpack_subscriptions",
+          "jetpack_relatedposts",
+          "jetpack_sitemap_state",
+          "jpsq_sync_checkout",
+          "jpsq_sync_started",
+          "jpsq_full_sync_started"
+        ],
+        "option_prefixes": [
+          "jetpack_",
+          "jetpack_%",
+          "jpsq_",
+          "stats_options",
+          "sharedaddy_options",
+          "sharing-options"
+        ],
+        "read_safe_option_keys": [
+          "jetpack_active_modules",
+          "jetpack_options",
+          "jetpack_available_modules",
+          "stats_options",
+          "sharedaddy_options",
+          "sharing-options",
+          "jetpack_relatedposts",
+          "jetpack_sitemap_state"
+        ],
+        "update_planned_option_keys": [
+          "jetpack_active_modules",
+          "jetpack_options",
+          "jetpack_sync_settings",
+          "jetpack_idc_options",
+          "stats_options",
+          "sharedaddy_options",
+          "sharing-options"
+        ],
+        "connected_state_blocked_option_keys": [
+          "jetpack_private_options",
+          "jetpack_sync_settings",
+          "jetpack_connection_active_plugins",
+          "jetpack_connection_xmlrpc_verified_errors",
+          "jetpack_protect_key",
+          "jetpack_monitor_active",
+          "jpsq_sync_checkout",
+          "jpsq_sync_started",
+          "jpsq_full_sync_started"
+        ],
+        "serialization_boundaries": [
+          "scalar",
+          "array",
+          "object-placeholder",
+          "empty-string",
+          "falsey",
+          "oversized-json"
+        ],
+        "secret_placeholders_only": true,
+        "connected_state_required_for_mutation": true,
+        "runtime_isolation_required_for_mutation": true,
+        "execute_mutations": false,
+        "mutation_mode": "declared_plan",
+        "restore_original_values": true,
+        "rollback_required": true,
+        "rollback_requirements": [
+          "snapshot original option rows before write",
+          "record autoload and serialized value shape before and after",
+          "restore original values before assertions complete",
+          "fail closed when connected/disconnected fixture state is unavailable"
+        ],
+        "skip_reason_codes": [
+          "connection_required",
+          "credential_unavailable"
+        ]
+      },
+      "phases": {
+        "setup": [
+          {
+            "command": "wordpress.ensure-plugin-active",
+            "args": [
+              "plugin=jetpack/jetpack.php"
+            ]
+          }
+        ],
+        "action": [
+          {
+            "command": "wordpress.fuzz-plugin-options",
+            "args": [
+              "secret_placeholders_only=true",
+              "execute_mutations=false",
+              "mutation_mode=declared_plan",
+              "connected_state_required_for_mutation=true",
+              "runtime_isolation_required_for_mutation=true",
+              "rollback_required=true"
+            ]
+          }
+        ],
+        "assert": [
+          {
+            "command": "wordpress.collect-workload-result",
+            "args": [
+              "artifact=options_matrix"
+            ]
+          }
+        ]
+      },
+      "artifacts": [
+        {
+          "name": "options_matrix",
+          "path": "jetpack-options-matrix/options_matrix.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        },
+        {
+          "name": "option_write_rollback_plan",
+          "path": "jetpack-options-matrix/option_write_rollback_plan.json",
+          "required": false,
+          "metadata": {
+            "semantic_key": "fuzz.rollback_plan"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only",
+        "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 120,
+    "max_duration_seconds": 900
+  },
+  "coverage": {
+    "surface_ids": [
+      "jetpack-options",
+      "wordpress-options"
+    ],
+    "operations": [
+      "option-default-read",
+      "option-inventory",
+      "option-update-rollback-plan",
+      "read-update-safety-classification",
+      "connected-state-blocker-classification",
+      "serialization-boundary-classification",
+      "autoload-classification"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "options_matrix",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": false
+      },
+      {
+        "name": "option_write_rollback_plan",
+        "role": "rollback_plan",
+        "semantic_key": "fuzz.rollback_plan",
+        "required": false
+      }
+    ]
+  }
 }
