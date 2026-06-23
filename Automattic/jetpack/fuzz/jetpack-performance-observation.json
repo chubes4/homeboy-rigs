@@ -144,6 +144,15 @@
           "max_external_http_attempts",
           "max_sync_queue_delta"
         ],
+        "product_budgets": {
+          "max_rest_p95_duration_ms": 750,
+          "max_admin_p95_duration_ms": 1200,
+          "max_public_frontend_p95_duration_ms": 1000,
+          "max_queries_per_rest_case": 75,
+          "max_assets_per_public_request": 35,
+          "max_external_http_attempts": 0,
+          "max_sync_queue_delta": 0
+        },
         "hotspot_classes": [
           "slow-rest-route",
           "slow-admin-screen",
