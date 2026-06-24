@@ -1,0 +1,77 @@
+{
+  "schema": "homeboy-rigs/woocommerce-db-api-hotspot-artifact-io/v1",
+  "id": "woocommerce-db-api-hotspot-artifact-io",
+  "description": "Expected input artifact map and sample output schema for future Homeboy artifact postprocess of WooCommerce DB/API hotspot evidence.",
+  "owner_profile": "db-api-performance-fuzzer",
+  "postprocess_command": "homeboy.artifact-postprocess",
+  "readiness": {
+    "level": "declared",
+    "upstream_blocker": "Homeboy/Homeboy Extensions must bind artifact-postprocess helper/action/input/output/parameters before this IO contract becomes executable."
+  },
+  "expected_inputs": [
+    {
+      "workload_id": "woocommerce-rest-route-inventory",
+      "artifact_name": "route_inventory",
+      "schema": "homeboy/wordpress-rest-route-inventory/v1",
+      "required": true,
+      "consumed_fields": ["routes", "namespace_counts"]
+    },
+    {
+      "workload_id": "generated-rest-request-cases",
+      "artifact_name": "rest_request_cases",
+      "schema": "homeboy/wordpress-rest-request-cases/v1",
+      "required": true,
+      "consumed_fields": ["cases", "coverage_gap"]
+    },
+    {
+      "workload_id": "rest-db-query-profile",
+      "artifact_name": "rest_db_query_profile",
+      "schema": "homeboy/wordpress-rest-db-query-profile/v1",
+      "required": true,
+      "consumed_fields": ["route_profiles", "query_samples", "metrics"]
+    },
+    {
+      "workload_id": "db-inventory",
+      "artifact_name": "db_inventory",
+      "schema": "homeboy/wordpress-db-inventory/v1",
+      "required": true,
+      "consumed_fields": ["tables", "row_counts", "indexes"]
+    },
+    {
+      "workload_id": "rest-schema-query-attribution",
+      "artifact_name": "rest_schema_query_attribution",
+      "schema": "homeboy/woocommerce-rest-schema-query-attribution/v1",
+      "required": true,
+      "consumed_fields": ["routes", "tables", "query_families"]
+    },
+    {
+      "workload_id": "performance-hotspots-artifact-summary",
+      "artifact_name": "performance_hotspots_summary",
+      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "required": false,
+      "consumed_fields": ["ranking", "evidence_refs"]
+    }
+  ],
+  "sample_output": {
+    "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+    "ranking": [
+      {
+        "rank": 1,
+        "surface": "api",
+        "relative_score": 42.5,
+        "request_attribution": "GET /wc/v3/products",
+        "query_attribution": [
+          {
+            "table": "wp_wc_product_meta_lookup",
+            "query_family": "product_lookup_read",
+            "sample_count": 3
+          }
+        ],
+        "fixture_scale": "synthetic_product_catalog",
+        "run_refs": ["artifact:rest-db-query-profile.json"]
+      }
+    ],
+    "threshold_policy": "relative_ranking_only",
+    "evidence_refs": ["artifact:rest-db-query-profile.json"]
+  }
+}

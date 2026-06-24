@@ -11,7 +11,61 @@
   },
   "source_manifests": {
     "full_surface": "manifests/full-surface-coverage.json",
-    "rig": "rigs/woocommerce-performance/rig.json"
+    "rig": "rigs/woocommerce-performance/rig.json",
+    "rest_crud_route_family_catalog": "manifests/rest-crud-route-family-catalog.json",
+    "block_inventory_rendering_fuzz": "manifests/block-inventory-rendering-fuzz.json",
+    "admin_action_inventory": "manifests/admin-action-inventory.json",
+    "db_api_hotspot_artifact_io": "manifests/db-api-hotspot-artifact-io.json"
+  },
+  "discovery_manifests": {
+    "rest_route_families": {
+      "manifest": "manifests/rest-crud-route-family-catalog.json",
+      "owner_profile": "product-rest-crud-fuzzer",
+      "readiness": "declared_inventory",
+      "route_family_ids": [
+        "products-collection",
+        "products-batch",
+        "product-variations-batch",
+        "product-attributes-and-terms"
+      ]
+    },
+    "blocks": {
+      "manifest": "manifests/block-inventory-rendering-fuzz.json",
+      "owner_profile": "full-surface",
+      "readiness": {
+        "inventory": "declared_requires_generic_block_inventory_artifact",
+        "rendering": "partial_via_frontend_browser_request_coverage",
+        "mutation": "blocked_not_a_block_editor_mutation_workload"
+      },
+      "owned_by": {
+        "workloads": [
+          "frontend-rendering-request-coverage",
+          "woocommerce-browser-coverage"
+        ],
+        "profiles": [
+          "full-surface"
+        ]
+      }
+    },
+    "admin_actions": {
+      "manifest": "manifests/admin-action-inventory.json",
+      "owner_profile": "full-surface",
+      "readiness": "declared_inventory",
+      "action_family_ids": [
+        "admin-menu-get-pages",
+        "wc-ajax-frontend-actions",
+        "marketplace-and-webhook-http-actions"
+      ]
+    },
+    "db_api_hotspots": {
+      "manifest": "manifests/db-api-hotspot-artifact-io.json",
+      "owner_profile": "db-api-performance-fuzzer",
+      "readiness": {
+        "level": "declared",
+        "upstream_blocker": "Homeboy/Homeboy Extensions must bind artifact-postprocess helper/action/input/output/parameters before this IO contract becomes executable."
+      },
+      "postprocess_command": "homeboy.artifact-postprocess"
+    }
   },
   "inventory_primitives": {
     "rest_routes": {
@@ -251,7 +305,8 @@
         "transient_growth",
         "gateway_compatibility",
         "external_http_guardrail"
-      ]
+      ],
+      "artifact_io_manifest": "manifests/db-api-hotspot-artifact-io.json"
     }
   },
   "declared_fuzz_workloads": [

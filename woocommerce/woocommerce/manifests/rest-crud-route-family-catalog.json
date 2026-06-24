@@ -1,0 +1,119 @@
+{
+  "schema": "homeboy-rigs/woocommerce-rest-crud-route-family-catalog/v1",
+  "id": "woocommerce-rest-crud-route-family-catalog",
+  "description": "WooCommerce REST CRUD route-family catalog for production fuzzing readiness. This manifest declares fixture needs, executable status, skipped dynamic/non-GET coverage, and owning workloads/profiles without adding runner behavior.",
+  "owner_profile": "product-rest-crud-fuzzer",
+  "route_families": [
+    {
+      "id": "products-collection",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/products"],
+      "resources": ["product"],
+      "fixture_requirements": ["synthetic simple products", "synthetic variable products", "attributes and terms", "unique SKU/title/slug inputs"],
+      "owned_by": {
+        "workloads": ["generated-rest-request-cases", "rest-schema-query-attribution", "rest-product-batch-import"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "readiness": {
+        "create": "executable_via_batch_import",
+        "read": "executable_via_generated_get_cases",
+        "update": "executable_via_batch_import",
+        "delete": "blocked_requires_rollback_safe_delete_primitive"
+      },
+      "skipped_coverage": [
+        {
+          "scope": "non_get_collection_mutations_outside_batch",
+          "reason_code": "owned_by_batch_import_workload"
+        },
+        {
+          "scope": "delete",
+          "reason_code": "missing_rollback_safe_delete_primitive"
+        }
+      ]
+    },
+    {
+      "id": "products-batch",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/products/batch"],
+      "resources": ["product"],
+      "fixture_requirements": ["synthetic catalog products", "unique SKU/title/slug inputs", "image import disabled unless explicitly configured"],
+      "owned_by": {
+        "workloads": ["rest-product-batch-import"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "readiness": {
+        "create": "executable_isolated_mutation",
+        "read": "executable_readback_guardrail",
+        "update": "executable_isolated_mutation",
+        "delete": "declared_blocked"
+      },
+      "skipped_coverage": [
+        {
+          "scope": "delete",
+          "reason_code": "current_workload_does_not_execute_delete"
+        }
+      ]
+    },
+    {
+      "id": "product-variations-batch",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/products/<product_id>/variations/batch"],
+      "resources": ["product_variation"],
+      "fixture_requirements": ["parent variable product", "attributes and terms", "variation payload matrix"],
+      "owned_by": {
+        "workloads": ["rest-product-batch-import"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "readiness": {
+        "create": "executable_isolated_mutation",
+        "read": "executable_readback_guardrail",
+        "update": "executable_isolated_mutation",
+        "delete": "declared_blocked"
+      },
+      "skipped_coverage": [
+        {
+          "scope": "dynamic_parent_id_discovery",
+          "reason_code": "fixture_owned_dynamic_path_parameter"
+        },
+        {
+          "scope": "delete",
+          "reason_code": "current_workload_does_not_execute_delete"
+        }
+      ]
+    },
+    {
+      "id": "product-attributes-and-terms",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/products/attributes", "/wc/v3/products/attributes/<attribute_id>/terms"],
+      "resources": ["product_attribute", "product_attribute_term"],
+      "fixture_requirements": ["synthetic attributes", "synthetic terms", "dynamic attribute id from fixture setup"],
+      "owned_by": {
+        "workloads": ["rest-product-batch-import", "generated-rest-request-cases"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "readiness": {
+        "create": "executable_as_fixture_setup",
+        "read": "partial_dynamic_get_cases",
+        "update": "declared_fixture_owned",
+        "delete": "blocked_requires_rollback_safe_delete_primitive"
+      },
+      "skipped_coverage": [
+        {
+          "scope": "dynamic_attribute_term_paths",
+          "reason_code": "dynamic_path_parameter"
+        },
+        {
+          "scope": "delete",
+          "reason_code": "missing_rollback_safe_delete_primitive"
+        }
+      ]
+    }
+  ],
+  "skip_reason_codes": [
+    "dynamic_path_parameter",
+    "fixture_owned_dynamic_path_parameter",
+    "missing_rollback_safe_delete_primitive",
+    "current_workload_does_not_execute_delete",
+    "owned_by_batch_import_workload"
+  ]
+}
