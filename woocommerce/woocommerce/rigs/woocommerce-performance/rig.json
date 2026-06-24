@@ -123,6 +123,13 @@
       "coverage-gap-report",
       "performance-hotspots-artifact-summary"
     ],
+    "product-rest-crud-fuzzer": [
+      "rest-product-batch-import",
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-schema-query-attribution",
+      "coverage-gap-report"
+    ],
     "fuzzer": [
       "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
@@ -175,6 +182,20 @@
     ]
   },
   "fuzz_profile_metadata": {
+    "full-surface": {
+      "description": "WooCommerce full-surface fuzz inventory. Discovery manifests extend the executable fuzz workload list with declared REST route-family, block, admin action, and DB/API hotspot artifact contracts without claiming additional runner coverage.",
+      "target_inventory_manifest": "manifests/target-inventory.json",
+      "discovery_manifests": {
+        "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
+        "blocks": "manifests/block-inventory-rendering-fuzz.json",
+        "admin_actions": "manifests/admin-action-inventory.json",
+        "db_api_hotspots": "manifests/db-api-hotspot-artifact-io.json"
+      },
+      "readiness": {
+        "level": "declared_inventory",
+        "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios and future artifact-postprocess outputs stay non-executable until upstream runner support emits reviewer-facing artifacts."
+      }
+    },
     "db-api-performance-fuzzer": {
       "description": "Focused WooCommerce DB/API performance fuzzer profile built only from declared REST inventory, generated REST cases, REST DB query profile, DB inventory, schema/query attribution, and performance hotspot summary workloads.",
       "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
@@ -215,6 +236,35 @@
             "Generic REST mutation runner must emit rollback artifacts before create/update/delete cases can join this profile.",
             "Generic REST mutation runner must emit delete-boundary rollback artifacts before mutating CRUD cases can join this profile."
           ]
+        }
+      }
+    },
+    "product-rest-crud-fuzzer": {
+      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness, with delete explicitly blocked until upstream rollback-safe delete primitives land.",
+      "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
+      "hotspot_artifact_contract_manifest": "manifests/db-api-hotspot-artifact-io.json",
+      "readiness": {
+        "level": "partially_executable",
+        "crud": {
+          "create": {
+            "level": "executable",
+            "workload": "rest-product-batch-import",
+            "safety_class": "isolated_mutation"
+          },
+          "read": {
+            "level": "executable",
+            "workloads": ["generated-rest-request-cases", "rest-schema-query-attribution"],
+            "safety_class": "read_only"
+          },
+          "update": {
+            "level": "executable",
+            "workload": "rest-product-batch-import",
+            "safety_class": "isolated_mutation"
+          },
+          "delete": {
+            "level": "declared",
+            "upstream_blocker": "Generic rollback-safe REST delete primitive and delete-boundary rollback artifact contract are not available to this profile."
+          }
         }
       }
     }

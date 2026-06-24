@@ -11,6 +11,10 @@ const packageRoot = path.join(__dirname, '..');
 
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+const restCrudRouteFamilyCatalog = readJson(packageRoot, 'manifests/rest-crud-route-family-catalog.json');
+const blockInventoryRenderingFuzz = readJson(packageRoot, 'manifests/block-inventory-rendering-fuzz.json');
+const adminActionInventory = readJson(packageRoot, 'manifests/admin-action-inventory.json');
+const dbApiHotspotArtifactIo = readJson(packageRoot, 'manifests/db-api-hotspot-artifact-io.json');
 
 const declaredWorkloads = [...declaredFuzzIds(rig)].sort();
 
@@ -28,6 +32,36 @@ const inventory = {
   source_manifests: {
     full_surface: 'manifests/full-surface-coverage.json',
     rig: 'rigs/woocommerce-performance/rig.json',
+    rest_crud_route_family_catalog: 'manifests/rest-crud-route-family-catalog.json',
+    block_inventory_rendering_fuzz: 'manifests/block-inventory-rendering-fuzz.json',
+    admin_action_inventory: 'manifests/admin-action-inventory.json',
+    db_api_hotspot_artifact_io: 'manifests/db-api-hotspot-artifact-io.json',
+  },
+  discovery_manifests: {
+    rest_route_families: {
+      manifest: 'manifests/rest-crud-route-family-catalog.json',
+      owner_profile: restCrudRouteFamilyCatalog.owner_profile,
+      readiness: 'declared_inventory',
+      route_family_ids: restCrudRouteFamilyCatalog.route_families.map((family) => family.id),
+    },
+    blocks: {
+      manifest: 'manifests/block-inventory-rendering-fuzz.json',
+      owner_profile: blockInventoryRenderingFuzz.owner_profile,
+      readiness: blockInventoryRenderingFuzz.readiness,
+      owned_by: blockInventoryRenderingFuzz.owned_by,
+    },
+    admin_actions: {
+      manifest: 'manifests/admin-action-inventory.json',
+      owner_profile: adminActionInventory.owner_profile,
+      readiness: 'declared_inventory',
+      action_family_ids: adminActionInventory.action_families.map((family) => family.id),
+    },
+    db_api_hotspots: {
+      manifest: 'manifests/db-api-hotspot-artifact-io.json',
+      owner_profile: dbApiHotspotArtifactIo.owner_profile,
+      readiness: dbApiHotspotArtifactIo.readiness,
+      postprocess_command: dbApiHotspotArtifactIo.postprocess_command,
+    },
   },
   inventory_primitives: {
     rest_routes: {
@@ -97,8 +131,8 @@ const inventory = {
       query_attribution_fields: ['request_case_id', 'route', 'method', 'query_type', 'table', 'stack_summary', 'caller_summary'],
     },
     blocks: {
-      block_name_prefixes: ['woocommerce/'],
-      frontend_contexts: ['shop', 'product', 'cart', 'checkout'],
+      block_name_prefixes: blockInventoryRenderingFuzz.block_name_prefixes,
+      frontend_contexts: blockInventoryRenderingFuzz.frontend_contexts,
       required_sections: ['registered_blocks', 'rendered_blocks', 'block_assets', 'block_rest_requests', 'block_query_profiles'],
     },
     options_transients: {
@@ -110,6 +144,7 @@ const inventory = {
       workloads: coverage.coverage_profiles['full-surface'].performance_hotspots,
       focus_areas: ['checkout', 'cart_session', 'catalog_layered_navigation', 'admin_dashboard', 'rest_api', 'cache_invalidation', 'external_http'],
       required_sections: ['request_timing', 'query_counts', 'cache_invalidation', 'transient_growth', 'gateway_compatibility', 'external_http_guardrail'],
+      artifact_io_manifest: 'manifests/db-api-hotspot-artifact-io.json',
     },
   },
   declared_fuzz_workloads: declaredWorkloads,

@@ -1,0 +1,28 @@
+{
+  "schema": "homeboy-rigs/woocommerce-block-inventory-rendering-fuzz/v1",
+  "id": "woocommerce-block-inventory-rendering-fuzz",
+  "description": "Declared WooCommerce block inventory and rendering fuzz scope for storefront/product/cart/checkout block surfaces. Execution should use generic WordPress block inventory/rendering primitives when available.",
+  "owner_profile": "full-surface",
+  "fixture_requirements": ["shop page", "single product", "cart with synthetic product", "checkout page without payment submission"],
+  "block_name_prefixes": ["woocommerce/"],
+  "frontend_contexts": ["shop", "product", "cart", "checkout"],
+  "owned_by": {
+    "workloads": ["frontend-rendering-request-coverage", "woocommerce-browser-coverage"],
+    "profiles": ["full-surface"]
+  },
+  "readiness": {
+    "inventory": "declared_requires_generic_block_inventory_artifact",
+    "rendering": "partial_via_frontend_browser_request_coverage",
+    "mutation": "blocked_not_a_block_editor_mutation_workload"
+  },
+  "skip_reasons": [
+    {
+      "scope": "checkout_submit_blocks",
+      "reason_code": "destructive_or_payment_submission"
+    },
+    {
+      "scope": "editor_block_mutation",
+      "reason_code": "missing_generic_block_editor_mutation_primitive"
+    }
+  ]
+}

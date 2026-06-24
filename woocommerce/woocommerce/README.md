@@ -168,6 +168,31 @@ The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;
 they do not change readiness levels or convert declarations into proof.
 
+The `full-surface` profile also links discovery manifests for route families,
+Woo blocks, admin action families, and DB/API hotspot artifact IO through
+`fuzz_profile_metadata` and the generated `manifests/target-inventory.json`.
+Those manifests are inventory contracts, not new executable workload IDs. The
+validator allows explicit external discovery references, such as the browser
+coverage rig, while rejecting drift from declared Woo fuzz workloads.
+
+The Woo DB/API fuzz progression is split into two focused profiles:
+
+- `db-api-performance-fuzzer` groups read-only REST route inventory, generated
+  safe request cases, REST DB query profiling, DB inventory, schema/query
+  attribution, gap reporting, and hotspot summary declarations. Create, update,
+  and delete stay declared until upstream rollback-safe REST mutation primitives
+  emit rollback artifacts.
+- `product-rest-crud-fuzzer` makes product and variation batch create/update plus
+  readback executable through `rest-product-batch-import`. Delete remains blocked
+  on the same upstream rollback-safe delete primitive and delete-boundary artifact
+  contract.
+
+The hotspot and coverage aggregation workloads intentionally keep
+`homeboy.artifact-postprocess` as a runner blocker. Do not shim aggregation in
+the rig: Homeboy/Homeboy Extensions must bind `args.helper`, `args.action`,
+`args.input`, `args.output`, and `args.parameters`, then collect the declared
+`fuzz.report` artifact before those contracts can become executable.
+
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance
 summary fuzz manifests are proof-ready declarations until a `homeboy fuzz run`

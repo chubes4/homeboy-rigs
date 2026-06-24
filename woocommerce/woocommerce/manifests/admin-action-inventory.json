@@ -1,0 +1,42 @@
+{
+  "schema": "homeboy-rigs/woocommerce-admin-action-inventory/v1",
+  "id": "woocommerce-admin-action-inventory",
+  "description": "Declared inventory of WooCommerce admin AJAX/action fuzz surfaces with fixture requirements and skip reasons for production-readiness review.",
+  "owner_profile": "full-surface",
+  "owned_by": {
+    "workloads": ["admin-page-coverage", "woocommerce-external-http-guardrail"],
+    "profiles": ["full-surface"]
+  },
+  "action_families": [
+    {
+      "id": "admin-menu-get-pages",
+      "fixture_requirements": ["administrator user", "shop_manager user", "WooCommerce active"],
+      "readiness": "executable_get_only",
+      "workload": "admin-page-coverage",
+      "skip_reasons": ["unsafe_query_arg_action", "unsafe_query_arg_delete", "setup_or_onboarding_screen"]
+    },
+    {
+      "id": "wc-ajax-frontend-actions",
+      "fixture_requirements": ["synthetic cart", "synthetic product"],
+      "readiness": "declared_browser_request_inventory_only",
+      "workload": "frontend-rendering-request-coverage",
+      "skip_reasons": ["destructive_cart_or_checkout_mutation", "payment_submission"]
+    },
+    {
+      "id": "marketplace-and-webhook-http-actions",
+      "fixture_requirements": ["external HTTP guardrail", "allowlist policy"],
+      "readiness": "executable_guardrail_probe",
+      "workload": "woocommerce-external-http-guardrail",
+      "skip_reasons": ["live_credentials_required", "external_side_effect_blocked"]
+    }
+  ],
+  "skip_reason_codes": [
+    "unsafe_query_arg_action",
+    "unsafe_query_arg_delete",
+    "setup_or_onboarding_screen",
+    "destructive_cart_or_checkout_mutation",
+    "payment_submission",
+    "live_credentials_required",
+    "external_side_effect_blocked"
+  ]
+}
