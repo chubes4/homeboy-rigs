@@ -22,6 +22,8 @@ const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const dbApiPerformanceFuzzerGapReport = readJson(packageRoot, 'manifests/db-api-performance-fuzzer-gap-report.json');
 const targetInventory = readJson(packageRoot, 'manifests/target-inventory.json');
+const coverageGapReportWorkload = readJson(packageRoot, 'bench/coverage-gap-report.workload.json');
+const performanceHotspotsWorkload = readJson(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json');
 const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
 
 assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
@@ -34,6 +36,7 @@ const expectedFuzzIds = new Set([
   'checkout-gateway-compatibility-matrix',
   'checkout-shipping-cache',
   'codebox-fuzz-suite-smoke',
+  'coverage-gap-report',
   'db-inventory',
   'frontend-rendering-request-coverage',
   'generated-rest-request-cases',
@@ -65,7 +68,7 @@ const requiredProofContracts = new Map([
 
 const fuzzManifests = collectFuzzManifests(packageRoot);
 
-assert.equal(fuzzManifests.length, 22, 'expected 22 WooCommerce fuzz manifests');
+assert.equal(fuzzManifests.length, 23, 'expected 23 WooCommerce fuzz manifests');
 assert.ok(existsSync(runtimeDependencyHelper), 'WooCommerce runtime dependency prep helper must exist');
 
 const declaredIds = declaredFuzzIds(rig);
@@ -113,8 +116,51 @@ const dbApiPerformanceFuzzerWorkloadIds = [
   'rest-db-query-profile',
   'db-inventory',
   'rest-schema-query-attribution',
+  'coverage-gap-report',
   'performance-hotspots-artifact-summary',
 ];
+const dbApiPerformanceFuzzerGapReportInputIds = dbApiPerformanceFuzzerWorkloadIds.filter((workloadId) => workloadId !== 'coverage-gap-report');
+
+function assertArtifactPostprocessWorkload(workload, { id, action, artifactName, schema }) {
+  assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} must use the upstream workload-run envelope`);
+  assert.equal(workload.id, id, `${id} workload id drifted`);
+  assert.equal(workload.steps?.length, 1, `${id} must declare one generic artifact-postprocess step`);
+  assert.equal(workload.steps[0].command, 'homeboy.artifact-postprocess', `${id} must use the generic artifact-postprocess command`);
+  assert.equal(workload.steps[0].type, undefined, `${id} must not invent unsupported step types`);
+
+  const args = workload.steps[0].args;
+  assert.equal(args.helper, '${package.root}/tools/db-api-fuzzer-artifacts.mjs', `${id} helper drifted`);
+  assert.equal(args.action, action, `${id} action drifted`);
+  assert.deepEqual(args.input, {
+    type: 'artifact-root',
+    path: '${artifacts.root}',
+    artifact_globs: ['**/*.json'],
+    max_bytes: 1048576,
+  }, `${id} input artifact root contract drifted`);
+  assert.equal(args.output.artifact, artifactName, `${id} output artifact name drifted`);
+  assert.equal(args.output.kind, 'json', `${id} output kind drifted`);
+  assert.equal(args.output.contentType, 'application/json', `${id} output contentType drifted`);
+  assert.equal(args.output.schema, schema, `${id} output schema drifted`);
+  assert.equal(args.output.semantic_key, 'fuzz.report', `${id} output semantic key drifted`);
+  assert.equal(workload.artifacts?.[0]?.name, artifactName, `${id} collected artifact name drifted`);
+  assert.equal(workload.artifacts?.[0]?.required, true, `${id} collected artifact must be required`);
+  assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay blocked until upstream binds homeboy.artifact-postprocess`);
+  assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document exact missing upstream fields`);
+}
+
+assertArtifactPostprocessWorkload(coverageGapReportWorkload, {
+  id: 'coverage-gap-report',
+  action: 'coverage-gap-report',
+  artifactName: 'coverage_gap_report',
+  schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+});
+
+assertArtifactPostprocessWorkload(performanceHotspotsWorkload, {
+  id: 'performance-hotspots-artifact-summary',
+  action: 'performance-hotspots-summary',
+  artifactName: 'performance_hotspots_summary',
+  schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+});
 
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
@@ -265,6 +311,7 @@ assert.deepEqual(codeboxSmokeManifest.metadata?.required_primitive_contracts, [
   'wordpress.inventory-database',
   'wordpress.attribute-rest-schema-queries',
   'wordpress.summarize-performance-hotspots',
+  'wordpress.coverage-gap-report',
 ]);
 assert.equal(codeboxSmokeManifest.metadata?.readiness?.upstream_blockers?.length, 4, 'codebox smoke declared readiness must name upstream blockers');
 assert.equal(codeboxSmokeManifest.metadata?.readiness?.crud?.read?.level, 'executable', 'DB/API profile read CRUD boundary must be executable');
@@ -304,6 +351,7 @@ assert.deepEqual(codeboxSuite.target?.metadata?.required_primitives, [
   'wordpress.inventory-database',
   'wordpress.attribute-rest-schema-queries',
   'wordpress.summarize-performance-hotspots',
+  'wordpress.coverage-gap-report',
 ]);
 assert.deepEqual(codeboxSuite.target?.metadata?.source_manifests, [
   'fuzz/woocommerce-rest-route-inventory.json',
@@ -311,6 +359,7 @@ assert.deepEqual(codeboxSuite.target?.metadata?.source_manifests, [
   'fuzz/rest-db-query-profile.json',
   'fuzz/db-inventory.json',
   'fuzz/rest-schema-query-attribution.json',
+  'fuzz/coverage-gap-report.json',
   'fuzz/performance-hotspots-artifact-summary.json',
   'manifests/db-api-performance-fuzzer-gap-report.json',
 ]);
@@ -319,14 +368,16 @@ assert.deepEqual(codeboxSuite.target?.metadata?.profile?.workload_ids, dbApiPerf
 assert.equal(codeboxSuite.target?.metadata?.profile?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'Codebox suite must link the standalone DB/API gap report declaration');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'DB/API profile must link the standalone gap report declaration');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API profile must identify the source full-surface gap report');
-assert.equal(dbApiPerformanceFuzzerGapReport.schema, 'homeboy-rigs/wordpress-coverage-gap-report-declaration/v1', 'DB/API gap report declaration schema drifted');
-assert.equal(dbApiPerformanceFuzzerGapReport.id, 'woocommerce-db-api-performance-fuzzer-gap-report', 'DB/API gap report declaration id drifted');
-assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuzzer', 'DB/API gap report declaration must target the DB/API fuzzer profile');
-assert.equal(dbApiPerformanceFuzzerGapReport.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API gap report declaration must point at the full-surface gap report source');
-assert.deepEqual(dbApiPerformanceFuzzerGapReport.inputs, dbApiPerformanceFuzzerWorkloadIds, 'DB/API gap report declaration inputs drifted');
-assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'declared', 'DB/API gap report declaration readiness must stay declared');
-assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'not_executable', 'DB/API gap report declaration must not claim execution');
+assert.equal(dbApiPerformanceFuzzerGapReport.schema, 'homeboy-rigs/wordpress-coverage-gap-report-workload/v1', 'DB/API gap report workload schema drifted');
+assert.equal(dbApiPerformanceFuzzerGapReport.id, 'woocommerce-db-api-performance-fuzzer-gap-report', 'DB/API gap report workload id drifted');
+assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuzzer', 'DB/API gap report workload must target the DB/API fuzzer profile');
+assert.equal(dbApiPerformanceFuzzerGapReport.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API gap report workload must point at the full-surface gap report source');
+assert.equal(dbApiPerformanceFuzzerGapReport.workload, 'fuzz/coverage-gap-report.json', 'DB/API gap report workload must link the executable fuzz workload');
+assert.deepEqual(dbApiPerformanceFuzzerGapReport.inputs, dbApiPerformanceFuzzerGapReportInputIds, 'DB/API gap report workload inputs drifted');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'declared', 'DB/API gap report workload readiness must stay declared until upstream binds artifact-postprocess');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'artifact_aggregation', 'DB/API gap report workload must use artifact aggregation execution');
 assert.ok(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers?.length > 0, 'DB/API gap report declaration must name upstream blockers');
+assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('args.helper')), 'DB/API gap report declaration must list the missing upstream artifact-postprocess fields');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.read?.level, 'executable', 'DB/API rig profile read CRUD boundary must be executable');
 for (const operation of ['create', 'update', 'delete']) {
   assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.level, 'declared', `DB/API rig profile ${operation} CRUD boundary must be declared`);

@@ -1,0 +1,56 @@
+{
+  "schema": "wp-codebox/wordpress-workload-run/v1",
+  "id": "performance-hotspots-artifact-summary",
+  "steps": [
+    {
+      "command": "homeboy.artifact-postprocess",
+      "args": {
+        "helper": "${package.root}/tools/db-api-fuzzer-artifacts.mjs",
+        "action": "performance-hotspots-summary",
+        "input": {
+          "type": "artifact-root",
+          "path": "${artifacts.root}",
+          "artifact_globs": ["**/*.json"],
+          "max_bytes": 1048576
+        },
+        "output": {
+          "artifact": "performance_hotspots_summary",
+          "path": "performance-hotspots-artifact-summary/performance_hotspots_summary.json",
+          "kind": "json",
+          "contentType": "application/json",
+          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "semantic_key": "fuzz.report",
+          "ranking": {
+            "mode": "relative",
+            "required_fields": ["rank", "surface", "relative_score", "request_attribution", "query_attribution", "fixture_scale", "run_refs"]
+          }
+        },
+        "parameters": {
+          "metric_prefix": "performance_hotspots_summary",
+          "maxQuerySamples": 50
+        }
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "performance_hotspots_summary",
+      "path": "performance-hotspots-artifact-summary/performance_hotspots_summary.json",
+      "kind": "json",
+      "contentType": "application/json",
+      "required": true,
+      "metadata": {
+        "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+        "semantic_key": "fuzz.report"
+      }
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "performance-hotspots-artifact-summary",
+    "runner_support_status": "requires-upstream-binding",
+    "missing_upstream_contract": "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters exactly as declared here.",
+    "coverage_shape": "Executable relative hotspot ranking over available WooCommerce performance and DB/API run artifacts",
+    "manifest": "manifests/full-surface-coverage.json"
+  }
+}

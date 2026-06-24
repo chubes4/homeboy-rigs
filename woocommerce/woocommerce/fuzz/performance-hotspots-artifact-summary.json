@@ -2,7 +2,7 @@
   "schema": "homeboy/fuzz-workload/v1",
   "id": "performance-hotspots-artifact-summary",
   "label": "WooCommerce performance hotspots artifact summary",
-  "safety_class": "isolated_mutation",
+  "safety_class": "read_only",
   "surface_ids": [
     "woocommerce-checkout-performance",
     "woocommerce-cart-session-performance",
@@ -23,12 +23,16 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
+    "workload_path": "${package.root}/bench/performance-hotspots-artifact-summary.workload.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "declared",
-      "coverage_contract": "Summarize WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. This remains declared until real run artifacts produce the summary."
+      "coverage_contract": "Summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. The workload uses the forward-compatible homeboy.artifact-postprocess command shape; executable readiness requires the upstream runner binding for that command. Proven status still requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "upstream_blockers": [
+        "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters.",
+        "The runner must pass an artifact root for prior workload outputs and collect the declared fuzz.report JSON artifact."
+      ]
     },
     "fixture": {
       "runtime": "wp-codebox",
@@ -54,7 +58,7 @@
   "workload": {
     "runner": "wp-codebox",
     "type": "json",
-    "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+    "path": "${package.root}/bench/performance-hotspots-artifact-summary.workload.json",
     "entry": "performance-hotspots-artifact-summary"
   },
   "cases": [
@@ -86,7 +90,7 @@
         }
       ],
       "metadata": {
-        "safety_class": "isolated_mutation"
+        "safety_class": "read_only"
       },
       "intent": {
         "schema": "homeboy/fuzz-workload-intent/v1",
@@ -96,7 +100,7 @@
         },
         "execute": {
           "workload_ref": "default",
-          "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+          "path": "${package.root}/bench/performance-hotspots-artifact-summary.workload.json",
           "type": "json",
           "entry": "performance-hotspots-artifact-summary",
           "parameters": {

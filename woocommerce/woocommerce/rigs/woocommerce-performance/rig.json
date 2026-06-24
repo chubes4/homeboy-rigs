@@ -87,6 +87,7 @@
       { "path": "${package.root}/fuzz/rest-permission-boundary-matrix.json" },
       { "path": "${package.root}/fuzz/rest-namespace-generated-cases.json" },
       { "path": "${package.root}/fuzz/rest-schema-query-attribution.json" },
+      { "path": "${package.root}/fuzz/coverage-gap-report.json" },
       { "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json" },
       { "path": "${package.root}/fuzz/options-transients-coverage.json" },
       { "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json" },
@@ -119,6 +120,7 @@
       "rest-db-query-profile",
       "db-inventory",
       "rest-schema-query-attribution",
+      "coverage-gap-report",
       "performance-hotspots-artifact-summary"
     ],
     "fuzzer": [
@@ -137,6 +139,7 @@
       "rest-permission-boundary-matrix",
       "rest-namespace-generated-cases",
       "rest-schema-query-attribution",
+      "coverage-gap-report",
       "action-scheduler-lookup-table-coverage",
       "options-transients-coverage",
       "rollback-safe-options-transients-mutations",
@@ -161,6 +164,7 @@
       "rest-permission-boundary-matrix",
       "rest-namespace-generated-cases",
       "rest-schema-query-attribution",
+      "coverage-gap-report",
       "action-scheduler-lookup-table-coverage",
       "options-transients-coverage",
       "rollback-safe-options-transients-mutations",
@@ -181,7 +185,8 @@
         "wordpress.profile-rest-db-queries",
         "wordpress.inventory-database",
         "wordpress.attribute-rest-schema-queries",
-        "wordpress.summarize-performance-hotspots"
+        "wordpress.summarize-performance-hotspots",
+        "wordpress.coverage-gap-report"
       ],
       "readiness": {
         "level": "declared",
@@ -208,7 +213,7 @@
           "rollback_artifacts": [],
           "upstream_blockers": [
             "Generic REST mutation runner must emit rollback artifacts before create/update/delete cases can join this profile.",
-            "Coverage gap reporting currently comes from manifests/full-surface-coverage.json rather than a standalone executable gap-report workload."
+            "Generic REST mutation runner must emit delete-boundary rollback artifacts before mutating CRUD cases can join this profile."
           ]
         }
       }

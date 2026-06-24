@@ -32,7 +32,8 @@
       "wordpress.profile-rest-db-queries",
       "wordpress.inventory-database",
       "wordpress.attribute-rest-schema-queries",
-      "wordpress.summarize-performance-hotspots"
+      "wordpress.summarize-performance-hotspots",
+      "wordpress.coverage-gap-report"
     ],
     "readiness": {
       "level": "declared",
@@ -41,7 +42,7 @@
         "Public fuzz-suite execution must consume generated route inventory and request-case artifacts instead of static route fixtures.",
         "REST DB query attribution must be emitted as reviewer-facing fuzz-suite-result artifacts before this can become executable or proven.",
         "Generic rollback-safe REST create/update/delete primitives must emit rollback artifacts before mutating DB/API cases can join the profile.",
-        "Coverage gap reporting currently comes from manifests/full-surface-coverage.json rather than a standalone executable gap-report workload."
+        "Public fuzz-suite proof must include reviewer-facing coverage gap report and hotspot summary artifacts before this contract can become proven."
       ],
       "crud": {
         "create": {

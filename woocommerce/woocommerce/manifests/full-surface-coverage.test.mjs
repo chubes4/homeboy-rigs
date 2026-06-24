@@ -13,6 +13,10 @@ const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/wooc
 const browserRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
 const generatedRestCases = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/generated-rest-request-cases.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
+const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
+const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
+const coverageGapReportWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/coverage-gap-report.workload.json'), 'utf8'));
+const performanceHotspotsWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json'), 'utf8'));
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
 
@@ -159,4 +163,89 @@ test('performance hotspot summary contract uses relative ranking instead of hard
   );
   assert.equal(artifactSchema.threshold_policy, 'relative_ranking_only');
   assert.equal(performanceHotspots.thresholds, undefined, 'hotspot summary must not declare hardcoded thresholds');
+});
+
+test('REST DB query profile consumes generated request case artifacts with caps', () => {
+  const profilerSteps = restDbQueryProfileWorkload.run.filter((step) => (
+    step.type === 'rest-db-query-profiler'
+  ));
+
+  assert.equal(profilerSteps.length, 1);
+  for (const step of profilerSteps) {
+    assert.equal(step.rest_request_cases, undefined, `${step.type} must not fall back to hard-coded route cases`);
+    assert.equal(step.rest_request_cases_source.type, 'artifact');
+    assert.equal(step.rest_request_cases_source.schema, 'homeboy/wordpress-rest-request-cases/v1');
+    assert.deepEqual(step.rest_request_cases_source.artifact_globs, ['generated-rest-request-cases/*.json']);
+    assert.equal(step.rest_request_cases_source.maxRouteCases, 80);
+    assert.equal(step.rest_request_cases_source.maxArtifactBytes, 1048576);
+    assert.equal(step.sampleLimit, 50);
+    assert.equal(step.fallback_policy, 'require_generated_rest_request_cases_artifact');
+  }
+});
+
+function assertArtifactPostprocessWorkloadContract(workload, { id, action, artifact, outputPath, schema }) {
+  assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} workload must use the generic workload-run contract`);
+  assert.equal(workload.id, id, `${id} workload id drifted`);
+  assert.equal(workload.steps?.length, 1, `${id} must declare one artifact postprocess step`);
+  assert.equal(workload.steps[0].command, 'homeboy.artifact-postprocess', `${id} must use the generic artifact postprocess command`);
+  assert.equal(workload.steps[0].type, undefined, `${id} must not invent an unsupported step type`);
+  assert.equal(workload.steps[0].runner_support_status, undefined, `${id} runner support status belongs in metadata, not the executable step`);
+
+  const args = workload.steps[0].args;
+  assert.equal(args.helper, '${package.root}/tools/db-api-fuzzer-artifacts.mjs', `${id} helper drifted`);
+  assert.equal(args.action, action, `${id} action drifted`);
+  assert.deepEqual(args.input, {
+    type: 'artifact-root',
+    path: '${artifacts.root}',
+    artifact_globs: ['**/*.json'],
+    max_bytes: 1048576,
+  }, `${id} input artifact binding drifted`);
+  assert.equal(args.output.artifact, artifact, `${id} output artifact drifted`);
+  assert.equal(args.output.path, outputPath, `${id} output path drifted`);
+  assert.equal(args.output.kind, 'json', `${id} output kind drifted`);
+  assert.equal(args.output.contentType, 'application/json', `${id} output contentType drifted`);
+  assert.equal(args.output.schema, schema, `${id} output schema drifted`);
+  assert.equal(args.output.semantic_key, 'fuzz.report', `${id} semantic key drifted`);
+
+  assert.deepEqual(workload.artifacts?.[0], {
+    name: artifact,
+    path: outputPath,
+    kind: 'json',
+    contentType: 'application/json',
+    required: true,
+    metadata: {
+      schema,
+      semantic_key: 'fuzz.report',
+    },
+  }, `${id} collected artifact declaration drifted`);
+  assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay declared until upstream binds this command`);
+  assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document missing upstream fields`);
+}
+
+test('coverage gap and hotspot reports declare the generic artifact postprocess contract', () => {
+  assert.equal(coverageGapReport.metadata.readiness.level, 'declared');
+  assert.equal(coverageGapReport.workload.path, '${package.root}/bench/coverage-gap-report.workload.json');
+  assert.equal(coverageGapReport.workload.type, 'json');
+  assert.equal(coverageGapReport.safety_class, 'read_only');
+  assert.equal(coverageGapReport.artifacts.expected[0].name, 'coverage_gap_report');
+  assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
+    id: 'coverage-gap-report',
+    action: 'coverage-gap-report',
+    artifact: 'coverage_gap_report',
+    outputPath: 'coverage-gap-report/coverage_gap_report.json',
+    schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+  });
+
+  assert.equal(performanceHotspots.metadata.readiness.level, 'declared');
+  assert.equal(performanceHotspots.workload.path, '${package.root}/bench/performance-hotspots-artifact-summary.workload.json');
+  assert.equal(performanceHotspots.workload.type, 'json');
+  assert.equal(performanceHotspots.safety_class, 'read_only');
+  assert.equal(performanceHotspots.artifacts.expected[0].name, 'performance_hotspots_summary');
+  assertArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
+    id: 'performance-hotspots-artifact-summary',
+    action: 'performance-hotspots-summary',
+    artifact: 'performance_hotspots_summary',
+    outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
+    schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+  });
 });

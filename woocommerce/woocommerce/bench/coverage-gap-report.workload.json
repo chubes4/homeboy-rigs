@@ -1,0 +1,52 @@
+{
+  "schema": "wp-codebox/wordpress-workload-run/v1",
+  "id": "coverage-gap-report",
+  "steps": [
+    {
+      "command": "homeboy.artifact-postprocess",
+      "args": {
+        "helper": "${package.root}/tools/db-api-fuzzer-artifacts.mjs",
+        "action": "coverage-gap-report",
+        "input": {
+          "type": "artifact-root",
+          "path": "${artifacts.root}",
+          "artifact_globs": ["**/*.json"],
+          "max_bytes": 1048576
+        },
+        "output": {
+          "artifact": "coverage_gap_report",
+          "path": "coverage-gap-report/coverage_gap_report.json",
+          "kind": "json",
+          "contentType": "application/json",
+          "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+          "semantic_key": "fuzz.report",
+          "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"]
+        },
+        "parameters": {
+          "metric_prefix": "coverage_gap_report"
+        }
+      }
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "coverage_gap_report",
+      "path": "coverage-gap-report/coverage_gap_report.json",
+      "kind": "json",
+      "contentType": "application/json",
+      "required": true,
+      "metadata": {
+        "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+        "semantic_key": "fuzz.report"
+      }
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "coverage-gap-report",
+    "runner_support_status": "requires-upstream-binding",
+    "missing_upstream_contract": "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters exactly as declared here.",
+    "coverage_shape": "Executable coverage gap report over available WooCommerce DB/API fuzzer artifacts",
+    "manifest": "manifests/db-api-performance-fuzzer-gap-report.json"
+  }
+}
