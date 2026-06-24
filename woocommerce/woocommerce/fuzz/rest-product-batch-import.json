@@ -25,7 +25,11 @@
       "level": "executable",
       "profile": "product-rest-crud-fuzzer",
       "execution": "wp-codebox-isolated-mutation",
-      "coverage_contract": "Executes isolated WooCommerce product and variation batch create/update cases with synthetic fixture readback; delete remains declared until upstream rollback-safe delete primitives emit rollback artifacts.",
+      "coverage_contract": "WP Codebox can execute isolated WooCommerce product and variation batch create/update cases with synthetic fixture readback. Delete remains declared until rollback-safe delete primitives emit rollback artifacts, and proven status still requires reviewer-facing run evidence.",
+      "upstream_blockers": [
+        "Reviewer-facing fuzz run artifacts and rollback/gap reports are required before proven status.",
+        "Rollback-safe REST delete primitives and delete-boundary artifacts are required before delete coverage can execute."
+      ],
       "crud": {
         "create": {
           "level": "executable",
@@ -46,6 +50,12 @@
           "level": "declared",
           "upstream_blocker": "The current workload exercises batch create/update and readback guardrails only; delete coverage waits for an upstream rollback-safe REST delete primitive and delete-boundary artifact contract."
         }
+      },
+      "mutation": {
+        "safety_boundary": "Product, attribute, term, and variation mutations are bounded to disposable WP Codebox WordPress fixtures and must be represented in the required raw_result artifact before any proof claim.",
+        "rollback_artifacts": [
+          "raw_result"
+        ]
       }
     },
     "fixture": {
