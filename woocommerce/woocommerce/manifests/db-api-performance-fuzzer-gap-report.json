@@ -1,8 +1,10 @@
 {
-  "schema": "homeboy-rigs/wordpress-coverage-gap-report-declaration/v1",
+  "schema": "homeboy-rigs/wordpress-coverage-gap-report-workload/v1",
   "id": "woocommerce-db-api-performance-fuzzer-gap-report",
-  "description": "Standalone declaration for the WooCommerce DB/API performance fuzzer gap report. This is declarative only and does not define an executable workload.",
+  "description": "Declared WooCommerce DB/API performance fuzzer gap report workload over available fuzz/run artifacts, ready to become executable when the generic artifact-postprocess runner binding lands.",
   "profile_id": "db-api-performance-fuzzer",
+  "workload": "fuzz/coverage-gap-report.json",
+  "workload_config": "bench/coverage-gap-report.workload.json",
   "source_gap_report": "manifests/full-surface-coverage.json#gap_report",
   "semantic_key": "fuzz.report",
   "inputs": [
@@ -28,9 +30,10 @@
   },
   "readiness": {
     "level": "declared",
-    "execution": "not_executable",
+    "execution": "artifact_aggregation",
     "upstream_blockers": [
-      "Coverage gap reporting currently comes from manifests/full-surface-coverage.json#gap_report rather than a standalone executable gap-report workload.",
+      "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters.",
+      "The runner must pass an artifact root for prior workload outputs and collect the declared fuzz.report JSON artifact.",
       "Public fuzz-suite execution must emit reviewer-facing fuzz-suite-result artifacts before this declaration can be proven."
     ]
   }

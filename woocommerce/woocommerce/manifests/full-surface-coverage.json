@@ -48,7 +48,7 @@
       "surface_type": "database",
       "surface_id": "database",
       "coverage_goal": "WooCommerce database inventory, REST query profile, lookup table, option, transient, and attribution coverage",
-      "workload_ids": ["db-inventory", "rest-db-query-profile", "rest-schema-query-attribution", "action-scheduler-lookup-table-coverage", "options-transients-coverage"],
+      "workload_ids": ["db-inventory", "rest-db-query-profile", "rest-schema-query-attribution", "coverage-gap-report", "action-scheduler-lookup-table-coverage", "options-transients-coverage"],
       "artifact_schemas": ["homeboy/wordpress-db-inventory/v1", "homeboy/wordpress-rest-db-query-profile/v1", "homeboy/woocommerce-options-transients-coverage/v1"]
     }
   },
@@ -157,7 +157,7 @@
   "coverage_profiles": {
     "full-surface": {
       "rest_api": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-permission-boundary-matrix", "rest-namespace-generated-cases", "rest-schema-query-attribution"],
-      "database": ["db-inventory", "rest-db-query-profile", "rest-schema-query-attribution", "action-scheduler-lookup-table-coverage"],
+      "database": ["db-inventory", "rest-db-query-profile", "rest-schema-query-attribution", "coverage-gap-report", "action-scheduler-lookup-table-coverage"],
       "server_requests": ["woocommerce-external-http-guardrail"],
       "authenticated_admin_pages": ["admin-page-coverage"],
       "permission_boundaries": ["rest-permission-boundary-matrix"],
@@ -382,6 +382,18 @@
       "artifact_expectations": {
         "required": ["metrics", "schema/query attribution artifact"],
         "optional": ["route-to-table samples", "query family summaries"]
+      }
+    },
+    "coverage-gap-report": {
+      "surface": "database",
+      "coverage_shape": "Executable generic coverage gap report over WooCommerce DB/API fuzzer artifacts",
+      "safety": {
+        "classification": "read_only_inventory",
+        "notes": ["Reads available fuzz/run artifacts from the isolated runner artifact directory", "Does not execute or mutate REST, database, order, product, payment, or customer state"]
+      },
+      "artifact_expectations": {
+        "required": ["coverage gap report artifact"],
+        "optional": ["artifact evidence refs", "skipped oversized artifact rows"]
       }
     },
     "action-scheduler-lookup-table-coverage": {

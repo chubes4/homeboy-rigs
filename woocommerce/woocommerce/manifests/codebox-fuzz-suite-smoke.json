@@ -15,7 +15,8 @@
         "wordpress.profile-rest-db-queries",
         "wordpress.inventory-database",
         "wordpress.attribute-rest-schema-queries",
-        "wordpress.summarize-performance-hotspots"
+        "wordpress.summarize-performance-hotspots",
+        "wordpress.coverage-gap-report"
       ],
       "source_manifests": [
         "fuzz/woocommerce-rest-route-inventory.json",
@@ -23,6 +24,7 @@
         "fuzz/rest-db-query-profile.json",
         "fuzz/db-inventory.json",
         "fuzz/rest-schema-query-attribution.json",
+        "fuzz/coverage-gap-report.json",
         "fuzz/performance-hotspots-artifact-summary.json",
         "manifests/db-api-performance-fuzzer-gap-report.json"
       ],
@@ -35,6 +37,7 @@
           "rest-db-query-profile",
           "db-inventory",
           "rest-schema-query-attribution",
+          "coverage-gap-report",
           "performance-hotspots-artifact-summary"
         ],
         "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json"

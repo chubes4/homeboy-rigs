@@ -1,0 +1,116 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "coverage-gap-report",
+  "label": "WooCommerce DB/API coverage gap report",
+  "safety_class": "read_only",
+  "surface_ids": [
+    "woocommerce-rest-routes",
+    "wordpress-database-queries",
+    "woocommerce-api-performance"
+  ],
+  "operations": [
+    "coverage-gap-report"
+  ],
+  "case_budget": 1,
+  "duration_budget_seconds": 120,
+  "metadata": {
+    "kind": "wordpress-plugin-fuzz",
+    "wordpress_runner": "wp-codebox",
+    "workload_path": "${package.root}/bench/coverage-gap-report.workload.json",
+    "expected_artifact_role": "fuzz_report",
+      "expected_artifact_semantic_key": "fuzz.report",
+      "readiness": {
+        "level": "declared",
+        "coverage_contract": "Read available WooCommerce DB/API fuzzer run artifacts and emit a generic coverage gap report with expected, covered, gaps, status, and evidence refs. The workload uses the forward-compatible homeboy.artifact-postprocess command shape; executable readiness requires the upstream runner binding for that command. Mutating CRUD remains out of scope until rollback-safe primitives exist.",
+        "upstream_blockers": [
+          "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters.",
+          "The runner must pass an artifact root for prior workload outputs and collect the declared fuzz.report JSON artifact."
+        ]
+      },
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "component": "woocommerce",
+      "activation": "woocommerce/woocommerce.php"
+    }
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "woocommerce",
+    "component": "woocommerce"
+  },
+  "workload": {
+    "runner": "wp-codebox",
+    "type": "json",
+    "path": "${package.root}/bench/coverage-gap-report.workload.json",
+    "entry": "coverage-gap-report"
+  },
+  "cases": [
+    {
+      "case_id": "coverage-gap-report:default",
+      "surface_ids": [
+        "woocommerce-rest-routes",
+        "wordpress-database-queries",
+        "woocommerce-api-performance"
+      ],
+      "operations": [
+        "coverage-gap-report"
+      ],
+      "artifacts": [
+        {
+          "name": "coverage_gap_report",
+          "path": "coverage-gap-report/coverage_gap_report.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "woocommerce/woocommerce.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/coverage-gap-report.workload.json",
+          "type": "json",
+          "entry": "coverage-gap-report"
+        },
+        "collect": [
+          {
+            "artifact": "coverage_gap_report"
+          }
+        ]
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 1,
+    "max_duration_seconds": 120
+  },
+  "coverage": {
+    "surface_ids": [
+      "woocommerce-rest-routes",
+      "wordpress-database-queries",
+      "woocommerce-api-performance"
+    ],
+    "operations": [
+      "coverage-gap-report"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "coverage_gap_report",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
+}
