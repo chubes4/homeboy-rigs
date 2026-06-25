@@ -66,7 +66,7 @@ export default async function runFixtureMatrixBench() {
 async function runFixtureMatrix(options) {
   const fixtureRoot = path.resolve(options.fixtureRoot || path.join(packageRoot, 'fixtures'));
   const outputDirectory = path.resolve(options.outputDirectory || path.join(process.cwd(), 'artifacts', 'static-site-importer-fixture-matrix'));
-  const staticSiteImporterPath = options.staticSiteImporterPath || process.env.HOMEBOY_STATIC_SITE_IMPORTER_PATH || path.resolve(process.env.HOME || '.', 'Developer/static-site-importer');
+  const staticSiteImporterPath = options.staticSiteImporterPath || process.env.HOMEBOY_STATIC_SITE_IMPORTER_PATH || process.cwd();
   const matrix = createFixtureMatrix({
     id: options.id || `static-site-importer-fixture-matrix-${Date.now()}`,
     fixture_root: fixtureRoot,
