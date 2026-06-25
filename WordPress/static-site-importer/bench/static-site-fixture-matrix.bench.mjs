@@ -23,6 +23,47 @@ async function main() {
     return;
   }
 
+  const { summary, runtimeError, runtime } = await runFixtureMatrix(options);
+  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  if (runtimeError) {
+    process.exitCode = runtime.exitCode || 1;
+  }
+}
+
+export default async function runFixtureMatrixBench() {
+  const options = parseArgs(process.argv.slice(2));
+  const { summary, runtimeError } = await runFixtureMatrix(options);
+  if (runtimeError) {
+    throw runtimeError;
+  }
+
+  const resultSummary = summary.result_summary || {};
+  return {
+    metrics: {
+      fixture_count: Number(summary.fixture_count || 0),
+      passed_fixture_count: Number(resultSummary.succeeded || 0),
+      failed_fixture_count: Number(resultSummary.failed || 0),
+      not_run_fixture_count: Number(resultSummary.not_run || 0),
+      finding_count: Number(resultSummary.finding_count || 0),
+    },
+    artifacts: {
+      cli_run: { path: path.join(summary.output_directory, 'cli-run.json') },
+      matrix: { path: path.join(summary.output_directory, 'matrix.json') },
+      result: { path: summary.result_file },
+      summary: { path: path.join(summary.output_directory, 'summary.json') },
+      finding_packets: { path: path.join(summary.output_directory, 'finding-packets.json') },
+    },
+    metadata: {
+      matrix_id: summary.matrix_id,
+      fixture_root: summary.fixture_root,
+      output_directory: summary.output_directory,
+      result_summary: summary.result_summary,
+      runtime: summary.runtime,
+    },
+  };
+}
+
+async function runFixtureMatrix(options) {
   const fixtureRoot = path.resolve(options.fixtureRoot || path.join(packageRoot, 'fixtures'));
   const outputDirectory = path.resolve(options.outputDirectory || path.join(process.cwd(), 'artifacts', 'static-site-importer-fixture-matrix'));
   const staticSiteImporterPath = options.staticSiteImporterPath || process.env.HOMEBOY_STATIC_SITE_IMPORTER_PATH || path.resolve(process.env.HOME || '.', 'Developer/static-site-importer');
@@ -133,10 +174,7 @@ async function main() {
     runtime: runtime ? runtimeSummary(runtime, runtimeError) : null,
   };
   fs.writeFileSync(path.join(outputDirectory, 'cli-run.json'), `${JSON.stringify(summary, null, 2)}\n`);
-  process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
-  if (runtimeError) {
-    process.exitCode = runtime.exitCode || 1;
-  }
+  return { summary, runtimeError, runtime };
 }
 
 function runtimeSummary(runtime, runtimeError) {
@@ -206,4 +244,6 @@ function printHelp() {
   process.stdout.write(`Usage: static-site-fixture-matrix [fixture-root] [options]\n\nOptions:\n  --fixture-root <path>              Static-site fixture root. Defaults to this package's fixtures directory.\n  --output-directory <path>          Artifact output directory.\n  --static-site-importer-path <path> Static Site Importer checkout/plugin directory.\n  --static-site-importer-slug <slug> Plugin slug. Defaults to static-site-importer.\n  --static-site-importer-plugin <p>  Plugin activation file. Defaults to static-site-importer/static-site-importer.php.\n  --entrypoint <file>                Fixture entrypoint. Defaults to index.html.\n  --max-depth <n>                    Fixture discovery depth. Defaults to 2.\n  --wordpress-version <version>      WP Codebox WordPress version. Defaults to latest.\n  --batch-size <n>                   Fixtures per WP Codebox run when --run is used. Defaults to 10.\n  --run                             Execute WP Codebox recipes. Omit locally to only materialize artifacts.\n`);
 }
 
-await main();
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  await main();
+}
