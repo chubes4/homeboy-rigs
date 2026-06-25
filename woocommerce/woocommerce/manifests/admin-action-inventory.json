@@ -11,21 +11,21 @@
     {
       "id": "admin-menu-get-pages",
       "fixture_requirements": ["administrator user", "shop_manager user", "WooCommerce active"],
-      "readiness": "executable_get_only",
+      "readiness": { "level": "executable", "via": "safe GET-only admin-page-coverage" },
       "workload": "admin-page-coverage",
       "skip_reasons": ["unsafe_query_arg_action", "unsafe_query_arg_delete", "setup_or_onboarding_screen"]
     },
     {
       "id": "wc-ajax-frontend-actions",
       "fixture_requirements": ["synthetic cart", "synthetic product"],
-      "readiness": "declared_browser_request_inventory_only",
+      "readiness": { "level": "declared", "upstream_blocker": "browser request inventory artifacts are required before action coverage is executable" },
       "workload": "frontend-rendering-request-coverage",
       "skip_reasons": ["destructive_cart_or_checkout_mutation", "payment_submission"]
     },
     {
       "id": "marketplace-and-webhook-http-actions",
       "fixture_requirements": ["external HTTP guardrail", "allowlist policy"],
-      "readiness": "executable_guardrail_probe",
+      "readiness": { "level": "executable", "via": "woocommerce-external-http-guardrail" },
       "workload": "woocommerce-external-http-guardrail",
       "skip_reasons": ["live_credentials_required", "external_side_effect_blocked"]
     }

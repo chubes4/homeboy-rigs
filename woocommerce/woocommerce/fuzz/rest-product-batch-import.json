@@ -30,6 +30,18 @@
         "Reviewer-facing fuzz run artifacts and rollback/gap reports are required before proven status.",
         "Rollback-safe REST delete primitives and delete-boundary artifacts are required before delete coverage can execute."
       ],
+      "proof_bundle_requirements": {
+        "status": "required_before_proven",
+        "required_refs": [
+          "reviewer-facing rest-product-batch-import run id",
+          "reviewer-facing raw_result artifact ref",
+          "reviewer-facing product REST CRUD coverage gap report artifact ref"
+        ],
+        "required_artifacts": [
+          "raw_result",
+          "coverage_gap_report"
+        ]
+      },
       "crud": {
         "create": {
           "level": "executable",

@@ -23,13 +23,15 @@
       "coverage_contract": "WP Codebox can execute the cart/session overwrite race workload and emit the cart-session race artifact contract; reviewer-facing proof links are still required before marking this proven.",
       "crud": {
         "create": {
-          "level": "executable"
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "read": {
           "level": "executable"
         },
         "update": {
-          "level": "executable"
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "delete": {
           "level": "declared",

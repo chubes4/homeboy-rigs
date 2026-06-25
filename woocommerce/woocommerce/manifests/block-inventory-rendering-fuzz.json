@@ -11,9 +11,18 @@
     "profiles": ["full-surface"]
   },
   "readiness": {
-    "inventory": "declared_requires_generic_block_inventory_artifact",
-    "rendering": "partial_via_frontend_browser_request_coverage",
-    "mutation": "blocked_not_a_block_editor_mutation_workload"
+    "inventory": {
+      "level": "declared",
+      "upstream_blocker": "generic WordPress block inventory artifact is required before inventory coverage is executable"
+    },
+    "rendering": {
+      "level": "executable",
+      "via": "frontend-rendering-request-coverage"
+    },
+    "mutation": {
+      "level": "declared",
+      "upstream_blocker": "this profile is not a block editor mutation workload"
+    }
   },
   "skip_reasons": [
     {

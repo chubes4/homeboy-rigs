@@ -15,10 +15,10 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "readiness": {
-        "create": "executable_via_batch_import",
-        "read": "executable_via_generated_get_cases",
-        "update": "executable_via_batch_import",
-        "delete": "blocked_requires_rollback_safe_delete_primitive"
+        "create": { "level": "executable", "via": "rest-product-batch-import" },
+        "read": { "level": "executable", "via": "generated-rest-request-cases" },
+        "update": { "level": "executable", "via": "rest-product-batch-import" },
+        "delete": { "level": "declared", "upstream_blocker": "rollback-safe REST delete primitive and delete-boundary rollback artifacts are unavailable" }
       },
       "skipped_coverage": [
         {
@@ -42,10 +42,10 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "readiness": {
-        "create": "executable_isolated_mutation",
-        "read": "executable_readback_guardrail",
-        "update": "executable_isolated_mutation",
-        "delete": "declared_blocked"
+        "create": { "level": "executable", "via": "isolated_mutation" },
+        "read": { "level": "executable", "via": "readback_guardrail" },
+        "update": { "level": "executable", "via": "isolated_mutation" },
+        "delete": { "level": "declared", "upstream_blocker": "current workload does not execute delete" }
       },
       "skipped_coverage": [
         {
@@ -65,10 +65,10 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "readiness": {
-        "create": "executable_isolated_mutation",
-        "read": "executable_readback_guardrail",
-        "update": "executable_isolated_mutation",
-        "delete": "declared_blocked"
+        "create": { "level": "executable", "via": "isolated_mutation" },
+        "read": { "level": "executable", "via": "readback_guardrail" },
+        "update": { "level": "executable", "via": "isolated_mutation" },
+        "delete": { "level": "declared", "upstream_blocker": "current workload does not execute delete" }
       },
       "skipped_coverage": [
         {
@@ -92,10 +92,10 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "readiness": {
-        "create": "executable_as_fixture_setup",
-        "read": "partial_dynamic_get_cases",
-        "update": "declared_fixture_owned",
-        "delete": "blocked_requires_rollback_safe_delete_primitive"
+        "create": { "level": "executable", "via": "fixture_setup" },
+        "read": { "level": "declared", "upstream_blocker": "dynamic attribute and term path cases require generated fixture-owned path parameter artifacts" },
+        "update": { "level": "declared", "upstream_blocker": "update is fixture-owned and lacks standalone rollback artifact proof" },
+        "delete": { "level": "declared", "upstream_blocker": "rollback-safe REST delete primitive and delete-boundary rollback artifacts are unavailable" }
       },
       "skipped_coverage": [
         {

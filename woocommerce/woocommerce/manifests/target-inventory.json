@@ -21,7 +21,10 @@
     "rest_route_families": {
       "manifest": "manifests/rest-crud-route-family-catalog.json",
       "owner_profile": "product-rest-crud-fuzzer",
-      "readiness": "declared_inventory",
+      "readiness": {
+        "level": "declared",
+        "coverage_contract": "REST route-family discovery is a Woo-owned inventory contract; executable/proven status requires the owning fuzz workloads to emit reviewer-facing artifacts."
+      },
       "route_family_ids": [
         "products-collection",
         "products-batch",
@@ -33,9 +36,18 @@
       "manifest": "manifests/block-inventory-rendering-fuzz.json",
       "owner_profile": "full-surface",
       "readiness": {
-        "inventory": "declared_requires_generic_block_inventory_artifact",
-        "rendering": "partial_via_frontend_browser_request_coverage",
-        "mutation": "blocked_not_a_block_editor_mutation_workload"
+        "inventory": {
+          "level": "declared",
+          "upstream_blocker": "generic WordPress block inventory artifact is required before inventory coverage is executable"
+        },
+        "rendering": {
+          "level": "executable",
+          "via": "frontend-rendering-request-coverage"
+        },
+        "mutation": {
+          "level": "declared",
+          "upstream_blocker": "this profile is not a block editor mutation workload"
+        }
       },
       "owned_by": {
         "workloads": [
@@ -50,7 +62,10 @@
     "admin_actions": {
       "manifest": "manifests/admin-action-inventory.json",
       "owner_profile": "full-surface",
-      "readiness": "declared_inventory",
+      "readiness": {
+        "level": "declared",
+        "coverage_contract": "Admin action discovery is a Woo-owned inventory contract; executable/proven status requires the owning safe admin fuzz workloads to emit reviewer-facing artifacts."
+      },
       "action_family_ids": [
         "admin-menu-get-pages",
         "wc-ajax-frontend-actions",
@@ -62,6 +77,16 @@
       "owner_profile": "db-api-performance-fuzzer",
       "readiness": {
         "level": "declared",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "required_refs": [
+            "reviewer-facing artifact-postprocess run id",
+            "reviewer-facing performance hotspot summary artifact ref"
+          ],
+          "required_artifacts": [
+            "performance_hotspots_summary"
+          ]
+        },
         "upstream_blocker": "Homeboy/Homeboy Extensions must bind artifact-postprocess helper/action/input/output/parameters before this IO contract becomes executable."
       },
       "postprocess_command": "homeboy.artifact-postprocess"
