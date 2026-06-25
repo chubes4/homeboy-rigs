@@ -201,13 +201,24 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
   const readiness = manifest.metadata?.readiness;
   assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${file} requires metadata.readiness`);
 
-  assert.ok(fuzzReadinessLevels.has(readiness.level), `${file} metadata.readiness.level must be declared, executable, or proven`);
+  assertFuzzReadinessLevel(readiness.level, `${file} metadata.readiness.level`);
   assert.equal(typeof readiness.coverage_contract, 'string', `${file} metadata.readiness.coverage_contract must describe the declared contract`);
   assert.notEqual(readiness.coverage_contract.trim(), '', `${file} metadata.readiness.coverage_contract must describe the declared contract`);
+
+  if (readiness.proof_refs !== undefined) {
+    assertStringArray(readiness.proof_refs, `${file} metadata.readiness.proof_refs`);
+    for (const proofRef of readiness.proof_refs) {
+      assertReviewerFacingRef(proofRef, `${file} metadata.readiness.proof_refs`);
+    }
+  }
 
   if (readiness.level === 'proven') {
     assert.ok(Array.isArray(readiness.proof_refs) && readiness.proof_refs.length > 0, `${file} proven readiness requires proof_refs`);
     assertFuzzProofBundle(readiness.proof_bundle, manifest, { file });
+  }
+
+  if (readiness.proof_bundle_requirements !== undefined) {
+    assertFuzzProofBundleRequirements(readiness.proof_bundle_requirements, { file });
   }
 
   if (readiness.upstream_blockers !== undefined) {
@@ -313,12 +324,44 @@ export function assertFuzzCrudReadiness(crud, { file } = {}) {
 
   for (const operation of fuzzCrudOperations) {
     assert.ok(crud[operation] && typeof crud[operation] === 'object' && !Array.isArray(crud[operation]), `${file} metadata.readiness.crud.${operation} must be an object`);
-    assert.ok(fuzzReadinessLevels.has(crud[operation].level), `${file} metadata.readiness.crud.${operation}.level must be declared, executable, or proven`);
+    assertFuzzReadinessLevel(crud[operation].level, `${file} metadata.readiness.crud.${operation}.level`);
 
     if (crud[operation].upstream_blocker !== undefined) {
       assert.equal(typeof crud[operation].upstream_blocker, 'string', `${file} metadata.readiness.crud.${operation}.upstream_blocker must be a string`);
       assert.notEqual(crud[operation].upstream_blocker.trim(), '', `${file} metadata.readiness.crud.${operation}.upstream_blocker must be non-empty`);
     }
+  }
+}
+
+export function assertFuzzReadinessLevel(level, label) {
+  assert.ok(fuzzReadinessLevels.has(level), `${label} must be declared, executable, or proven`);
+}
+
+export function assertExecutableCrudMutationSafety(readiness, { file } = {}) {
+  const executableMutations = ['create', 'update', 'delete'].filter((operation) => ['executable', 'proven'].includes(readiness?.crud?.[operation]?.level));
+  if (executableMutations.length === 0) {
+    return;
+  }
+
+  assert.ok(readiness.mutation, `${file} executable CRUD mutation readiness requires metadata.readiness.mutation`);
+  assertFuzzMutationReadiness(readiness.mutation, { file });
+  assert.ok(readiness.mutation.rollback_artifacts.length > 0, `${file} executable CRUD mutation readiness requires rollback_artifacts`);
+
+  for (const operation of executableMutations) {
+    const safetyClass = readiness.crud[operation].safety_class;
+    assert.ok(
+      ['isolated_mutation', 'synthetic_checkout_mutation', 'bounded_catalog_fixture_mutation', 'bounded_admin_fixture_mutation'].includes(safetyClass),
+      `${file} executable CRUD ${operation} requires an isolated mutation safety_class`
+    );
+  }
+}
+
+export function assertFuzzProofBundleRequirements(requirements, { file } = {}) {
+  assert.ok(requirements && typeof requirements === 'object' && !Array.isArray(requirements), `${file} metadata.readiness.proof_bundle_requirements must be an object`);
+  assertStringArray(requirements.required_refs, `${file} metadata.readiness.proof_bundle_requirements.required_refs`);
+  assertStringArray(requirements.required_artifacts, `${file} metadata.readiness.proof_bundle_requirements.required_artifacts`);
+  if (requirements.status !== undefined) {
+    assert.equal(requirements.status, 'required_before_proven', `${file} metadata.readiness.proof_bundle_requirements.status must be required_before_proven`);
   }
 }
 

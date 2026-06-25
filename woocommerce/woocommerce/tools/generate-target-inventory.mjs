@@ -41,7 +41,10 @@ const inventory = {
     rest_route_families: {
       manifest: 'manifests/rest-crud-route-family-catalog.json',
       owner_profile: restCrudRouteFamilyCatalog.owner_profile,
-      readiness: 'declared_inventory',
+      readiness: {
+        level: 'declared',
+        coverage_contract: 'REST route-family discovery is a Woo-owned inventory contract; executable/proven status requires the owning fuzz workloads to emit reviewer-facing artifacts.',
+      },
       route_family_ids: restCrudRouteFamilyCatalog.route_families.map((family) => family.id),
     },
     blocks: {
@@ -53,7 +56,10 @@ const inventory = {
     admin_actions: {
       manifest: 'manifests/admin-action-inventory.json',
       owner_profile: adminActionInventory.owner_profile,
-      readiness: 'declared_inventory',
+      readiness: {
+        level: 'declared',
+        coverage_contract: 'Admin action discovery is a Woo-owned inventory contract; executable/proven status requires the owning safe admin fuzz workloads to emit reviewer-facing artifacts.',
+      },
       action_family_ids: adminActionInventory.action_families.map((family) => family.id),
     },
     db_api_hotspots: {

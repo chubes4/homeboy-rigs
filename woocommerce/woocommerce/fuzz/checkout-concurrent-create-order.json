@@ -50,7 +50,8 @@
       },
       "crud": {
         "create": {
-          "level": "proven"
+          "level": "proven",
+          "safety_class": "isolated_mutation"
         },
         "read": {
           "level": "executable"

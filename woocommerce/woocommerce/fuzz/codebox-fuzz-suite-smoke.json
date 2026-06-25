@@ -44,6 +44,20 @@
         "Generic rollback-safe REST create/update/delete primitives must emit rollback artifacts before mutating DB/API cases can join the profile.",
         "Public fuzz-suite proof must include reviewer-facing coverage gap report and hotspot summary artifacts before this contract can become proven."
       ],
+      "proof_bundle_requirements": {
+        "status": "required_before_proven",
+        "required_refs": [
+          "reviewer-facing wp-codebox fuzz-suite run id",
+          "reviewer-facing wp-codebox/fuzz-suite-result artifact ref",
+          "reviewer-facing coverage gap report artifact ref",
+          "reviewer-facing performance hotspot summary artifact ref"
+        ],
+        "required_artifacts": [
+          "codebox_fuzz_suite_result",
+          "coverage_gap_report",
+          "performance_hotspots_summary"
+        ]
+      },
       "crud": {
         "create": {
           "level": "declared",

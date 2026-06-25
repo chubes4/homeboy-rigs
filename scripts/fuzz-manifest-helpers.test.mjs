@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  assertExecutableCrudMutationSafety,
   assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
   assertJetpackFuzzManifestReadinessContract,
@@ -266,6 +267,39 @@ test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation co
   }), { file: 'product-fuzz.json' }));
 });
 
+test('assertExecutableCrudMutationSafety accepts executable isolated mutations with rollback artifacts', () => {
+  assert.doesNotThrow(() => assertExecutableCrudMutationSafety({
+    crud: {
+      create: { level: 'executable', safety_class: 'isolated_mutation' },
+      read: { level: 'executable' },
+      update: { level: 'declared', upstream_blocker: 'not available' },
+      delete: { level: 'declared', upstream_blocker: 'not available' },
+    },
+    mutation: {
+      safety_boundary: 'Runs only against disposable fixtures and emits rollback artifacts.',
+      rollback_artifacts: ['raw_result'],
+    },
+  }, { file: 'product-fuzz.json' }));
+});
+
+test('assertExecutableCrudMutationSafety rejects executable mutations without rollback artifacts', () => {
+  assert.throws(
+    () => assertExecutableCrudMutationSafety({
+      crud: {
+        create: { level: 'executable', safety_class: 'isolated_mutation' },
+        read: { level: 'executable' },
+        update: { level: 'declared', upstream_blocker: 'not available' },
+        delete: { level: 'declared', upstream_blocker: 'not available' },
+      },
+      mutation: {
+        safety_boundary: 'Runs only against disposable fixtures.',
+        rollback_artifacts: [],
+      },
+    }, { file: 'product-fuzz.json' }),
+    /requires rollback_artifacts/
+  );
+});
+
 test('assertFuzzReadinessMetadata accepts proven readiness with proof bundle linkage', () => {
   assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
     metadata: {
@@ -335,6 +369,28 @@ test('assertFuzzReadinessMetadata rejects local proof bundle refs', () => {
       },
     }), { file: 'product-fuzz.json' }),
     /must not use local URLs/
+  );
+});
+
+test('assertFuzzReadinessMetadata rejects local proof refs', () => {
+  assert.throws(
+    () => assertFuzzReadinessMetadata(fuzzManifest({
+      metadata: {
+        workload_path: '${package.root}/bench/product.workload.json',
+        readiness: {
+          level: 'proven',
+          coverage_contract: 'Product API CRUD coverage.',
+          proof_refs: ['/Users/chris/artifacts/product-fuzz.json'],
+          proof_bundle: {
+            artifact_refs: ['https://github.com/example/product/issues/123#issuecomment-456'],
+            run_ids: ['run:product-fuzz-proof'],
+            gap_reports: ['https://github.com/example/product/issues/124'],
+            fuzz_result_artifacts: ['report'],
+          },
+        },
+      },
+    }), { file: 'product-fuzz.json' }),
+    /must be reviewer-facing refs/
   );
 });
 

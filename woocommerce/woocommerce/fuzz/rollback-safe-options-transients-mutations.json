@@ -26,13 +26,15 @@
       "coverage_contract": "WP Codebox can execute rollback-safe WooCommerce option/transient mutations and emit rollback, transient-growth, and skipped-sensitive-option artifacts before any proof claim.",
       "crud": {
         "create": {
-          "level": "executable"
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "read": {
           "level": "executable"
         },
         "update": {
-          "level": "executable"
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "delete": {
           "level": "declared",

@@ -192,7 +192,7 @@
         "db_api_hotspots": "manifests/db-api-hotspot-artifact-io.json"
       },
       "readiness": {
-        "level": "declared_inventory",
+        "level": "declared",
         "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios and future artifact-postprocess outputs stay non-executable until upstream runner support emits reviewer-facing artifacts."
       }
     },
@@ -212,6 +212,23 @@
       "readiness": {
         "level": "declared",
         "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; it does not claim CRUD or mutating REST execution until upstream rollback-safe primitives exist.",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "required_refs": [
+            "reviewer-facing run ids from wp-codebox/fuzz-suite-result/v1 outputs",
+            "reviewer-facing coverage gap report artifact refs",
+            "reviewer-facing performance hotspot summary artifact refs"
+          ],
+          "required_artifacts": [
+            "route_inventory",
+            "rest_request_cases",
+            "rest_db_query_profile",
+            "db_inventory",
+            "rest_schema_query_attribution",
+            "coverage_gap_report",
+            "performance_hotspots_summary"
+          ]
+        },
         "crud": {
           "create": {
             "level": "declared",
@@ -244,7 +261,19 @@
       "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
       "hotspot_artifact_contract_manifest": "manifests/db-api-hotspot-artifact-io.json",
       "readiness": {
-        "level": "partially_executable",
+        "level": "executable",
+        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import. Delete remains declared until rollback-safe delete primitives and delete-boundary rollback artifacts exist; proven status requires reviewer-facing run artifacts and gap reports.",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "required_refs": [
+            "reviewer-facing run id for rest-product-batch-import",
+            "reviewer-facing coverage gap report artifact ref"
+          ],
+          "required_artifacts": [
+            "raw_result",
+            "coverage_gap_report"
+          ]
+        },
         "crud": {
           "create": {
             "level": "executable",
@@ -265,6 +294,10 @@
             "level": "declared",
             "upstream_blocker": "Generic rollback-safe REST delete primitive and delete-boundary rollback artifact contract are not available to this profile."
           }
+        },
+        "mutation": {
+          "safety_boundary": "Executable product create/update cases run only inside disposable WP Codebox fixtures and must emit rollback/readback details in raw_result before any proof claim.",
+          "rollback_artifacts": ["raw_result"]
         }
       }
     }
