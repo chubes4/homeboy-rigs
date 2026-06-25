@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
+import { runWpCodeboxRecipe } from '../shared/wp-codebox/recipe.mjs';
 import {
   buildFixtureMatrixRecipe,
   collectFixtureMatrixRunResults,
