@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultHostRequestPath = path.join(packageRoot, 'fixtures', 'studio-canonical-loop', 'host-request.json');
+const execFileAsync = promisify(execFile);
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -93,14 +96,88 @@ async function writeJson(filePath, value) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+async function materializeWithLocalWp(artifact, generation, outDir, hostRequest) {
+  const requestDir = path.join(outDir, 'wp-cli-requests');
+  await mkdir(requestDir, { recursive: true });
+
+  const inputPath = path.join(requestDir, `ssi-import-${generation}.json`);
+  const scriptPath = path.join(requestDir, `ssi-import-${generation}.php`);
+  const reportPath = path.join(outDir, `ssi-import-report.${generation}.json`);
+  const slug = `canonical-loop-proof-${generation}-${Date.now()}`.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  const input = {
+    artifact,
+    slug,
+    name: `Canonical Loop Proof ${generation}`,
+    activate: false,
+    overwrite: true,
+    fail_on_quality: false,
+    allow_missing_woocommerce: true,
+    report: reportPath,
+    source_metadata: {
+      schema: 'studio/canonical-loop/source-metadata/v1',
+      host_request_id: hostRequest.request_id,
+      canonical_store: hostRequest.artifact_contract.canonical_store,
+      proof_mode: 'local-wp'
+    }
+  };
+
+  await writeJson(inputPath, input);
+  await writeFile(scriptPath, `<?php
+$input_path = ${JSON.stringify(inputPath)};
+if ( '' === $input_path || ! file_exists( $input_path ) ) {
+    fwrite( STDERR, "Missing SSI input JSON.\n" );
+    exit( 2 );
+}
+$input = json_decode( file_get_contents( $input_path ), true );
+if ( ! is_array( $input ) ) {
+    fwrite( STDERR, "Invalid SSI input JSON.\n" );
+    exit( 2 );
+}
+if ( ! function_exists( 'static_site_importer_ability_import_website_artifact' ) ) {
+    fwrite( STDERR, "Static Site Importer website artifact ability callback is unavailable.\n" );
+    exit( 3 );
+}
+$result = static_site_importer_ability_import_website_artifact( $input );
+echo wp_json_encode( $result, JSON_PRETTY_PRINT ) . "\n";
+if ( ! is_array( $result ) || empty( $result['success'] ) ) {
+    exit( 4 );
+}
+`);
+
+  const wpCli = argValue('--wp-cli') || 'studio';
+  const wpArgs = wpCli === 'studio'
+    ? ['wp', 'eval-file', scriptPath]
+    : ['eval-file', scriptPath];
+  const { stdout, stderr } = await execFileAsync(wpCli, wpArgs, { maxBuffer: 1024 * 1024 * 10 });
+  const result = JSON.parse(stdout);
+  const outputPath = path.join(outDir, `ssi-materialized-theme.${generation}.json`);
+  await writeJson(outputPath, {
+    schema: 'studio/canonical-loop/local-wp-ssi-materialization/v1',
+    generation,
+    slug,
+    input: inputPath,
+    report: reportPath,
+    stdout: result,
+    stderr: stderr.trim() || undefined
+  });
+
+  return {
+    path: outputPath,
+    slug,
+    report: reportPath,
+    result,
+    diagnostics: result.import_report_summary || result.result?.import_report_summary || {}
+  };
+}
+
 async function main() {
   const checkOnly = hasArg('--check');
   const mode = argValue('--mode') || 'stub';
   const hostRequestPath = argValue('--host-request') || defaultHostRequestPath;
   const outDir = path.resolve(argValue('--out') || path.join(os.tmpdir(), `studio-canonical-loop-proof-${process.pid}`));
 
-  if (mode !== 'stub') {
-    throw new Error('Only --mode stub is implemented. Real Codebox, Studio Native, SSI, and WordPress seams are documented blockers.');
+  if (!['stub', 'local-wp'].includes(mode)) {
+    throw new Error('Supported modes are stub and local-wp. Full live mode requires a Studio Native runtime with the Codebox handoff route installed.');
   }
 
   const hostRequest = JSON.parse(await readFile(hostRequestPath, 'utf8'));
@@ -144,10 +221,13 @@ async function main() {
   await writeJson(canonicalPath, canonicalArtifact);
   step('studio_native_canonical_artifact_stored_stubbed', { artifact: canonicalPath });
 
-  const firstTheme = materializeBlockTheme(canonicalArtifact, 'initial');
-  const firstThemePath = path.join(outDir, 'ssi-materialized-theme.initial.json');
-  await writeJson(firstThemePath, firstTheme);
-  step('ssi_materialized_block_theme_stubbed', { theme: firstThemePath, diagnostics: firstTheme.diagnostics });
+  const firstTheme = mode === 'local-wp'
+    ? await materializeWithLocalWp(canonicalArtifact, 'initial', outDir, hostRequest)
+    : { path: path.join(outDir, 'ssi-materialized-theme.initial.json'), diagnostics: materializeBlockTheme(canonicalArtifact, 'initial').diagnostics, result: materializeBlockTheme(canonicalArtifact, 'initial') };
+  if (mode === 'stub') {
+    await writeJson(firstTheme.path, firstTheme.result);
+  }
+  step(mode === 'local-wp' ? 'ssi_materialized_block_theme_local_wp' : 'ssi_materialized_block_theme_stubbed', { theme: firstTheme.path, diagnostics: firstTheme.diagnostics });
 
   const mutatedArtifact = structuredClone(canonicalArtifact);
   const change = hostRequest.user_change;
@@ -161,22 +241,35 @@ async function main() {
   await writeJson(mutatedPath, mutatedArtifact);
   step('user_change_mutated_original_artifact_stubbed', { artifact: mutatedPath, change });
 
-  const secondTheme = materializeBlockTheme(mutatedArtifact, 'reimport');
-  const secondThemePath = path.join(outDir, 'ssi-materialized-theme.reimport.json');
-  await writeJson(secondThemePath, secondTheme);
-  step('reimport_materialized_updated_theme_stubbed', { theme: secondThemePath, diagnostics: secondTheme.diagnostics });
+  const secondTheme = mode === 'local-wp'
+    ? await materializeWithLocalWp(mutatedArtifact, 'reimport', outDir, hostRequest)
+    : { path: path.join(outDir, 'ssi-materialized-theme.reimport.json'), diagnostics: materializeBlockTheme(mutatedArtifact, 'reimport').diagnostics, result: materializeBlockTheme(mutatedArtifact, 'reimport') };
+  if (mode === 'stub') {
+    await writeJson(secondTheme.path, secondTheme.result);
+  }
+  step(mode === 'local-wp' ? 'reimport_materialized_updated_theme_local_wp' : 'reimport_materialized_updated_theme_stubbed', { theme: secondTheme.path, diagnostics: secondTheme.diagnostics });
 
   const diagnostics = {
     schema: 'studio/canonical-loop/diagnostics/v1',
-    real: [],
+    real: mode === 'local-wp' ? [
+      'Static Site Importer website artifact materialization through local WordPress/WP-CLI',
+      'Reimport materialization through local WordPress/WP-CLI'
+    ] : [],
     stubbed: [
       'Codebox/fanout generation',
       'Studio Native canonical artifact store',
-      'Static Site Importer materialization in ephemeral Codebox/site',
       'User edit propagation back into the original artifact',
-      'Reimport execution'
+      ...(mode === 'local-wp' ? [] : [
+        'Static Site Importer materialization in ephemeral Codebox/site',
+        'Reimport execution'
+      ])
     ],
-    blockers: [
+    blockers: mode === 'local-wp' ? [
+      'Codebox fanout generation is still stubbed by this local proof.',
+      'Studio Native canonical artifact persistence is still filesystem-stubbed by this local proof.',
+      'Full live mode requires a Studio Native runtime/site with the Codebox artifact-session route installed.',
+      'Reviewer-facing artifact bundle links still need a durable publication surface.'
+    ] : [
       'Host request API contract needs an executable endpoint and auth shape.',
       'Codebox fanout generation needs a durable artifact bundle contract for website artifacts.',
       'Studio Native needs a canonical website artifact store/read/update surface.',
@@ -185,8 +278,11 @@ async function main() {
     ],
     assertions: {
       canonical_artifact_schema_preserved: mutatedArtifact.schema === generatedArtifact.schema,
-      user_change_reaches_reimport_theme: secondTheme.files.some((file) => file.content.includes(change.to)),
-      fallback_blocks: secondTheme.diagnostics.fallback_blocks
+      user_change_reaches_reimport_theme: mode === 'local-wp'
+        ? Boolean(JSON.stringify(secondTheme.result).includes(change.to) || JSON.stringify(secondTheme.diagnostics).includes(change.to))
+        : secondTheme.result.files.some((file) => file.content.includes(change.to)),
+      fallback_blocks: secondTheme.diagnostics.fallback_blocks ?? secondTheme.diagnostics.core_html_block_count ?? 0,
+      local_wp_ssi_success: mode === 'local-wp' ? Boolean(firstTheme.result.success && secondTheme.result.success) : undefined
     }
   };
   const diagnosticsPath = path.join(outDir, 'diagnostics.json');
@@ -205,8 +301,8 @@ async function main() {
       fanout_artifact: fanoutPath,
       canonical_artifact_v1: canonicalPath,
       canonical_artifact_v2: mutatedPath,
-      initial_theme: firstThemePath,
-      reimport_theme: secondThemePath
+      initial_theme: firstTheme.path,
+      reimport_theme: secondTheme.path
     },
     real_vs_stubbed: {
       real: diagnostics.real,
