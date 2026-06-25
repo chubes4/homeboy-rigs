@@ -22,13 +22,13 @@
   "bench_workloads": {
     "nodejs": [
       {
-        "path": "${package.root}/bench/static-site-fixture-matrix.mjs"
+        "path": "${package.root}/bench/static-site-fixture-matrix.bench.mjs"
       }
     ]
   },
   "bench_profiles": {
-    "smoke": ["static-site-fixture-matrix-mjs"],
-    "fixture-matrix": ["static-site-fixture-matrix-mjs"]
+    "smoke": ["static-site-fixture-matrix"],
+    "fixture-matrix": ["static-site-fixture-matrix"]
   },
   "pipeline": {
     "check": [
