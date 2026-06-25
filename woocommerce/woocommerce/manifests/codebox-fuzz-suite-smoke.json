@@ -26,12 +26,14 @@
         "fuzz/rest-schema-query-attribution.json",
         "fuzz/coverage-gap-report.json",
         "fuzz/performance-hotspots-artifact-summary.json",
+        "manifests/db-api-fuzz-campaign.json",
         "manifests/db-api-performance-fuzzer-gap-report.json"
       ],
       "profile": {
         "id": "db-api-performance-fuzzer",
         "rig_profile": "rigs/woocommerce-performance/rig.json#fuzz_profiles.db-api-performance-fuzzer",
         "workload_ids": [
+          "codebox-fuzz-suite-smoke",
           "woocommerce-rest-route-inventory",
           "generated-rest-request-cases",
           "rest-db-query-profile",
@@ -40,7 +42,8 @@
           "coverage-gap-report",
           "performance-hotspots-artifact-summary"
         ],
-        "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json"
+        "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
+        "campaign_manifest": "manifests/db-api-fuzz-campaign.json"
       },
       "proof_bundle_requirements": {
         "status": "required_before_proven",

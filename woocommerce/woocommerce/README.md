@@ -193,6 +193,13 @@ the rig: Homeboy/Homeboy Extensions must bind `args.helper`, `args.action`,
 `args.input`, `args.output`, and `args.parameters`, then collect the declared
 `fuzz.report` artifact before those contracts can become executable.
 
+The DB/API campaign contract lives in `manifests/db-api-fuzz-campaign.json` and
+requires reviewer-facing refs for `wp-codebox/fuzz-suite-result/v1`,
+`wp-codebox/wordpress-hotspots/v1`, Homeboy fuzz coverage, Homeboy hotspot
+summary, and the coverage gap report before anyone can mark it proven. Run the
+campaign commands from that manifest only through an approved Homeboy
+Lab/runner/offloaded environment; do not run local benchmarks as campaign proof.
+
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance
 summary fuzz manifests are proof-ready declarations until a `homeboy fuzz run`
