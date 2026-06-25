@@ -17,7 +17,7 @@ const DEFAULT_BATCH_SIZE = 10;
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 async function main() {
-  const options = parseArgs(process.argv.slice(2));
+  const options = { ...optionsFromEnv(), ...parseArgs(process.argv.slice(2)) };
   if (options.help) {
     printHelp();
     return;
@@ -31,7 +31,7 @@ async function main() {
 }
 
 export default async function runFixtureMatrixBench() {
-  const options = parseArgs(process.argv.slice(2));
+  const options = { ...optionsFromEnv(), ...parseArgs(process.argv.slice(2)) };
   const { summary, runtimeError } = await runFixtureMatrix(options);
   if (runtimeError) {
     throw runtimeError;
@@ -213,6 +213,22 @@ function parseArgs(args) {
     }
   }
   return options;
+}
+
+function optionsFromEnv(env = process.env) {
+  return {
+    fixtureRoot: env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT,
+    outputDirectory: env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY || env.HOMEBOY_BENCH_ARTIFACTS_DIR,
+    staticSiteImporterPath: env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH,
+    staticSiteImporterSlug: env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_SLUG,
+    staticSiteImporterPlugin: env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN,
+    entrypoint: env.SSI_FIXTURE_MATRIX_ENTRYPOINT,
+    maxDepth: env.SSI_FIXTURE_MATRIX_MAX_DEPTH,
+    wordpressVersion: env.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION,
+    batchSize: env.SSI_FIXTURE_MATRIX_BATCH_SIZE,
+    run: env.SSI_FIXTURE_MATRIX_RUN === '1' || env.SSI_FIXTURE_MATRIX_RUN === 'true',
+    wpCodeboxBin: env.SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN,
+  };
 }
 
 function chunk(items, size) {
