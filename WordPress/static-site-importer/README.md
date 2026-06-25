@@ -30,6 +30,22 @@ Add `--run` only in an approved non-local execution environment. The default
 command writes matrix, recipe, summary, result, and finding-packet artifacts
 without launching WP Codebox.
 
+Compare two fixture-matrix finding-packet artifacts without requiring Homeboy run
+state:
+
+```bash
+node WordPress/static-site-importer/tools/compare-finding-packets.mjs \
+  --base /path/to/main/finding-packets.json \
+  --candidate /path/to/candidate/finding-packets.json \
+  --base-label current-main \
+  --candidate-label candidate \
+  --top 20
+```
+
+The comparison reports signed count deltas by repair bucket, `group_key`, kind,
+fixture, candidate repo, and selector family. Positive deltas mean the candidate
+has more findings in that group; negative deltas mean fewer findings.
+
 ## Generic Invocation
 
 The workload composes these generic surfaces:
