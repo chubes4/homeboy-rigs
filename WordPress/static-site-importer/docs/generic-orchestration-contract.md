@@ -6,7 +6,7 @@ surface and supplies all SSI policy from this package.
 
 ## Required Current Interfaces
 
-- `shared/wp-codebox/recipe.mjs` must expose `runWpCodeboxRecipe(options)`.
+- `${package.root}/shared/wp-codebox/recipe.mjs` must expose `runWpCodeboxRecipe(options)`.
 - `runWpCodeboxRecipe(options)` must accept `recipeFile`, `artifactsDir`,
   `outputFile`, and optional `wpCodeboxBin`.
 - WP Codebox recipes must accept schema `wp-codebox/workspace-recipe/v1`.

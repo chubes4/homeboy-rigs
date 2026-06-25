@@ -43,7 +43,7 @@
       {
         "kind": "command",
         "label": "WP Codebox CLI exists",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
+        "command": "bash \"${package.root}/shared/wp-codebox/check-cli.sh\""
       },
       {
         "kind": "command",
