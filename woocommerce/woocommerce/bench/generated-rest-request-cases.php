@@ -184,7 +184,7 @@ return function (): array {
 	);
 
 	$artifact_path = '';
-	$shared_state  = getenv( 'HOMEBOY_BENCH_SHARED_STATE' );
+	$shared_state  = getenv( 'WP_CODEBOX_BENCH_SHARED_STATE' );
 	if ( $shared_state ) {
 		$artifact_dir = rtrim( $shared_state, '/' ) . '/generated-rest-request-cases';
 		wp_mkdir_p( $artifact_dir );
