@@ -1,0 +1,51 @@
+{
+  "id": "studio-canonical-loop-proof",
+  "description": "Safe skeleton proof for the canonical Studio website artifact loop: host request, Codebox/fanout generation, Studio Native canonical artifact storage, SSI materialization, user mutation, reimport, and diagnostics. Current implementation is filesystem-only and stubbed until executable component seams exist.",
+  "components": {
+    "studio-native": {
+      "path": "~/Developer/studio-native",
+      "branch": "main"
+    },
+    "static-site-importer": {
+      "path": "~/Developer/static-site-importer",
+      "branch": "HEAD"
+    },
+    "wp-codebox": {
+      "path": "~/Developer/wp-codebox",
+      "branch": "HEAD"
+    }
+  },
+  "resources": {
+    "paths": [
+      "${components.studio-native.path}",
+      "${components.static-site-importer.path}",
+      "${components.wp-codebox.path}"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "node available",
+        "command": "command -v node >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "canonical loop proof script exists",
+        "file": "${package.root}/proofs/studio-canonical-loop-proof.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "canonical loop host request fixture exists",
+        "file": "${package.root}/fixtures/studio-canonical-loop/host-request.json"
+      },
+      {
+        "kind": "check",
+        "label": "canonical loop fixture validates",
+        "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --check",
+        "expect_exit": 0
+      }
+    ]
+  }
+}

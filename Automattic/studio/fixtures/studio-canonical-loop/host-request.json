@@ -1,0 +1,25 @@
+{
+  "schema": "studio/canonical-loop/host-request/v1",
+  "request_id": "canonical-loop-fixture-001",
+  "site_slug": "canonical-loop-proof",
+  "prompt": "Create a concise landing page for a physical therapy studio with a hero, services section, and contact call to action.",
+  "fanout": {
+    "targets": [
+      "homepage",
+      "theme-tokens",
+      "navigation"
+    ],
+    "strategy": "stubbed-codebox-generation"
+  },
+  "artifact_contract": {
+    "schema": "blocks-engine/php-transformer/site-artifact/v1",
+    "entrypoint": "website/index.html",
+    "canonical_store": "studio-native"
+  },
+  "user_change": {
+    "operation": "replace_text",
+    "file": "website/index.html",
+    "from": "Move Better. Feel Stronger.",
+    "to": "Recover Faster. Move Better."
+  }
+}
