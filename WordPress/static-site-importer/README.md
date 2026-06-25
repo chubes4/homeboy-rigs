@@ -7,9 +7,10 @@ generic Homeboy/Homeboy Extensions primitives for WP Codebox recipe execution.
 
 ```bash
 homeboy rig check static-site-importer-fixture-matrix
-node WordPress/static-site-importer/bench/static-site-fixture-matrix.mjs \
+node WordPress/static-site-importer/bench/static-site-fixture-matrix.bench.mjs \
   --fixture-root WordPress/static-site-importer/fixtures \
-  --static-site-importer-path ~/Developer/static-site-importer
+  --static-site-importer-path ~/Developer/static-site-importer \
+  --blocks-engine-php-transformer-path ~/Developer/blocks-engine
 ```
 
 Generated/static artifact roots can be normalized into matrix fixtures first:
@@ -29,6 +30,12 @@ node WordPress/static-site-importer/bench/static-site-fixture-matrix.bench.mjs \
 Add `--run` only in an approved non-local execution environment. The default
 command writes matrix, recipe, summary, result, and finding-packet artifacts
 without launching WP Codebox.
+
+Use `--blocks-engine-php-transformer-path` to test a local Blocks Engine checkout
+without cutting a PHP transformer release first. The bench installs SSI's
+Composer dependencies through a temporary path repository and records the
+override in `cli-run.json` under `dependency_overrides`. The path may point at
+either the Blocks Engine repo root or the `php-transformer/` package directory.
 
 Compare two fixture-matrix finding-packet artifacts without requiring Homeboy run
 state:

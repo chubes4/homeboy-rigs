@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { resolveBlocksEnginePhpTransformerPath } from '../bench/static-site-fixture-matrix.bench.mjs';
 import {
   compareFindingPackets,
   selectorFamily,
@@ -101,6 +102,18 @@ test('materializes generated artifact roots into matrix-compatible fixtures', ()
   assert.deepEqual(matrix.fixtures.map((fixture) => fixture.id), ['alpha', 'beta-site']);
   assert.equal(readFileSync(path.join(fixtureOutput, 'alpha', 'index.html'), 'utf8'), '<h1>Alpha</h1>');
   assert.equal(readFileSync(path.join(fixtureOutput, 'beta-site', 'index.html'), 'utf8'), '<h1>Beta</h1>');
+});
+
+test('resolves Blocks Engine PHP transformer override paths', () => {
+  const repoRoot = mkdtempSync(path.join(tmpdir(), 'blocks-engine-'));
+  const packageRoot = path.join(repoRoot, 'php-transformer');
+  mkdirSync(packageRoot, { recursive: true });
+  writeFileSync(path.join(packageRoot, 'composer.json'), JSON.stringify({
+    name: 'automattic/blocks-engine-php-transformer',
+  }));
+
+  assert.equal(resolveBlocksEnginePhpTransformerPath(repoRoot), packageRoot);
+  assert.equal(resolveBlocksEnginePhpTransformerPath(packageRoot), packageRoot);
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
