@@ -48,9 +48,85 @@
       "readiness": "required_before_proven"
     }
   ],
+  "postprocess": {
+    "command": "homeboy.artifact-postprocess",
+    "runner_support_status": "requires-upstream-binding",
+    "artifact_roots": [
+      {
+        "id": "offloaded_campaign_artifacts",
+        "type": "artifact-root",
+        "path": "${artifacts.root}",
+        "ref_requirement": "reviewer-facing Homeboy artifact root from the approved offloaded campaign run set",
+        "local_only_refs_allowed": false,
+        "contains_workloads": [
+          "codebox-fuzz-suite-smoke",
+          "woocommerce-rest-route-inventory",
+          "generated-rest-request-cases",
+          "rest-db-query-profile",
+          "db-inventory",
+          "rest-schema-query-attribution"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "workload": "coverage-gap-report",
+        "helper": "${package.root}/tools/db-api-fuzzer-artifacts.mjs",
+        "action": "coverage-gap-report",
+        "input": {
+          "type": "artifact-root",
+          "path": "${artifacts.root}",
+          "artifact_globs": ["**/*.json"],
+          "max_bytes": 1048576
+        },
+        "output": {
+          "artifact": "coverage_gap_report",
+          "path": "coverage-gap-report/coverage_gap_report.json",
+          "kind": "json",
+          "contentType": "application/json",
+          "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+          "semantic_key": "fuzz.report",
+          "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"]
+        },
+        "parameters": {
+          "metric_prefix": "coverage_gap_report"
+        },
+        "artifact_ref_requirement": "reviewer-facing coverage gap report artifact ref from the offloaded postprocess run"
+      },
+      {
+        "workload": "performance-hotspots-artifact-summary",
+        "helper": "${package.root}/tools/db-api-fuzzer-artifacts.mjs",
+        "action": "performance-hotspots-summary",
+        "input": {
+          "type": "artifact-root",
+          "path": "${artifacts.root}",
+          "artifact_globs": ["**/*.json"],
+          "max_bytes": 1048576
+        },
+        "output": {
+          "artifact": "performance_hotspots_summary",
+          "path": "performance-hotspots-artifact-summary/performance_hotspots_summary.json",
+          "kind": "json",
+          "contentType": "application/json",
+          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "semantic_key": "fuzz.report",
+          "ranking": {
+            "mode": "relative",
+            "required_fields": ["rank", "surface", "relative_score", "request_attribution", "query_attribution", "fixture_scale", "run_refs"]
+          }
+        },
+        "parameters": {
+          "metric_prefix": "performance_hotspots_summary",
+          "maxQuerySamples": 50
+        },
+        "artifact_ref_requirement": "reviewer-facing performance hotspot summary artifact ref from the offloaded postprocess run"
+      }
+    ]
+  },
   "operator_commands": {
     "offload_required": true,
     "note": "Run these through an approved Homeboy Lab/runner/offloaded environment. Do not use local benchmark execution as proof for this campaign.",
+    "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads execute the generic homeboy.artifact-postprocess step against the offloaded ${artifacts.root}; their helper/action/input/output/parameters contracts are declared in postprocess.outputs and must be collected as reviewer-facing artifacts before proven readiness.",
     "commands": [
       "homeboy rig up woocommerce-performance",
       "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m",
