@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runWpCodeboxRecipe } from '../shared/wp-codebox/recipe.mjs';
@@ -67,6 +68,7 @@ async function runFixtureMatrix(options) {
   const fixtureRoot = path.resolve(options.fixtureRoot || path.join(packageRoot, 'fixtures'));
   const outputDirectory = path.resolve(options.outputDirectory || path.join(process.cwd(), 'artifacts', 'static-site-importer-fixture-matrix'));
   const staticSiteImporterPath = options.staticSiteImporterPath || process.env.HOMEBOY_STATIC_SITE_IMPORTER_PATH || process.cwd();
+  ensureComposerDependencies(staticSiteImporterPath);
   const matrix = createFixtureMatrix({
     id: options.id || `static-site-importer-fixture-matrix-${Date.now()}`,
     fixture_root: fixtureRoot,
@@ -175,6 +177,21 @@ async function runFixtureMatrix(options) {
   };
   fs.writeFileSync(path.join(outputDirectory, 'cli-run.json'), `${JSON.stringify(summary, null, 2)}\n`);
   return { summary, runtimeError, runtime };
+}
+
+function ensureComposerDependencies(pluginPath) {
+  if (fs.existsSync(path.join(pluginPath, 'vendor', 'autoload.php')) || !fs.existsSync(path.join(pluginPath, 'composer.json'))) {
+    return;
+  }
+
+  const result = spawnSync('composer', ['install', '--no-interaction', '--prefer-dist', '--no-progress'], {
+    cwd: pluginPath,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0) {
+    throw new Error(`Composer install failed for ${pluginPath}: ${result.stderr || result.stdout || `exit ${result.status}`}`);
+  }
 }
 
 function runtimeSummary(runtime, runtimeError) {
