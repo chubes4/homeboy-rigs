@@ -27,8 +27,8 @@
     ]
   },
   "bench_profiles": {
-    "smoke": ["static-site-fixture-matrix"],
-    "fixture-matrix": ["static-site-fixture-matrix"]
+    "smoke": ["static-site-fixture-matrix-mjs"],
+    "fixture-matrix": ["static-site-fixture-matrix-mjs"]
   },
   "pipeline": {
     "check": [
