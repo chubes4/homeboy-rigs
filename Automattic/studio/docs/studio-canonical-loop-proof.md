@@ -10,7 +10,7 @@ This is a minimal, safe proof skeleton for the canonical website artifact loop:
 6. Reimport materializes the updated artifact.
 7. Progress and diagnostics artifacts explain what happened.
 
-Current status: the proof is filesystem-only and stubbed. It verifies the artifact contract, mutation path, reimport path, and diagnostic bundle shape without launching Codebox, WordPress, Studio Native, or SSI.
+Current status: the default proof is filesystem-only and stubbed. A stronger `local-wp` mode exercises Static Site Importer through a local WordPress install with WP-CLI, while Codebox fanout and Studio Native canonical storage remain explicitly stubbed until a Studio Native runtime is available.
 
 ## Safe Validation
 
@@ -25,6 +25,18 @@ node scripts/lint-rig-packages.mjs Automattic/studio
 node Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
   --out /tmp/studio-canonical-loop-proof
 ```
+
+## Run The Local WordPress Proof
+
+Run this from a Studio site directory that has Static Site Importer active:
+
+```bash
+node /path/to/homeboy-rigs/Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
+  --mode local-wp \
+  --out /tmp/studio-canonical-loop-local-wp-proof
+```
+
+`local-wp` mode writes the same proof artifacts as stub mode, but the initial materialization and reimport materialization are performed through `static_site_importer_ability_import_website_artifact()` via `studio wp eval-file`.
 
 The script writes:
 
@@ -53,13 +65,15 @@ Real now:
 - User mutation against the original artifact.
 - Reimport proof that the updated artifact reaches the materialized theme output.
 - Progress and diagnostics artifact writing.
+- In `local-wp` mode, Static Site Importer website artifact materialization through local WordPress/WP-CLI.
+- In `local-wp` mode, reimport materialization through local WordPress/WP-CLI.
 
 Stubbed now:
 
 - Codebox/fanout execution.
 - Studio Native canonical artifact persistence APIs.
 - Static Site Importer execution in an ephemeral Codebox/site.
-- WordPress block theme installation and active-theme verification.
+- WordPress active-theme verification.
 - Reviewer-facing artifact bundle publication.
 
 ## Blockers To Make This Executable
