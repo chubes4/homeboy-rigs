@@ -216,19 +216,35 @@ function parseArgs(args) {
 }
 
 function optionsFromEnv(env = process.env) {
+  const benchEnv = settingsBenchEnv(env);
   return {
-    fixtureRoot: env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT,
-    outputDirectory: env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY || env.HOMEBOY_BENCH_ARTIFACTS_DIR,
-    staticSiteImporterPath: env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH,
-    staticSiteImporterSlug: env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_SLUG,
-    staticSiteImporterPlugin: env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN,
-    entrypoint: env.SSI_FIXTURE_MATRIX_ENTRYPOINT,
-    maxDepth: env.SSI_FIXTURE_MATRIX_MAX_DEPTH,
-    wordpressVersion: env.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION,
-    batchSize: env.SSI_FIXTURE_MATRIX_BATCH_SIZE,
-    run: env.SSI_FIXTURE_MATRIX_RUN === '1' || env.SSI_FIXTURE_MATRIX_RUN === 'true',
-    wpCodeboxBin: env.SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN,
+    fixtureRoot: benchEnv.SSI_FIXTURE_MATRIX_FIXTURE_ROOT || env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT,
+    outputDirectory: benchEnv.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY || env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY || env.HOMEBOY_BENCH_ARTIFACTS_DIR,
+    staticSiteImporterPath: benchEnv.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH || env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH,
+    staticSiteImporterSlug: benchEnv.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_SLUG || env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_SLUG,
+    staticSiteImporterPlugin: benchEnv.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN || env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN,
+    entrypoint: benchEnv.SSI_FIXTURE_MATRIX_ENTRYPOINT || env.SSI_FIXTURE_MATRIX_ENTRYPOINT,
+    maxDepth: benchEnv.SSI_FIXTURE_MATRIX_MAX_DEPTH || env.SSI_FIXTURE_MATRIX_MAX_DEPTH,
+    wordpressVersion: benchEnv.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION || env.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION,
+    batchSize: benchEnv.SSI_FIXTURE_MATRIX_BATCH_SIZE || env.SSI_FIXTURE_MATRIX_BATCH_SIZE,
+    run: isTruthy(benchEnv.SSI_FIXTURE_MATRIX_RUN) || isTruthy(env.SSI_FIXTURE_MATRIX_RUN),
+    wpCodeboxBin: benchEnv.SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN || env.SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN,
   };
+}
+
+function settingsBenchEnv(env = process.env) {
+  try {
+    const settings = JSON.parse(env.HOMEBOY_SETTINGS_JSON || '{}');
+    return settings && typeof settings.bench_env === 'object' && !Array.isArray(settings.bench_env)
+      ? settings.bench_env
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function isTruthy(value) {
+  return value === true || value === '1' || value === 'true';
 }
 
 function chunk(items, size) {
