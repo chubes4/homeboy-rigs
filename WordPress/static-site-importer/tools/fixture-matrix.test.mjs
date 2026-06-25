@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import {
+  buildFixtureMatrixRecipe,
+  classifyStaticSiteFinding,
+  createFixtureMatrix,
+  normalizeFixtureMatrixResult,
+  writeFixtureMatrixArtifacts,
+} from '../lib/fixture-matrix.mjs';
+
+const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const fixtureRoot = path.join(packageRoot, 'fixtures');
+
+test('discovers SSI fixtures and writes Blocks Engine site artifacts', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-matrix-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'test-matrix' });
+  const written = writeFixtureMatrixArtifacts({ outputDirectory, matrix });
+  const artifact = JSON.parse(readFileSync(path.join(outputDirectory, 'simple-site', 'artifact.json'), 'utf8'));
+
+  assert.equal(matrix.schema, 'homeboy-rigs/static-site-importer-fixture-matrix/v1');
+  assert.equal(matrix.count, 1);
+  assert.equal(matrix.fixtures[0].id, 'simple-site');
+  assert.equal(artifact.schema, 'blocks-engine/php-transformer/site-artifact/v1');
+  assert.ok(artifact.files.some((file) => file.path === 'website/index.html' && file.content.includes('Simple SSI Fixture')));
+  assert.ok(artifact.files.some((file) => file.path === 'website/style.css'));
+  assert.equal(written.result.summary.not_run, 1);
+});
+
+test('builds a generic WP Codebox recipe with SSI-owned plugin defaults', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'recipe-test' });
+  const recipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    playgroundArtifactsDirectory: '/wordpress/wp-content/uploads/static-site-importer-fixture-matrix',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+  });
+
+  assert.equal(recipe.schema, 'wp-codebox/workspace-recipe/v1');
+  assert.deepEqual(recipe.inputs.extra_plugins[0], {
+    source: '/tmp/static-site-importer',
+    slug: 'static-site-importer',
+    activate: true,
+  });
+  assert.equal(recipe.workflow.steps[0].command, 'wordpress.wp-cli');
+  assert.equal(recipe.workflow.steps[0].args[0], 'command=plugin activate static-site-importer/static-site-importer.php');
+  assert.match(recipe.workflow.steps[1].args[0], /static-site-importer validate-in-codebox/);
+  assert.match(recipe.workflow.steps[1].args[0], /--allow-failure/);
+});
+
+test('normalizes SSI diagnostics into product repair groups', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'diagnostic-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          { message: 'Dropped image asset during import' },
+          { message: 'Unexpected or invalid content in imported block' },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result.summary.failed, 1);
+  assert.equal(result.summary.groups.dropped_images, 1);
+  assert.equal(result.summary.groups.invalid_block_content, 1);
+  assert.equal(classifyStaticSiteFinding({ message: 'canvas target missing' }).repair_mode, 'runtime-dom-target-parity');
+});
