@@ -7,6 +7,10 @@
       "code": "$template_functions = WP_PLUGIN_DIR . '/woocommerce/includes/wc-template-functions.php'; if (!is_readable($template_functions)) { throw new RuntimeException('WooCommerce template functions are required for Store API product responses.'); } require_once $template_functions; return array('metadata' => array('woocommerce_template_functions_loaded' => function_exists('wc_get_quantity_input_args')));"
     },
     {
+      "type": "php",
+      "file": "bench/generated-rest-request-cases.php"
+    },
+    {
       "type": "rest-db-query-profiler",
       "metric-prefix": "rest_db_query_profile",
       "rest_request_cases_source": {
