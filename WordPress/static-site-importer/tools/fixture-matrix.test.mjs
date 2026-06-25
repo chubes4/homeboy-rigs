@@ -5,6 +5,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  compareFindingPackets,
+  selectorFamily,
+} from './compare-finding-packets.mjs';
+import {
   buildFixtureMatrixRecipe,
   classifyStaticSiteFinding,
   createFixtureMatrix,
@@ -71,4 +75,31 @@ test('normalizes SSI diagnostics into product repair groups', () => {
   assert.equal(result.summary.groups.dropped_images, 1);
   assert.equal(result.summary.groups.invalid_block_content, 1);
   assert.equal(classifyStaticSiteFinding({ message: 'canvas target missing' }).repair_mode, 'runtime-dom-target-parity');
+});
+
+test('compares finding packet deltas by repair dimensions', () => {
+  const summary = compareFindingPackets({
+    base_label: 'main',
+    candidate_label: 'candidate',
+    top: 5,
+    base: [
+      { kind: 'unsupported_html_fallback', group_key: 'static_site_import_quality', repair_bucket: 'runtime_target_gap', fixture_id: 'hero-site', candidate_repo: 'blocks-engine', selector: 'script:nth-of-type(1)' },
+      { kind: 'document_metadata_routed', group_key: 'dropped_images', repair_bucket: 'dropped_images', fixture_id: 'shop-site', candidate_repo: 'static-site-importer', selector: '.gallery img' },
+    ],
+    candidate: [
+      { kind: 'document_metadata_routed', group_key: 'dropped_images', repair_bucket: 'dropped_images', fixture_id: 'shop-site', candidate_repo: 'static-site-importer', selector: '.gallery img' },
+      { kind: 'document_metadata_routed', group_key: 'dropped_images', repair_bucket: 'dropped_images', fixture_id: 'portfolio-site', candidate_repo: 'static-site-importer', selector: '.gallery img' },
+      { kind: 'invalid_block_content', group_key: 'invalid_block_content', repair_bucket: 'invalid_block_content', fixture_id: 'portfolio-site', candidate_repo: 'blocks-engine', selector: '#hero .cta' },
+    ],
+  });
+
+  assert.deepEqual(summary.totals, { base: 2, candidate: 3, delta: 1 });
+  assert.deepEqual(summary.dimensions.bucket.slice(0, 2), [
+    { key: 'dropped_images', base: 1, candidate: 2, delta: 1 },
+    { key: 'invalid_block_content', base: 0, candidate: 1, delta: 1 },
+  ]);
+  assert.ok(summary.dimensions.bucket.some((row) => row.key === 'runtime_target_gap' && row.delta === -1));
+  assert.deepEqual(summary.dimensions.fixture_id[0], { key: 'portfolio-site', base: 0, candidate: 2, delta: 2 });
+  assert.equal(selectorFamily('script:nth-of-type(1)'), 'script');
+  assert.equal(selectorFamily('#hero .cta'), 'id:hero');
 });
