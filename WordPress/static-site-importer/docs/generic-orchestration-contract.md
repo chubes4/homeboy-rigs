@@ -20,6 +20,8 @@ surface and supplies all SSI policy from this package.
 
 - Fixture root discovery starts at `--fixture-root`, defaults to an `index.html`
   entrypoint, and descends two directory levels unless `--max-depth` is set.
+- Generated artifact intake starts at `--artifact-root` and materializes
+  structural candidates into a normal fixture root before matrix discovery.
 - The Static Site Importer plugin source is `--static-site-importer-path`.
 - The default plugin slug is `static-site-importer`.
 - The default activation file is
@@ -28,6 +30,8 @@ surface and supplies all SSI policy from this package.
 ## SSI-Owned Artifacts
 
 - `matrix.json`: discovered fixture matrix.
+- `intake`: optional `cli-run.json` summary section describing generated
+  artifact roots materialized into matrix-compatible fixtures.
 - `<fixture-id>/artifact.json`: Blocks Engine site artifact input for SSI.
 - `wp-codebox-static-site-fixture-matrix-recipe.json`: full matrix recipe.
 - `wp-codebox-static-site-fixture-matrix-batch-NNN.json`: batch recipes when

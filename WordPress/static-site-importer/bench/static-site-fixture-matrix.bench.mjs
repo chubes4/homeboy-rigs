@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runWpCodeboxRecipe } from '../shared/wp-codebox/recipe.mjs';
+import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs';
 import {
   buildFixtureMatrixRecipe,
   collectFixtureMatrixRunResults,
@@ -65,8 +66,16 @@ export default async function runFixtureMatrixBench() {
 }
 
 async function runFixtureMatrix(options) {
-  const fixtureRoot = path.resolve(options.fixtureRoot || path.join(packageRoot, 'fixtures'));
   const outputDirectory = path.resolve(options.outputDirectory || path.join(process.cwd(), 'artifacts', 'static-site-importer-fixture-matrix'));
+  const intake = options.artifactRoot
+    ? materializeGeneratedArtifactFixtures({
+      artifactRoot: path.resolve(options.artifactRoot),
+      fixtureRoot: path.resolve(options.fixtureRoot || path.join(outputDirectory, 'intake-fixtures')),
+      entrypoint: options.entrypoint || 'index.html',
+      maxDepth: options.maxDepth,
+    })
+    : null;
+  const fixtureRoot = path.resolve(intake?.fixture_root || options.fixtureRoot || path.join(packageRoot, 'fixtures'));
   const staticSiteImporterPath = options.staticSiteImporterPath || process.env.HOMEBOY_STATIC_SITE_IMPORTER_PATH || process.cwd();
   ensureComposerDependencies(staticSiteImporterPath);
   const matrix = createFixtureMatrix({
@@ -168,6 +177,7 @@ async function runFixtureMatrix(options) {
     matrix_id: matrix.id,
     fixture_root: matrix.fixture_root,
     fixture_count: matrix.count,
+    intake,
     output_directory: outputDirectory,
     recipe_file: recipeFile,
     artifact_refs: written.artifact_refs,
@@ -242,6 +252,7 @@ function optionsFromEnv(env = process.env) {
     staticSiteImporterPlugin: benchEnv.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN || env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN,
     entrypoint: benchEnv.SSI_FIXTURE_MATRIX_ENTRYPOINT || env.SSI_FIXTURE_MATRIX_ENTRYPOINT,
     maxDepth: benchEnv.SSI_FIXTURE_MATRIX_MAX_DEPTH || env.SSI_FIXTURE_MATRIX_MAX_DEPTH,
+    artifactRoot: benchEnv.SSI_FIXTURE_MATRIX_ARTIFACT_ROOT || env.SSI_FIXTURE_MATRIX_ARTIFACT_ROOT,
     wordpressVersion: benchEnv.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION || env.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION,
     batchSize: benchEnv.SSI_FIXTURE_MATRIX_BATCH_SIZE || env.SSI_FIXTURE_MATRIX_BATCH_SIZE,
     run: isTruthy(benchEnv.SSI_FIXTURE_MATRIX_RUN) || isTruthy(env.SSI_FIXTURE_MATRIX_RUN),

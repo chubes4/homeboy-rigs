@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -15,6 +15,7 @@ import {
   normalizeFixtureMatrixResult,
   writeFixtureMatrixArtifacts,
 } from '../lib/fixture-matrix.mjs';
+import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs';
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const fixtureRoot = path.join(packageRoot, 'fixtures');
@@ -75,6 +76,31 @@ test('normalizes SSI diagnostics into product repair groups', () => {
   assert.equal(result.summary.groups.dropped_images, 1);
   assert.equal(result.summary.groups.invalid_block_content, 1);
   assert.equal(classifyStaticSiteFinding({ message: 'canvas target missing' }).repair_mode, 'runtime-dom-target-parity');
+});
+
+test('materializes generated artifact roots into matrix-compatible fixtures', () => {
+  const sourceRoot = mkdtempSync(path.join(tmpdir(), 'ssi-generated-artifacts-'));
+  const fixtureOutput = mkdtempSync(path.join(tmpdir(), 'ssi-generated-fixtures-'));
+  mkdirSync(path.join(sourceRoot, 'static-sites', 'alpha', 'assets'), { recursive: true });
+  writeFileSync(path.join(sourceRoot, 'static-sites', 'alpha', 'index.html'), '<h1>Alpha</h1>');
+  writeFileSync(path.join(sourceRoot, 'static-sites', 'alpha', 'assets', 'style.css'), 'body { color: black; }');
+  mkdirSync(path.join(sourceRoot, 'artifact-candidate'), { recursive: true });
+  writeFileSync(path.join(sourceRoot, 'artifact-candidate', 'artifact.json'), JSON.stringify({
+    schema: 'blocks-engine/php-transformer/site-artifact/v1',
+    metadata: { site: 'Beta Site' },
+    files: [
+      { path: 'website/index.html', content: '<h1>Beta</h1>' },
+      { path: 'website/assets/style.css', content: 'body { color: blue; }' },
+    ],
+  }));
+
+  const intake = materializeGeneratedArtifactFixtures({ artifactRoot: sourceRoot, fixtureRoot: fixtureOutput });
+  const matrix = createFixtureMatrix({ fixture_root: intake.fixture_root });
+
+  assert.equal(intake.count, 2);
+  assert.deepEqual(matrix.fixtures.map((fixture) => fixture.id), ['alpha', 'beta-site']);
+  assert.equal(readFileSync(path.join(fixtureOutput, 'alpha', 'index.html'), 'utf8'), '<h1>Alpha</h1>');
+  assert.equal(readFileSync(path.join(fixtureOutput, 'beta-site', 'index.html'), 'utf8'), '<h1>Beta</h1>');
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
