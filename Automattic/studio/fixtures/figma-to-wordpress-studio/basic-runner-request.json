@@ -1,0 +1,54 @@
+{
+  "schema": "figma-to-wordpress-studio/runner-request/v1",
+  "source": {
+    "tool": "figma",
+    "nodeIds": ["homeboy-proof-frame"],
+    "exportedAt": "2026-06-24T00:00:00.000Z"
+  },
+  "goal": "Import Homeboy Studio Figma proof into WordPress using Static Site Importer inside a Studio-created site.",
+  "name": "Homeboy Figma Studio Proof",
+  "site_title": "Homeboy Figma Studio Proof",
+  "slug": "homeboy-figma-studio-proof",
+  "artifact_bundle": {
+    "schema": "figma-to-wordpress-studio/website-artifact-bundle/v1",
+    "root": "website/",
+    "entrypoint": "website/index.html",
+    "import_source": "figma-to-wordpress-studio",
+    "files": [
+      {
+        "path": "website/index.html",
+        "role": "html",
+        "mime_type": "text/html",
+        "content": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Homeboy Figma Studio Proof</title>\n  <link rel=\"stylesheet\" href=\"assets/styles.css\">\n</head>\n<body>\n  <main class=\"proof-shell\">\n    <section class=\"hero\">\n      <p class=\"eyebrow\">Figma to WordPress Studio</p>\n      <h1>Imported into a brand new Studio site</h1>\n      <p class=\"lede\">This fixture proves the local Studio CLI can create a fresh site, install Static Site Importer, import a generated website artifact, and activate the resulting theme.</p>\n      <a class=\"button\" href=\"#details\">Review proof details</a>\n    </section>\n    <section id=\"details\" class=\"cards\">\n      <article><h2>Studio</h2><p>Owns the new local WordPress site lifecycle.</p></article>\n      <article><h2>SSI</h2><p>Owns the artifact-to-theme import path.</p></article>\n      <article><h2>Figma</h2><p>Supplies the runner request payload.</p></article>\n    </section>\n  </main>\n</body>\n</html>\n"
+      },
+      {
+        "path": "website/assets/styles.css",
+        "role": "css",
+        "mime_type": "text/css",
+        "content": ":root { color-scheme: dark; --bg: #10131f; --panel: #1a2033; --ink: #f5f7fb; --muted: #aeb7cc; --accent: #9dff7a; --line: rgba(255,255,255,.14); }\n* { box-sizing: border-box; }\nbody { margin: 0; min-height: 100vh; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; color: var(--ink); background: radial-gradient(circle at 20% 10%, rgba(157,255,122,.22), transparent 28rem), linear-gradient(135deg, #10131f 0%, #171a2a 100%); }\n.proof-shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 72px 0; }\n.hero { min-height: 58vh; display: grid; align-content: center; gap: 24px; }\n.eyebrow { margin: 0; color: var(--accent); text-transform: uppercase; letter-spacing: .18em; font-weight: 800; }\nh1 { max-width: 860px; margin: 0; font-size: clamp(3rem, 9vw, 7rem); line-height: .9; letter-spacing: -.07em; }\n.lede { max-width: 720px; margin: 0; color: var(--muted); font-size: clamp(1.1rem, 2vw, 1.35rem); line-height: 1.55; }\n.button { width: max-content; display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; color: #10131f; background: var(--accent); border-radius: 999px; font-weight: 800; text-decoration: none; box-shadow: 0 18px 50px rgba(157,255,122,.25); }\n.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }\n.cards article { padding: 24px; border: 1px solid var(--line); background: rgba(26,32,51,.72); border-radius: 24px; backdrop-filter: blur(18px); }\n.cards h2 { margin: 0 0 10px; font-size: 1.1rem; }\n.cards p { margin: 0; color: var(--muted); line-height: 1.5; }\n@media (max-width: 760px) { .proof-shell { width: min(100% - 28px, 1120px); padding: 40px 0; } .cards { grid-template-columns: 1fr; } }\n"
+      },
+      {
+        "path": "website/metadata.json",
+        "role": "metadata",
+        "mime_type": "application/json",
+        "content": "{\n  \"title\": \"Homeboy Figma Studio Proof\",\n  \"generatedAt\": \"2026-06-24T00:00:00.000Z\",\n  \"source\": \"homeboy-rigs\"\n}\n"
+      }
+    ]
+  },
+  "figma": {
+    "schema": "figma-to-wordpress-studio/scenegraph/v1",
+    "name": "Homeboy Figma Studio Proof",
+    "exportedAt": "2026-06-24T00:00:00.000Z",
+    "root": {
+      "id": "homeboy-proof-frame",
+      "name": "Homeboy Figma Studio Proof",
+      "type": "FRAME",
+      "visible": true,
+      "width": 1440,
+      "height": 1080,
+      "children": []
+    },
+    "nodes": [],
+    "assets": []
+  }
+}

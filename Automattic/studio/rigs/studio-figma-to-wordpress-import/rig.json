@@ -1,0 +1,48 @@
+{
+  "id": "studio-figma-to-wordpress-import",
+  "description": "Black-box proof rig for Figma to WordPress Studio imports. Uses the installed Studio CLI to create a brand new Studio site from a generated Blueprint, installs Static Site Importer during site creation, imports a Figma runner request fixture, and verifies the imported theme through public Studio/WP-CLI commands.",
+  "components": {
+    "studio": {
+      "path": "~/Developer/studio",
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "settings": {
+            "studio_bench_variant": "figma-to-wordpress-import"
+          }
+        }
+      }
+    }
+  },
+  "bench": {
+    "default_component": "studio"
+  },
+  "bench_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/studio-figma-ssi-import.bench.mjs",
+        "port_range_size": 10
+      }
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio CLI is available on PATH",
+        "command": "command -v studio >/dev/null 2>&1",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "Figma import bench exists",
+        "file": "${package.root}/bench/studio-figma-ssi-import.bench.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Figma runner request fixture exists",
+        "file": "${package.root}/fixtures/figma-to-wordpress-studio/basic-runner-request.json"
+      }
+    ]
+  }
+}
