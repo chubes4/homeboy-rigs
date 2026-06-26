@@ -3,7 +3,7 @@
   "description": "Studio Claude Sonnet 4.6 on the active Static Site Importer draft branch. Pairs with studio-agent-gpt55-ssi so the same SSI substrate can be compared across models.",
   "components": {
     "studio": {
-      "path": "~/Developer/studio@bfb-mu-plugin-agent-output",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_CLAUDE_SSI__STUDIO}",
       "branch": "bfb-mu-plugin-agent-output-draft",
       "extensions": {
         "nodejs": {

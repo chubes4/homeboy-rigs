@@ -3,7 +3,7 @@
   "description": "Adapter rig for the Blocks Engine Figma transformer fixture matrix. The Figma transformer repo owns the .fig fixture discovery, frame selection, transform command, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy.",
   "components": {
     "blocks-engine": {
-      "path": "~/Developer/blocks-engine",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_FIGMA_TO_WORDPRESS_IMPORT__BLOCKS_ENGINE}",
       "branch": "trunk",
       "extensions": {}
     }

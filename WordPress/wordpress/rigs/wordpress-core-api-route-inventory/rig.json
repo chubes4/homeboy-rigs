@@ -3,7 +3,7 @@
   "description": "WordPress core REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {
     "wordpress": {
-      "path": "~/Developer/wordpress-develop",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WORDPRESS_CORE_API_ROUTE_INVENTORY__WORDPRESS}",
       "branch": "trunk"
     }
   },

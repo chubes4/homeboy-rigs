@@ -3,12 +3,12 @@
   "description": "WooCommerce large-merchant performance and fuzz rig. Uses WordPress/WP Codebox runtimes for performance benchmarks plus declared fuzz workloads tied to concrete WooCommerce issues and coverage surfaces.",
   "components": {
     "woocommerce": {
-      "path": "~/Developer/woocommerce/plugins/woocommerce",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
-          "wp_codebox_source_root": "~/Developer/woocommerce",
+          "wp_codebox_source_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
           "wp_codebox_source_subpath": "plugins/woocommerce",
           "bench_env": {
             "WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET": "core_only",

@@ -3,11 +3,11 @@
   "description": "WooCommerce Stripe product-page Express Checkout Element waterfall rig for reproducing and measuring issue #1439 third-party page-load fan-out.",
   "components": {
     "woocommerce-gateway-stripe": {
-      "path": "~/Developer/woocommerce-gateway-stripe",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_STRIPE_ECE_PRODUCT_PAGE__WOOCOMMERCE_GATEWAY_STRIPE}",
       "branch": "develop"
     },
     "woocommerce": {
-      "path": "$HOME/Developer/woocommerce/plugins/woocommerce",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_STRIPE_ECE_PRODUCT_PAGE__WOOCOMMERCE}",
       "branch": "trunk"
     }
   },

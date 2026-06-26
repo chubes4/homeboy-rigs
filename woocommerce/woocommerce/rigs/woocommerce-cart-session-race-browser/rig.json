@@ -3,7 +3,7 @@
   "description": "WP Codebox browser-level two-tab/product-page/cart-page repro rig for WooCommerce cart session overwrite race issue #46483.",
   "components": {
     "woocommerce": {
-      "path": "~/Developer/woocommerce",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_CART_SESSION_RACE_BROWSER__WOOCOMMERCE}",
       "branch": "trunk",
       "extensions": {
         "nodejs": {}

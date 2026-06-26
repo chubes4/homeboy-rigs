@@ -3,7 +3,7 @@
   "description": "Durable Studio many-sites memory and sidebar scroll benchmark. Runs Studio's in-repo Playwright metrics harness against a configurable large local site list and records RSS, scroll timing, and screenshots.",
   "components": {
     "studio": {
-      "path": "~/Developer/studio",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_MANY_SITES_MEMORY_SCROLL__STUDIO}",
       "branch": "dev/combined-fixes",
       "extensions": {
         "nodejs": {

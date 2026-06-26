@@ -3,12 +3,12 @@
   "description": "Gutenberg REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {
     "gutenberg": {
-      "path": "~/Developer/gutenberg",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__GUTENBERG_API_ROUTE_INVENTORY__GUTENBERG}",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
-          "wp_codebox_source_root": "~/Developer/gutenberg",
+          "wp_codebox_source_root": "${env.HOMEBOY_RIG_COMPONENT_PATH__GUTENBERG_API_ROUTE_INVENTORY__GUTENBERG}",
           "wp_codebox_source_subpath": "."
         }
       }
