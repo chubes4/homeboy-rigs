@@ -5,12 +5,12 @@ import path from 'node:path';
 import {
   SHARED_STATE,
   STUDIO_PATH,
-  createStudioSite,
+  createStudioSite as sharedCreateStudioSite,
   expandHome,
   runCli as sharedRunCli,
   runEval as sharedRunEval,
   setting,
-  studioSiteStatusJson,
+  studioSiteStatusJson as sharedStudioSiteStatusJson,
   variant,
 } from './studio-bench.mjs';
 
@@ -292,10 +292,16 @@ export async function systemPromptFingerprint() {
   };
 }
 
-export async function createFreshSite(sitePath) {
-  await createStudioSite(sitePath, { name: `Studio Bench ${variant()} ${process.pid}`, env: cliEnv() });
+export async function createFreshSite(sitePath, options = {}) {
+  const { createStudioSite = sharedCreateStudioSite, env: extraEnv, ...createOptions } = options;
+  await createStudioSite(sitePath, {
+    ...createOptions,
+    name: `Studio Bench ${variant()} ${process.pid}`,
+    env: await cliEnv(extraEnv),
+  });
 }
 
-export async function siteStatus(sitePath) {
-  return studioSiteStatusJson(sitePath, { env: cliEnv() });
+export async function siteStatus(sitePath, options = {}) {
+  const { studioSiteStatusJson = sharedStudioSiteStatusJson, env: extraEnv, ...statusOptions } = options;
+  return studioSiteStatusJson(sitePath, { ...statusOptions, env: await cliEnv(extraEnv) });
 }
