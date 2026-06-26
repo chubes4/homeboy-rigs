@@ -60,7 +60,7 @@ test('builds a generic WP Codebox recipe with SSI-owned plugin defaults', () => 
   });
   assert.equal(recipe.workflow.steps[0].command, 'wordpress.wp-cli');
   assert.equal(recipe.workflow.steps[0].args[0], 'command=plugin activate static-site-importer/static-site-importer.php');
-  assert.match(recipe.workflow.steps[1].args[0], /static-site-importer validate-in-codebox/);
+  assert.match(recipe.workflow.steps[1].args[0], /static-site-importer validate-artifact/);
   assert.match(recipe.workflow.steps[1].args[0], /--allow-failure/);
 });
 

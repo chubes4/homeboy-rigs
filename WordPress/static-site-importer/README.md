@@ -109,7 +109,7 @@ The workload composes these generic surfaces:
   commands.
 
 SSI-specific behavior remains here: plugin slug/defaults, fixture artifact
-packing, `static-site-importer validate-in-codebox` command construction,
+packing, `static-site-importer validate-artifact` command construction,
 artifact expectations, and diagnostic-to-repair grouping.
 
 ## Generated Artifact Intake Contract
