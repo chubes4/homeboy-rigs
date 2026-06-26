@@ -181,6 +181,39 @@ function assertArtifactPostprocessWorkload(workload, { id, action, artifactName,
   assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document exact missing upstream fields`);
 }
 
+function assertCampaignPostprocessOutput(workload, output, context) {
+  assert.ok(output && typeof output === 'object' && !Array.isArray(output), `${context} requires postprocess output metadata`);
+  assert.equal(output.workload, workload.id, `${context} workload id drifted`);
+
+  const args = workload.steps?.[0]?.args;
+  assert.equal(output.helper, args?.helper, `${context} helper must match workload args`);
+  assert.equal(output.action, args?.action, `${context} action must match workload args`);
+  assert.deepEqual(output.input, args?.input, `${context} input must match workload args`);
+  assert.deepEqual(output.output, args?.output, `${context} output must match workload args`);
+  assert.deepEqual(output.parameters, args?.parameters, `${context} parameters must match workload args`);
+  assert.equal(typeof output.artifact_ref_requirement, 'string', `${context} requires artifact_ref_requirement`);
+  assert.notEqual(output.artifact_ref_requirement.trim(), '', `${context} artifact_ref_requirement must not be empty`);
+}
+
+function assertNoLocalOnlyRefs(value, context = 'value') {
+  if (typeof value === 'string') {
+    assert.ok(!/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value), `${context} must not use local URLs`);
+    assert.ok(!value.startsWith('/Users/'), `${context} must not use local filesystem paths`);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoLocalOnlyRefs(entry, `${context}[${index}]`));
+    return;
+  }
+
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      assertNoLocalOnlyRefs(entry, `${context}.${key}`);
+    }
+  }
+}
+
 assertArtifactPostprocessWorkload(coverageGapReportWorkload, {
   id: 'coverage-gap-report',
   action: 'coverage-gap-report',
@@ -451,9 +484,44 @@ assert.deepEqual(dbApiFuzzCampaign.workloads, dbApiPerformanceFuzzerWorkloadIds,
 assert.equal(dbApiFuzzCampaign.readiness?.level, 'declared', 'DB/API fuzz campaign must stay declared until reviewer-facing artifacts exist');
 assert.equal(dbApiFuzzCampaign.readiness?.execution, 'offloaded_fuzz_campaign', 'DB/API fuzz campaign execution mode drifted');
 assertFuzzProofBundleRequirements(dbApiFuzzCampaign.readiness?.proof_bundle_requirements, { file: 'db-api-fuzz-campaign readiness' });
+assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
+assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
+assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'requires-upstream-binding', 'DB/API fuzz campaign must not claim postprocess runner binding before upstream support lands');
+assert.deepEqual(dbApiFuzzCampaign.postprocess?.artifact_roots, [
+  {
+    id: 'offloaded_campaign_artifacts',
+    type: 'artifact-root',
+    path: '${artifacts.root}',
+    ref_requirement: 'reviewer-facing Homeboy artifact root from the approved offloaded campaign run set',
+    local_only_refs_allowed: false,
+    contains_workloads: [
+      'codebox-fuzz-suite-smoke',
+      'woocommerce-rest-route-inventory',
+      'generated-rest-request-cases',
+      'rest-db-query-profile',
+      'db-inventory',
+      'rest-schema-query-attribution',
+    ],
+  },
+], 'DB/API fuzz campaign artifact root contract drifted');
+assert.equal(dbApiFuzzCampaign.postprocess.outputs?.length, 2, 'DB/API fuzz campaign must declare coverage and hotspot postprocess outputs');
+assertCampaignPostprocessOutput(
+  coverageGapReportWorkload,
+  dbApiFuzzCampaign.postprocess.outputs.find((output) => output.workload === 'coverage-gap-report'),
+  'DB/API campaign coverage-gap-report postprocess output'
+);
+assertCampaignPostprocessOutput(
+  performanceHotspotsWorkload,
+  dbApiFuzzCampaign.postprocess.outputs.find((output) => output.workload === 'performance-hotspots-artifact-summary'),
+  'DB/API campaign performance-hotspots postprocess output'
+);
 assert.equal(dbApiFuzzCampaign.operator_commands?.offload_required, true, 'DB/API fuzz campaign must require offloaded execution');
+assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /homeboy\.artifact-postprocess/, 'DB/API fuzz campaign operator commands must document generic postprocess execution');
+assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /\$\{artifacts\.root\}/, 'DB/API fuzz campaign operator commands must name the offloaded artifact root placeholder');
 assert.ok(dbApiFuzzCampaign.operator_commands?.commands?.every((command) => command.startsWith('homeboy ')), 'DB/API fuzz campaign commands must use Homeboy rig/fuzz commands');
 assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload codebox-fuzz-suite-smoke')), 'DB/API fuzz campaign must include Codebox fuzz-suite workload command');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload coverage-gap-report')), 'DB/API fuzz campaign must include coverage gap postprocess workload command');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload performance-hotspots-artifact-summary')), 'DB/API fuzz campaign must include hotspot summary postprocess workload command');
 const requiredCampaignSchemas = new Set([
   'wp-codebox/fuzz-suite-result/v1',
   'wp-codebox/wordpress-hotspots/v1',
