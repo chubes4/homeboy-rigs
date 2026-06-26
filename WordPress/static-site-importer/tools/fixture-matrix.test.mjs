@@ -4,7 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { resolveBlocksEnginePhpTransformerPath } from '../bench/static-site-fixture-matrix.bench.mjs';
+import {
+  composerPathRepositoryConfig,
+  resolveBlocksEnginePhpTransformerPath,
+} from '../bench/static-site-fixture-matrix.bench.mjs';
 import {
   compareFindingPackets,
   selectorFamily,
@@ -114,6 +117,26 @@ test('resolves Blocks Engine PHP transformer override paths', () => {
 
   assert.equal(resolveBlocksEnginePhpTransformerPath(repoRoot), packageRoot);
   assert.equal(resolveBlocksEnginePhpTransformerPath(packageRoot), packageRoot);
+});
+
+test('builds Composer path repository override matching SSI constraints', () => {
+  const config = composerPathRepositoryConfig({
+    require: {
+      'automattic/blocks-engine-php-transformer': '^0.1.15',
+    },
+  }, '/tmp/blocks-engine/php-transformer');
+
+  assert.deepEqual(config, {
+    type: 'path',
+    url: '/tmp/blocks-engine/php-transformer',
+    canonical: false,
+    options: {
+      symlink: false,
+      versions: {
+        'automattic/blocks-engine-php-transformer': '0.1.15',
+      },
+    },
+  });
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
