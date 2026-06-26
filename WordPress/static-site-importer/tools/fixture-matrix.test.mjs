@@ -9,6 +9,10 @@ import {
   resolveBlocksEnginePhpTransformerPath,
 } from '../bench/static-site-fixture-matrix.bench.mjs';
 import {
+  buildFixtureMatrixRunPlan,
+  CANONICAL_FIXTURE_COUNT,
+} from './run-fixture-matrix.mjs';
+import {
   compareFindingPackets,
   selectorFamily,
 } from './compare-finding-packets.mjs';
@@ -137,6 +141,53 @@ test('builds Composer path repository override matching SSI constraints', () => 
       },
     },
   });
+});
+
+test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-canonical-matrix-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const blocksEngine = path.join(root, 'blocks-engine');
+  const fixtureRoot = path.join(blocksEngine, 'fixtures', 'websites');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  for (let index = 1; index <= CANONICAL_FIXTURE_COUNT; index += 1) {
+    mkdirSync(path.join(fixtureRoot, `fixture-${String(index).padStart(2, '0')}`), { recursive: true });
+  }
+
+  const plan = buildFixtureMatrixRunPlan({
+    runner: 'homeboy-lab',
+    staticSiteImporter,
+    blocksEngine,
+    runId: 'ssi-matrix-dev-proof',
+    passthrough: ['--batch-size', '5'],
+    skipInstall: true,
+  });
+
+  assert.equal(plan.mode, 'development-override');
+  assert.equal(plan.fixture_root, fixtureRoot);
+  assert.equal(plan.fixture_count, CANONICAL_FIXTURE_COUNT);
+  assert.equal(plan.fixture_count_matches_canonical, true);
+  assert.equal(plan.dependency_overrides.blocks_engine_php_transformer.path, blocksEngine);
+  assert.equal(plan.steps.some((step) => step.args.includes('install')), false);
+  assert.ok(plan.steps.some((step) => step.args.includes('sync')));
+
+  const benchStep = plan.steps.at(-1);
+  assert.deepEqual(benchStep.args.slice(0, 5), ['bench', '--rig', 'static-site-importer-fixture-matrix', '--profile', 'fixture-matrix']);
+  assert.ok(benchStep.args.includes('--runner'));
+  assert.ok(benchStep.args.includes('homeboy-lab'));
+  assert.ok(benchStep.args.includes(`bench_env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT=${fixtureRoot}`));
+  assert.ok(benchStep.args.includes(`bench_env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH=${staticSiteImporter}`));
+  assert.ok(benchStep.args.includes(`bench_env.SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH=${blocksEngine}`));
+  assert.ok(benchStep.args.includes('bench_env.SSI_FIXTURE_MATRIX_RUN=1'));
+  assert.deepEqual(benchStep.args.slice(-3), ['--', '--batch-size', '5']);
+
+  const releasePlan = buildFixtureMatrixRunPlan({
+    mode: 'release-proof',
+    staticSiteImporter,
+    blocksEngine,
+    passthrough: [],
+  });
+  assert.deepEqual(releasePlan.dependency_overrides, {});
+  assert.equal(releasePlan.steps.at(-1).args.some((arg) => arg.includes('SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH')), false);
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
