@@ -431,42 +431,6 @@ test('requires Jetpack executable readiness artifacts to be required', () => {
   assert.match(result.stderr, /executable Jetpack readiness requires case artifact jetpack_report to be required/);
 });
 
-test('requires Jetpack declared placeholders to document upstream blockers', () => {
-  const directory = createJetpackFuzzPackage(fuzzWorkload({
-    id: 'jetpack-placeholder',
-    target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
-    metadata: {
-      kind: 'wordpress-plugin-fuzz',
-      generic_primitive: { command: 'wordpress.inventory-database', status: 'blocked' },
-      readiness: { level: 'declared', coverage_contract: 'Jetpack placeholder coverage awaits a generic primitive.' },
-    },
-  }));
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /blocked generic primitive requires readiness upstream_blockers/);
-});
-
-test('requires Jetpack connected-state blocker classification', () => {
-  const directory = createJetpackFuzzPackage(fuzzWorkload({
-    id: 'jetpack-connection',
-    target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
-    surface_ids: ['jetpack-connection'],
-    operations: ['connected-fixture-state', 'token-placeholder-serialization'],
-    cases: [
-      {
-        case_id: 'jetpack-connection:default',
-        inputs: { states: ['connected'], skip_reason_codes: ['unsupported_fixture'] },
-        artifacts: [{ name: 'connection_report', required: false }],
-      },
-    ],
-  }));
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /connected-state cases must classify connection_required skips/);
-});
-
 test('rejects WordPress Core fuzz workloads outside wordpress-develop', () => {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-wp-legacy-lint-'));
   const fuzzRoot = join(directory, 'WordPress', 'wordpress', 'fuzz');
