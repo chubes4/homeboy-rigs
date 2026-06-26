@@ -280,14 +280,38 @@ function updateComposerPathRepository(pluginPath, packagePath) {
 }
 
 function configureComposerPathRepository(pluginPath, packagePath) {
-  const result = spawnSync('composer', ['config', 'repositories.blocks-engine-php-transformer-dev', 'path', packagePath], {
-    cwd: pluginPath,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  if (result.status !== 0) {
-    throw new Error(`Composer path repository configuration failed for ${pluginPath}: ${result.stderr || result.stdout || `exit ${result.status}`}`);
+  const composerFile = path.join(pluginPath, 'composer.json');
+  const composer = JSON.parse(fs.readFileSync(composerFile, 'utf8'));
+  composer.repositories = composer.repositories && typeof composer.repositories === 'object' && !Array.isArray(composer.repositories)
+    ? composer.repositories
+    : {};
+  composer.repositories['blocks-engine-php-transformer-dev'] = composerPathRepositoryConfig(composer, packagePath);
+  fs.writeFileSync(composerFile, `${JSON.stringify(composer, null, 2)}\n`);
+}
+
+export function composerPathRepositoryConfig(rootComposer, packagePath) {
+  return {
+    type: 'path',
+    url: packagePath,
+    canonical: false,
+    options: {
+      symlink: false,
+      versions: {
+        'automattic/blocks-engine-php-transformer': composerPathRepositoryVersion(rootComposer),
+      },
+    },
+  };
+}
+
+function composerPathRepositoryVersion(rootComposer) {
+  const constraint = rootComposer?.require?.['automattic/blocks-engine-php-transformer'];
+  if (typeof constraint !== 'string') {
+    return '0.1.15';
   }
+
+  const trimmed = constraint.trim();
+  const match = trimmed.match(/^\^?(\d+\.\d+\.\d+)$/);
+  return match ? match[1] : '0.1.15';
 }
 
 function runtimeSummary(runtime, runtimeError) {
