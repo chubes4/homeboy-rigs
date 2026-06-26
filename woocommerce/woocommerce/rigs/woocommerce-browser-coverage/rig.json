@@ -3,7 +3,7 @@
   "description": "WP Codebox browser-actions request coverage for WooCommerce shop, product, cart, checkout, orders admin, products admin, and analytics admin surfaces.",
   "components": {
     "woocommerce": {
-      "path": "$HOME/Developer/woocommerce/plugins/woocommerce",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_BROWSER_COVERAGE__WOOCOMMERCE}",
       "branch": "trunk"
     }
   },

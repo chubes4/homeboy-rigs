@@ -1,0 +1,169 @@
+{
+  "schema": "homeboy-rigs/woocommerce-db-api-fuzz-campaign/v1",
+  "id": "woocommerce-db-api-fuzz-campaign",
+  "profile_id": "db-api-performance-fuzzer",
+  "description": "WooCommerce DB/API fuzz campaign declaration tying public Codebox fuzz-suite execution to WordPress hotspot artifacts, Homeboy coverage, Homeboy hotspot summary, and gap-report outputs without claiming proof before reviewer-facing artifacts exist.",
+  "suite_manifest": "manifests/codebox-fuzz-suite-smoke.json",
+  "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
+  "hotspot_artifact_io_manifest": "manifests/db-api-hotspot-artifact-io.json",
+  "workloads": [
+    "codebox-fuzz-suite-smoke",
+    "woocommerce-rest-route-inventory",
+    "generated-rest-request-cases",
+    "rest-db-query-profile",
+    "db-inventory",
+    "rest-schema-query-attribution",
+    "coverage-gap-report",
+    "performance-hotspots-artifact-summary"
+  ],
+  "required_upstream_artifact_refs": [
+    {
+      "id": "codebox_fuzz_suite_result",
+      "schema": "wp-codebox/fuzz-suite-result/v1",
+      "semantic_key": "fuzz.suite_result",
+      "readiness": "required_before_proven"
+    },
+    {
+      "id": "wordpress_hotspots",
+      "schema": "wp-codebox/wordpress-hotspots/v1",
+      "semantic_key": "wordpress.hotspots",
+      "readiness": "required_before_proven"
+    },
+    {
+      "id": "homeboy_fuzz_coverage",
+      "schema": "homeboy/fuzz-coverage/v1",
+      "semantic_key": "fuzz.coverage",
+      "readiness": "required_before_proven"
+    },
+    {
+      "id": "homeboy_hotspot_summary",
+      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "semantic_key": "fuzz.report",
+      "readiness": "required_before_proven"
+    },
+    {
+      "id": "coverage_gap_report",
+      "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+      "semantic_key": "fuzz.report",
+      "readiness": "required_before_proven"
+    }
+  ],
+  "postprocess": {
+    "command": "homeboy.artifact-postprocess",
+    "runner_support_status": "requires-upstream-binding",
+    "artifact_roots": [
+      {
+        "id": "offloaded_campaign_artifacts",
+        "type": "artifact-root",
+        "path": "${artifacts.root}",
+        "ref_requirement": "reviewer-facing Homeboy artifact root from the approved offloaded campaign run set",
+        "local_only_refs_allowed": false,
+        "contains_workloads": [
+          "codebox-fuzz-suite-smoke",
+          "woocommerce-rest-route-inventory",
+          "generated-rest-request-cases",
+          "rest-db-query-profile",
+          "db-inventory",
+          "rest-schema-query-attribution"
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "workload": "coverage-gap-report",
+        "helper": "${package.root}/tools/db-api-fuzzer-artifacts.mjs",
+        "action": "coverage-gap-report",
+        "input": {
+          "type": "artifact-root",
+          "path": "${artifacts.root}",
+          "artifact_globs": ["**/*.json"],
+          "max_bytes": 1048576
+        },
+        "output": {
+          "artifact": "coverage_gap_report",
+          "path": "coverage-gap-report/coverage_gap_report.json",
+          "kind": "json",
+          "contentType": "application/json",
+          "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+          "semantic_key": "fuzz.report",
+          "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"]
+        },
+        "parameters": {
+          "metric_prefix": "coverage_gap_report"
+        },
+        "artifact_ref_requirement": "reviewer-facing coverage gap report artifact ref from the offloaded postprocess run"
+      },
+      {
+        "workload": "performance-hotspots-artifact-summary",
+        "helper": "${package.root}/tools/db-api-fuzzer-artifacts.mjs",
+        "action": "performance-hotspots-summary",
+        "input": {
+          "type": "artifact-root",
+          "path": "${artifacts.root}",
+          "artifact_globs": ["**/*.json"],
+          "max_bytes": 1048576
+        },
+        "output": {
+          "artifact": "performance_hotspots_summary",
+          "path": "performance-hotspots-artifact-summary/performance_hotspots_summary.json",
+          "kind": "json",
+          "contentType": "application/json",
+          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "semantic_key": "fuzz.report",
+          "ranking": {
+            "mode": "relative",
+            "required_fields": ["rank", "surface", "relative_score", "request_attribution", "query_attribution", "fixture_scale", "run_refs"]
+          }
+        },
+        "parameters": {
+          "metric_prefix": "performance_hotspots_summary",
+          "maxQuerySamples": 50
+        },
+        "artifact_ref_requirement": "reviewer-facing performance hotspot summary artifact ref from the offloaded postprocess run"
+      }
+    ]
+  },
+  "operator_commands": {
+    "offload_required": true,
+    "note": "Run these through an approved Homeboy Lab/runner/offloaded environment. Do not use local benchmark execution as proof for this campaign.",
+    "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads execute the generic homeboy.artifact-postprocess step against the offloaded ${artifacts.root}; their helper/action/input/output/parameters contracts are declared in postprocess.outputs and must be collected as reviewer-facing artifacts before proven readiness.",
+    "commands": [
+      "homeboy rig up woocommerce-performance",
+      "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m",
+      "homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory --seed 1 --max-duration 10m",
+      "homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-db-api-generated-cases --seed 1 --max-duration 20m",
+      "homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-db-api-query-profile --seed 1 --max-duration 20m",
+      "homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-api-db-inventory --seed 1 --max-duration 10m",
+      "homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution --seed 1 --max-duration 20m",
+      "homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m",
+      "homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m"
+    ]
+  },
+  "readiness": {
+    "level": "declared",
+    "execution": "offloaded_fuzz_campaign",
+    "coverage_contract": "The campaign is executable only through the declared Woo fuzz workloads in an approved offloaded WP Codebox/Homeboy runner. It remains declared until reviewer-facing artifact refs exist for Codebox fuzz-suite results, WordPress hotspot artifacts, Homeboy fuzz coverage, Homeboy hotspot summary, and the coverage gap report.",
+    "proof_bundle_requirements": {
+      "status": "required_before_proven",
+      "required_refs": [
+        "reviewer-facing wp-codebox/fuzz-suite-result/v1 artifact ref",
+        "reviewer-facing wp-codebox/wordpress-hotspots/v1 artifact ref",
+        "reviewer-facing Homeboy fuzz coverage artifact ref",
+        "reviewer-facing Homeboy hotspot summary artifact ref",
+        "reviewer-facing coverage gap report artifact ref"
+      ],
+      "required_artifacts": [
+        "codebox_fuzz_suite_result",
+        "wordpress_hotspots",
+        "homeboy_fuzz_coverage",
+        "homeboy_hotspot_summary",
+        "coverage_gap_report"
+      ]
+    },
+    "upstream_blockers": [
+      "Public Codebox fuzz-suite execution must emit reviewer-facing wp-codebox/fuzz-suite-result/v1 artifacts for the Woo DB/API generated contract.",
+      "WordPress hotspot discovery must emit reviewer-facing wp-codebox/wordpress-hotspots/v1 artifacts for the same run set.",
+      "Homeboy fuzz execution must collect coverage, hotspot summary, and gap-report artifacts from the offloaded run before readiness can become proven."
+    ]
+  }
+}

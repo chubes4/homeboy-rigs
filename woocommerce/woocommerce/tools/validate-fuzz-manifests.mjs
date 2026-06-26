@@ -5,7 +5,10 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertExecutableCrudMutationSafety,
   assertFullSurfaceCoverageManifest,
+  assertFuzzProofBundleRequirements,
+  assertFuzzReadinessLevel,
   assertGenericFuzzManifest,
   collectFuzzManifests,
   declaredBenchProfileIds,
@@ -20,6 +23,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
+const dbApiFuzzCampaign = readJson(packageRoot, 'manifests/db-api-fuzz-campaign.json');
 const dbApiPerformanceFuzzerGapReport = readJson(packageRoot, 'manifests/db-api-performance-fuzzer-gap-report.json');
 const restCrudRouteFamilyCatalog = readJson(packageRoot, 'manifests/rest-crud-route-family-catalog.json');
 const dbApiHotspotArtifactIo = readJson(packageRoot, 'manifests/db-api-hotspot-artifact-io.json');
@@ -115,6 +119,7 @@ const fullSurfaceFuzzIds = new Set(Object.entries(coverageManifest.coverage_prof
   .flatMap(([, workloadIds]) => workloadIds));
 const requiredArtifactWorkloadIds = fullSurfaceRequiredArtifactIds(coverageManifest);
 const dbApiPerformanceFuzzerWorkloadIds = [
+  'codebox-fuzz-suite-smoke',
   'woocommerce-rest-route-inventory',
   'generated-rest-request-cases',
   'rest-db-query-profile',
@@ -123,10 +128,24 @@ const dbApiPerformanceFuzzerWorkloadIds = [
   'coverage-gap-report',
   'performance-hotspots-artifact-summary',
 ];
-const dbApiPerformanceFuzzerGapReportInputIds = dbApiPerformanceFuzzerWorkloadIds.filter((workloadId) => workloadId !== 'coverage-gap-report');
+const dbApiPerformanceFuzzerProfileWorkloadIds = dbApiPerformanceFuzzerWorkloadIds.filter((workloadId) => workloadId !== 'codebox-fuzz-suite-smoke');
+const dbApiPerformanceFuzzerGapReportInputIds = dbApiPerformanceFuzzerProfileWorkloadIds.filter((workloadId) => workloadId !== 'coverage-gap-report');
 const externalDiscoveryWorkloadIds = new Set([
   'woocommerce-browser-coverage',
 ]);
+
+function assertProfileReadiness(readiness, context) {
+  assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${context} requires readiness metadata`);
+  assertFuzzReadinessLevel(readiness.level, `${context}.level`);
+  assert.equal(typeof readiness.coverage_contract, 'string', `${context}.coverage_contract must describe the contract`);
+  assert.notEqual(readiness.coverage_contract.trim(), '', `${context}.coverage_contract must not be empty`);
+  if (readiness.proof_bundle_requirements !== undefined) {
+    assertFuzzProofBundleRequirements(readiness.proof_bundle_requirements, { file: context });
+  }
+  if (readiness.crud !== undefined) {
+    assertExecutableCrudMutationSafety(readiness, { file: context });
+  }
+}
 
 function assertDeclaredOrExternalDiscoveryWorkload(workloadId, context) {
   assert.ok(
@@ -160,6 +179,39 @@ function assertArtifactPostprocessWorkload(workload, { id, action, artifactName,
   assert.equal(workload.artifacts?.[0]?.required, true, `${id} collected artifact must be required`);
   assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay blocked until upstream binds homeboy.artifact-postprocess`);
   assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document exact missing upstream fields`);
+}
+
+function assertCampaignPostprocessOutput(workload, output, context) {
+  assert.ok(output && typeof output === 'object' && !Array.isArray(output), `${context} requires postprocess output metadata`);
+  assert.equal(output.workload, workload.id, `${context} workload id drifted`);
+
+  const args = workload.steps?.[0]?.args;
+  assert.equal(output.helper, args?.helper, `${context} helper must match workload args`);
+  assert.equal(output.action, args?.action, `${context} action must match workload args`);
+  assert.deepEqual(output.input, args?.input, `${context} input must match workload args`);
+  assert.deepEqual(output.output, args?.output, `${context} output must match workload args`);
+  assert.deepEqual(output.parameters, args?.parameters, `${context} parameters must match workload args`);
+  assert.equal(typeof output.artifact_ref_requirement, 'string', `${context} requires artifact_ref_requirement`);
+  assert.notEqual(output.artifact_ref_requirement.trim(), '', `${context} artifact_ref_requirement must not be empty`);
+}
+
+function assertNoLocalOnlyRefs(value, context = 'value') {
+  if (typeof value === 'string') {
+    assert.ok(!/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value), `${context} must not use local URLs`);
+    assert.ok(!value.startsWith('/Users/'), `${context} must not use local filesystem paths`);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoLocalOnlyRefs(entry, `${context}[${index}]`));
+    return;
+  }
+
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      assertNoLocalOnlyRefs(entry, `${context}.${key}`);
+    }
+  }
 }
 
 assertArtifactPostprocessWorkload(coverageGapReportWorkload, {
@@ -204,7 +256,8 @@ assert.deepEqual(rig.fuzz_profile_metadata?.['full-surface']?.discovery_manifest
   admin_actions: 'manifests/admin-action-inventory.json',
   db_api_hotspots: 'manifests/db-api-hotspot-artifact-io.json',
 }, 'full-surface profile discovery manifests drifted');
-assert.equal(rig.fuzz_profile_metadata?.['full-surface']?.readiness?.level, 'declared_inventory', 'full-surface discovery manifests must stay declared inventory');
+assertProfileReadiness(rig.fuzz_profile_metadata?.['full-surface']?.readiness, 'fuzz_profile_metadata.full-surface.readiness');
+assert.equal(rig.fuzz_profile_metadata?.['full-surface']?.readiness?.level, 'declared', 'full-surface discovery manifests must stay declared');
 
 const requiredTargetSurfaces = new Set([
   'rest_routes',
@@ -272,6 +325,7 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.metadata?.fixture?.scope, 'disposable-wordpress', `${manifest.id} fixture scope must be disposable-wordpress`);
   assert.equal(manifest.metadata?.fixture?.component, 'woocommerce', `${manifest.id} fixture component must be woocommerce`);
   assert.equal(manifest.metadata?.fixture?.activation, 'woocommerce/woocommerce.php', `${manifest.id} fixture activation must be woocommerce/woocommerce.php`);
+  assertExecutableCrudMutationSafety(manifest.metadata?.readiness, { file: manifest.id });
 
   if (manifest.metadata?.readiness?.level === 'proven') {
     const proofBundle = manifest.metadata.readiness.proof_bundle;
@@ -331,6 +385,7 @@ for (const { file, manifest } of fuzzManifests) {
 const codeboxSmokeManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'codebox-fuzz-suite-smoke')?.manifest;
 assert.ok(codeboxSmokeManifest, 'codebox-fuzz-suite-smoke manifest is missing');
 assert.equal(codeboxSmokeManifest.metadata?.readiness?.level, 'declared', 'codebox smoke must not claim proven readiness without proof artifacts');
+assertFuzzProofBundleRequirements(codeboxSmokeManifest.metadata?.readiness?.proof_bundle_requirements, { file: 'codebox-fuzz-suite-smoke readiness' });
 assert.ok(codeboxSmokeManifest.operations.includes('generated-route-inventory-contract'), 'codebox smoke must depend on generated route inventory contracts');
 assert.ok(codeboxSmokeManifest.operations.includes('rest-db-query-attribution-contract'), 'codebox smoke must depend on REST DB query attribution contracts');
 assert.deepEqual(codeboxSmokeManifest.metadata?.required_primitive_contracts, [
@@ -390,13 +445,19 @@ assert.deepEqual(codeboxSuite.target?.metadata?.source_manifests, [
   'fuzz/rest-schema-query-attribution.json',
   'fuzz/coverage-gap-report.json',
   'fuzz/performance-hotspots-artifact-summary.json',
+  'manifests/db-api-fuzz-campaign.json',
   'manifests/db-api-performance-fuzzer-gap-report.json',
 ]);
-assert.deepEqual(rig.fuzz_profiles?.['db-api-performance-fuzzer'], dbApiPerformanceFuzzerWorkloadIds, 'DB/API performance fuzzer profile workload ids drifted');
+assert.deepEqual(rig.fuzz_profiles?.['db-api-performance-fuzzer'], dbApiPerformanceFuzzerProfileWorkloadIds, 'DB/API performance fuzzer profile workload ids drifted');
 assert.deepEqual(codeboxSuite.target?.metadata?.profile?.workload_ids, dbApiPerformanceFuzzerWorkloadIds, 'Codebox suite DB/API profile workload ids drifted');
 assert.equal(codeboxSuite.target?.metadata?.profile?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'Codebox suite must link the standalone DB/API gap report declaration');
+assert.equal(codeboxSuite.target?.metadata?.profile?.campaign_manifest, 'manifests/db-api-fuzz-campaign.json', 'Codebox suite must link the DB/API fuzz campaign declaration');
+assertFuzzProofBundleRequirements(codeboxSuite.target?.metadata?.proof_bundle_requirements, { file: 'codebox suite metadata proof bundle requirements' });
+assert.equal(codeboxSuite.metadata?.public_result_contract, 'wp-codebox/fuzz-suite-result/v1', 'Codebox suite must declare the public fuzz-suite result contract');
+assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.campaign_manifest, 'manifests/db-api-fuzz-campaign.json', 'DB/API profile must link the campaign declaration');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'DB/API profile must link the standalone gap report declaration');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API profile must identify the source full-surface gap report');
+assertProfileReadiness(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness, 'fuzz_profile_metadata.db-api-performance-fuzzer.readiness');
 assert.equal(dbApiPerformanceFuzzerGapReport.schema, 'homeboy-rigs/wordpress-coverage-gap-report-workload/v1', 'DB/API gap report workload schema drifted');
 assert.equal(dbApiPerformanceFuzzerGapReport.id, 'woocommerce-db-api-performance-fuzzer-gap-report', 'DB/API gap report workload id drifted');
 assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuzzer', 'DB/API gap report workload must target the DB/API fuzzer profile');
@@ -405,11 +466,83 @@ assert.equal(dbApiPerformanceFuzzerGapReport.workload, 'fuzz/coverage-gap-report
 assert.deepEqual(dbApiPerformanceFuzzerGapReport.inputs, dbApiPerformanceFuzzerGapReportInputIds, 'DB/API gap report workload inputs drifted');
 assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'declared', 'DB/API gap report workload readiness must stay declared until upstream binds artifact-postprocess');
 assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'artifact_aggregation', 'DB/API gap report workload must use artifact aggregation execution');
+assert.deepEqual(dbApiPerformanceFuzzerGapReport.generic_upstream_contracts, [
+  'homeboy.artifact-postprocess',
+  'wp-codebox/wordpress-workload-run/v1',
+  'homeboy-rigs/wordpress-coverage-gap-report/v1',
+], 'DB/API gap report must link generic upstream artifact contracts');
+assertFuzzProofBundleRequirements(dbApiPerformanceFuzzerGapReport.readiness?.proof_bundle_requirements, { file: 'db-api-performance-fuzzer-gap-report readiness' });
 assert.ok(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers?.length > 0, 'DB/API gap report declaration must name upstream blockers');
 assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('args.helper')), 'DB/API gap report declaration must list the missing upstream artifact-postprocess fields');
+assert.equal(dbApiFuzzCampaign.schema, 'homeboy-rigs/woocommerce-db-api-fuzz-campaign/v1', 'DB/API fuzz campaign schema drifted');
+assert.equal(dbApiFuzzCampaign.id, 'woocommerce-db-api-fuzz-campaign', 'DB/API fuzz campaign id drifted');
+assert.equal(dbApiFuzzCampaign.profile_id, 'db-api-performance-fuzzer', 'DB/API fuzz campaign profile id drifted');
+assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-smoke.json', 'DB/API fuzz campaign must link the Codebox fuzz suite');
+assert.equal(dbApiFuzzCampaign.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'DB/API fuzz campaign must link the gap report manifest');
+assert.equal(dbApiFuzzCampaign.hotspot_artifact_io_manifest, 'manifests/db-api-hotspot-artifact-io.json', 'DB/API fuzz campaign must link hotspot artifact IO');
+assert.deepEqual(dbApiFuzzCampaign.workloads, dbApiPerformanceFuzzerWorkloadIds, 'DB/API fuzz campaign workloads drifted');
+assert.equal(dbApiFuzzCampaign.readiness?.level, 'declared', 'DB/API fuzz campaign must stay declared until reviewer-facing artifacts exist');
+assert.equal(dbApiFuzzCampaign.readiness?.execution, 'offloaded_fuzz_campaign', 'DB/API fuzz campaign execution mode drifted');
+assertFuzzProofBundleRequirements(dbApiFuzzCampaign.readiness?.proof_bundle_requirements, { file: 'db-api-fuzz-campaign readiness' });
+assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
+assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
+assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'requires-upstream-binding', 'DB/API fuzz campaign must not claim postprocess runner binding before upstream support lands');
+assert.deepEqual(dbApiFuzzCampaign.postprocess?.artifact_roots, [
+  {
+    id: 'offloaded_campaign_artifacts',
+    type: 'artifact-root',
+    path: '${artifacts.root}',
+    ref_requirement: 'reviewer-facing Homeboy artifact root from the approved offloaded campaign run set',
+    local_only_refs_allowed: false,
+    contains_workloads: [
+      'codebox-fuzz-suite-smoke',
+      'woocommerce-rest-route-inventory',
+      'generated-rest-request-cases',
+      'rest-db-query-profile',
+      'db-inventory',
+      'rest-schema-query-attribution',
+    ],
+  },
+], 'DB/API fuzz campaign artifact root contract drifted');
+assert.equal(dbApiFuzzCampaign.postprocess.outputs?.length, 2, 'DB/API fuzz campaign must declare coverage and hotspot postprocess outputs');
+assertCampaignPostprocessOutput(
+  coverageGapReportWorkload,
+  dbApiFuzzCampaign.postprocess.outputs.find((output) => output.workload === 'coverage-gap-report'),
+  'DB/API campaign coverage-gap-report postprocess output'
+);
+assertCampaignPostprocessOutput(
+  performanceHotspotsWorkload,
+  dbApiFuzzCampaign.postprocess.outputs.find((output) => output.workload === 'performance-hotspots-artifact-summary'),
+  'DB/API campaign performance-hotspots postprocess output'
+);
+assert.equal(dbApiFuzzCampaign.operator_commands?.offload_required, true, 'DB/API fuzz campaign must require offloaded execution');
+assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /homeboy\.artifact-postprocess/, 'DB/API fuzz campaign operator commands must document generic postprocess execution');
+assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /\$\{artifacts\.root\}/, 'DB/API fuzz campaign operator commands must name the offloaded artifact root placeholder');
+assert.ok(dbApiFuzzCampaign.operator_commands?.commands?.every((command) => command.startsWith('homeboy ')), 'DB/API fuzz campaign commands must use Homeboy rig/fuzz commands');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload codebox-fuzz-suite-smoke')), 'DB/API fuzz campaign must include Codebox fuzz-suite workload command');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload coverage-gap-report')), 'DB/API fuzz campaign must include coverage gap postprocess workload command');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload performance-hotspots-artifact-summary')), 'DB/API fuzz campaign must include hotspot summary postprocess workload command');
+const requiredCampaignSchemas = new Set([
+  'wp-codebox/fuzz-suite-result/v1',
+  'wp-codebox/wordpress-hotspots/v1',
+  'homeboy/fuzz-coverage/v1',
+  'homeboy/woocommerce-performance-hotspots-summary/v1',
+  'homeboy-rigs/wordpress-coverage-gap-report/v1',
+]);
+assert.deepEqual(new Set(dbApiFuzzCampaign.required_upstream_artifact_refs.map((artifact) => artifact.schema)), requiredCampaignSchemas, 'DB/API fuzz campaign required artifact schemas drifted');
+for (const artifact of dbApiFuzzCampaign.required_upstream_artifact_refs) {
+  assert.equal(artifact.readiness, 'required_before_proven', `DB/API fuzz campaign artifact ${artifact.id} must be required before proven`);
+  assert.equal(typeof artifact.semantic_key, 'string', `DB/API fuzz campaign artifact ${artifact.id} requires semantic_key`);
+}
 assert.equal(dbApiHotspotArtifactIo.schema, 'homeboy-rigs/woocommerce-db-api-hotspot-artifact-io/v1', 'DB/API hotspot artifact IO schema drifted');
 assert.equal(dbApiHotspotArtifactIo.postprocess_command, 'homeboy.artifact-postprocess', 'DB/API hotspot artifact IO must use upstream artifact-postprocess');
 assert.equal(dbApiHotspotArtifactIo.readiness?.level, 'declared', 'DB/API hotspot artifact IO must stay declared until artifact-postprocess binding lands');
+assert.deepEqual(dbApiHotspotArtifactIo.generic_upstream_contracts, [
+  'homeboy.artifact-postprocess',
+  'wp-codebox/wordpress-workload-run/v1',
+  'homeboy/woocommerce-performance-hotspots-summary/v1',
+], 'DB/API hotspot artifact IO must link generic upstream artifact contracts');
+assertFuzzProofBundleRequirements(dbApiHotspotArtifactIo.readiness?.proof_bundle_requirements, { file: 'db-api-hotspot-artifact-io readiness' });
 assert.deepEqual(new Set(dbApiHotspotArtifactIo.expected_inputs.map((input) => input.workload_id)), new Set(dbApiPerformanceFuzzerGapReportInputIds), 'DB/API hotspot artifact IO inputs drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1', 'DB/API hotspot sample output schema drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.threshold_policy, 'relative_ranking_only', 'DB/API hotspot sample output must use relative ranking');
@@ -423,6 +556,7 @@ const productCrudProfileIds = ['rest-product-batch-import', 'woocommerce-rest-ro
 assert.deepEqual(rig.fuzz_profiles?.['product-rest-crud-fuzzer'], productCrudProfileIds, 'product REST CRUD fuzzer profile workload ids drifted');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.route_family_catalog_manifest, 'manifests/rest-crud-route-family-catalog.json', 'product REST CRUD profile must link the route-family catalog');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.hotspot_artifact_contract_manifest, 'manifests/db-api-hotspot-artifact-io.json', 'product REST CRUD profile must link the hotspot artifact IO contract');
+assertProfileReadiness(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness, 'fuzz_profile_metadata.product-rest-crud-fuzzer.readiness');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.create?.level, 'executable', 'product REST CRUD create readiness must be executable');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.level, 'executable', 'product REST CRUD update readiness must be executable');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.delete?.level, 'declared', 'product REST CRUD delete readiness must be declared/blocked by upstream');
@@ -448,12 +582,17 @@ for (const family of restCrudRouteFamilyCatalog.route_families) {
     assert.ok(declaredIds.has(workloadId), `${family.id} owner workload ${workloadId} must be declared`);
   }
   assert.ok(family.readiness?.delete, `${family.id} must declare delete readiness`);
+  for (const operation of ['create', 'read', 'update', 'delete']) {
+    assertFuzzReadinessLevel(family.readiness?.[operation]?.level, `${family.id} ${operation} readiness level`);
+  }
 }
 
 assert.equal(blockInventoryRenderingFuzz.schema, 'homeboy-rigs/woocommerce-block-inventory-rendering-fuzz/v1', 'block inventory/rendering fuzz schema drifted');
 assert.ok(blockInventoryRenderingFuzz.block_name_prefixes.includes('woocommerce/'), 'block inventory/rendering fuzz must target WooCommerce blocks');
 assert.ok(blockInventoryRenderingFuzz.frontend_contexts.includes('checkout'), 'block inventory/rendering fuzz must include checkout context');
-assert.equal(blockInventoryRenderingFuzz.readiness?.rendering, 'partial_via_frontend_browser_request_coverage', 'block rendering readiness drifted');
+assert.equal(blockInventoryRenderingFuzz.readiness?.inventory?.level, 'declared', 'block inventory readiness drifted');
+assert.equal(blockInventoryRenderingFuzz.readiness?.rendering?.level, 'executable', 'block rendering readiness drifted');
+assert.equal(blockInventoryRenderingFuzz.readiness?.mutation?.level, 'declared', 'block mutation readiness drifted');
 assert.deepEqual(targetInventory.targets.blocks.block_name_prefixes, blockInventoryRenderingFuzz.block_name_prefixes, 'target inventory block prefixes must come from block inventory manifest');
 assert.deepEqual(targetInventory.targets.blocks.frontend_contexts, blockInventoryRenderingFuzz.frontend_contexts, 'target inventory block contexts must come from block inventory manifest');
 assert.deepEqual(targetInventory.discovery_manifests?.blocks?.readiness, blockInventoryRenderingFuzz.readiness, 'target inventory block discovery readiness drifted');
@@ -462,11 +601,12 @@ for (const workloadId of blockInventoryRenderingFuzz.owned_by.workloads) {
 }
 
 assert.equal(adminActionInventory.schema, 'homeboy-rigs/woocommerce-admin-action-inventory/v1', 'admin action inventory schema drifted');
-assert.ok(adminActionInventory.action_families.some((family) => family.id === 'admin-menu-get-pages' && family.readiness === 'executable_get_only'), 'admin action inventory must include executable GET-only admin menu coverage');
+assert.ok(adminActionInventory.action_families.some((family) => family.id === 'admin-menu-get-pages' && family.readiness?.level === 'executable'), 'admin action inventory must include executable GET-only admin menu coverage');
 assert.ok(adminActionInventory.skip_reason_codes.includes('payment_submission'), 'admin action inventory must classify payment submission skips');
 assert.deepEqual(targetInventory.discovery_manifests?.admin_actions?.action_family_ids, adminActionInventory.action_families.map((family) => family.id), 'target inventory admin action discovery ids drifted');
 for (const family of adminActionInventory.action_families) {
   assertDeclaredOrExternalDiscoveryWorkload(family.workload, `admin action ${family.id}`);
+  assertFuzzReadinessLevel(family.readiness?.level, `admin action ${family.id} readiness level`);
 }
 assert.deepEqual(targetInventory.discovery_manifests?.db_api_hotspots?.readiness, dbApiHotspotArtifactIo.readiness, 'target inventory DB/API hotspot discovery readiness drifted');
 assert.equal(targetInventory.targets.performance_hotspots.artifact_io_manifest, 'manifests/db-api-hotspot-artifact-io.json', 'target inventory must link DB/API hotspot artifact IO manifest');

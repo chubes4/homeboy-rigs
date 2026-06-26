@@ -193,6 +193,30 @@ the rig: Homeboy/Homeboy Extensions must bind `args.helper`, `args.action`,
 `args.input`, `args.output`, and `args.parameters`, then collect the declared
 `fuzz.report` artifact before those contracts can become executable.
 
+The DB/API campaign manifest wires those two aggregation workloads to generic
+postprocess metadata instead of abstract proof placeholders:
+
+```bash
+homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m
+homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m
+```
+
+Both commands must run in the same approved offloaded campaign environment as
+the upstream Codebox fuzz-suite, REST route inventory, generated cases, DB query
+profile, DB inventory, and schema/query attribution workloads. Their
+`homeboy.artifact-postprocess` steps consume the offloaded `${artifacts.root}`
+JSON artifact root and emit required reviewer-facing `coverage_gap_report` and
+`performance_hotspots_summary` JSON artifacts. The manifest records the exact
+`helper`, `action`, `input`, `output`, and `parameters` contract for each output;
+it does not contain live proof refs yet.
+
+The DB/API campaign contract lives in `manifests/db-api-fuzz-campaign.json` and
+requires reviewer-facing refs for `wp-codebox/fuzz-suite-result/v1`,
+`wp-codebox/wordpress-hotspots/v1`, Homeboy fuzz coverage, Homeboy hotspot
+summary, and the coverage gap report before anyone can mark it proven. Run the
+campaign commands from that manifest only through an approved Homeboy
+Lab/runner/offloaded environment; do not run local benchmarks as campaign proof.
+
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance
 summary fuzz manifests are proof-ready declarations until a `homeboy fuzz run`

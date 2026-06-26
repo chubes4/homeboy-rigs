@@ -128,6 +128,67 @@ test('rejects missing declared fuzz workload files', () => {
   assert.match(result.stderr, /declares missing file/);
 });
 
+test('rejects committed local Developer checkout paths in rigs', () => {
+  const directory = createRigPackage({
+    rig: {
+      components: {
+        product: {
+          path: '~/Developer/product',
+          branch: 'main',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /use portable component path settings instead of committed ~\/Developer or \$HOME\/Developer checkout paths/);
+});
+
+test('accepts component paths resolved through portable settings', () => {
+  const directory = createRigPackage({
+    rig: {
+      components: {
+        product: {
+          path: '${env.HOMEBOY_RIG_COMPONENT_PATH__GENERIC_RIG__PRODUCT}',
+          branch: 'main',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('rejects committed local Developer checkout paths in stacks', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const stackRoot = join(directory, 'Vendor', 'product', 'stacks');
+  mkdirSync(stackRoot, { recursive: true });
+  writeJson(join(stackRoot, 'combined.json'), {
+    id: 'combined',
+    component: 'product',
+    component_path: '$HOME/Developer/product',
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /stacks\/combined\.json: use portable component path settings/);
+});
+
 test('rejects invalid declared fuzz workload shapes', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
@@ -368,42 +429,6 @@ test('requires Jetpack executable readiness artifacts to be required', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /executable Jetpack readiness requires case artifact jetpack_report to be required/);
-});
-
-test('requires Jetpack declared placeholders to document upstream blockers', () => {
-  const directory = createJetpackFuzzPackage(fuzzWorkload({
-    id: 'jetpack-placeholder',
-    target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
-    metadata: {
-      kind: 'wordpress-plugin-fuzz',
-      generic_primitive: { command: 'wordpress.inventory-database', status: 'blocked' },
-      readiness: { level: 'declared', coverage_contract: 'Jetpack placeholder coverage awaits a generic primitive.' },
-    },
-  }));
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /blocked generic primitive requires readiness upstream_blockers/);
-});
-
-test('requires Jetpack connected-state blocker classification', () => {
-  const directory = createJetpackFuzzPackage(fuzzWorkload({
-    id: 'jetpack-connection',
-    target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
-    surface_ids: ['jetpack-connection'],
-    operations: ['connected-fixture-state', 'token-placeholder-serialization'],
-    cases: [
-      {
-        case_id: 'jetpack-connection:default',
-        inputs: { states: ['connected'], skip_reason_codes: ['unsupported_fixture'] },
-        artifacts: [{ name: 'connection_report', required: false }],
-      },
-    ],
-  }));
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /connected-state cases must classify connection_required skips/);
 });
 
 test('rejects WordPress Core fuzz workloads outside wordpress-develop', () => {

@@ -4,7 +4,7 @@
 
   "components": {
     "studio": {
-      "path": "~/Developer/studio",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CLI_PASSWORD_NODE__STUDIO}",
       "branch": "dev/combined-fixes",
       "extensions": {
         "nodejs": {

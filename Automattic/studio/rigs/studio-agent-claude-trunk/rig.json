@@ -3,7 +3,7 @@
   "description": "Studio Claude Sonnet 4.6 on current Automattic/studio trunk. Used as the reference rig for trunk-vs-SSI comparisons.",
   "components": {
     "studio": {
-      "path": "~/Developer/studio@agent-sdk-baseline",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_CLAUDE_EVALTIMING__STUDIO}",
       "branch": "agent-sdk-baseline",
       "extensions": {
         "nodejs": {

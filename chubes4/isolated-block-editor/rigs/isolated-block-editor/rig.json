@@ -3,14 +3,14 @@
   "description": "Isolated Block Editor maintenance rig. Runs the build and unit test checks used when shaving IBE toward modern Gutenberg APIs. Worktree-friendly: if node_modules is missing, borrows the primary checkout's node_modules through Homeboy shared-path primitives.",
   "components": {
     "isolated-block-editor": {
-      "path": "~/Developer/isolated-block-editor",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__ISOLATED_BLOCK_EDITOR__ISOLATED_BLOCK_EDITOR}",
       "branch": "trunk"
     }
   },
   "shared_paths": [
     {
       "link": "${components.isolated-block-editor.path}/node_modules",
-      "target": "~/Developer/isolated-block-editor/node_modules"
+      "target": "${components.isolated-block-editor.path}/node_modules"
     }
   ],
   "pipeline": {

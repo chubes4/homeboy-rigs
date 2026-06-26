@@ -2,7 +2,7 @@
   "id": "playground-combined",
   "description": "WordPress Playground dev/combined-fixes stack: upstream trunk plus Chris's active PHP-WASM and worker-pool PRs.",
   "component": "wordpress-playground",
-  "component_path": "~/Developer/wordpress-playground",
+  "component_path": "${env.HOMEBOY_STACK_COMPONENT_PATH__PLAYGROUND_COMBINED__WORDPRESS_PLAYGROUND}",
   "base": {
     "remote": "upstream",
     "branch": "trunk"

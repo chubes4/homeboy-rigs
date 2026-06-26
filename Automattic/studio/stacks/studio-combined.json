@@ -2,7 +2,7 @@
   "id": "studio-combined",
   "description": "Studio dev/combined-fixes stack: Automattic/studio trunk plus Chris's active local-dev PRs.",
   "component": "studio",
-  "component_path": "~/Developer/studio",
+  "component_path": "${env.HOMEBOY_STACK_COMPONENT_PATH__STUDIO_COMBINED__STUDIO}",
   "base": {
     "remote": "origin",
     "branch": "trunk"

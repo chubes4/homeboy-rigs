@@ -1,0 +1,56 @@
+{
+  "id": "static-site-importer-fixture-matrix",
+  "description": "Static Site Importer fixture matrix workload that composes generic WP Codebox recipe orchestration while keeping SSI-specific fixture and diagnostic policy in homeboy-rigs.",
+  "components": {
+    "static-site-importer": {
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STATIC_SITE_IMPORTER_FIXTURE_MATRIX__STATIC_SITE_IMPORTER}",
+      "branch": "trunk"
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "static-site-importer-fixture-matrix:${env.HOMEBOY_SETTINGS_STATIC_SITE_IMPORTER_FIXTURE_MATRIX_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.static-site-importer.path}"
+    ]
+  },
+  "bench": {
+    "default_component": "static-site-importer",
+    "warmup_iterations": 0
+  },
+  "bench_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/static-site-fixture-matrix.bench.mjs"
+      }
+    ]
+  },
+  "bench_profiles": {
+    "smoke": ["static-site-fixture-matrix"],
+    "fixture-matrix": ["static-site-fixture-matrix"]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Static Site Importer checkout exists",
+        "file": "${components.static-site-importer.path}/static-site-importer.php",
+        "component": "static-site-importer",
+        "component_path_contains": "static-site-importer",
+        "remediation": "Pass homeboy bench --path /path/to/static-site-importer or update components.static-site-importer.path before running static-site-importer-fixture-matrix."
+      },
+      {
+        "kind": "command",
+        "label": "WP Codebox CLI exists",
+        "command": "bash \"${package.root}/shared/wp-codebox/check-cli.sh\""
+      },
+      {
+        "kind": "command",
+        "label": "Fixture matrix workload validates",
+        "command": "node \"${package.root}/tools/fixture-matrix.test.mjs\""
+      }
+    ],
+    "down": []
+  }
+}

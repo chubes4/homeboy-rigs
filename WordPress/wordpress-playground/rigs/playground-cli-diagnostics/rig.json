@@ -3,7 +3,7 @@
   "description": "WordPress Playground CLI diagnostic rig. Reproduces Blueprint runPHP fatal reporting through the local unbuilt CLI and captures evidence for upstream fixes.",
   "components": {
     "wordpress-playground": {
-      "path": "~/Developer/wordpress-playground",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__PLAYGROUND_CLI_DIAGNOSTICS__WORDPRESS_PLAYGROUND}",
       "branch": "trunk",
       "extensions": {
         "nodejs": {}

@@ -3,15 +3,15 @@
   "description": "Contract proof for the canonical Studio website artifact loop: host prompt/delegation, Codebox browser/fanout artifact, Studio Native source-of-truth artifact storage, SSI materialization, user mutation of the original artifact, reimport, and portable evidence refs. Runtime-only seams remain explicit blockers until executable interfaces exist.",
   "components": {
     "studio-native": {
-      "path": "~/Developer/studio-native@fix-consume-canonical-codebox-fanout",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STUDIO_NATIVE}",
       "branch": "fix/consume-canonical-codebox-fanout"
     },
     "static-site-importer": {
-      "path": "~/Developer/static-site-importer@figma-diagnostics-propagation",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STATIC_SITE_IMPORTER}",
       "branch": "main"
     },
     "wp-codebox": {
-      "path": "~/Developer/wp-codebox@feat-unified-progress-timeline",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__WP_CODEBOX}",
       "branch": "main"
     }
   },

@@ -25,7 +25,8 @@
       "coverage_contract": "WP Codebox can execute the checkout gateway compatibility matrix and emit gateway readiness, dependency classification, and create-order idempotency observations; reviewer-facing proof links are still required before marking this proven.",
       "crud": {
         "create": {
-          "level": "executable"
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "read": {
           "level": "executable"

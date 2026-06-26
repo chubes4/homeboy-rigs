@@ -1,48 +1,40 @@
 {
   "id": "studio-figma-to-wordpress-import",
-  "description": "Black-box proof rig for Figma to WordPress Studio imports. Uses the installed Studio CLI to create a brand new Studio site from a generated Blueprint, installs Static Site Importer during site creation, imports a Figma runner request fixture, and verifies the imported theme through public Studio/WP-CLI commands.",
+  "description": "Adapter rig for the Blocks Engine Figma transformer fixture matrix. The Figma transformer repo owns the .fig fixture discovery, frame selection, transform command, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy.",
   "components": {
-    "studio": {
-      "path": "~/Developer/studio",
-      "branch": "dev/combined-fixes",
-      "extensions": {
-        "nodejs": {
-          "settings": {
-            "studio_bench_variant": "figma-to-wordpress-import"
-          }
-        }
-      }
+    "blocks-engine": {
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_FIGMA_TO_WORDPRESS_IMPORT__BLOCKS_ENGINE}",
+      "branch": "trunk",
+      "extensions": {}
     }
   },
-  "bench": {
-    "default_component": "studio"
-  },
-  "bench_workloads": {
-    "nodejs": [
-      {
-        "path": "${package.root}/bench/studio-figma-ssi-import.bench.mjs",
-        "port_range_size": 10
-      }
+  "resources": {
+    "paths": [
+      "${components.blocks-engine.path}"
     ]
   },
   "pipeline": {
     "check": [
       {
         "kind": "check",
-        "label": "Studio CLI is available on PATH",
-        "command": "command -v studio >/dev/null 2>&1",
-        "expect_exit": 0
+        "label": "Blocks Engine checkout is available",
+        "file": "${components.blocks-engine.path}/figma-transformer/scripts/figma-fixture-matrix.php"
       },
       {
         "kind": "check",
-        "label": "Figma import bench exists",
-        "file": "${package.root}/bench/studio-figma-ssi-import.bench.mjs"
-      },
-      {
-        "kind": "check",
-        "label": "Figma runner request fixture exists",
-        "file": "${package.root}/fixtures/figma-to-wordpress-studio/basic-runner-request.json"
+        "label": "Blocks Engine repo-local Figma rig is available",
+        "file": "${components.blocks-engine.path}/figma-transformer/rigs/fixture-matrix/rig.json"
       }
-    ]
+    ],
+    "up": [
+      {
+        "kind": "command",
+        "label": "Run Blocks Engine Figma transformer fixture matrix",
+        "cwd": "${components.blocks-engine.path}",
+        "command": "php figma-transformer/scripts/figma-fixture-matrix.php",
+        "expect_exit": 0
+      }
+    ],
+    "down": []
   }
 }

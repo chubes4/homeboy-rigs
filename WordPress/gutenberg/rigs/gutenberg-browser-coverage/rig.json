@@ -3,7 +3,7 @@
   "description": "WP Codebox browser-actions request coverage for Gutenberg post editor, site editor, template editor, and patterns surfaces.",
   "components": {
     "gutenberg": {
-      "path": "~/Developer/gutenberg",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__GUTENBERG_BROWSER_COVERAGE__GUTENBERG}",
       "branch": "trunk"
     }
   },

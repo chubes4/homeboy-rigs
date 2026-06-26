@@ -68,7 +68,7 @@
     {
       "id": "studio-agent-claude-trunk",
       "description": "Studio Claude Sonnet 4.6 on current Automattic/studio trunk. Used as the reference rig for trunk-vs-SSI comparisons.",
-      "studio_path": "~/Developer/studio@agent-sdk-baseline",
+      "studio_path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_CLAUDE_EVALTIMING__STUDIO}",
       "studio_branch": "agent-sdk-baseline",
       "studio_bench_variant": "claude-sonnet-4-6-trunk",
       "studio_agent_model": "claude-sonnet-4-6"
@@ -76,7 +76,7 @@
     {
       "id": "studio-agent-claude-ssi",
       "description": "Studio Claude Sonnet 4.6 on the active Static Site Importer draft branch. Pairs with studio-agent-gpt55-ssi so the same SSI substrate can be compared across models.",
-      "studio_path": "~/Developer/studio@bfb-mu-plugin-agent-output",
+      "studio_path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_CLAUDE_SSI__STUDIO}",
       "studio_branch": "bfb-mu-plugin-agent-output-draft",
       "studio_bench_variant": "claude-sonnet-4-6-ssi",
       "studio_agent_model": "claude-sonnet-4-6"
@@ -84,7 +84,7 @@
     {
       "id": "studio-agent-gpt55-ssi",
       "description": "Studio GPT 5.5 / pi-agent-core runtime on the active Static Site Importer draft branch. Pairs with studio-agent-claude-ssi so the same SSI substrate can be compared across models.",
-      "studio_path": "~/Developer/studio@bfb-mu-plugin-agent-output",
+      "studio_path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_GPT55_SSI__STUDIO}",
       "studio_branch": "bfb-mu-plugin-agent-output-draft",
       "studio_bench_variant": "gpt-5.5-ssi",
       "studio_agent_model": "gpt-5.5"

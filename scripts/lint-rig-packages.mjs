@@ -24,6 +24,7 @@ const failures = [];
 const warnings = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
 const personalPathPrefix = '/Users/' + 'chubes/';
+const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
 const homeboyFuzzSafetyClasses = new Set(['read_only', 'idempotent', 'isolated_mutation', 'destructive']);
 
@@ -90,6 +91,10 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
 
   if (rel === 'chubes4/isolated-block-editor/rigs/isolated-block-editor/rig.json' && contents.includes('/var/lib/datamachine')) {
     failures.push(`${rel}: isolated-block-editor must use the component path or shared node_modules setting instead of /var/lib/datamachine`);
+  }
+
+  if (localDeveloperCheckoutPattern.test(contents)) {
+    failures.push(`${rel}: use portable component path settings instead of committed ~/Developer or $HOME/Developer checkout paths`);
   }
 
   if (/WP Codebox CLI/.test(pipelineCommands) && /command -v wp-codebox|Developer\/wp-codebox|HOMEBOY_WP_CODEBOX_BIN/.test(pipelineCommands)) {
@@ -392,6 +397,10 @@ function lintPortableSource(file) {
 
   if (contents.includes(personalPathPrefix)) {
     failures.push(`${rel}: use $HOME, homedir(), component paths, or settings instead of hard-coded /Users/chubes paths`);
+  }
+
+  if (rel.includes('/stacks/') && localDeveloperCheckoutPattern.test(contents)) {
+    failures.push(`${rel}: use portable component path settings instead of committed ~/Developer or $HOME/Developer checkout paths`);
   }
 
   if (contents.includes(tsrmlsPatchMarker)) {

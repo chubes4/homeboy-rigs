@@ -3,13 +3,13 @@
   "description": "Jetpack REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {
     "jetpack": {
-      "path": "~/Developer/jetpack/projects/plugins/jetpack",
-      "checkout_root": "~/Developer/jetpack",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__JETPACK_API_ROUTE_INVENTORY__JETPACK}",
+      "checkout_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__JETPACK_API_ROUTE_INVENTORY__JETPACK}",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
-          "wp_codebox_source_root": "~/Developer/jetpack",
+          "wp_codebox_source_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__JETPACK_API_ROUTE_INVENTORY__JETPACK}",
           "wp_codebox_source_subpath": "projects/plugins/jetpack"
         }
       }

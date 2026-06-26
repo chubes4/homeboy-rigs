@@ -4,7 +4,7 @@
 
   "components": {
     "studio": {
-      "path": "~/Developer/studio",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_COMBINED__STUDIO}",
       "branch": "dev/combined-fixes",
       "extensions": {
         "nodejs": {
@@ -13,7 +13,7 @@
       }
     },
     "wordpress-playground": {
-      "path": "~/Developer/wordpress-playground",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_COMBINED__WORDPRESS_PLAYGROUND}",
       "branch": "dev/combined-fixes"
     }
   },

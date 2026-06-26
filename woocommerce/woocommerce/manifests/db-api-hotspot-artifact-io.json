@@ -4,8 +4,23 @@
   "description": "Expected input artifact map and sample output schema for future Homeboy artifact postprocess of WooCommerce DB/API hotspot evidence.",
   "owner_profile": "db-api-performance-fuzzer",
   "postprocess_command": "homeboy.artifact-postprocess",
+  "generic_upstream_contracts": [
+    "homeboy.artifact-postprocess",
+    "wp-codebox/wordpress-workload-run/v1",
+    "homeboy/woocommerce-performance-hotspots-summary/v1"
+  ],
   "readiness": {
     "level": "declared",
+    "proof_bundle_requirements": {
+      "status": "required_before_proven",
+      "required_refs": [
+        "reviewer-facing artifact-postprocess run id",
+        "reviewer-facing performance hotspot summary artifact ref"
+      ],
+      "required_artifacts": [
+        "performance_hotspots_summary"
+      ]
+    },
     "upstream_blocker": "Homeboy/Homeboy Extensions must bind artifact-postprocess helper/action/input/output/parameters before this IO contract becomes executable."
   },
   "expected_inputs": [
