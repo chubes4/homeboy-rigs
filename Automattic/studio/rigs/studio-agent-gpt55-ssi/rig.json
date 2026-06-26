@@ -23,12 +23,16 @@
   },
   "bench_workloads": {
     "nodejs": [
-      "${package.root}/bench/studio-agent-runtime.bench.mjs",
+      {
+        "path": "${package.root}/bench/studio-agent-runtime.bench.mjs"
+      },
       {
         "path": "${package.root}/bench/studio-agent-site-build.bench.mjs",
         "port_range_size": 10
       },
-      "${package.root}/bench/studio-bfb-write-path.bench.mjs"
+      {
+        "path": "${package.root}/bench/studio-bfb-write-path.bench.mjs"
+      }
     ]
   },
   "pipeline": {

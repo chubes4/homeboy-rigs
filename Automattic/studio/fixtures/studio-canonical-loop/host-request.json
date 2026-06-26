@@ -9,12 +9,28 @@
       "theme-tokens",
       "navigation"
     ],
-    "strategy": "stubbed-codebox-generation"
+    "strategy": "contract-codebox-browser-fanout",
+    "evidence_ref": "homeboy-rig://studio-canonical-loop-proof/codebox-fanout-artifact.json"
   },
   "artifact_contract": {
     "schema": "blocks-engine/php-transformer/site-artifact/v1",
     "entrypoint": "website/index.html",
-    "canonical_store": "studio-native"
+    "canonical_store": "studio-native",
+    "source_of_truth": true,
+    "requires_provenance": true
+  },
+  "progress_contract": {
+    "schema": "studio/canonical-loop/progress-contract/v1",
+    "required_artifacts": [
+      "progress",
+      "diagnostics",
+      "fanout_artifact",
+      "canonical_artifact_v1",
+      "canonical_artifact_v2",
+      "initial_theme",
+      "reimport_theme",
+      "evidence_bundle"
+    ]
   },
   "user_change": {
     "operation": "replace_text",
