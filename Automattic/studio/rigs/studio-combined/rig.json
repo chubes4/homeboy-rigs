@@ -65,22 +65,46 @@
 
   "bench_workloads": {
     "nodejs": [
-      "${package.root}/bench/studio-site-create.bench.mjs",
-      "${package.root}/bench/studio-cli-password-node.bench.mjs",
-      "${package.root}/bench/studio-admin-theme-page.bench.mjs",
-      "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs",
-      "${package.root}/bench/studio-dashboard-browser.bench.mjs",
-      "${package.root}/bench/studio-page-timing-matrix.bench.mjs",
-      "${package.root}/bench/studio-wordpress-admin-scale-sweep.bench.mjs",
-      "${package.root}/bench/studio-rest-latency-diagnostics.bench.mjs",
-      "${package.root}/bench/studio-site-editor-browser.bench.mjs",
-      "${package.root}/bench/studio-site-editor-diagnostics.bench.mjs",
+      {
+        "path": "${package.root}/bench/studio-site-create.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-cli-password-node.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-admin-theme-page.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-admin-theme-page-browser.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-dashboard-browser.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-page-timing-matrix.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-wordpress-admin-scale-sweep.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-rest-latency-diagnostics.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-site-editor-browser.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-site-editor-diagnostics.bench.mjs"
+      },
       {
         "path": "${package.root}/bench/studio-datamachine-pipelines-scale-profile.bench.mjs",
         "port_range_size": 10
       },
-      "${package.root}/bench/studio-site-editor-preload-comparison.bench.mjs",
-      "${package.root}/bench/studio-site-editor-preload-diagnostics.bench.mjs"
+      {
+        "path": "${package.root}/bench/studio-site-editor-preload-comparison.bench.mjs"
+      },
+      {
+        "path": "${package.root}/bench/studio-site-editor-preload-diagnostics.bench.mjs"
+      }
     ]
   },
 

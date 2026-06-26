@@ -1,18 +1,18 @@
 {
   "id": "studio-canonical-loop-proof",
-  "description": "Safe skeleton proof for the canonical Studio website artifact loop: host request, Codebox/fanout generation, Studio Native canonical artifact storage, SSI materialization, user mutation, reimport, and diagnostics. Current implementation is filesystem-only and stubbed until executable component seams exist.",
+  "description": "Contract proof for the canonical Studio website artifact loop: host prompt/delegation, Codebox browser/fanout artifact, Studio Native source-of-truth artifact storage, SSI materialization, user mutation of the original artifact, reimport, and portable evidence refs. Runtime-only seams remain explicit blockers until executable interfaces exist.",
   "components": {
     "studio-native": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STUDIO_NATIVE}",
-      "branch": "main"
+      "branch": "fix/consume-canonical-codebox-fanout"
     },
     "static-site-importer": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STATIC_SITE_IMPORTER}",
-      "branch": "HEAD"
+      "branch": "main"
     },
     "wp-codebox": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__WP_CODEBOX}",
-      "branch": "HEAD"
+      "branch": "main"
     }
   },
   "resources": {
@@ -44,6 +44,12 @@
         "kind": "check",
         "label": "canonical loop fixture validates",
         "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --check",
+        "expect_exit": 0
+      },
+      {
+        "kind": "check",
+        "label": "canonical loop contract proof passes",
+        "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --out /tmp/studio-canonical-loop-proof-rig-check",
         "expect_exit": 0
       }
     ]

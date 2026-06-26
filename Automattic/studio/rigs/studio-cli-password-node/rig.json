@@ -22,7 +22,9 @@
 
   "bench_workloads": {
     "nodejs": [
-      "${package.root}/bench/studio-cli-password-node.bench.mjs"
+      {
+        "path": "${package.root}/bench/studio-cli-password-node.bench.mjs"
+      }
     ]
   },
 

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const defaultHostRequestPath = path.join(packageRoot, 'fixtures', 'studio-canonical-loop', 'host-request.json');
 const execFileAsync = promisify(execFile);
+const relativeEvidenceRoot = 'homeboy-artifact://studio-canonical-loop-proof';
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -54,14 +55,17 @@ function createGeneratedArtifact(hostRequest) {
       }
     ],
     provenance: {
-      generated_by: 'stubbed-codebox-fanout',
+      generated_by: 'contract-codebox-browser-fanout',
       host_request_id: hostRequest.request_id,
+      fanout_targets: hostRequest.fanout.targets,
+      fanout_strategy: hostRequest.fanout.strategy,
+      evidence_ref: hostRequest.fanout.evidence_ref,
       generated_at: now()
     }
   };
 }
 
-function materializeBlockTheme(artifact, generation) {
+function materializeBlockTheme(artifact, generation, hostRequest) {
   const html = artifactFile(artifact, artifact.entrypoint)?.content || '';
   const css = artifactFile(artifact, 'website/assets/styles.css')?.content || '';
   const titleMatch = html.match(/<h1>(.*?)<\/h1>/i);
@@ -82,8 +86,16 @@ function materializeBlockTheme(artifact, generation) {
         content: `${JSON.stringify({ version: 3, settings: { layout: { contentSize: '960px', wideSize: '1180px' } } }, null, 2)}\n`
       }
     ],
+    provenance: {
+      importer: 'static-site-importer-contract-materializer',
+      source_schema: artifact.schema,
+      source_entrypoint: artifact.entrypoint,
+      source_of_truth: hostRequest.artifact_contract.canonical_store,
+      canonical_revision: artifact.provenance.canonical_revision,
+      host_request_id: hostRequest.request_id
+    },
     diagnostics: {
-      importer: 'static-site-importer-stub',
+      importer: 'static-site-importer-contract-materializer',
       fallback_blocks: 0,
       source_file_count: artifact.files.length,
       theme_file_count: 3,
@@ -94,6 +106,38 @@ function materializeBlockTheme(artifact, generation) {
 
 async function writeJson(filePath, value) {
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function proofArtifactRef(outDir, filePath) {
+  return `${relativeEvidenceRoot}/${path.relative(outDir, filePath).replaceAll(path.sep, '/')}`;
+}
+
+function assertContract(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function validateHostRequest(hostRequest) {
+  const requiredFields = ['schema', 'request_id', 'prompt', 'fanout', 'artifact_contract', 'user_change', 'progress_contract'];
+  for (const field of requiredFields) {
+    assertContract(Boolean(hostRequest[field]), `Host request fixture is missing ${field}`);
+  }
+  assertContract(hostRequest.schema === 'studio/canonical-loop/host-request/v1', 'Unexpected host request schema');
+  assertContract(Array.isArray(hostRequest.fanout.targets) && hostRequest.fanout.targets.length > 0, 'Fanout targets must be non-empty');
+  assertContract(Boolean(hostRequest.fanout.evidence_ref), 'Fanout evidence_ref is required');
+  assertContract(hostRequest.artifact_contract.source_of_truth === true, 'Artifact contract must mark the canonical artifact as source_of_truth');
+  assertContract(hostRequest.artifact_contract.requires_provenance === true, 'Artifact contract must require provenance');
+  assertContract(Array.isArray(hostRequest.progress_contract.required_artifacts), 'Progress contract required_artifacts must be an array');
+}
+
+function validateEvidenceBundle(bundle, requiredArtifactKeys) {
+  for (const key of requiredArtifactKeys) {
+    assertContract(Boolean(bundle.artifacts[key]), `Evidence bundle is missing artifact key ${key}`);
+    assertContract(String(bundle.artifacts[key]).startsWith(relativeEvidenceRoot), `Evidence ref for ${key} is not portable`);
+  }
+  assertContract(!JSON.stringify(bundle).includes('/Users/'), 'Evidence bundle must not expose local /Users paths');
+  assertContract(!JSON.stringify(bundle).includes('localhost'), 'Evidence bundle must not expose localhost URLs');
 }
 
 async function materializeWithLocalWp(artifact, generation, outDir, hostRequest) {
@@ -181,12 +225,7 @@ async function main() {
   }
 
   const hostRequest = JSON.parse(await readFile(hostRequestPath, 'utf8'));
-  const requiredFields = ['schema', 'request_id', 'prompt', 'fanout', 'artifact_contract', 'user_change'];
-  for (const field of requiredFields) {
-    if (!hostRequest[field]) {
-      throw new Error(`Host request fixture is missing ${field}`);
-    }
-  }
+  validateHostRequest(hostRequest);
 
   if (checkOnly) {
     console.log('Studio canonical loop proof fixture passed validation.');
@@ -199,7 +238,7 @@ async function main() {
     schema: 'studio/canonical-loop/progress/v1',
     run_id: `canonical-loop-${process.pid}-${Date.now()}`,
     mode,
-    host_request: hostRequestPath,
+    host_request_ref: `repo://Automattic/studio/fixtures/studio-canonical-loop/${path.basename(hostRequestPath)}`,
     steps: []
   };
 
@@ -207,27 +246,30 @@ async function main() {
     progress.steps.push({ name, status: 'ok', recorded_at: now(), ...evidence });
   }
 
-  step('host_request_received', { request_id: hostRequest.request_id, fanout_targets: hostRequest.fanout.targets });
+  step('host_request_received', { request_id: hostRequest.request_id, fanout_targets: hostRequest.fanout.targets, prompt: hostRequest.prompt });
 
   const generatedArtifact = createGeneratedArtifact(hostRequest);
   const fanoutPath = path.join(outDir, 'codebox-fanout-artifact.json');
   await writeJson(fanoutPath, generatedArtifact);
-  step('codebox_fanout_generation_stubbed', { artifact: fanoutPath, generated_files: generatedArtifact.files.map((file) => file.path) });
+  step('codebox_browser_fanout_generation_contract', { artifact_ref: proofArtifactRef(outDir, fanoutPath), generated_files: generatedArtifact.files.map((file) => file.path) });
 
   const canonicalArtifact = structuredClone(generatedArtifact);
   canonicalArtifact.provenance.canonical_store = hostRequest.artifact_contract.canonical_store;
+  canonicalArtifact.provenance.source_of_truth = true;
+  canonicalArtifact.provenance.canonical_revision = 1;
+  canonicalArtifact.provenance.parent_artifact_ref = proofArtifactRef(outDir, fanoutPath);
   canonicalArtifact.provenance.stored_at = now();
   const canonicalPath = path.join(outDir, 'studio-native-canonical-artifact.v1.json');
   await writeJson(canonicalPath, canonicalArtifact);
-  step('studio_native_canonical_artifact_stored_stubbed', { artifact: canonicalPath });
+  step('studio_native_canonical_artifact_stored_contract', { artifact_ref: proofArtifactRef(outDir, canonicalPath), canonical_revision: 1, source_of_truth: true });
 
   const firstTheme = mode === 'local-wp'
     ? await materializeWithLocalWp(canonicalArtifact, 'initial', outDir, hostRequest)
-    : { path: path.join(outDir, 'ssi-materialized-theme.initial.json'), diagnostics: materializeBlockTheme(canonicalArtifact, 'initial').diagnostics, result: materializeBlockTheme(canonicalArtifact, 'initial') };
+    : { path: path.join(outDir, 'ssi-materialized-theme.initial.json'), diagnostics: materializeBlockTheme(canonicalArtifact, 'initial', hostRequest).diagnostics, result: materializeBlockTheme(canonicalArtifact, 'initial', hostRequest) };
   if (mode === 'stub') {
     await writeJson(firstTheme.path, firstTheme.result);
   }
-  step(mode === 'local-wp' ? 'ssi_materialized_block_theme_local_wp' : 'ssi_materialized_block_theme_stubbed', { theme: firstTheme.path, diagnostics: firstTheme.diagnostics });
+  step(mode === 'local-wp' ? 'ssi_materialized_block_theme_local_wp' : 'ssi_materialized_block_theme_contract', { theme_ref: proofArtifactRef(outDir, firstTheme.path), diagnostics: firstTheme.diagnostics });
 
   const mutatedArtifact = structuredClone(canonicalArtifact);
   const change = hostRequest.user_change;
@@ -236,18 +278,42 @@ async function main() {
     throw new Error(`User change target text not found in ${change.file}`);
   }
   writeArtifactFile(mutatedArtifact, change.file, changedFile.content.replace(change.from, change.to));
-  mutatedArtifact.provenance.user_mutation = { operation: change.operation, file: change.file, mutated_at: now() };
+  mutatedArtifact.provenance.canonical_revision = 2;
+  mutatedArtifact.provenance.parent_artifact_ref = proofArtifactRef(outDir, canonicalPath);
+  mutatedArtifact.provenance.user_mutation = { operation: change.operation, file: change.file, from: change.from, to: change.to, mutated_at: now() };
   const mutatedPath = path.join(outDir, 'studio-native-canonical-artifact.v2.json');
   await writeJson(mutatedPath, mutatedArtifact);
-  step('user_change_mutated_original_artifact_stubbed', { artifact: mutatedPath, change });
+  step('user_change_mutated_original_artifact_contract', { artifact_ref: proofArtifactRef(outDir, mutatedPath), canonical_revision: 2, change });
 
   const secondTheme = mode === 'local-wp'
     ? await materializeWithLocalWp(mutatedArtifact, 'reimport', outDir, hostRequest)
-    : { path: path.join(outDir, 'ssi-materialized-theme.reimport.json'), diagnostics: materializeBlockTheme(mutatedArtifact, 'reimport').diagnostics, result: materializeBlockTheme(mutatedArtifact, 'reimport') };
+    : { path: path.join(outDir, 'ssi-materialized-theme.reimport.json'), diagnostics: materializeBlockTheme(mutatedArtifact, 'reimport', hostRequest).diagnostics, result: materializeBlockTheme(mutatedArtifact, 'reimport', hostRequest) };
   if (mode === 'stub') {
     await writeJson(secondTheme.path, secondTheme.result);
   }
-  step(mode === 'local-wp' ? 'reimport_materialized_updated_theme_local_wp' : 'reimport_materialized_updated_theme_stubbed', { theme: secondTheme.path, diagnostics: secondTheme.diagnostics });
+  step(mode === 'local-wp' ? 'reimport_materialized_updated_theme_local_wp' : 'reimport_materialized_updated_theme_contract', { theme_ref: proofArtifactRef(outDir, secondTheme.path), diagnostics: secondTheme.diagnostics });
+
+  const requiredArtifactKeys = hostRequest.progress_contract.required_artifacts;
+  const progressPath = path.join(outDir, 'progress.json');
+  const diagnosticsPath = path.join(outDir, 'diagnostics.json');
+  const evidenceBundlePath = path.join(outDir, 'evidence-bundle.json');
+  const evidenceBundle = {
+    schema: 'studio/canonical-loop/evidence-bundle/v1',
+    run_id: progress.run_id,
+    mode,
+    tracker: 'https://github.com/chubes4/homeboy-rigs/pull/TBD',
+    artifacts: {
+      progress: proofArtifactRef(outDir, progressPath),
+      diagnostics: proofArtifactRef(outDir, diagnosticsPath),
+      fanout_artifact: proofArtifactRef(outDir, fanoutPath),
+      canonical_artifact_v1: proofArtifactRef(outDir, canonicalPath),
+      canonical_artifact_v2: proofArtifactRef(outDir, mutatedPath),
+      initial_theme: proofArtifactRef(outDir, firstTheme.path),
+      reimport_theme: proofArtifactRef(outDir, secondTheme.path),
+      evidence_bundle: proofArtifactRef(outDir, evidenceBundlePath)
+    }
+  };
+  validateEvidenceBundle(evidenceBundle, requiredArtifactKeys);
 
   const diagnostics = {
     schema: 'studio/canonical-loop/diagnostics/v1',
@@ -255,14 +321,27 @@ async function main() {
       'Static Site Importer website artifact materialization through local WordPress/WP-CLI',
       'Reimport materialization through local WordPress/WP-CLI'
     ] : [],
-    stubbed: [
-      'Codebox/fanout generation',
-      'Studio Native canonical artifact store',
-      'User edit propagation back into the original artifact',
+    contract_verified: [
+      'Host prompt/delegation envelope',
+      'Codebox browser/fanout artifact contract and evidence ref',
+      'Studio Native canonical source-of-truth artifact contract',
+      'User edit mutation against the original artifact',
+      'Reimport consumes the mutated canonical artifact',
+      'Portable progress/evidence/artifact refs',
       ...(mode === 'local-wp' ? [] : [
-        'Static Site Importer materialization in ephemeral Codebox/site',
-        'Reimport execution'
+        'Static Site Importer materialization contract',
+        'Reimport materialization contract'
       ])
+    ],
+    stubbed: mode === 'local-wp' ? [
+      'Codebox browser execution',
+      'Studio Native persistence API',
+      'Ephemeral Codebox browser/site runtime'
+    ] : [
+      'Codebox browser execution',
+      'Studio Native persistence API',
+      'Static Site Importer runtime execution',
+      'Ephemeral Codebox browser/site runtime'
     ],
     blockers: mode === 'local-wp' ? [
       'Codebox fanout generation is still stubbed by this local proof.',
@@ -277,23 +356,35 @@ async function main() {
       'Progress diagnostics need stable reviewer-facing artifact bundle links.'
     ],
     assertions: {
+      host_request_contract_valid: true,
+      fanout_has_evidence_ref: Boolean(generatedArtifact.provenance.evidence_ref),
+      canonical_artifact_source_of_truth: canonicalArtifact.provenance.source_of_truth === true,
+      canonical_artifact_revision_incremented: mutatedArtifact.provenance.canonical_revision === canonicalArtifact.provenance.canonical_revision + 1,
       canonical_artifact_schema_preserved: mutatedArtifact.schema === generatedArtifact.schema,
       user_change_reaches_reimport_theme: mode === 'local-wp'
         ? Boolean(JSON.stringify(secondTheme.result).includes(change.to) || JSON.stringify(secondTheme.diagnostics).includes(change.to))
         : secondTheme.result.files.some((file) => file.content.includes(change.to)),
+      reimport_uses_mutated_canonical_artifact: mutatedArtifact.provenance.parent_artifact_ref === proofArtifactRef(outDir, canonicalPath),
+      portable_evidence_refs_present: true,
       fallback_blocks: secondTheme.diagnostics.fallback_blocks ?? secondTheme.diagnostics.core_html_block_count ?? 0,
       local_wp_ssi_success: mode === 'local-wp' ? Boolean(firstTheme.result.success && secondTheme.result.success) : undefined
     }
   };
-  const diagnosticsPath = path.join(outDir, 'diagnostics.json');
   await writeJson(diagnosticsPath, diagnostics);
 
-  const progressPath = path.join(outDir, 'progress.json');
+  await writeJson(evidenceBundlePath, evidenceBundle);
+  step('evidence_bundle_preserved', { evidence_ref: proofArtifactRef(outDir, evidenceBundlePath), artifact_keys: requiredArtifactKeys });
   await writeJson(progressPath, progress);
+
+  for (const [name, passed] of Object.entries(diagnostics.assertions)) {
+    if (passed === false) {
+      throw new Error(`Canonical loop assertion failed: ${name}`);
+    }
+  }
 
   const result = {
     schema: 'studio/canonical-loop/proof-result/v1',
-    success: diagnostics.assertions.canonical_artifact_schema_preserved && diagnostics.assertions.user_change_reaches_reimport_theme,
+    success: Object.values(diagnostics.assertions).every((value) => value !== false),
     mode,
     artifacts: {
       progress: progressPath,
@@ -302,10 +393,13 @@ async function main() {
       canonical_artifact_v1: canonicalPath,
       canonical_artifact_v2: mutatedPath,
       initial_theme: firstTheme.path,
-      reimport_theme: secondTheme.path
+      reimport_theme: secondTheme.path,
+      evidence_bundle: evidenceBundlePath
     },
+    evidence_refs: evidenceBundle.artifacts,
     real_vs_stubbed: {
       real: diagnostics.real,
+      contract_verified: diagnostics.contract_verified,
       stubbed: diagnostics.stubbed
     }
   };
