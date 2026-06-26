@@ -4,6 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { assertFullSurfaceCoverageManifest } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import { validateWordPressCoreFuzzContract } from '../tools/core-fuzz-contract-validator.mjs';
 
 const __dirname = path.dirname( fileURLToPath( import.meta.url ) );
 const packageRoot = path.join( __dirname, '..' );
@@ -79,4 +80,21 @@ test( 'Core browser request coverage includes frontend, posts, pages, media, and
 		.join( '\n' );
 	assert.doesNotMatch( scenarioSteps, /"kind"\s*:\s*"(?:click|fill|select|submit)"|bulk-action|delete/i );
 	assert.match( trace, /Coverage stays read-only in the browser/ );
+} );
+
+test( 'Core validator reports REST proof contract drift', () => {
+	const failures = validateWordPressCoreFuzzContract( {
+		rel: 'WordPress/wordpress-develop/fuzz/rest-api.json',
+		root: path.join( packageRoot, '..', '..' ),
+		workload: {
+			id: 'rest-api',
+			target: { type: 'wordpress-core', component: 'wordpress-develop' },
+			surface_ids: [ 'wordpress-core-rest-routes' ],
+			operations: [ 'rest-route-inventory' ],
+			artifacts: { expected: [] },
+		},
+	} );
+
+	assert.ok( failures.some( ( failure ) => failure.includes( 'role-boundary-execution' ) ) );
+	assert.ok( failures.some( ( failure ) => failure.includes( 'fuzz.rest.permission_boundaries' ) ) );
 } );
