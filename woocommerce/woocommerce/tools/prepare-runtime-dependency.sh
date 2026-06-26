@@ -21,7 +21,7 @@ fi
 
 case "$task" in
   composer)
-    XDEBUG_MODE=off composer --working-dir="$woocommerce_plugin_source" install --no-interaction --no-progress
+    XDEBUG_MODE=off homeboy deps install --path "$woocommerce_plugin_source"
     if [ "$woocommerce_plugin_source" != "$woocommerce_component_source" ]; then
       mkdir -p "$woocommerce_component_source/vendor"
       cp "$woocommerce_plugin_source/vendor/autoload_packages.php" "$woocommerce_component_source/vendor/autoload_packages.php"
