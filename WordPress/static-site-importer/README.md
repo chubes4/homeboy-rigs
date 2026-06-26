@@ -102,8 +102,8 @@ has more findings in that group; negative deltas mean fewer findings.
 The workload composes these generic surfaces:
 
 - Homeboy rig package discovery and `bench_workloads.nodejs` registration.
-- `shared/wp-codebox/check-cli.sh` for rig-level WP Codebox CLI availability.
-- `shared/wp-codebox/recipe.mjs` for Homeboy Extensions WP Codebox recipe
+- Repo-level `shared/wp-codebox/check-cli.sh` for rig-level WP Codebox CLI availability.
+- Repo-level `shared/wp-codebox/recipe.mjs` for Homeboy Extensions WP Codebox recipe
   execution when `--run` is explicitly provided.
 - WP Codebox `workspace-recipe/v1` steps using generic `wordpress.wp-cli`
   commands.

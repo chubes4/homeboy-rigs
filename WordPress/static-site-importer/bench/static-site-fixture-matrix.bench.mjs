@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runWpCodeboxRecipe } from '../shared/wp-codebox/recipe.mjs';
+import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs';
 import {
   buildFixtureMatrixRecipe,

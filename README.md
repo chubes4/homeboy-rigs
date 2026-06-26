@@ -343,9 +343,10 @@ homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-
 
 ## WordPress/wordpress
 
-Legacy bench/trace compatibility package. Keep new WordPress Core fuzz workload
-contracts in `WordPress/wordpress-develop`; this path only carries existing
-bench-oriented scaffolding that older Homeboy workflows still reference.
+Deprecated legacy bench/trace compatibility package. Keep new WordPress Core
+fuzz workload contracts in `WordPress/wordpress-develop`; this path only
+carries existing bench-oriented scaffolding that older Homeboy workflows still
+reference.
 
 `rigs/wordpress-core-api-route-inventory/rig.json` is a lightweight WordPress
 core REST route inventory scaffold. It records registered route metadata and a
