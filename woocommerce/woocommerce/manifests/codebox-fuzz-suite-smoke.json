@@ -49,15 +49,33 @@
         "status": "required_before_proven",
         "required_refs": [
           "reviewer-facing wp-codebox fuzz-suite run id",
+          "reviewer-facing canonical fuzz envelope artifact ref",
           "reviewer-facing wp-codebox/fuzz-suite-result artifact ref",
           "reviewer-facing coverage gap report artifact ref",
           "reviewer-facing performance hotspot summary artifact ref"
         ],
         "required_artifacts": [
+          "canonical_fuzz_envelope",
           "codebox_fuzz_suite_result",
           "coverage_gap_report",
           "performance_hotspots_summary"
         ]
+      },
+      "proof_bundle": {
+        "artifact_refs": [
+          "artifact:pending/woocommerce-codebox-fuzz-suite-smoke/fuzz-suite-result.json"
+        ],
+        "run_ids": [
+          "run:pending-woocommerce-codebox-fuzz-suite-smoke"
+        ],
+        "gap_reports": [
+          "artifact:pending/woocommerce-codebox-fuzz-suite-smoke/coverage-gap-report.json"
+        ],
+        "fuzz_result_artifacts": [
+          "codebox_fuzz_suite_result"
+        ],
+        "canonical_fuzz_envelope_ref": "artifact:pending/woocommerce-codebox-fuzz-suite-smoke/canonical-fuzz-envelope.json",
+        "placeholder_reason": "No reviewer-facing offloaded Woo Codebox fuzz-suite run artifact exists yet; replace this placeholder with the published artifact ref before marking the campaign proven."
       }
     }
   },

@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   assertArtifactPostprocessWorkloadContract,
+  assertCanonicalFuzzEnvelopeRef,
   assertFullSurfaceCoverageManifest,
   assertRequiredFuzzProofContracts,
   wooRequiredFuzzProofContracts,
@@ -12,11 +13,17 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
+const repoRoot = path.join(packageRoot, '..', '..');
+
+process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR = path.join(repoRoot, 'scripts/fixtures/shared-fuzz-validator.cjs');
 
 const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-coverage.json'), 'utf8'));
 const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
 const browserRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
 const generatedRestCases = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/generated-rest-request-cases.json'), 'utf8'));
+const codeboxFuzzSuiteWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/codebox-fuzz-suite-smoke.json'), 'utf8'));
+const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/codebox-fuzz-suite-smoke.json'), 'utf8'));
+const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
 const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
@@ -201,4 +208,17 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
     outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
     schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
   });
+});
+
+test('DB/API campaign consumes the Codebox fixture canonical fuzz envelope ref', () => {
+  const proofBundle = codeboxFuzzSuiteManifest.target.metadata.proof_bundle;
+
+  assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-smoke.json');
+  assert.equal(codeboxFuzzSuiteWorkload.metadata.fixture.suite_manifest, '${package.root}/manifests/codebox-fuzz-suite-smoke.json');
+  assertCanonicalFuzzEnvelopeRef(proofBundle, { file: 'codebox-fuzz-suite-smoke.json' });
+  assert.equal(
+    proofBundle.canonical_fuzz_envelope_ref,
+    'artifact:pending/woocommerce-codebox-fuzz-suite-smoke/canonical-fuzz-envelope.json'
+  );
+  assert.match(proofBundle.placeholder_reason, /No reviewer-facing offloaded Woo Codebox fuzz-suite run artifact exists yet/);
 });
