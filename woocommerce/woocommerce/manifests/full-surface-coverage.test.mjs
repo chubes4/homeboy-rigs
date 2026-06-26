@@ -218,7 +218,7 @@ test('DB/API campaign consumes the Codebox fixture canonical fuzz envelope ref',
   assertCanonicalFuzzEnvelopeRef(proofBundle, { file: 'codebox-fuzz-suite-smoke.json' });
   assert.equal(
     proofBundle.canonical_fuzz_envelope_ref,
-    'artifact:pending/woocommerce-codebox-fuzz-suite-smoke/canonical-fuzz-envelope.json'
+    'homeboy://run/wc-db-api-codebox-suite-20260626T0145Z/artifact/cfa06657-0b23-447d-bd04-c75a7597f266'
   );
-  assert.match(proofBundle.placeholder_reason, /No reviewer-facing offloaded Woo Codebox fuzz-suite run artifact exists yet/);
+  assert.match(proofBundle.placeholder_reason, /remaining proof refs stay pending/);
 });

@@ -228,7 +228,7 @@ function assertReviewerFacingFuzzRef(value, context) {
   assert.equal(typeof value, 'string', `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(value.trim().length > 0, `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(
-    /^(https:\/\/|gh:|homeboy-runs:|homeboy-artifact:\/\/|artifact:|run:)/.test(value),
+    /^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value),
     `${context} must be a reviewer-facing artifact ref`
   );
   assert.ok(

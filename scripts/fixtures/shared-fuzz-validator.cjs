@@ -166,7 +166,7 @@ function assertFuzzReadinessLevel(level, label) {
 }
 
 function assertReviewerFacingRef(value, context) {
-  if (!/^(https:\/\/|gh:|homeboy-runs:|artifact:|run:)/.test(value)) {
+  if (!/^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|artifact:|run:)/.test(value)) {
     throw new Error(`${context} entries must be reviewer-facing refs`);
   }
   if (/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value) || value.startsWith('/Users/')) {
@@ -178,7 +178,7 @@ function assertReviewerFacingArtifactRef(value, context) {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`${context} must be a reviewer-facing artifact ref string`);
   }
-  if (!/^(https:\/\/|gh:|homeboy-runs:|homeboy-artifact:\/\/|artifact:|run:)/.test(value)) {
+  if (!/^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value)) {
     throw new Error(`${context} must be a reviewer-facing artifact ref`);
   }
   if (/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value) || value.startsWith('/Users/')) {

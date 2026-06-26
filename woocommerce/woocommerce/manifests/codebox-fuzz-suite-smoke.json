@@ -74,8 +74,8 @@
         "fuzz_result_artifacts": [
           "codebox_fuzz_suite_result"
         ],
-        "canonical_fuzz_envelope_ref": "artifact:pending/woocommerce-codebox-fuzz-suite-smoke/canonical-fuzz-envelope.json",
-        "placeholder_reason": "No reviewer-facing offloaded Woo Codebox fuzz-suite run artifact exists yet; replace this placeholder with the published artifact ref before marking the campaign proven."
+        "canonical_fuzz_envelope_ref": "homeboy://run/wc-db-api-codebox-suite-20260626T0145Z/artifact/cfa06657-0b23-447d-bd04-c75a7597f266",
+        "placeholder_reason": "Canonical fuzz envelope is backed by offloaded Homeboy Lab run wc-db-api-codebox-suite-20260626T0145Z; remaining proof refs stay pending until the coverage gap and performance hotspot artifacts have reviewer-facing refs."
       }
     }
   },

@@ -259,6 +259,16 @@ test('assertFuzzProofBundle accepts a canonical fuzz envelope artifact ref along
   }, fuzzManifest(), { file: 'product-fuzz.json' }));
 });
 
+test('assertFuzzProofBundle accepts Homeboy run artifact refs for canonical fuzz envelopes', () => {
+  assert.doesNotThrow(() => assertFuzzProofBundle({
+    artifact_refs: ['https://github.com/chubes4/homeboy-rigs/issues/254'],
+    run_ids: ['run:product-fuzz'],
+    gap_reports: ['https://github.com/chubes4/homeboy-rigs/issues/253'],
+    fuzz_result_artifacts: ['report'],
+    canonical_fuzz_envelope_ref: 'homeboy://run/product-fuzz/artifact/fuzz-envelope',
+  }, fuzzManifest(), { file: 'product-fuzz.json' }));
+});
+
 test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs', () => {
   assert.throws(
     () => assertFuzzProofBundle({
