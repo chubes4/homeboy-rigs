@@ -1,6 +1,7 @@
 {
   "id": "static-site-importer-fixture-matrix",
   "description": "Static Site Importer fixture matrix workload that composes generic WP Codebox recipe orchestration while keeping SSI-specific fixture and diagnostic policy in homeboy-rigs.",
+  "package_dependencies": ["../../shared/wp-codebox"],
   "components": {
     "static-site-importer": {
       "component_id": "static-site-importer",
