@@ -188,8 +188,9 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   woocommerce-gateway-stripe ece-product-page-waterfall
 ```
 
-The profile fails before WP Codebox starts when either `STRIPE_PUBLISHABLE_KEY`
-or `STRIPE_SECRET_KEY` is absent. It also requires
+The profile declares `STRIPE_PUBLISHABLE_KEY` and `STRIPE_SECRET_KEY` in
+Homeboy `required_env`, so Homeboy fails before WP Codebox starts when either
+is absent. The runtime also requires
 `HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL` to be an HTTPS public origin; local
 HTTP origins and `localhost` are rejected because wallet eligibility requires a
 secure, public browser context.
@@ -225,38 +226,38 @@ so reviewers can inspect the broken fixture directly.
 
 ## Canonical Real-Wallet Compare
 
-Use the package wrapper when collecting PR evidence for real-wallet product-page
-ECE behavior. It fails before traces run unless the candidate ref/path, Stripe
-keys, preview port, and HTTPS public preview URL are present, then runs both the
-load-only waterfall and scroll-to-ECE target compares with canonical defaults.
+Use the Homeboy trace profile directly when collecting PR evidence for
+real-wallet product-page ECE behavior. The `real-wallet-compare` profile
+declares the two compare scenarios, required Stripe env vars, repeat count,
+interleaved schedule, and canonical evidence mode.
 
 ```bash
 export STRIPE_PUBLISHABLE_KEY=pk_test_...
 export STRIPE_SECRET_KEY=sk_test_...
+export HOMEBOY_WC_STRIPE_ECE_PREVIEW_PUBLIC_URL=https://your-public-preview.example
 
-woocommerce/woocommerce-gateway-stripe/tools/real-wallet-ece-compare.sh \
-  --candidate your-branch-or-worktree \
-  --preview-port 49800 \
-  --public-url https://your-public-preview.example
+homeboy trace compare-bundle \
+  --rig woocommerce-stripe-ece-product-page \
+  --profile real-wallet-compare \
+  --baseline-target origin/develop \
+  --candidate your-branch-or-worktree
 ```
+
+`tools/real-wallet-ece-compare.sh` remains as a compatibility shim for older
+operator notes. It delegates to the same Homeboy profile and only maps legacy
+flags such as `--public-url` and `--preview-port` into environment variables.
 
 Defaults:
 
 - Baseline: `origin/develop`
-- Profile: `real-wallet`
+- Profile: `real-wallet-compare`
 - Repeat: `5`
 - Schedule: `interleaved`
 - Evidence mode: `--canonical`
 - Output directory: `woocommerce/woocommerce-gateway-stripe/.homeboy/evidence/woo-stripe-ece-real-wallet-<timestamp>/`
 
-The wrapper writes:
-
-- `README.md` with baseline/candidate/profile/preview settings.
-- `ece-product-page-waterfall.compare.json` and `.compare.log`.
-- `ece-product-page-scroll-to-ece.compare.json` and `.compare.log`.
-- `ece-product-page-waterfall.compare.md` and
-  `ece-product-page-scroll-to-ece.compare.md` markdown summaries copied from
-  Homeboy's trace compare `summary.md` artifacts.
+Homeboy writes a compare-bundle directory with `manifest.json`, `bundle.json`,
+`README.md`, `summary.md`, and one scenario subdirectory per compare target.
 
 Reviewer evidence fields to inspect in each compare artifact:
 

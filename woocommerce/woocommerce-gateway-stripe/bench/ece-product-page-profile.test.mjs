@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -358,7 +359,50 @@ test('rig manifest exposes the ECE webperf profile matrix', () => {
     woocommerce_stripe_ece_browser_profile: 'webperf-stripe-deferred-preconnect',
     woocommerce_stripe_ece_hint_strategy: 'stripe-deferred-preconnect',
   });
-  assert.equal(manifest.trace_profiles['real-wallet'].public_preview, undefined);
+  assert.deepEqual(manifest.trace_profiles['real-wallet'], {
+    scenario: 'ece-product-page-waterfall',
+    required_env: ['STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY'],
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'real-wallet',
+    },
+  });
+  assert.deepEqual(manifest.trace_profiles['real-wallet-compare'], {
+    required_env: ['STRIPE_PUBLISHABLE_KEY', 'STRIPE_SECRET_KEY'],
+    settings: {
+      woocommerce_stripe_ece_browser_profile: 'real-wallet',
+    },
+    compare_bundle: {
+      component: 'woocommerce-gateway-stripe',
+      scenarios: ['ece-product-page-waterfall', 'ece-product-page-scroll-to-ece'],
+      repeat: 5,
+      schedule: 'interleaved',
+      canonical: true,
+    },
+  });
+});
+
+test('real-wallet compare wrapper delegates to Homeboy trace profile', () => {
+  const wrapper = path.resolve(__dirname, '../tools/real-wallet-ece-compare.sh');
+  const output = execFileSync(wrapper, [
+    '--candidate',
+    'candidate-ref',
+    '--baseline',
+    'baseline-ref',
+    '--output-dir',
+    '/tmp/wc-stripe-ece-compare-fixture',
+    '--public-url',
+    'https://preview.example.test',
+    '--preview-port',
+    '49800',
+    '--dry-run',
+  ], { encoding: 'utf8' });
+
+  assert.match(output, /homeboy trace compare-bundle/);
+  assert.match(output, /--rig woocommerce-stripe-ece-product-page/);
+  assert.match(output, /--profile real-wallet-compare/);
+  assert.match(output, /--baseline-target baseline-ref/);
+  assert.match(output, /--candidate candidate-ref/);
+  assert.doesNotMatch(output, /ece-product-page-waterfall,ece-product-page-scroll-to-ece/);
 });
 
 test('real-wallet profile fails fast when Stripe keys are missing', () => {
