@@ -97,10 +97,17 @@ function normalizeOptions(input) {
     blocksEngine,
     blocksEnginePhpTransformerPath,
     staticSiteImporter: path.resolve(input.staticSiteImporter),
-    sharedState: path.resolve(input.sharedState || path.join(os.tmpdir(), 'homeboy-rigs-ssi-fixture-matrix-shared-state')),
+    sharedState: input.sharedState ? path.resolve(input.sharedState) : defaultSharedState(input.runner),
     artifactRoot: input.artifactRoot ? path.resolve(input.artifactRoot) : '',
     runner: input.runner || '',
   };
+}
+
+function defaultSharedState(runner) {
+  if (runner) {
+    return '/tmp/homeboy-rigs-ssi-fixture-matrix-shared-state';
+  }
+  return path.resolve(path.join(os.tmpdir(), 'homeboy-rigs-ssi-fixture-matrix-shared-state'));
 }
 
 function buildSteps(options, settings) {

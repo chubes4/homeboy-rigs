@@ -166,6 +166,7 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   assert.equal(plan.fixture_root, fixtureRoot);
   assert.equal(plan.fixture_count, CANONICAL_FIXTURE_COUNT);
   assert.equal(plan.fixture_count_matches_canonical, true);
+  assert.equal(plan.shared_state, '/tmp/homeboy-rigs-ssi-fixture-matrix-shared-state');
   assert.equal(plan.dependency_overrides.blocks_engine_php_transformer.path, blocksEngine);
   assert.equal(plan.steps.some((step) => step.args.includes('install')), false);
   assert.ok(plan.steps.some((step) => step.args.includes('sync')));
