@@ -1,6 +1,6 @@
 {
   "id": "studio-canonical-loop-proof",
-  "description": "Contract proof for the canonical Studio website artifact loop: host prompt/delegation, Codebox browser/fanout artifact, Studio Native source-of-truth artifact storage, SSI materialization, user mutation of the original artifact, reimport, and portable evidence refs. Runtime-only seams remain explicit blockers until executable interfaces exist.",
+  "description": "Contract harness for the intended Studio website artifact loop. It validates shape and portable evidence refs, but does not prove the production Studio Native runtime loop or iteration quality.",
   "components": {
     "studio-native": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STUDIO_NATIVE}",
@@ -32,7 +32,7 @@
       },
       {
         "kind": "check",
-        "label": "canonical loop proof script exists",
+        "label": "canonical loop contract harness exists",
         "file": "${package.root}/proofs/studio-canonical-loop-proof.mjs"
       },
       {
@@ -48,7 +48,7 @@
       },
       {
         "kind": "check",
-        "label": "canonical loop contract proof passes",
+        "label": "canonical loop contract harness passes",
         "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --out /tmp/studio-canonical-loop-proof-rig-check",
         "expect_exit": 0
       }
