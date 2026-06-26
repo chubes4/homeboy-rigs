@@ -18,7 +18,7 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/bench/rest-product-batch-import.php",
+    "workload_path": "${package.root}/bench/rest-product-batch-import.workload.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
@@ -84,8 +84,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "php",
-    "path": "${package.root}/bench/rest-product-batch-import.php",
+    "type": "json",
+    "path": "${package.root}/bench/rest-product-batch-import.workload.json",
     "entry": "rest-product-batch-import"
   },
   "cases": [
@@ -122,8 +122,8 @@
         },
         "execute": {
           "workload_ref": "default",
-          "path": "${package.root}/bench/rest-product-batch-import.php",
-          "type": "php",
+          "path": "${package.root}/bench/rest-product-batch-import.workload.json",
+          "type": "json",
           "entry": "rest-product-batch-import"
         },
         "collect": [
