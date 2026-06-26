@@ -160,8 +160,31 @@
     },
     "real-wallet": {
       "scenario": "ece-product-page-waterfall",
+      "required_env": [
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY"
+      ],
       "settings": {
         "woocommerce_stripe_ece_browser_profile": "real-wallet"
+      }
+    },
+    "real-wallet-compare": {
+      "required_env": [
+        "STRIPE_PUBLISHABLE_KEY",
+        "STRIPE_SECRET_KEY"
+      ],
+      "settings": {
+        "woocommerce_stripe_ece_browser_profile": "real-wallet"
+      },
+      "compare_bundle": {
+        "component": "woocommerce-gateway-stripe",
+        "scenarios": [
+          "ece-product-page-waterfall",
+          "ece-product-page-scroll-to-ece"
+        ],
+        "repeat": 5,
+        "schedule": "interleaved",
+        "canonical": true
       }
     },
     "hot": {
