@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
 export const fuzzCaseIntentSchema = 'homeboy/fuzz-workload-intent/v1';
-export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']);
+export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts', 'canonical_fuzz_envelope_ref']);
 export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
 export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
 export const wooRequiredFuzzProofContracts = new Map([
@@ -208,7 +208,33 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
 }
 
 export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzProofBundle(proofBundle, manifest, { file });
+  const result = loadGenericFuzzManifestValidator().assertFuzzProofBundle(proofBundle, manifest, { file });
+  assertCanonicalFuzzEnvelopeRef(proofBundle, { file: file || manifest.id });
+  return result;
+}
+
+export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workload' } = {}) {
+  if (proofBundle?.canonical_fuzz_envelope_ref === undefined) {
+    return;
+  }
+
+  assertReviewerFacingFuzzRef(
+    proofBundle.canonical_fuzz_envelope_ref,
+    `${file} metadata.readiness.proof_bundle.canonical_fuzz_envelope_ref`
+  );
+}
+
+function assertReviewerFacingFuzzRef(value, context) {
+  assert.equal(typeof value, 'string', `${context} must be a reviewer-facing artifact ref string`);
+  assert.ok(value.trim().length > 0, `${context} must be a reviewer-facing artifact ref string`);
+  assert.ok(
+    /^(https:\/\/|gh:|homeboy-runs:|homeboy-artifact:\/\/|artifact:|run:)/.test(value),
+    `${context} must be a reviewer-facing artifact ref`
+  );
+  assert.ok(
+    !/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value) && !value.startsWith('/Users/'),
+    `${context} must not use local evidence`
+  );
 }
 
 export function assertRequiredFuzzProofContracts(manifest, {
