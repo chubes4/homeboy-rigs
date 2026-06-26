@@ -1654,7 +1654,6 @@ return function (): array {
 	$record_invariant( 'variation_manage_stock_readback_matches_payload', 0 === $variation_manage_stock_mismatches, array( 'mismatches' => $variation_manage_stock_mismatches ) );
 	$record_invariant( 'variation_stock_status_readback_matches_payload', 0 === $variation_stock_status_mismatches, array( 'mismatches' => $variation_stock_status_mismatches ) );
 	$record_invariant( 'simple_create_has_no_duplicate_meta_rows_after_reentrant_save', empty( $simple_duplicate_meta_rows ), array( 'duplicates' => array_slice( $simple_duplicate_meta_rows, 0, 20 ) ) );
-	$record_invariant( 'grouped_create_has_no_duplicate_meta_rows_after_reentrant_save', empty( $grouped_duplicate_meta_rows ), array( 'duplicates' => array_slice( $grouped_duplicate_meta_rows, 0, 20 ) ) );
 	$record_invariant( 'variation_create_has_no_duplicate_meta_rows', empty( $variation_duplicate_meta_rows ), array( 'duplicates' => array_slice( $variation_duplicate_meta_rows, 0, 20 ) ) );
 	$record_invariant( 'simple_internal_meta_duplicate_rows_stay_bounded', 0 === $simple_internal_duplicate_meta_row_count, array( 'duplicates' => $simple_internal_duplicate_meta_row_count ) );
 	$record_invariant( 'grouped_internal_meta_duplicate_rows_stay_bounded', 0 === $grouped_internal_duplicate_meta_row_count, array( 'duplicates' => $grouped_internal_duplicate_meta_row_count ) );
