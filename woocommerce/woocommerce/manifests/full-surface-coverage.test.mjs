@@ -22,6 +22,7 @@ const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot
 const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
 const coverageGapReportWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/coverage-gap-report.workload.json'), 'utf8'));
 const performanceHotspotsWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json'), 'utf8'));
+const runtimePrepScript = readFileSync(path.join(packageRoot, 'tools/prepare-runtime-dependency.sh'), 'utf8');
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
 
@@ -93,6 +94,21 @@ test('fuzz workload metadata does not fall back to benchmark transcripts', () =>
       `${workloadId} must not declare benchmark transcript fallback proof`
     );
   }
+});
+
+test('Woo Composer prep delegates to Homeboy dependency install primitive', () => {
+  const composerRequirements = [
+    ...performanceRig.pipeline.check,
+    ...performanceRig.pipeline.fuzz_prepare,
+  ].filter((step) => step.label === 'WooCommerce Composer package autoloader exists or can be prepared');
+
+  assert.equal(composerRequirements.length, 2);
+  for (const requirement of composerRequirements) {
+    assert.match(requirement.prepare_command, /prepare-runtime-dependency\.sh" composer/);
+  }
+
+  assert.match(runtimePrepScript, /homeboy deps install --path "\$woocommerce_plugin_source"/);
+  assert.doesNotMatch(runtimePrepScript, /composer --working-dir=.* install/);
 });
 
 test('generated REST request cases are driven by route inventory coverage semantics', () => {
