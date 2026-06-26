@@ -143,7 +143,7 @@ export function buildFixtureMatrixRecipe(input = {}) {
         ...matrix.fixtures.map((fixture) => ({
           command: 'wordpress.wp-cli',
           args: [
-            `command=static-site-importer validate-in-codebox --artifact=${shellToken(path.join(commandArtifactsDirectory, fixture.id, 'artifact.json'))} --slug=${shellToken(fixture.id)} --name=${shellToken(fixture.label)} --allow-missing-woocommerce --allow-failure`,
+            `command=static-site-importer validate-artifact --artifact=${shellToken(path.join(commandArtifactsDirectory, fixture.id, 'artifact.json'))} --slug=${shellToken(fixture.id)} --name=${shellToken(fixture.label)} --allow-missing-woocommerce --allow-failure`,
           ],
         })),
       ],
