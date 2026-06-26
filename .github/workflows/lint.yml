@@ -9,8 +9,16 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    env:
+      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/wordpress-fuzz-manifest-validator.js
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: homeboy-rigs
+      - uses: actions/checkout@v4
+        with:
+          repository: Extra-Chill/homeboy-extensions
+          path: homeboy-extensions
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -19,6 +27,7 @@ jobs:
           php-version: '8.3'
           coverage: none
       - run: node scripts/lint-rig-packages.mjs
+        working-directory: homeboy-rigs
       - name: Test fuzz contracts
         run: >-
           node --test
@@ -26,3 +35,4 @@ jobs:
           WordPress/gutenberg/tools/fuzz-coverage.test.mjs
           WordPress/wordpress-develop/fuzz/core-fuzz-contracts.test.mjs
           woocommerce/woocommerce/manifests/full-surface-coverage.test.mjs
+        working-directory: homeboy-rigs
