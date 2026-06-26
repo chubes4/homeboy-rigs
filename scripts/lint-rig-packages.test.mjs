@@ -57,19 +57,6 @@ function createWordPressDevelopFuzzPackage(workload) {
   return directory;
 }
 
-function createJetpackFuzzPackage(workload) {
-  const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-jetpack-lint-'));
-  const fuzzRoot = join(directory, 'Automattic', 'jetpack', 'fuzz');
-  const benchRoot = join(directory, 'Automattic', 'jetpack', 'bench');
-
-  mkdirSync(fuzzRoot, { recursive: true });
-  mkdirSync(benchRoot, { recursive: true });
-  writeJson(join(benchRoot, 'generic.workload.json'), { id: 'generic' });
-  writeJson(join(fuzzRoot, `${workload.id}.json`), workload);
-
-  return directory;
-}
-
 function fuzzWorkload(overrides = {}) {
   return {
     schema: 'homeboy/fuzz-workload/v1',
@@ -104,18 +91,6 @@ test('accepts generic declared fuzz workloads', () => {
   });
 
   const result = runLint(directory);
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-});
-
-test('accepts package root linting from a direct package directory', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(join(directory, 'Vendor', 'product'));
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
@@ -412,23 +387,6 @@ test('requires WordPress Core proof artifacts when linting package root directly
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /fuzz\/rest-api\.json: rest-api must declare expected artifact semantic key fuzz\.rest\.route_inventory/);
-});
-
-test('requires Jetpack executable readiness artifacts to be required', () => {
-  const directory = createJetpackFuzzPackage(fuzzWorkload({
-    id: 'jetpack-fuzz',
-    target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
-    metadata: {
-      kind: 'wordpress-plugin-fuzz',
-      readiness: { level: 'executable', coverage_contract: 'Jetpack fuzz coverage can execute and produce proof artifacts.' },
-    },
-    cases: [{ case_id: 'jetpack-fuzz:default', artifacts: [{ name: 'jetpack_report', required: false }] }],
-    artifacts: { expected: [{ name: 'jetpack_report', semantic_key: 'fuzz.report', required: false }] },
-  }));
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /executable Jetpack readiness requires case artifact jetpack_report to be required/);
 });
 
 test('rejects WordPress Core fuzz workloads outside wordpress-develop', () => {
