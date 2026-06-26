@@ -131,12 +131,14 @@ test('rejects committed local Developer checkout paths in rigs', () => {
   assert.match(result.stderr, /use portable component path settings instead of committed ~\/Developer or \$HOME\/Developer checkout paths/);
 });
 
-test('accepts component paths resolved through portable settings', () => {
+test('accepts registry-backed components with portable path settings', () => {
   const directory = createRigPackage({
     rig: {
       components: {
         product: {
-          path: '${env.HOMEBOY_RIG_COMPONENT_PATH__GENERIC_RIG__PRODUCT}',
+          component_id: 'product',
+          path_setting: 'HOMEBOY_RIG_COMPONENT_PATH__GENERIC_RIG__PRODUCT',
+          default_ref: 'origin/main',
           branch: 'main',
         },
       },
