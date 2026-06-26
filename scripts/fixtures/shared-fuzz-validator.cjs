@@ -136,6 +136,9 @@ function assertFuzzProofBundle(proofBundle, manifest, { file = manifest.id } = {
       throw new Error(`${file} proof_bundle.fuzz_result_artifacts ${artifactName} must name a required case or expected artifact`);
     }
   }
+  if (proofBundle.canonical_fuzz_envelope_ref !== undefined) {
+    assertReviewerFacingArtifactRef(proofBundle.canonical_fuzz_envelope_ref, `${file} metadata.readiness.proof_bundle.canonical_fuzz_envelope_ref`);
+  }
 }
 
 function assertFuzzCrudReadiness(crud, { file } = {}) {
@@ -168,6 +171,18 @@ function assertReviewerFacingRef(value, context) {
   }
   if (/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value) || value.startsWith('/Users/')) {
     throw new Error(`${context} entries must not use local evidence`);
+  }
+}
+
+function assertReviewerFacingArtifactRef(value, context) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${context} must be a reviewer-facing artifact ref string`);
+  }
+  if (!/^(https:\/\/|gh:|homeboy-runs:|homeboy-artifact:\/\/|artifact:|run:)/.test(value)) {
+    throw new Error(`${context} must be a reviewer-facing artifact ref`);
+  }
+  if (/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value) || value.startsWith('/Users/')) {
+    throw new Error(`${context} must not use local evidence`);
   }
 }
 
