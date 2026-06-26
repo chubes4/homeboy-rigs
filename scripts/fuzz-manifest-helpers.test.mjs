@@ -10,6 +10,8 @@ import {
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
 
+process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR = new URL('./fixtures/shared-fuzz-validator.cjs', import.meta.url).pathname;
+
 function fuzzManifest(overrides = {}) {
   return {
     schema: 'homeboy/fuzz-workload/v1',

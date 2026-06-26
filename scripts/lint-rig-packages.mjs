@@ -6,7 +6,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import {
   assertFuzzReadinessMetadata,
   assertJetpackFuzzManifestReadinessContract,
-  assertRunnerNeutralFuzzCaseIntent,
+  collectGenericFuzzWorkloadIssues,
 } from './fuzz-manifest-helpers.mjs';
 
 const args = process.argv.slice(2);
@@ -26,7 +26,6 @@ const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-
 const personalPathPrefix = '/Users/' + 'chubes/';
 const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
-const homeboyFuzzSafetyClasses = new Set(['read_only', 'idempotent', 'isolated_mutation', 'destructive']);
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -198,56 +197,16 @@ function collectFuzzWorkloads() {
 }
 
 function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
-  if (workload.schema !== 'homeboy/fuzz-workload/v1') {
-    failures.push(`${rel}: ${context} must use schema homeboy/fuzz-workload/v1`);
+  for (const issue of collectGenericFuzzWorkloadIssues(workload, { context })) {
+    failures.push(`${rel}: ${issue}`);
   }
 
-  for (const field of ['id', 'label', 'safety_class']) {
-    if (typeof workload[field] !== 'string' || workload[field].trim() === '') {
-      failures.push(`${rel}: ${context} must declare a non-empty string ${field}`);
-    }
-  }
-
-  if (typeof workload.safety_class === 'string' && !homeboyFuzzSafetyClasses.has(workload.safety_class)) {
-    failures.push(`${rel}: ${context} safety_class must be one of ${[...homeboyFuzzSafetyClasses].join(', ')}`);
-  }
-
-  if (!workload.metadata || typeof workload.metadata !== 'object' || Array.isArray(workload.metadata)) {
-    failures.push(`${rel}: ${context} must declare metadata`);
-  }
-
-  if (!workload.target || typeof workload.target !== 'object' || Array.isArray(workload.target)) {
-    failures.push(`${rel}: ${context} must declare target`);
-  }
-
-  if (!workload.workload || typeof workload.workload !== 'object' || Array.isArray(workload.workload)) {
-    failures.push(`${rel}: ${context} must declare workload`);
-  } else if (typeof workload.workload.path !== 'string' || workload.workload.path.trim() === '') {
-    failures.push(`${rel}: ${context} workload must declare a non-empty string path`);
-  } else {
+  if (workload.workload && typeof workload.workload === 'object' && !Array.isArray(workload.workload) && typeof workload.workload.path === 'string' && workload.workload.path.trim() !== '') {
     const workloadPath = resolvePackagePath(workload.workload.path, packageRoot);
     if (!workloadPath) {
       failures.push(`${rel}: ${context} workload path must be resolvable`);
     } else if (!existsSync(workloadPath)) {
       failures.push(`${rel}: ${context} workload path ${relative(root, workloadPath)} does not exist`);
-    }
-  }
-
-  if (!Array.isArray(workload.cases) || workload.cases.length === 0) {
-    failures.push(`${rel}: ${context} must declare at least one case`);
-  } else {
-    for (const runnerCase of workload.cases) {
-      if (runnerCase?.metadata?.safety_class && runnerCase.metadata.safety_class !== workload.safety_class) {
-        failures.push(`${rel}: ${context} case ${runnerCase.case_id || '(unknown)'} metadata.safety_class must match workload safety_class ${workload.safety_class}`);
-      }
-
-      if (runnerCase?.intent) {
-        try {
-          assertRunnerNeutralFuzzCaseIntent(workload, runnerCase);
-        } catch (error) {
-          failures.push(`${rel}: ${context} ${error.message}`);
-        }
-      }
     }
   }
 }
@@ -419,39 +378,13 @@ function lintFuzzWorkload(file) {
     return;
   }
 
-  if (workload.schema !== 'homeboy/fuzz-workload/v1') {
-    failures.push(`${rel}: fuzz workload schema must be homeboy/fuzz-workload/v1`);
-  }
-
-  for (const field of ['id', 'label', 'safety_class']) {
-    if (typeof workload[field] !== 'string' || workload[field].length === 0) {
-      failures.push(`${rel}: fuzz workload must define non-empty string field ${field}`);
-    }
-  }
-
-  if (typeof workload.safety_class === 'string' && !homeboyFuzzSafetyClasses.has(workload.safety_class)) {
-    failures.push(`${rel}: fuzz workload safety_class must be one of ${[...homeboyFuzzSafetyClasses].join(', ')}`);
+  for (const issue of collectGenericFuzzWorkloadIssues(workload, { context: 'fuzz workload' })) {
+    failures.push(`${rel}: ${issue}`);
   }
 
   for (const field of ['surface_ids', 'operations', 'cases']) {
     if (!Array.isArray(workload[field]) || workload[field].length === 0) {
       failures.push(`${rel}: fuzz workload must define non-empty array field ${field}`);
-    }
-  }
-
-  if (Array.isArray(workload.cases)) {
-    for (const runnerCase of workload.cases) {
-      if (runnerCase?.metadata?.safety_class && runnerCase.metadata.safety_class !== workload.safety_class) {
-        failures.push(`${rel}: fuzz workload case ${runnerCase.case_id || '(unknown)'} metadata.safety_class must match workload safety_class ${workload.safety_class}`);
-      }
-
-      if (runnerCase?.intent) {
-        try {
-          assertRunnerNeutralFuzzCaseIntent(workload, runnerCase);
-        } catch (error) {
-          failures.push(`${rel}: ${error.message}`);
-        }
-      }
     }
   }
 

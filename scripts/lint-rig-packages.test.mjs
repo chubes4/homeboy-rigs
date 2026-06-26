@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
+const sharedValidator = new URL('./fixtures/shared-fuzz-validator.cjs', import.meta.url).pathname;
 
 function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
@@ -80,7 +81,13 @@ function fuzzWorkload(overrides = {}) {
 }
 
 function runLint(directory) {
-  return spawnSync(process.execPath, [script, directory], { encoding: 'utf8' });
+  return spawnSync(process.execPath, [script, directory], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: sharedValidator,
+    },
+  });
 }
 
 test('accepts generic declared fuzz workloads', () => {
