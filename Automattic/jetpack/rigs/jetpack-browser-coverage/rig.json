@@ -3,7 +3,9 @@
   "description": "WP Codebox browser-actions request coverage for Jetpack dashboard, connection, modules, settings admin, and public module frontend surfaces.",
   "components": {
     "jetpack": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__JETPACK_BROWSER_COVERAGE__JETPACK}",
+      "component_id": "jetpack",
+      "default_ref": "origin/trunk",
+      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__JETPACK_BROWSER_COVERAGE__JETPACK",
       "branch": "trunk"
     }
   },
