@@ -5,11 +5,13 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  assertArtifactPostprocessWorkloadContract,
   assertExecutableCrudMutationSafety,
   assertFullSurfaceCoverageManifest,
   assertFuzzProofBundleRequirements,
   assertFuzzReadinessLevel,
   assertGenericFuzzManifest,
+  assertRequiredFuzzProofContracts,
   collectFuzzManifests,
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
@@ -17,6 +19,7 @@ import {
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   readJson,
+  wooRequiredFuzzProofContracts,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,18 +63,6 @@ const expectedFuzzIds = new Set([
   'rest-db-query-profile',
   'woocommerce-external-http-guardrail',
   'woocommerce-rest-route-inventory',
-]);
-
-const requiredProofContracts = new Map([
-  ['cart-session-overwrite-race', ['cart-session-race']],
-  ['checkout-gateway-compatibility-matrix', ['gateway-compatibility']],
-  ['checkout-shipping-cache', ['shipping-cache-invalidation']],
-  ['frontend-rendering-request-coverage', ['shop-product-cart-checkout-rendering-requests']],
-  ['layered-nav-catalog-crawl', ['catalog-layered-nav-transient-growth']],
-  ['layered-nav-count-cache', ['layered-nav-transient-growth']],
-  ['options-transients-coverage', ['cache-invalidation-and-transient-growth']],
-  ['performance-hotspots-artifact-summary', ['artifact-summary-expectations']],
-  ['woocommerce-external-http-guardrail', ['external-http-guardrails']],
 ]);
 
 const fuzzManifests = collectFuzzManifests(packageRoot);
@@ -154,33 +145,6 @@ function assertDeclaredOrExternalDiscoveryWorkload(workloadId, context) {
   );
 }
 
-function assertArtifactPostprocessWorkload(workload, { id, action, artifactName, schema }) {
-  assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} must use the upstream workload-run envelope`);
-  assert.equal(workload.id, id, `${id} workload id drifted`);
-  assert.equal(workload.steps?.length, 1, `${id} must declare one generic artifact-postprocess step`);
-  assert.equal(workload.steps[0].command, 'homeboy.artifact-postprocess', `${id} must use the generic artifact-postprocess command`);
-  assert.equal(workload.steps[0].type, undefined, `${id} must not invent unsupported step types`);
-
-  const args = workload.steps[0].args;
-  assert.equal(args.helper, '${package.root}/tools/db-api-fuzzer-artifacts.mjs', `${id} helper drifted`);
-  assert.equal(args.action, action, `${id} action drifted`);
-  assert.deepEqual(args.input, {
-    type: 'artifact-root',
-    path: '${artifacts.root}',
-    artifact_globs: ['**/*.json'],
-    max_bytes: 1048576,
-  }, `${id} input artifact root contract drifted`);
-  assert.equal(args.output.artifact, artifactName, `${id} output artifact name drifted`);
-  assert.equal(args.output.kind, 'json', `${id} output kind drifted`);
-  assert.equal(args.output.contentType, 'application/json', `${id} output contentType drifted`);
-  assert.equal(args.output.schema, schema, `${id} output schema drifted`);
-  assert.equal(args.output.semantic_key, 'fuzz.report', `${id} output semantic key drifted`);
-  assert.equal(workload.artifacts?.[0]?.name, artifactName, `${id} collected artifact name drifted`);
-  assert.equal(workload.artifacts?.[0]?.required, true, `${id} collected artifact must be required`);
-  assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay blocked until upstream binds homeboy.artifact-postprocess`);
-  assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document exact missing upstream fields`);
-}
-
 function assertCampaignPostprocessOutput(workload, output, context) {
   assert.ok(output && typeof output === 'object' && !Array.isArray(output), `${context} requires postprocess output metadata`);
   assert.equal(output.workload, workload.id, `${context} workload id drifted`);
@@ -214,17 +178,19 @@ function assertNoLocalOnlyRefs(value, context = 'value') {
   }
 }
 
-assertArtifactPostprocessWorkload(coverageGapReportWorkload, {
+assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
   id: 'coverage-gap-report',
   action: 'coverage-gap-report',
-  artifactName: 'coverage_gap_report',
+  artifact: 'coverage_gap_report',
+  outputPath: 'coverage-gap-report/coverage_gap_report.json',
   schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
 });
 
-assertArtifactPostprocessWorkload(performanceHotspotsWorkload, {
+assertArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
   id: 'performance-hotspots-artifact-summary',
   action: 'performance-hotspots-summary',
-  artifactName: 'performance_hotspots_summary',
+  artifact: 'performance_hotspots_summary',
+  outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
   schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
 });
 
@@ -333,7 +299,7 @@ for (const { file, manifest } of fuzzManifests) {
     assert.ok(proofBundle.run_ids.length > 0, `${manifest.id} proven readiness must link at least one run id`);
   }
 
-  const requiredContractIds = requiredProofContracts.get(manifest.id) || [];
+  const requiredContractIds = wooRequiredFuzzProofContracts.get(manifest.id) || [];
   if (requiredArtifactWorkloadIds.has(manifest.id) && fuzzManifestHasExecutableArtifactContract(manifest)) {
     for (const artifact of runnerCase.artifacts) {
       assert.equal(artifact.required, true, `${manifest.id} full-surface executable case artifact ${artifact.name} must be required`);
@@ -343,29 +309,7 @@ for (const { file, manifest } of fuzzManifests) {
     }
   }
 
-  if (requiredContractIds.length > 0) {
-    const proofContracts = manifest.proof_contracts || [];
-    assert.ok(Array.isArray(proofContracts), `${manifest.id} proof_contracts must be an array`);
-
-    const proofContractIds = new Set(proofContracts.map((contract) => contract.id));
-    for (const contractId of requiredContractIds) {
-      assert.ok(proofContractIds.has(contractId), `${manifest.id} missing proof contract ${contractId}`);
-    }
-
-    for (const contract of proofContracts) {
-      assert.equal(typeof contract.description, 'string', `${manifest.id} proof contract ${contract.id} requires description`);
-      assert.ok(contract.description.length > 0, `${manifest.id} proof contract ${contract.id} description must not be empty`);
-      assert.equal(typeof contract.required_artifact, 'string', `${manifest.id} proof contract ${contract.id} requires required_artifact`);
-    }
-
-    const requiredArtifactNames = new Set(proofContracts.map((contract) => contract.required_artifact));
-    for (const artifactName of requiredArtifactNames) {
-      const caseArtifact = runnerCase.artifacts.find((artifact) => artifact.name === artifactName);
-      const expectedArtifact = manifest.artifacts.expected.find((artifact) => artifact.name === artifactName);
-      assert.equal(caseArtifact?.required, true, `${manifest.id} proof artifact ${artifactName} must be required on the case`);
-      assert.equal(expectedArtifact?.required, true, `${manifest.id} proof artifact ${artifactName} must be required in expected artifacts`);
-    }
-  }
+  assertRequiredFuzzProofContracts(manifest, { requiredContracts: requiredContractIds, runnerCase });
 
   if (manifest.id === 'admin-page-coverage') {
     assert.ok(manifest.operations.includes('safe-menu-enumeration-contract'), 'admin-page-coverage requires safe menu enumeration contract operation');

@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { assertFullSurfaceCoverageManifest } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import {
+  assertArtifactPostprocessWorkloadContract,
+  assertFullSurfaceCoverageManifest,
+  assertRequiredFuzzProofContracts,
+  wooRequiredFuzzProofContracts,
+} from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -38,18 +43,6 @@ const expectedSafetyClassifications = new Set([
   'synthetic_checkout_mutation',
 ]);
 
-const requiredFuzzProofContracts = new Map([
-  ['cart-session-overwrite-race', ['cart-session-race']],
-  ['checkout-gateway-compatibility-matrix', ['gateway-compatibility']],
-  ['checkout-shipping-cache', ['shipping-cache-invalidation']],
-  ['frontend-rendering-request-coverage', ['shop-product-cart-checkout-rendering-requests']],
-  ['layered-nav-catalog-crawl', ['catalog-layered-nav-transient-growth']],
-  ['layered-nav-count-cache', ['layered-nav-transient-growth']],
-  ['options-transients-coverage', ['cache-invalidation-and-transient-growth']],
-  ['performance-hotspots-artifact-summary', ['artifact-summary-expectations']],
-  ['woocommerce-external-http-guardrail', ['external-http-guardrails']],
-]);
-
 test('full-surface manifest uses shared coverage-map and gap-report schema', () => {
   assertFullSurfaceCoverageManifest(manifest, { file: 'woocommerce full-surface coverage' });
 });
@@ -80,28 +73,11 @@ test('manifest workload metadata stays scoped to full-surface workload ids', () 
 });
 
 test('high-risk Woo fuzz manifests declare required proof contracts', () => {
-  for (const [workloadId, contractIds] of requiredFuzzProofContracts) {
+  for (const [workloadId, contractIds] of wooRequiredFuzzProofContracts) {
     const workloadPath = path.join(packageRoot, 'fuzz', `${workloadId}.json`);
     const workload = JSON.parse(readFileSync(workloadPath, 'utf8'));
-    const actualContractIds = new Set((workload.proof_contracts || []).map((contract) => contract.id));
 
-    for (const contractId of contractIds) {
-      assert.ok(actualContractIds.has(contractId), `${workloadId} missing ${contractId}`);
-    }
-
-    const requiredArtifactNames = new Set(workload.proof_contracts.map((contract) => contract.required_artifact));
-    for (const artifactName of requiredArtifactNames) {
-      assert.equal(
-        workload.cases[0].artifacts.find((artifact) => artifact.name === artifactName)?.required,
-        true,
-        `${workloadId} case artifact ${artifactName} must be required`
-      );
-      assert.equal(
-        workload.artifacts.expected.find((artifact) => artifact.name === artifactName)?.required,
-        true,
-        `${workloadId} expected artifact ${artifactName} must be required`
-      );
-    }
+    assertRequiredFuzzProofContracts(workload, { requiredContracts: contractIds });
   }
 });
 
@@ -182,45 +158,6 @@ test('REST DB query profile consumes generated request case artifacts with caps'
     assert.equal(step.fallback_policy, 'require_generated_rest_request_cases_artifact');
   }
 });
-
-function assertArtifactPostprocessWorkloadContract(workload, { id, action, artifact, outputPath, schema }) {
-  assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} workload must use the generic workload-run contract`);
-  assert.equal(workload.id, id, `${id} workload id drifted`);
-  assert.equal(workload.steps?.length, 1, `${id} must declare one artifact postprocess step`);
-  assert.equal(workload.steps[0].command, 'homeboy.artifact-postprocess', `${id} must use the generic artifact postprocess command`);
-  assert.equal(workload.steps[0].type, undefined, `${id} must not invent an unsupported step type`);
-  assert.equal(workload.steps[0].runner_support_status, undefined, `${id} runner support status belongs in metadata, not the executable step`);
-
-  const args = workload.steps[0].args;
-  assert.equal(args.helper, '${package.root}/tools/db-api-fuzzer-artifacts.mjs', `${id} helper drifted`);
-  assert.equal(args.action, action, `${id} action drifted`);
-  assert.deepEqual(args.input, {
-    type: 'artifact-root',
-    path: '${artifacts.root}',
-    artifact_globs: ['**/*.json'],
-    max_bytes: 1048576,
-  }, `${id} input artifact binding drifted`);
-  assert.equal(args.output.artifact, artifact, `${id} output artifact drifted`);
-  assert.equal(args.output.path, outputPath, `${id} output path drifted`);
-  assert.equal(args.output.kind, 'json', `${id} output kind drifted`);
-  assert.equal(args.output.contentType, 'application/json', `${id} output contentType drifted`);
-  assert.equal(args.output.schema, schema, `${id} output schema drifted`);
-  assert.equal(args.output.semantic_key, 'fuzz.report', `${id} semantic key drifted`);
-
-  assert.deepEqual(workload.artifacts?.[0], {
-    name: artifact,
-    path: outputPath,
-    kind: 'json',
-    contentType: 'application/json',
-    required: true,
-    metadata: {
-      schema,
-      semantic_key: 'fuzz.report',
-    },
-  }, `${id} collected artifact declaration drifted`);
-  assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay declared until upstream binds this command`);
-  assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document missing upstream fields`);
-}
 
 test('coverage gap and hotspot reports declare the generic artifact postprocess contract', () => {
   assert.equal(coverageGapReport.metadata.readiness.level, 'declared');
