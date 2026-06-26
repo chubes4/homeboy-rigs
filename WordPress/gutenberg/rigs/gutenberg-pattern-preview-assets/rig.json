@@ -3,7 +3,7 @@
   "description": "Gutenberg pattern preview asset fan-out rig for reproducing WordPress/gutenberg#68979 and the request-spike symptoms discussed in WordPress/gutenberg#71547.",
   "components": {
     "gutenberg": {
-      "path": "~/Developer/gutenberg",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__GUTENBERG_PATTERN_PREVIEW_ASSETS__GUTENBERG}",
       "branch": "trunk"
     }
   },

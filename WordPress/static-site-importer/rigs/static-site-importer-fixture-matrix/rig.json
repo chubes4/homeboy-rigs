@@ -3,7 +3,7 @@
   "description": "Static Site Importer fixture matrix workload that composes generic WP Codebox recipe orchestration while keeping SSI-specific fixture and diagnostic policy in homeboy-rigs.",
   "components": {
     "static-site-importer": {
-      "path": "~/Developer/static-site-importer",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STATIC_SITE_IMPORTER_FIXTURE_MATRIX__STATIC_SITE_IMPORTER}",
       "branch": "trunk"
     }
   },

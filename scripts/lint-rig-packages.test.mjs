@@ -128,6 +128,67 @@ test('rejects missing declared fuzz workload files', () => {
   assert.match(result.stderr, /declares missing file/);
 });
 
+test('rejects committed local Developer checkout paths in rigs', () => {
+  const directory = createRigPackage({
+    rig: {
+      components: {
+        product: {
+          path: '~/Developer/product',
+          branch: 'main',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /use portable component path settings instead of committed ~\/Developer or \$HOME\/Developer checkout paths/);
+});
+
+test('accepts component paths resolved through portable settings', () => {
+  const directory = createRigPackage({
+    rig: {
+      components: {
+        product: {
+          path: '${env.HOMEBOY_RIG_COMPONENT_PATH__GENERIC_RIG__PRODUCT}',
+          branch: 'main',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('rejects committed local Developer checkout paths in stacks', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const stackRoot = join(directory, 'Vendor', 'product', 'stacks');
+  mkdirSync(stackRoot, { recursive: true });
+  writeJson(join(stackRoot, 'combined.json'), {
+    id: 'combined',
+    component: 'product',
+    component_path: '$HOME/Developer/product',
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /stacks\/combined\.json: use portable component path settings/);
+});
+
 test('rejects invalid declared fuzz workload shapes', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {

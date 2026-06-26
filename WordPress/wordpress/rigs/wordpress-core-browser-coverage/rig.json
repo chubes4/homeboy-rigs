@@ -3,7 +3,7 @@
   "description": "WP Codebox browser-actions request coverage for WordPress core front page, post editor, site editor, and media library surfaces.",
   "components": {
     "wordpress": {
-      "path": "~/Developer/wordpress-develop",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WORDPRESS_CORE_BROWSER_COVERAGE__WORDPRESS}",
       "branch": "trunk"
     }
   },

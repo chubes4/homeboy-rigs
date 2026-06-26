@@ -3,7 +3,7 @@
   "description": "Focused Studio admin performance rig for WordPress admin page and REST latency evidence without the wordpress-playground component dependency.",
   "components": {
     "studio": {
-      "path": "~/Developer/studio",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_ADMIN_PERF__STUDIO}",
       "branch": "dev/combined-fixes",
       "extensions": {
         "nodejs": {

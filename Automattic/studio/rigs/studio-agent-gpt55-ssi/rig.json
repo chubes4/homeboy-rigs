@@ -3,7 +3,7 @@
   "description": "Studio GPT 5.5 / pi-agent-core runtime on the active Static Site Importer draft branch. Pairs with studio-agent-claude-ssi so the same SSI substrate can be compared across models.",
   "components": {
     "studio": {
-      "path": "~/Developer/studio@bfb-mu-plugin-agent-output",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_GPT55_SSI__STUDIO}",
       "branch": "bfb-mu-plugin-agent-output-draft",
       "extensions": {
         "nodejs": {
