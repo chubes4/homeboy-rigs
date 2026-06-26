@@ -37,6 +37,50 @@ Composer dependencies through a temporary path repository and records the
 override in `cli-run.json` under `dependency_overrides`. The path may point at
 either the Blocks Engine repo root or the `php-transformer/` package directory.
 
+## Canonical Blocks Engine Matrix
+
+Use the operator wrapper for the release-free development loop against the
+canonical Blocks Engine fixture corpus (`blocks-engine/fixtures/websites`, 71
+top-level fixtures):
+
+```bash
+node WordPress/static-site-importer/tools/run-fixture-matrix.mjs \
+  --runner homeboy-lab \
+  --static-site-importer ~/Developer/static-site-importer \
+  --blocks-engine ~/Developer/blocks-engine \
+  --lab-only
+```
+
+The wrapper composes the existing Homeboy surfaces rather than replacing the
+lower-level bench:
+
+- `homeboy rig install <this package> --id static-site-importer-fixture-matrix --reinstall`
+- `homeboy rig sync static-site-importer-fixture-matrix`
+- `homeboy bench --rig static-site-importer-fixture-matrix --profile fixture-matrix`
+
+It sets the SSI matrix bench environment for the canonical fixture root, Static
+Site Importer checkout, WP Codebox execution, shared state, and optional Blocks
+Engine PHP transformer override. By default, `--blocks-engine` also supplies the
+release-free transformer override path. Use `--blocks-engine-php-transformer-path`
+to point at a different repo/package, or run a final release/bump proof with
+`--mode release-proof` and the released SSI dependency installed.
+
+Output is a JSON operator summary with the run ID, fixture count, pass/fail
+counts, finding count, top buckets/kinds when present in Homeboy output, artifact
+URLs, and the structured Homeboy bench output file. Pass `--dry-run` to inspect
+the composed commands without running Lab/WP Codebox. Arguments after `--` are
+forwarded to the lower-level bench, preserving the existing script options:
+
+```bash
+node WordPress/static-site-importer/tools/run-fixture-matrix.mjs \
+  --runner homeboy-lab \
+  --static-site-importer ~/Developer/static-site-importer \
+  --blocks-engine ~/Developer/blocks-engine \
+  --batch-size 5 \
+  --run-id ssi-matrix-dev-$(date +%Y%m%d) \
+  -- --wordpress-version latest
+```
+
 Compare two fixture-matrix finding-packet artifacts without requiring Homeboy run
 state:
 
