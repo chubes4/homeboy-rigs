@@ -294,6 +294,47 @@ test('suppresses count-only fixture diagnostics from actionable fanout rollups',
   assert.equal(result.fanout_groups[0].findings[0].kind, 'core_html_block');
 });
 
+test('suppresses pre-normalized count-only fixture diagnostics with fixture source paths', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'pre-normalized-count-only-diagnostic-test' });
+  const fixturePath = matrix.fixtures[0].fixture_path;
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        fixture_path: fixturePath,
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'static_site_fixture_diagnostic',
+            group_key: 'static_site_import_quality',
+            repair_bucket: 'static_site_import_quality',
+            source_path: fixturePath,
+            reason: '2',
+          },
+          {
+            kind: 'core_html_block',
+            repair_bucket: 'fallback_block',
+            selector: 'input#email',
+            source_path: 'posts/page-contact.post_content',
+            message: 'generated_document_contains_core_html',
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result.summary.finding_count, 2);
+  assert.equal(result.summary.actionable_finding_count, 1);
+  assert.equal(result.summary.non_actionable_finding_count, 1);
+  assert.equal(result.findings.find((finding) => finding.kind === 'static_site_fixture_diagnostic').actionability, 'count_only');
+  assert.equal(result.summary.top_pattern_families.some((family) => family.key === 'static_site_import_quality:static_site_fixture_diagnostic:(none)'), false);
+  assert.equal(result.summary.fixture_exemplars.some((exemplar) => exemplar.kind === 'static_site_fixture_diagnostic'), false);
+  assert.equal(result.summary.diagnostic_blind_spots.some((spot) => spot.exemplars.some((exemplar) => exemplar.kind === 'static_site_fixture_diagnostic')), false);
+  assert.equal(result.fanout_groups.length, 1);
+  assert.equal(result.fanout_groups[0].findings.some((finding) => finding.kind === 'static_site_fixture_diagnostic'), false);
+});
+
 test('collects SSI finding packet source and observed context from fixture artifacts', () => {
   const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-finding-packet-context-'));
   const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'packet-context-test' });
