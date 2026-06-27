@@ -20,7 +20,10 @@
   },
   "bench": {
     "default_component": "static-site-importer",
-    "warmup_iterations": 0
+    "warmup_iterations": 0,
+    "result_gates": {
+      "failed_fixture_count": { "lte": 0 }
+    }
   },
   "bench_workloads": {
     "nodejs": [
