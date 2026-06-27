@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
-const sharedValidator = new URL('./fixtures/shared-fuzz-validator.cjs', import.meta.url).pathname;
+const wordpressHelperManifest = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
 const wordpressCoreFuzzValidatorSource = `
 export function validateFuzzWorkload({ rel, root, workload }) {
   const failures = [];
@@ -142,7 +142,8 @@ function runLint(directory) {
     encoding: 'utf8',
     env: {
       ...process.env,
-      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: sharedValidator,
+      HOMEBOY_WORDPRESS_HELPER_MANIFEST: wordpressHelperManifest,
+      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: '',
     },
   });
 }
