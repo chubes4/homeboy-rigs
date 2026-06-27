@@ -349,7 +349,7 @@ test('builds Composer path repository override matching SSI constraints', () => 
   assert.deepEqual(config, {
     type: 'path',
     url: '/tmp/blocks-engine/php-transformer',
-    canonical: false,
+    canonical: true,
     options: {
       symlink: false,
       versions: {
