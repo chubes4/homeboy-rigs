@@ -23,6 +23,8 @@ async function main() {
     return;
   }
 
+  fs.mkdirSync(path.dirname(plan.output_file), { recursive: true });
+
   for (const step of plan.steps) {
     runCommand(step);
   }
