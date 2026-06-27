@@ -386,10 +386,11 @@ homeboy rig check gutenberg-api-route-inventory
 homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
 ```
 
-`WordPress/gutenberg/manifests/fuzzer-profile.json` adds a rig-owned fuzzer profile shape for REST route coverage, wp-admin/editor page coverage, block editor load/action probes, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting. Run its bench and browser sides separately:
+`WordPress/gutenberg/manifests/fuzzer-profile.json` adds a rig-owned fuzzer profile shape for REST route coverage, wp-admin/editor page coverage, block editor load/action probes, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting. Inspect its fuzz declarations through Homeboy's generic fuzz command and run browser coverage separately:
 
 ```bash
-homeboy bench --rig gutenberg-api-route-inventory --profile fuzzer --iterations 1 --shared-state /tmp/gutenberg-fuzzer-bench
+homeboy fuzz list --rig gutenberg-api-route-inventory
+homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 homeboy trace --rig gutenberg-browser-coverage --profile fuzzer
 ```
 

@@ -18,10 +18,12 @@ Run the route inventory workload:
 homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
 ```
 
-Run the currently executable full-surface profile:
+Inspect the declared fuzz workloads and run an individual workload through
+Homeboy's generic fuzz command:
 
 ```sh
-homeboy bench --rig gutenberg-api-route-inventory --profile full-surface --iterations 1 --shared-state /tmp/gutenberg-full-surface
+homeboy fuzz list --rig gutenberg-api-route-inventory
+homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
 
 The coverage manifest lives at `manifests/rest-route-coverage.json`. It keeps
@@ -41,7 +43,8 @@ homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-r
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;
-they do not change readiness levels or convert declarations into proof.
+they are not `homeboy bench` profiles and do not change readiness levels or
+convert declarations into proof.
 
 Use an offloaded Lab runner for heavy proof campaigns. A `homeboy fuzz list` result is only a declaration check; P status requires persisted `homeboy fuzz run` evidence and artifacts.
 
