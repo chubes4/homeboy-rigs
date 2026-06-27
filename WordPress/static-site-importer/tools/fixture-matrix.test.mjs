@@ -19,6 +19,7 @@ import {
 } from './compare-finding-packets.mjs';
 import {
   buildFixtureMatrixRecipe,
+  classifyFixture,
   classifyStaticSiteFinding,
   collectFixtureMatrixRunResults,
   createFixtureMatrix,
@@ -86,6 +87,62 @@ test('normalizes SSI diagnostics into product repair groups', () => {
   assert.equal(result.summary.groups.dropped_images, 1);
   assert.equal(result.summary.groups.invalid_block_content, 1);
   assert.equal(classifyStaticSiteFinding({ message: 'canvas target missing' }).repair_mode, 'runtime-dom-target-parity');
+});
+
+test('classifies fixtures into generic product taxonomy from metadata and files', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-taxonomy-'));
+  const shop = path.join(root, 'spring-shop');
+  const shader = path.join(root, 'interactive-demo');
+  mkdirSync(path.join(shop, 'products'), { recursive: true });
+  mkdirSync(path.join(shader, 'assets'), { recursive: true });
+  writeFileSync(path.join(shop, 'index.html'), '<h1>Catalog</h1>');
+  writeFileSync(path.join(shop, 'products', 'shoe.html'), '<h2>Shoe</h2>');
+  writeFileSync(path.join(shader, 'index.html'), '<canvas id="hero"></canvas>');
+  writeFileSync(path.join(shader, 'assets', 'shader.js'), 'document.querySelector("canvas");');
+
+  const matrix = createFixtureMatrix({ fixture_root: root });
+
+  assert.equal(classifyFixture({ product_class: 'docs' }).fixture_class, 'docs/blog');
+  assert.equal(matrix.fixtures.find((fixture) => fixture.id === 'spring-shop').fixture_class, 'ecommerce/catalog');
+  assert.equal(matrix.fixtures.find((fixture) => fixture.id === 'interactive-demo').fixture_class, 'canvas/webgl/audio/runtime-heavy');
+});
+
+test('rolls fixture matrix summaries up by fixture class and repair bucket', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-class-rollups-'));
+  const shop = path.join(root, 'shop-catalog');
+  const docs = path.join(root, 'docs-blog');
+  mkdirSync(shop, { recursive: true });
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(path.join(shop, 'index.html'), '<h1>Shop</h1>');
+  writeFileSync(path.join(docs, 'index.html'), '<article>Docs</article>');
+  const matrix = createFixtureMatrix({ fixture_root: root, id: 'taxonomy-rollup-test' });
+
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'shop-catalog',
+        status: 'failed',
+        diagnostics: [
+          { kind: 'missing_asset', message: 'Missing image asset for product gallery' },
+          { kind: 'invalid_block_content', message: 'Unexpected or invalid content in product card' },
+        ],
+      },
+      {
+        fixture_id: 'docs-blog',
+        status: 'passed',
+      },
+    ],
+  });
+
+  assert.equal(result.fixtures.find((fixture) => fixture.fixture_id === 'shop-catalog').fixture_class, 'ecommerce/catalog');
+  assert.equal(result.findings[0].fixture_class, 'ecommerce/catalog');
+  assert.equal(result.summary.fixture_classes['ecommerce/catalog'], 1);
+  assert.equal(result.summary.classes['ecommerce/catalog'].failed, 1);
+  assert.equal(result.summary.classes['ecommerce/catalog'].repair_buckets.dropped_images, 1);
+  assert.equal(result.summary.classes['ecommerce/catalog'].repair_buckets.invalid_block_content, 1);
+  assert.equal(result.summary.quality_budgets['ecommerce/catalog'].findings_per_fixture, 2);
+  assert.deepEqual(result.summary.quality_budgets['docs/blog'].dominant_repair_buckets, []);
 });
 
 test('aggregates pattern families, fixture exemplars, and diagnostic blind spots', () => {
