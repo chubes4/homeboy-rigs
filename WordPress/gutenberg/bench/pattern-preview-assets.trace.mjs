@@ -2,10 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-
-const require = createRequire( import.meta.url );
-const { runWpCodeboxRecipe } = require( 'homeboy-extension-wordpress/wp-codebox-recipe-helper' );
+import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'gutenberg';

@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
-
-const require = createRequire(import.meta.url);
+import { loadWordPressHelperModule } from '../shared/wordpress-helper-loader.mjs';
 
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
@@ -24,23 +22,12 @@ export const wooRequiredFuzzProofContracts = new Map([
 ]);
 
 function loadGenericFuzzManifestValidator() {
-  const explicit = process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR;
-  if (explicit) {
-    return require(explicit);
-  }
-
-  const manifestPath = process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST;
-  if (manifestPath) {
-    const manifestModule = require(manifestPath);
-    const manifest = typeof manifestModule.getWordPressHelperManifest === 'function'
-      ? manifestModule.getWordPressHelperManifest()
-      : manifestModule.WORDPRESS_HELPER_MANIFEST;
-    if (manifest?.extensionRoot) {
-      return require(path.join(manifest.extensionRoot, 'lib', 'wordpress-fuzz-manifest-validator.js'));
-    }
-  }
-
-  return require('homeboy-extension-wordpress/wordpress-fuzz-manifest-validator');
+  return loadWordPressHelperModule({
+    helperName: 'wordpress-fuzz-manifest-validator',
+    envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
+    manifestFileName: 'wordpress-fuzz-manifest-validator.js',
+    packageImport: 'homeboy-extension-wordpress/wordpress-fuzz-manifest-validator',
+  });
 }
 
 export function readJson(root, ...parts) {
