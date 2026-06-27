@@ -11,7 +11,6 @@ import {
   assertFuzzProofBundleRequirements,
   assertFuzzReadinessLevel,
   assertGenericFuzzManifest,
-  assertRequiredFuzzProofContracts,
   collectFuzzManifests,
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
@@ -19,8 +18,8 @@ import {
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   readJson,
-  wooRequiredFuzzProofContracts,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import { assertWooRequiredFuzzProofContracts } from './fuzz-proof-contracts.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -299,7 +298,6 @@ for (const { file, manifest } of fuzzManifests) {
     assert.ok(proofBundle.run_ids.length > 0, `${manifest.id} proven readiness must link at least one run id`);
   }
 
-  const requiredContractIds = wooRequiredFuzzProofContracts.get(manifest.id) || [];
   if (requiredArtifactWorkloadIds.has(manifest.id) && fuzzManifestHasExecutableArtifactContract(manifest)) {
     for (const artifact of runnerCase.artifacts) {
       assert.equal(artifact.required, true, `${manifest.id} full-surface executable case artifact ${artifact.name} must be required`);
@@ -309,7 +307,7 @@ for (const { file, manifest } of fuzzManifests) {
     }
   }
 
-  assertRequiredFuzzProofContracts(manifest, { requiredContracts: requiredContractIds, runnerCase });
+  assertWooRequiredFuzzProofContracts(manifest, { runnerCase });
 
   if (manifest.id === 'admin-page-coverage') {
     assert.ok(manifest.operations.includes('safe-menu-enumeration-contract'), 'admin-page-coverage requires safe menu enumeration contract operation');

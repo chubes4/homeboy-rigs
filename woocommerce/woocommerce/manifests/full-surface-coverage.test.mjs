@@ -7,9 +7,11 @@ import {
   assertArtifactPostprocessWorkloadContract,
   assertCanonicalFuzzEnvelopeRef,
   assertFullSurfaceCoverageManifest,
-  assertRequiredFuzzProofContracts,
-  wooRequiredFuzzProofContracts,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import {
+  assertWooRequiredFuzzProofContracts,
+  wooRequiredFuzzProofContracts,
+} from '../tools/fuzz-proof-contracts.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -81,11 +83,11 @@ test('manifest workload metadata stays scoped to full-surface workload ids', () 
 });
 
 test('high-risk Woo fuzz manifests declare required proof contracts', () => {
-  for (const [workloadId, contractIds] of wooRequiredFuzzProofContracts) {
+  for (const workloadId of wooRequiredFuzzProofContracts.keys()) {
     const workloadPath = path.join(packageRoot, 'fuzz', `${workloadId}.json`);
     const workload = JSON.parse(readFileSync(workloadPath, 'utf8'));
 
-    assertRequiredFuzzProofContracts(workload, { requiredContracts: contractIds });
+    assertWooRequiredFuzzProofContracts(workload);
   }
 });
 
