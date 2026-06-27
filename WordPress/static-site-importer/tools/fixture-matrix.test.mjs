@@ -25,8 +25,11 @@ import {
   buildFixtureMatrixRecipe,
   classifyFixture,
   classifyStaticSiteFinding,
+  collectEditorValidationDiagnostics,
   collectFixtureMatrixRunResults,
   createFixtureMatrix,
+  editorBlockValidationStep,
+  EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
   normalizeFixtureMatrixResult,
   writeFixtureMatrixArtifacts,
 } from '../lib/fixture-matrix.mjs';
@@ -1003,4 +1006,164 @@ test('compares finding packet deltas by repair dimensions', () => {
   assert.deepEqual(summary.dimensions.fixture_id[0], { key: 'portfolio-site', base: 0, candidate: 2, delta: 2 });
   assert.equal(selectorFamily('script:nth-of-type(1)'), 'script');
   assert.equal(selectorFamily('#hero .cta'), 'id:hero');
+});
+
+test('recipe runs an editor-canvas-probe editor-validation step after each import', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-validation-recipe-test' });
+  const recipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+  });
+
+  // [activate, validate(simple-site), editor-validation(simple-site)]
+  assert.equal(recipe.workflow.steps[1].command, 'wordpress.wp-cli');
+  assert.match(recipe.workflow.steps[1].args[0], /static-site-importer validate-artifact/);
+  const editorStep = recipe.workflow.steps[2];
+  assert.equal(editorStep.command, 'wordpress.editor-canvas-probe');
+  assert.ok(editorStep.args.some((arg) => arg.startsWith('url=')));
+  const selectorGroupsArg = editorStep.args.find((arg) => arg.startsWith('selector-groups-json='));
+  const selectorGroups = JSON.parse(selectorGroupsArg.slice('selector-groups-json='.length));
+  assert.equal(selectorGroups[0].name, EDITOR_INVALID_BLOCK_SELECTOR_GROUP);
+  assert.ok(selectorGroups[0].selectors.includes('.block-editor-warning'));
+
+  const disabled = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+    editorValidation: false,
+  });
+  assert.equal(disabled.workflow.steps.some((step) => step.command === 'wordpress.editor-canvas-probe'), false);
+});
+
+test('editorBlockValidationStep composes the existing editor-canvas-probe command', () => {
+  const step = editorBlockValidationStep({ fixture: { id: 'shop', editor_url: '/wp-admin/post.php?post=42&action=edit' } });
+  assert.equal(step.command, 'wordpress.editor-canvas-probe');
+  assert.ok(step.args.includes('url=/wp-admin/post.php?post=42&action=edit'));
+});
+
+test('editor-canvas-probe invalid-block warnings become gating editor_block_invalid findings', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-canvas-invalid-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: collectEditorValidationDiagnostics({
+          summary: {
+            selectorSummary: {
+              groups: [
+                {
+                  name: 'editor_block_invalid',
+                  selector: '.block-editor-warning',
+                  count: 2,
+                  visible_count: 2,
+                  first_match: { text: 'This block contains unexpected or invalid content' },
+                },
+              ],
+            },
+          },
+        }),
+      },
+    ],
+  });
+
+  const finding = result.findings[0];
+  assert.equal(finding.kind, 'editor_block_invalid');
+  assert.equal(finding.group_key, 'editor_block_invalid');
+  assert.equal(finding.repair_bucket, 'editor_block_invalid');
+  assert.equal(finding.candidate_repo, 'blocks-engine');
+  assert.equal(finding.loss_class, 'editor_block_invalid');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(finding.selector, '.block-editor-warning');
+  assert.equal(result.summary.unacceptable_finding_count, 1);
+  assert.equal(result.summary.failed, 1);
+  assert.equal(result.summary.succeeded, 0);
+  assert.equal(result.fixtures[0].status, 'failed');
+});
+
+test('per-block editor validity (isValid=false) becomes an editor_block_invalid finding with block name and selector', () => {
+  const diagnostics = collectEditorValidationDiagnostics({
+    editor_validation: {
+      blocks: [
+        { name: 'core/paragraph', clientId: 'abc-1', isValid: true },
+        {
+          name: 'core/columns',
+          clientId: 'abc-2',
+          isValid: false,
+          issues: ['Block validation failed for "core/columns"'],
+        },
+      ],
+    },
+  });
+
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].kind, 'editor_block_invalid');
+  assert.equal(diagnostics[0].block_name, 'core/columns');
+  assert.equal(diagnostics[0].selector, '[data-block="abc-2"]');
+
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-block-validity-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [{ fixture_id: 'simple-site', status: 'failed', diagnostics }],
+  });
+  assert.equal(result.findings[0].observed_block_name, 'core/columns');
+  assert.equal(result.findings[0].loss_acceptance, 'unacceptable');
+  assert.equal(result.fixtures[0].status, 'failed');
+});
+
+test('valid editor blocks produce no editor_block_invalid findings', () => {
+  const noWarnings = collectEditorValidationDiagnostics({
+    summary: {
+      selectorSummary: {
+        groups: [{ name: 'editor_block_invalid', selector: '.block-editor-warning', count: 0, visible_count: 0 }],
+      },
+    },
+    editor_validation: {
+      blocks: [
+        { name: 'core/paragraph', clientId: 'ok-1', isValid: true },
+        { name: 'core/heading', clientId: 'ok-2', isValid: true },
+      ],
+    },
+  });
+  assert.deepEqual(noWarnings, []);
+
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-valid-negative-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [{ fixture_id: 'simple-site', status: 'passed', diagnostics: noWarnings }],
+  });
+  assert.equal(result.summary.unacceptable_finding_count, 0);
+  assert.equal(result.summary.succeeded, 1);
+  assert.equal(result.fixtures[0].status, 'passed');
+});
+
+test('editor_block_invalid findings collected from fixture artifacts gate the matrix', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-editor-validation-artifact-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-validation-artifact-test' });
+  const fixtureDirectory = path.join(outputDirectory, 'simple-site');
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(path.join(fixtureDirectory, 'editor-canvas-summary.json'), JSON.stringify({
+    schema: 'wp-codebox/editor-canvas-probe/v1',
+    summary: {
+      selectorSummary: {
+        groups: [
+          {
+            name: 'editor_block_invalid',
+            selector: '.block-editor-warning',
+            count: 1,
+            visible_count: 1,
+            first_match: { text: 'This block contains unexpected or invalid content' },
+          },
+        ],
+      },
+    },
+  }));
+
+  const result = collectFixtureMatrixRunResults({ matrix, outputDirectory });
+  const finding = result.findings.find((item) => item.kind === 'editor_block_invalid');
+  assert.ok(finding, 'expected an editor_block_invalid finding from the canvas-probe artifact');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(result.fixtures[0].status, 'failed');
 });
