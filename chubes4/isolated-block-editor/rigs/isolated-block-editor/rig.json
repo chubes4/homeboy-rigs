@@ -10,7 +10,7 @@
   "shared_paths": [
     {
       "link": "${components.isolated-block-editor.path}/node_modules",
-      "target": "${components.isolated-block-editor.path}/node_modules"
+      "target": "${env.HOMEBOY_RIG_SHARED_PATH_TARGET__ISOLATED_BLOCK_EDITOR__NODE_MODULES}"
     }
   ],
   "pipeline": {

@@ -153,6 +153,48 @@ test('accepts registry-backed components with portable path settings', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
+test('rejects shared paths where link and target are the same path', () => {
+  const directory = createRigPackage({
+    rig: {
+      shared_paths: [
+        {
+          link: '${components.product.path}/node_modules',
+          target: '${components.product.path}/node_modules',
+        },
+      ],
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /shared_paths\[0\] link and target must differ unless allow_self_target is true/);
+});
+
+test('accepts explicitly allowed shared path self-targets', () => {
+  const directory = createRigPackage({
+    rig: {
+      shared_paths: [
+        {
+          link: '${components.product.path}/cache',
+          target: '${components.product.path}/cache',
+          allow_self_target: true,
+        },
+      ],
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
 test('rejects committed local Developer checkout paths in stacks', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
