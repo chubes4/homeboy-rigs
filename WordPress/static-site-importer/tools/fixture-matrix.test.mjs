@@ -27,10 +27,13 @@ import {
   classifyStaticSiteFinding,
   collectEditorValidationDiagnostics,
   collectFixtureMatrixRunResults,
+  collectVisualParityDiagnostics,
   createFixtureMatrix,
   editorBlockValidationStep,
   EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
   normalizeFixtureMatrixResult,
+  VISUAL_PARITY_MISMATCH_KIND,
+  visualParityCompareStep,
   writeFixtureMatrixArtifacts,
 } from '../lib/fixture-matrix.mjs';
 import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs';
@@ -1166,4 +1169,148 @@ test('editor_block_invalid findings collected from fixture artifacts gate the ma
   assert.ok(finding, 'expected an editor_block_invalid finding from the canvas-probe artifact');
   assert.equal(finding.loss_acceptance, 'unacceptable');
   assert.equal(result.fixtures[0].status, 'failed');
+});
+
+test('recipe runs a wordpress.visual-compare visual-parity step after each import', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-recipe-test' });
+  const recipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+    pixelThreshold: 0.05,
+  });
+
+  // [activate, validate(simple-site), editor-validation(simple-site), visual-compare(simple-site)]
+  const visualStep = recipe.workflow.steps[3];
+  assert.equal(visualStep.command, 'wordpress.visual-compare');
+  assert.ok(visualStep.args.some((arg) => arg.startsWith('source-url=')));
+  assert.ok(visualStep.args.some((arg) => arg.startsWith('candidate-url=')));
+  assert.ok(visualStep.args.includes('threshold=0.05'));
+
+  const disabled = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+    visualParity: false,
+  });
+  assert.equal(disabled.workflow.steps.some((step) => step.command === 'wordpress.visual-compare'), false);
+});
+
+test('visualParityCompareStep composes the existing wordpress.visual-compare command with per-fixture overrides', () => {
+  const step = visualParityCompareStep({
+    fixture: { id: 'shop', source_url: 'http://127.0.0.1:4173/shop/index.html', candidate_url: '/?p=42' },
+    pixelThreshold: 0.2,
+  });
+  assert.equal(step.command, 'wordpress.visual-compare');
+  assert.ok(step.args.includes('source-url=http://127.0.0.1:4173/shop/index.html'));
+  assert.ok(step.args.includes('candidate-url=/?p=42'));
+  assert.ok(step.args.includes('threshold=0.2'));
+  assert.ok(step.args.includes('source-label=shop-source'));
+  assert.ok(step.args.includes('candidate-label=shop-candidate'));
+});
+
+test('(a) visual-compare mismatch at/under threshold produces no finding', () => {
+  const payload = {
+    schema: 'wp-codebox/visual-compare/v1',
+    comparison: { mismatchPixels: 1000, totalPixels: 2048000, dimensionMismatch: false },
+  };
+  // ratio ~0.0005, threshold 0.1 -> captured, no diagnostic.
+  assert.deepEqual(collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: true }), []);
+
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-under-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [{ fixture_id: 'simple-site', status: 'passed', diagnostics: collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: true }) }],
+  });
+  assert.equal(result.findings.some((finding) => finding.kind === VISUAL_PARITY_MISMATCH_KIND), false);
+  assert.equal(result.fixtures[0].status, 'passed');
+});
+
+test('(b) visual-compare mismatch over threshold with gate on becomes a gating unacceptable finding', () => {
+  const payload = {
+    schema: 'homeboy/VisualParityArtifact/v1',
+    summary: { mismatch_pixels: 600000, total_pixels: 2048000, dimension_mismatch: false },
+    artifacts: { source_screenshot: 'files/browser/visual-compare/source.png', candidate_screenshot: 'files/browser/visual-compare/candidate.png', diff_screenshot: 'files/browser/visual-compare/diff.png' },
+  };
+  const diagnostics = collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: true });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].kind, VISUAL_PARITY_MISMATCH_KIND);
+  assert.equal(diagnostics[0].gate, true);
+
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-gate-on-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [{ fixture_id: 'simple-site', status: 'passed', diagnostics }],
+  });
+  const finding = result.findings.find((item) => item.kind === VISUAL_PARITY_MISMATCH_KIND);
+  assert.ok(finding, 'expected a visual_parity_mismatch finding');
+  assert.equal(finding.group_key, 'visual_parity_mismatch');
+  assert.equal(finding.repair_bucket, 'visual_parity_mismatch');
+  assert.equal(finding.candidate_repo, 'blocks-engine');
+  assert.equal(finding.loss_class, 'visual_parity_mismatch');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(result.summary.unacceptable_finding_count, 1);
+  assert.equal(result.fixtures[0].status, 'failed');
+});
+
+test('(c) visual-compare mismatch over threshold with gate off is captured but non-gating', () => {
+  const payload = {
+    schema: 'homeboy/VisualParityArtifact/v1',
+    summary: { mismatch_pixels: 600000, total_pixels: 2048000, dimension_mismatch: false },
+  };
+  const diagnostics = collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: false });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].gate, undefined);
+
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-gate-off-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [{ fixture_id: 'simple-site', status: 'passed', diagnostics }],
+  });
+  const finding = result.findings.find((item) => item.kind === VISUAL_PARITY_MISMATCH_KIND);
+  assert.ok(finding, 'expected a captured visual_parity_mismatch finding');
+  assert.equal(finding.loss_acceptance, 'acceptable');
+  assert.equal(result.summary.unacceptable_finding_count, 0);
+  assert.equal(result.fixtures[0].status, 'passed');
+});
+
+test('visual-compare artifacts collected from fixture files gate the matrix when gating is opted in', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-visual-parity-artifact-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-artifact-test' });
+  const fixtureDirectory = path.join(outputDirectory, 'simple-site');
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(path.join(fixtureDirectory, 'visual-diff.json'), JSON.stringify({
+    schema: 'wp-codebox/visual-compare/v1',
+    comparison: { mismatchPixels: 700000, totalPixels: 2048000, dimensionMismatch: false },
+    files: {
+      sourceScreenshot: 'files/browser/visual-compare/source.png',
+      candidateScreenshot: 'files/browser/visual-compare/candidate.png',
+      diffScreenshot: 'files/browser/visual-compare/diff.png',
+      visualDiff: 'files/browser/visual-compare/visual-diff.json',
+    },
+  }));
+
+  const gated = collectFixtureMatrixRunResults({ matrix, outputDirectory, visualParity: { threshold: 0.1, gate: true } });
+  const finding = gated.findings.find((item) => item.kind === VISUAL_PARITY_MISMATCH_KIND);
+  assert.ok(finding, 'expected a visual_parity_mismatch finding from the visual-compare artifact');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(gated.fixtures[0].status, 'failed');
+  // The visual_parity_artifacts slot captures screenshots + diff + metrics.
+  assert.equal(gated.fixtures[0].visual_parity_artifacts.schema, 'static-site-importer/visual-parity-artifacts/v1');
+  assert.equal(gated.fixtures[0].visual_parity_artifacts.artifacts.diff_screenshot.status, 'captured');
+  assert.equal(gated.fixtures[0].visual_parity_artifacts.metrics.mismatch_pixels, 700000);
+
+  // Same artifact, gate off (default) -> captured, non-gating.
+  const captured = collectFixtureMatrixRunResults({ matrix, outputDirectory });
+  const capturedFinding = captured.findings.find((item) => item.kind === VISUAL_PARITY_MISMATCH_KIND);
+  assert.ok(capturedFinding, 'expected the mismatch to still be captured');
+  assert.equal(capturedFinding.loss_acceptance, 'acceptable');
+  assert.equal(captured.fixtures[0].status, 'passed');
+});
+
+test('visual-compare dimension mismatch gates even with zero pixel metrics when gating is on', () => {
+  const payload = { comparison: { mismatchPixels: 0, totalPixels: 0, dimensionMismatch: true } };
+  const diagnostics = collectVisualParityDiagnostics(payload, { gate: true });
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].dimension_mismatch, true);
 });

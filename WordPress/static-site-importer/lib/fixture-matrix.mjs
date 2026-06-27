@@ -27,6 +27,25 @@ export const EDITOR_INVALID_BLOCK_SELECTORS = [
 const DEFAULT_EDITOR_VALIDATION_URL = '/wp-admin/post-new.php';
 const EDITOR_BLOCK_INVALID_DEFAULT_DETAIL = 'This block contains unexpected or invalid content';
 
+// Pixel visual-parity wiring. After import, the same WP Codebox sandbox renders
+// the fixture's original static source vs the imported WordPress output via the
+// existing `wordpress.visual-compare` recipe command (the same command the
+// reusable `runVisualParityWorkload` helper composes in homeboy-extensions). The
+// command emits `source.png`/`candidate.png`/`diff.png` plus
+// `mismatch_pixels`/`total_pixels`, which `collectVisualParityDiagnostics` reads
+// back out. No new wp-codebox capability is introduced. Capture is on by
+// default; gating on mismatch-over-threshold is opt-in (pixel diffs can be
+// flaky) and is expressed as the conditional `visual_parity_mismatch` loss class.
+export const VISUAL_PARITY_MISMATCH_KIND = 'visual_parity_mismatch';
+const DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD = 0.1;
+const DEFAULT_VISUAL_PARITY_CANDIDATE_URL = '/';
+const DEFAULT_VISUAL_PARITY_SOURCE_BASE_URL = '/wp-content/uploads/static-site-importer-fixture-matrix';
+const DEFAULT_VISUAL_PARITY_VIEWPORT = { width: 1280, height: 1600 };
+const DEFAULT_VISUAL_PARITY_WAIT_FOR = 'domcontentloaded';
+// A finding only gates when it carries an explicit opt-in gate signal; absent
+// that, a mismatch is captured but non-gating (capture-only default).
+const VISUAL_PARITY_GATE_SIGNAL_KEYS = ['gate', 'visual_parity_gate', 'visualParityGate'];
+
 const DEFAULT_FINDING_GROUPS = {
   // Editor-side block invalidity routes to the Blocks Engine feature/visual
   // parity bucket and must gate. Listed first so the `editor_block_invalid`
@@ -36,6 +55,14 @@ const DEFAULT_FINDING_GROUPS = {
     patterns: [/editor_block_invalid/i, /editor block validation/i, /block-editor-warning/i, /this block contains unexpected or invalid content/i],
     candidate_repo: 'blocks-engine',
     repair_mode: 'editor-block-validation-parity',
+  },
+  // Pixel visual-parity mismatches route to a dedicated visual-parity repair
+  // bucket. Listed early so the `visual_parity_mismatch` kind classifies here
+  // rather than falling into a generic group.
+  visual_parity_mismatch: {
+    patterns: [/visual_parity_mismatch/i, /visual parity/i, /pixel (?:diff|mismatch|parity)/i],
+    candidate_repo: 'blocks-engine',
+    repair_mode: 'visual-parity',
   },
   button_style_loss: {
     patterns: [/default gray button/i, /button.*gray/i, /button.*style/i],
@@ -68,6 +95,10 @@ const ACCEPTABLE_LOSS_CLASSES = new Set([
   'native_conversion',
   'editable_approximation',
   'preserved_runtime_island',
+  // Visual-parity mismatches are capture-only (acceptable) by default; they only
+  // become unacceptable when an explicit gate signal is present. See
+  // `resolveLossAcceptance`. This mirrors the conditional `preserved_runtime_island`.
+  'visual_parity_mismatch',
 ]);
 
 const UNACCEPTABLE_LOSS_CLASSES = new Set([
@@ -223,6 +254,8 @@ export function buildFixtureMatrixRecipe(input = {}) {
   const extraPlugins = [importer.extraPlugin, ...normalizeArray(input.extraPlugins || input.extra_plugins)];
   const editorValidationEnabled = input.editorValidation !== false && input.editor_validation !== false;
   const editorValidationUrl = input.editorValidationUrl || input.editor_validation_url || DEFAULT_EDITOR_VALIDATION_URL;
+  const visualParityEnabled = input.visualParity !== false && input.visual_parity !== false;
+  const visualParityRecipeOptions = normalizeVisualParityRecipeOptions(input);
 
   if (playgroundArtifactsDirectory) {
     mounts.push({
@@ -253,6 +286,7 @@ export function buildFixtureMatrixRecipe(input = {}) {
             ],
           },
           ...(editorValidationEnabled ? [editorBlockValidationStep({ fixture, url: editorValidationUrl })] : []),
+          ...(visualParityEnabled ? [visualParityCompareStep({ fixture, ...visualParityRecipeOptions })] : []),
         ]),
       ],
     },
@@ -279,6 +313,61 @@ export function editorBlockValidationStep(input = {}) {
       `url=${url}`,
       `selector-groups-json=${JSON.stringify(selectorGroups)}`,
     ],
+  };
+}
+
+// Compose the existing `wordpress.visual-compare` recipe command into a
+// per-fixture visual-parity step. This is the same command the reusable
+// `runVisualParityWorkload` helper composes in homeboy-extensions; the matrix
+// emits it inline alongside the import/editor steps rather than spinning up a
+// separate sandbox. It renders the fixture's static source vs the imported
+// WordPress candidate and writes `source.png`/`candidate.png`/`diff.png` plus
+// the `mismatch_pixels`/`total_pixels` comparison that
+// `collectVisualParityDiagnostics` reads back out. Source/candidate URLs are
+// generic and configurable (with per-fixture overrides) — the exact servable
+// source URL is the remaining live-run wiring, mirroring how the #537 editor
+// step uses a configurable URL rather than resolving each imported post.
+export function visualParityCompareStep(input = {}) {
+  const fixture = input.fixture || {};
+  const options = normalizeVisualParityRecipeOptions(input);
+  const sourceUrl = input.sourceUrl
+    || input.source_url
+    || fixture.source_url
+    || fixture.sourceUrl
+    || `${options.sourceBaseUrl.replace(/\/+$/, '')}/${fixture.id || 'fixture'}/${String(options.sourceEntry).replace(/^\/+/, '')}`;
+  const candidateUrl = input.candidateUrl
+    || input.candidate_url
+    || fixture.candidate_url
+    || fixture.candidateUrl
+    || options.candidateUrl;
+  return {
+    command: 'wordpress.visual-compare',
+    args: [
+      `source-url=${sourceUrl}`,
+      `candidate-url=${candidateUrl}`,
+      `source-label=${fixture.id ? `${fixture.id}-source` : 'source'}`,
+      `candidate-label=${fixture.id ? `${fixture.id}-candidate` : 'candidate'}`,
+      `viewport=${options.viewport.width}x${options.viewport.height}`,
+      `full-page=${options.fullPage ? 'true' : 'false'}`,
+      `wait-for=${options.waitFor}`,
+      `threshold=${options.pixelThreshold}`,
+    ],
+  };
+}
+
+function normalizeVisualParityRecipeOptions(input = {}) {
+  const viewport = objectValue(input.visualParityViewport || input.visual_parity_viewport || input.viewport);
+  return {
+    pixelThreshold: finiteNumber(input.pixelThreshold ?? input.pixel_threshold ?? input.visualParityPixelThreshold ?? input.visual_parity_pixel_threshold, DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD),
+    candidateUrl: input.visualParityCandidateUrl || input.visual_parity_candidate_url || input.candidateUrl || DEFAULT_VISUAL_PARITY_CANDIDATE_URL,
+    sourceBaseUrl: input.visualParitySourceBaseUrl || input.visual_parity_source_base_url || input.sourceBaseUrl || DEFAULT_VISUAL_PARITY_SOURCE_BASE_URL,
+    sourceEntry: input.visualParitySourceEntry || input.visual_parity_source_entry || input.sourceEntry || 'index.html',
+    viewport: {
+      width: finiteNumber(viewport.width, DEFAULT_VISUAL_PARITY_VIEWPORT.width),
+      height: finiteNumber(viewport.height, DEFAULT_VISUAL_PARITY_VIEWPORT.height),
+    },
+    fullPage: input.visualParityFullPage !== false && input.visual_parity_full_page !== false && input.fullPage !== false,
+    waitFor: input.visualParityWaitFor || input.visual_parity_wait_for || input.waitFor || DEFAULT_VISUAL_PARITY_WAIT_FOR,
   };
 }
 
@@ -395,13 +484,14 @@ export function collectFixtureMatrixRunResults(input = {}) {
   const codeboxOutput = input.codeboxOutput || input.codebox_output || readJsonFileIfExists(input.outputFile || input.output_file) || null;
   const codeboxError = input.codeboxError || input.codebox_error || null;
   const runtimePayloads = collectRuntimePayloads(codeboxOutput);
+  const visualParity = normalizeVisualParityGateOptions(input.visualParity || input.visual_parity || input);
   const results = matrix.fixtures.map((fixture) => {
     const fixtureArtifactsDirectory = path.join(outputDirectory, fixture.id);
     const payloads = [
       ...runtimePayloads.filter((payload) => fixtureIdentity(payload) === fixture.id),
       ...readFixturePayloadFiles(fixtureArtifactsDirectory),
     ];
-    return normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError });
+    return normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError, visualParity });
   });
 
   return normalizeFixtureMatrixResult({ matrix, results });
@@ -648,6 +738,9 @@ function classifyLossClass({ raw, kind, group_key, repair_bucket, message, resul
   if (kind === 'fixture_failed' || group_key === 'fixture_failed') {
     return 'fixture_failed';
   }
+  if (group_key === 'visual_parity_mismatch' || kind === VISUAL_PARITY_MISMATCH_KIND || /visual parity mismatch|pixel (?:diff|mismatch)/i.test(haystack)) {
+    return 'visual_parity_mismatch';
+  }
   if (group_key === 'editor_block_invalid' || kind === EDITOR_BLOCK_INVALID_KIND || /editor block validation|block-editor-warning|this block contains unexpected or invalid content/i.test(haystack)) {
     return 'editor_block_invalid';
   }
@@ -676,7 +769,19 @@ function resolveLossAcceptance(lossClass, raw) {
     // explicit positive signal, the behavior is dead and the gate must fail.
     return hasRuntimeCarriedSignal(raw) ? 'acceptable' : 'unacceptable';
   }
+  if (lossClass === 'visual_parity_mismatch') {
+    // Opt-in gate: a pixel mismatch is captured but non-gating by default
+    // (capture-only). It only becomes an unacceptable, gating finding when the
+    // run explicitly opted into gating (the parser stamps a gate signal).
+    return hasVisualParityGateSignal(raw) ? 'unacceptable' : 'acceptable';
+  }
   return ACCEPTABLE_LOSS_CLASSES.has(lossClass) ? 'acceptable' : 'unacceptable';
+}
+
+function hasVisualParityGateSignal(raw) {
+  const rawObject = objectValue(raw);
+  const classification = objectValue(rawObject.classification);
+  return VISUAL_PARITY_GATE_SIGNAL_KEYS.some((key) => isTruthySignal(rawObject[key]) || isTruthySignal(classification[key]));
 }
 
 function hasRuntimeCarriedSignal(raw) {
@@ -769,13 +874,14 @@ function normalizeFixtureResult(input) {
     diagnostics: normalizeArray(input.diagnostics || input.findings || input.messages),
     artifact_refs: normalizeArray(input.artifact_refs || input.artifactRefs),
     artifacts: input.artifacts || {},
+    visual_parity_artifacts: input.visual_parity_artifacts || input.visualParityArtifacts || null,
     raw: input,
   };
 }
 
-function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError }) {
+function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError, visualParity }) {
   const merged = mergeObjects(payloads);
-  const diagnostics = collectFixtureDiagnostics(merged);
+  const diagnostics = collectFixtureDiagnostics(merged, { visualParity });
   const error = firstString([
     merged.error,
     merged.message && isFailurePayload(merged) ? merged.message : '',
@@ -798,11 +904,12 @@ function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDi
     diagnostics,
     artifact_refs: collectFixtureArtifactRefs(merged, fixtureArtifactsDirectory),
     artifacts: merged.artifacts || {},
+    visual_parity_artifacts: collectVisualParityArtifacts(merged),
     raw: { payloads },
   });
 }
 
-function collectFixtureDiagnostics(payload) {
+function collectFixtureDiagnostics(payload, options = {}) {
   const diagnostics = [
     ...normalizeArray(payload.diagnostics),
     ...normalizeArray(payload.fixture_diagnostics?.diagnostics || payload.fixtureDiagnostics?.diagnostics),
@@ -816,6 +923,7 @@ function collectFixtureDiagnostics(payload) {
     ...collectRuntimeTargetGaps(payload).map((gap) => ({ kind: 'runtime_target_gap', ...objectValue(gap), message: diagnosticMessage(gap) || 'Runtime target gap detected.' })),
     ...collectMissingAssets(payload).map((asset) => ({ kind: missingAssetKind(asset), ...objectValue(asset), message: diagnosticMessage(asset) || 'Missing imported asset.' })),
     ...collectEditorValidationDiagnostics(payload),
+    ...collectVisualParityDiagnostics(payload, options.visualParity),
   ];
   const invalidBlockCount = Object.values(collectInvalidBlockCounts(payload)).reduce((sum, value) => sum + numberValue(value), 0);
   if (invalidBlockCount > 0) {
@@ -1043,7 +1151,7 @@ function hasPayloadData(value) {
 }
 
 function readFixturePayloadFiles(directory) {
-  return ['validation-result.json', 'result.json', 'import-report.json', 'quality.json', 'blocks-engine-diagnostics.json', 'editor-validation.json', 'editor-canvas-summary.json']
+  return ['validation-result.json', 'result.json', 'import-report.json', 'quality.json', 'blocks-engine-diagnostics.json', 'editor-validation.json', 'editor-canvas-summary.json', 'visual-compare.json', 'visual-diff.json', 'visual-parity.json']
     .map((fileName) => readJsonFileIfExists(path.join(directory, fileName)))
     .filter(Boolean);
 }
@@ -1258,6 +1366,157 @@ function isEditorInvalidBlockGroup(group) {
     return true;
   }
   return /block-editor-warning|is-invalid/.test(String(group.selector || ''));
+}
+
+// Turn `wordpress.visual-compare` evidence into `visual_parity_mismatch`
+// diagnostics. A comparison whose mismatch ratio (mismatch_pixels/total_pixels)
+// exceeds the threshold — or that reports a dimension mismatch — emits a
+// diagnostic. When the run opted into gating, the diagnostic carries a `gate`
+// signal so it resolves to the unacceptable `visual_parity_mismatch` loss class
+// and fails the fixture; otherwise it is captured but non-gating (capture-only
+// default, since pixel diffs can be flaky). Matches at or under the threshold
+// emit nothing.
+export function collectVisualParityDiagnostics(payload, options = {}) {
+  const { threshold, gate } = normalizeVisualParityGateOptions(options);
+  const diagnostics = [];
+  for (const comparison of collectVisualParityComparisons(payload)) {
+    if (comparison.mismatch_ratio <= threshold && !comparison.dimension_mismatch) {
+      continue;
+    }
+    const percent = (comparison.mismatch_ratio * 100).toFixed(2);
+    const thresholdPercent = (threshold * 100).toFixed(2);
+    diagnostics.push({
+      kind: VISUAL_PARITY_MISMATCH_KIND,
+      ...(gate ? { gate: true, visual_parity_gate: true } : {}),
+      source_path: comparison.source_path || '',
+      observed_output: `${percent}% pixels differ (${comparison.mismatch_pixels}/${comparison.total_pixels})`,
+      mismatch_pixels: comparison.mismatch_pixels,
+      total_pixels: comparison.total_pixels,
+      mismatch_ratio: comparison.mismatch_ratio,
+      threshold,
+      dimension_mismatch: comparison.dimension_mismatch,
+      artifact_refs: visualParityArtifactRefs(comparison),
+      message: comparison.dimension_mismatch
+        ? `Visual parity dimension mismatch between source and imported output (${comparison.mismatch_pixels}/${comparison.total_pixels} pixels, ${percent}%).`
+        : `Pixel visual parity mismatch: ${comparison.mismatch_pixels}/${comparison.total_pixels} pixels (${percent}%) exceed the ${thresholdPercent}% threshold.`,
+    });
+  }
+  return diagnostics;
+}
+
+export function normalizeVisualParityGateOptions(options = {}) {
+  const source = objectValue(options);
+  return {
+    threshold: clampRatio(finiteNumber(source.threshold ?? source.pixelThreshold ?? source.pixel_threshold ?? source.visualParityPixelThreshold ?? source.visual_parity_pixel_threshold, DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD)),
+    gate: isTruthySignal(source.gate ?? source.visualParityGate ?? source.visual_parity_gate),
+  };
+}
+
+function clampRatio(value) {
+  if (!Number.isFinite(value) || value < 0) {
+    return DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD;
+  }
+  return value > 1 ? 1 : value;
+}
+
+// Collect candidate visual-compare records from either the normalized
+// `homeboy/VisualParityArtifact/v1` artifact (summary.*), the raw
+// `wp-codebox/visual-compare/v1` diff (comparison.*), or loosely-shaped payloads.
+function collectVisualParityComparisons(payload) {
+  const candidates = [
+    ...normalizeArray(payload.visual_parity || payload.visualParity),
+    ...normalizeArray(payload.visual_parity_artifacts || payload.visualParityArtifacts),
+    ...normalizeArray(payload.visual_compare || payload.visualCompare),
+    ...normalizeArray(payload.visual_diff || payload.visualDiff),
+    ...normalizeArray(payload.visual_parity?.comparisons || payload.visualParity?.comparisons),
+  ];
+  if (isVisualParityPayload(payload)) {
+    candidates.push(payload);
+  }
+  return candidates.map(normalizeVisualParityComparison).filter(Boolean);
+}
+
+function isVisualParityPayload(payload) {
+  const value = objectValue(payload);
+  if (typeof value.schema === 'string' && /visual.?compare|visualparityartifact/i.test(value.schema)) {
+    return true;
+  }
+  return Boolean(value.comparison && typeof value.comparison === 'object')
+    || (objectValue(value.summary).mismatch_pixels !== undefined)
+    || (objectValue(value.summary).total_pixels !== undefined);
+}
+
+function normalizeVisualParityComparison(value) {
+  const obj = objectValue(value);
+  const summary = objectValue(obj.summary);
+  const comparison = objectValue(obj.comparison);
+  const mismatchPixels = firstNumber([summary.mismatch_pixels, summary.mismatchPixels, comparison.mismatchPixels, comparison.mismatch_pixels, obj.mismatch_pixels, obj.mismatchPixels]);
+  const totalPixels = firstNumber([summary.total_pixels, summary.totalPixels, comparison.totalPixels, comparison.total_pixels, obj.total_pixels, obj.totalPixels]);
+  const explicitRatio = firstNumber([summary.mismatch_ratio, summary.mismatchRatio, comparison.mismatchRatio, comparison.mismatch_ratio, obj.mismatch_ratio, obj.mismatchRatio]);
+  const dimensionMismatch = Boolean(summary.dimension_mismatch ?? comparison.dimensionMismatch ?? comparison.dimension_mismatch ?? obj.dimension_mismatch);
+  const hasMetrics = [mismatchPixels, totalPixels, explicitRatio].some((metric) => Number.isFinite(metric));
+  if (!hasMetrics && !dimensionMismatch) {
+    return null;
+  }
+  const safeMismatch = Number.isFinite(mismatchPixels) ? mismatchPixels : 0;
+  const safeTotal = Number.isFinite(totalPixels) ? totalPixels : 0;
+  const ratio = safeTotal > 0 ? safeMismatch / safeTotal : (Number.isFinite(explicitRatio) ? explicitRatio : 0);
+  const files = objectValue(obj.files);
+  const artifacts = objectValue(obj.artifacts);
+  const sourceObject = objectValue(obj.source);
+  return {
+    mismatch_pixels: safeMismatch,
+    total_pixels: safeTotal,
+    mismatch_ratio: ratio,
+    dimension_mismatch: dimensionMismatch,
+    source_path: firstString([sourceObject.path, sourceObject.url, obj.source_path, obj.sourcePath]),
+    source_screenshot: firstString([artifacts.source_screenshot, files.sourceScreenshot, obj.source_screenshot, obj.sourceScreenshot]),
+    candidate_screenshot: firstString([artifacts.candidate_screenshot, artifacts.imported_screenshot, files.candidateScreenshot, obj.candidate_screenshot, obj.candidateScreenshot]),
+    diff_screenshot: firstString([artifacts.diff_screenshot, files.diffScreenshot, obj.diff_screenshot, obj.diffScreenshot]),
+    visual_diff: firstString([artifacts.visual_diff, files.visualDiff, obj.visual_diff, obj.visualDiff]),
+  };
+}
+
+function visualParityArtifactRefs(comparison) {
+  return [
+    ['source_screenshot', comparison.source_screenshot],
+    ['candidate_screenshot', comparison.candidate_screenshot],
+    ['diff_screenshot', comparison.diff_screenshot],
+    ['visual_diff', comparison.visual_diff],
+  ]
+    .filter(([, ref]) => Boolean(ref))
+    .map(([id, ref]) => artifactRef(id, ref, 'visual-parity'));
+}
+
+// Capture visual-compare evidence into the SSI `visual_parity_artifacts` slot
+// shape so screenshots, the diff, and the mismatch metrics surface on the
+// fixture result even when gating is off. Returns null when no visual data was
+// produced (the runtime did not render).
+function collectVisualParityArtifacts(payload) {
+  const comparisons = collectVisualParityComparisons(payload);
+  if (comparisons.length === 0) {
+    return null;
+  }
+  const comparison = comparisons[0];
+  const slot = (ref, kind, reason) => (ref
+    ? { status: 'captured', kind, ref: artifactRef(kind, ref, 'visual-parity') }
+    : { status: 'pending', kind, capture_state: 'not_captured', reason });
+  return {
+    schema: 'static-site-importer/visual-parity-artifacts/v1',
+    owner: 'codebox_runtime',
+    metrics: compactObject({
+      mismatch_pixels: comparison.mismatch_pixels,
+      total_pixels: comparison.total_pixels,
+      mismatch_ratio: comparison.mismatch_ratio,
+      dimension_mismatch: comparison.dimension_mismatch,
+    }),
+    artifacts: {
+      source_screenshot: slot(comparison.source_screenshot, 'source_screenshot', 'Source screenshot was not captured by the runtime.'),
+      imported_screenshot: slot(comparison.candidate_screenshot, 'imported_screenshot', 'Imported WordPress screenshot was not captured by the runtime.'),
+      diff_screenshot: slot(comparison.diff_screenshot, 'diff_screenshot', 'Diff screenshot was not captured by the runtime.'),
+      visual_diff: slot(comparison.visual_diff, 'visual_diff', 'Visual diff output was not captured by the runtime.'),
+    },
+  };
 }
 
 function groupFindings(findings) {
@@ -1500,6 +1759,19 @@ function numberValue(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function firstNumber(values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    const number = Number(value);
+    if (Number.isFinite(number)) {
+      return number;
+    }
+  }
+  return NaN;
+}
+
 function firstString(values) {
   return values.map((value) => String(value || '').trim()).find(Boolean) || '';
 }
@@ -1560,6 +1832,9 @@ function normalizeLossClass(value) {
     invalid_block_content: 'invalid_block_content',
     editor_block_invalid: 'editor_block_invalid',
     editor_invalid_block: 'editor_block_invalid',
+    visual_parity_mismatch: 'visual_parity_mismatch',
+    visual_parity: 'visual_parity_mismatch',
+    pixel_mismatch: 'visual_parity_mismatch',
     missing_asset: 'missing_asset',
     missing_assets: 'missing_asset',
     missing_output: 'missing_output',
