@@ -181,6 +181,8 @@ export async function runFixtureMatrix(options) {
     collectedResult = normalizeFixtureMatrixResult({
       matrix,
       results: batchResults.flatMap((result) => result.fixtures),
+      // Editor-quality scoring is always on; the native-rate gate is opt-in.
+      editorQuality: editorQualityGateInput(options),
     });
     runtime = {
       exitCode: runtimeError ? (batchRuns.find((batch) => batch.exit_code)?.exit_code || 1) : 0,
@@ -480,6 +482,7 @@ function optionsFromEnv(env = process.env) {
     pixelThreshold: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD,
     visualParityCandidateUrl: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_CANDIDATE_URL || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_CANDIDATE_URL,
     visualParitySourceBaseUrl: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_SOURCE_BASE_URL || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_SOURCE_BASE_URL,
+    minNativeRate: benchEnv.SSI_FIXTURE_MATRIX_MIN_NATIVE_RATE || env.SSI_FIXTURE_MATRIX_MIN_NATIVE_RATE,
   };
 }
 
@@ -498,6 +501,14 @@ function visualParityGateInput(options) {
   return {
     threshold: options.pixelThreshold,
     gate: options.visualParityGate === true,
+  };
+}
+
+// Editor-quality gate options for the result collector. Scoring always runs;
+// `minNativeRate` defaults to absent (off) so gating is opt-in.
+function editorQualityGateInput(options) {
+  return {
+    minNativeRate: options.minNativeRate,
   };
 }
 

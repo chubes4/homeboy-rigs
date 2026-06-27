@@ -211,6 +211,43 @@ is the remaining live-run enablement; the step uses generic, configurable
 source/candidate URLs with per-fixture overrides today, mirroring how the editor
 step uses a configurable URL rather than resolving each imported post.
 
+## Editor-Quality Metrics
+
+Beyond flagging editor-invalid blocks and losses, the matrix scores how *native
+and editable* each import is. `collectBlockComposition` surfaces the transformer's
+generic block-composition breakdown — the per-block-type counts / `detectBlockTypes`
+output already carried on the import artifact (including the copy SSI preserves at
+`import_report.blocks_engine.conversion_report.block_type_counts`) — and from that
+computes, per fixture and as a corpus aggregate:
+
+- `native_conversion_rate` = native core/Automattic blocks ÷ total blocks
+- `core_html_fallback_ratio` = `core/html` blocks ÷ total blocks
+- `editor_invalid_count` = reuse of the `editor_block_invalid` findings (above)
+
+A block is **native** when it lives in a core or known Automattic namespace
+(`core/*`, `jetpack/*`, `woocommerce/*`, `automattic/*`, `a8c/*`) and is not one
+of the non-native fallback wrappers (`core/html`, `core/freeform`). This namespace
+list is the *only* basis — there is **no per-fixture knowledge**, no hardcoded
+fixture ids or classes. When no per-block-type breakdown is present but SSI's
+quality report carries a total block count plus fallback counts, the composition
+is derived from those counts (native ≈ non-fallback remainder); when neither is
+available the fixture is left unscored rather than fabricating numbers.
+
+The per-fixture score lands on each fixture result as `editor_quality`, rolls up
+into `summary.editor_quality` (aggregate rates recomputed from summed totals, not
+an average of per-fixture rates), and into each `summary.classes[*].editor_quality`
+/ `summary.quality_budgets[*].editor_quality` class rollup.
+
+Scoring is always on and non-gating. An **opt-in** native-conversion gate (off by
+default, mirroring `--visual-parity-gate`) flips low-native fixtures to failing:
+pass `--min-native-rate <ratio>` (run wrapper) / `SSI_FIXTURE_MATRIX_MIN_NATIVE_RATE`
+(accepts a `0–1` ratio or a percentage like `80`). Each scored fixture below the
+threshold earns an unacceptable `low_native_conversion` finding
+(`native_conversion_rate_below_min`, routed to `candidate_repo: blocks-engine`,
+`repair_mode: native-conversion-parity`) so it fails the same honest gate as other
+unacceptable losses. Default runs never emit it, so existing matrix behavior is
+unchanged.
+
 ## Generated Artifact Intake Contract
 
 `--artifact-root` accepts any directory containing one or more generated static
