@@ -76,7 +76,7 @@
       "manifest": "manifests/db-api-hotspot-artifact-io.json",
       "owner_profile": "db-api-performance-fuzzer",
       "readiness": {
-        "level": "declared",
+        "level": "executable",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -86,8 +86,7 @@
           "required_artifacts": [
             "performance_hotspots_summary"
           ]
-        },
-        "upstream_blocker": "Homeboy/Homeboy Extensions must bind artifact-postprocess helper/action/input/output/parameters before this IO contract becomes executable."
+        }
       },
       "postprocess_command": "homeboy.artifact-postprocess"
     }

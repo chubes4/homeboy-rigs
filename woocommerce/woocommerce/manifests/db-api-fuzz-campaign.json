@@ -50,10 +50,8 @@
   ],
   "postprocess": {
     "command": "homeboy.artifact-postprocess",
-    "runner_support_status": "requires-upstream-binding",
+    "runner_support_status": "supported",
     "blocked_until": [
-      "WP Codebox/Homeboy Extensions binds args.helper, args.action, args.input, args.output, and args.parameters for homeboy.artifact-postprocess steps.",
-      "The runner passes an artifact root for prior workload outputs.",
       "The runner collects declared fuzz.report JSON artifacts as reviewer-facing evidence."
     ],
     "artifact_roots": [
@@ -130,7 +128,7 @@
   },
   "operator_commands": {
     "offload_required": true,
-    "status": "planned_until_artifact_postprocess_binding",
+    "status": "executable_pending_offloaded_artifacts",
     "note": "Run these through an approved Homeboy Lab/runner/offloaded environment. Do not use local benchmark execution as proof for this campaign.",
     "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads execute the generic homeboy.artifact-postprocess step against the offloaded ${artifacts.root}; their helper/action/input/output/parameters contracts are declared in postprocess.outputs and must be collected as reviewer-facing artifacts before proven readiness.",
     "commands": [

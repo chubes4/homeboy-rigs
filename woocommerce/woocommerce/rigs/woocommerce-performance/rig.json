@@ -193,7 +193,7 @@
       },
       "readiness": {
         "level": "declared",
-        "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios and future artifact-postprocess outputs stay non-executable until upstream runner support emits reviewer-facing artifacts."
+        "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios remain non-executable until upstream runner support emits reviewer-facing artifacts. Artifact-postprocess outputs can execute through the generic Homeboy contract but require reviewer-facing artifacts before proven readiness."
       }
     },
     "db-api-performance-fuzzer": {
