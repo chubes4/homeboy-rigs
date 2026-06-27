@@ -1171,6 +1171,95 @@ test('editor_block_invalid findings collected from fixture artifacts gate the ma
   assert.equal(result.fixtures[0].status, 'failed');
 });
 
+test('scores editor-quality metrics from generic block composition and rolls them up', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-editor-quality-'));
+  const marketing = path.join(root, 'marketing-static');
+  const docs = path.join(root, 'docs-blog');
+  mkdirSync(marketing, { recursive: true });
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(path.join(marketing, 'index.html'), '<h1>Landing</h1>');
+  writeFileSync(path.join(docs, 'index.html'), '<article>Docs</article>');
+  const matrix = createFixtureMatrix({ fixture_root: root, id: 'editor-quality-test' });
+
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'marketing-static',
+        status: 'passed',
+        // 8 native (core/* + jetpack/* + woocommerce/*), 2 core/html => 0.8 / 0.2.
+        block_type_counts: {
+          'core/paragraph': 4,
+          'core/heading': 2,
+          'jetpack/contact-form': 1,
+          'woocommerce/product': 1,
+          'core/html': 2,
+        },
+      },
+      {
+        fixture_id: 'docs-blog',
+        status: 'passed',
+        // 6 native, 4 core/html => 0.6 / 0.4.
+        block_type_counts: {
+          'core/paragraph': 6,
+          'core/html': 4,
+        },
+      },
+    ],
+  });
+
+  const marketingFixture = result.fixtures.find((fixture) => fixture.fixture_id === 'marketing-static');
+  assert.equal(marketingFixture.editor_quality.block_total, 10);
+  assert.equal(marketingFixture.editor_quality.native_block_count, 8);
+  assert.equal(marketingFixture.editor_quality.core_html_block_count, 2);
+  assert.equal(marketingFixture.editor_quality.native_conversion_rate, 0.8);
+  assert.equal(marketingFixture.editor_quality.core_html_fallback_ratio, 0.2);
+  assert.equal(marketingFixture.editor_quality.source, 'block_type_breakdown');
+  assert.equal(marketingFixture.editor_quality.editor_invalid_count, 0);
+
+  // Aggregate uses summed totals (14 native / 20 total = 0.7; 6 core/html / 20 = 0.3).
+  assert.equal(result.summary.editor_quality.block_total, 20);
+  assert.equal(result.summary.editor_quality.native_block_count, 14);
+  assert.equal(result.summary.editor_quality.core_html_block_count, 6);
+  assert.equal(result.summary.editor_quality.native_conversion_rate, 0.7);
+  assert.equal(result.summary.editor_quality.core_html_fallback_ratio, 0.3);
+  assert.equal(result.summary.editor_quality.scored_fixture_count, 2);
+  assert.equal(result.summary.editor_quality.native_rate_gate.enabled, false);
+
+  // Per-class rollup carries the same generic metric.
+  assert.equal(result.summary.quality_budgets['docs/blog'].editor_quality.native_conversion_rate, 0.6);
+  assert.equal(result.summary.classes['marketing/static'].editor_quality.native_conversion_rate, 0.8);
+});
+
+test('opt-in native-rate gate fails low-native fixtures while editor_invalid_count reuses #537 findings', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'native-rate-gate-test' });
+  const makeResult = () => ({
+    fixture_id: 'simple-site',
+    status: 'passed',
+    // 3 native / 7 total ≈ 0.43 native conversion rate.
+    block_type_counts: { 'core/paragraph': 3, 'core/html': 4 },
+    diagnostics: [
+      { kind: 'editor_block_invalid', selector: '.block-editor-warning', message: 'Editor rendered 1 invalid-block warning for the imported post.' },
+    ],
+  });
+
+  // Gate off (default): metrics are scored, but no native-rate finding is emitted.
+  const ungated = normalizeFixtureMatrixResult({ matrix, results: [makeResult()] });
+  assert.equal(ungated.fixtures[0].editor_quality.editor_invalid_count, 1);
+  assert.ok(ungated.fixtures[0].editor_quality.native_conversion_rate < 0.5);
+  assert.equal(ungated.findings.some((finding) => finding.kind === 'native_conversion_rate_below_min'), false);
+
+  // Gate on: the low-native fixture earns an unacceptable finding and fails.
+  const gated = normalizeFixtureMatrixResult({ matrix, results: [makeResult()], editorQuality: { minNativeRate: 0.8 } });
+  const finding = gated.findings.find((row) => row.kind === 'native_conversion_rate_below_min');
+  assert.ok(finding, 'expected a native_conversion_rate_below_min finding when the gate is enabled');
+  assert.equal(finding.loss_class, 'low_native_conversion');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(gated.fixtures[0].status, 'failed');
+  assert.equal(gated.summary.editor_quality.native_rate_gate.enabled, true);
+  assert.equal(gated.summary.editor_quality.native_rate_gate.min_native_rate, 0.8);
+});
+
 test('recipe runs a wordpress.visual-compare visual-parity step after each import', () => {
   const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-recipe-test' });
   const recipe = buildFixtureMatrixRecipe({

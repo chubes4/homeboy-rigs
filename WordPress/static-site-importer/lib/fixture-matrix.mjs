@@ -37,6 +37,26 @@ const EDITOR_BLOCK_INVALID_DEFAULT_DETAIL = 'This block contains unexpected or i
 // default; gating on mismatch-over-threshold is opt-in (pixel diffs can be
 // flaky) and is expressed as the conditional `visual_parity_mismatch` loss class.
 export const VISUAL_PARITY_MISMATCH_KIND = 'visual_parity_mismatch';
+
+// Editor-quality metrics wiring. The matrix already carries the transformer's
+// block-composition breakdown (block-type counts / `detectBlockTypes` output) on
+// each fixture's import artifact. From that generic, per-block-type data we score
+// how "native and editable" an import is — without any per-fixture knowledge:
+//   native_conversion_rate = native core/Automattic blocks / total blocks
+//   core_html_fallback_ratio = core/html blocks / total blocks
+//   editor_invalid_count = reuse of the #537 `editor_block_invalid` findings
+// A block is "native" when it lives in a core or known Automattic namespace
+// (core/*, jetpack/*, woocommerce/*, automattic/*, a8c/*) and is not one of the
+// non-native fallback wrappers (core/html, core/freeform). This list is the only
+// generic basis used; nothing keys off a fixture id or class.
+const NATIVE_BLOCK_NAMESPACES = ['core', 'jetpack', 'woocommerce', 'automattic', 'a8c'];
+const CORE_HTML_BLOCK_NAME = 'core/html';
+const NON_NATIVE_FALLBACK_BLOCK_NAMES = new Set([CORE_HTML_BLOCK_NAME, 'core/freeform']);
+// Opt-in native-conversion gate. Like the visual-parity gate, scoring is always
+// captured but gating is off by default — it only fires when the run passes a
+// positive `--min-native-rate`/`minNativeRate` threshold.
+export const LOW_NATIVE_CONVERSION_KIND = 'native_conversion_rate_below_min';
+
 const DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD = 0.1;
 const DEFAULT_VISUAL_PARITY_CANDIDATE_URL = '/';
 const DEFAULT_VISUAL_PARITY_SOURCE_BASE_URL = '/wp-content/uploads/static-site-importer-fixture-matrix';
@@ -47,6 +67,15 @@ const DEFAULT_VISUAL_PARITY_WAIT_FOR = 'domcontentloaded';
 const VISUAL_PARITY_GATE_SIGNAL_KEYS = ['gate', 'visual_parity_gate', 'visualParityGate'];
 
 const DEFAULT_FINDING_GROUPS = {
+  // Low native-conversion-rate gate findings route to the transformer's
+  // native-conversion bucket. Listed first so the message ("native conversion
+  // rate ... below ... minimum") classifies here rather than matching the
+  // generic `native conversion` acceptable-loss text downstream.
+  low_native_conversion: {
+    patterns: [/native_conversion_rate_below_min/i, /native conversion rate .* below/i, /below the .* native (?:conversion )?(?:rate )?minimum/i],
+    candidate_repo: 'blocks-engine',
+    repair_mode: 'native-conversion-parity',
+  },
   // Editor-side block invalidity routes to the Blocks Engine feature/visual
   // parity bucket and must gate. Listed first so the `editor_block_invalid`
   // kind classifies here instead of the structural PHP `invalid_block_content`
@@ -107,6 +136,7 @@ const UNACCEPTABLE_LOSS_CLASSES = new Set([
   'invalid_block_output',
   'invalid_block_content',
   'editor_block_invalid',
+  'low_native_conversion',
   'missing_asset',
   'missing_output',
   'fixture_not_run',
@@ -396,12 +426,20 @@ export function normalizeFixtureMatrixResult(input = {}) {
     resultByFixture.get(fixture.id) || normalizeFixtureResult({ fixture_id: fixture.id, fixture_path: fixture.fixture_path, status: 'not_run' }),
     fixture,
   ));
-  const findings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix })));
+  const baseFindings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix })));
+  // Editor-quality metrics are computed from generic block-composition data plus
+  // the #537 editor-invalid findings. Scoring always runs; gating is opt-in.
+  const nativeRateGate = normalizeNativeRateGateOptions(input.editorQuality || input.editor_quality || input);
+  const editorQualityByFixture = new Map(fixtureResults.map((result) => [result.fixture_id, computeFixtureEditorQuality(result, baseFindings)]));
+  const nativeRateGateFindings = nativeRateGate.minNativeRate > 0
+    ? buildNativeRateGateFindings(fixtureResults, editorQualityByFixture, nativeRateGate)
+    : [];
+  const findings = dedupeFindings([...baseFindings, ...nativeRateGateFindings]);
   const actionableFindings = findings.filter(isActionableFinding);
   const grouped = groupFindings(actionableFindings);
   const acceptableActionableFindings = actionableFindings.filter((finding) => finding.loss_acceptance === 'acceptable');
   const unacceptableActionableFindings = actionableFindings.filter((finding) => finding.loss_acceptance !== 'acceptable');
-  const gatedFixtureResults = fixtureResults.map((result) => applyFixtureQualityGate(result, findings));
+  const gatedFixtureResults = fixtureResults.map((result) => attachFixtureEditorQuality(applyFixtureQualityGate(result, findings), editorQualityByFixture.get(result.fixture_id)));
   const lossClassCounts = countBy(findings, (finding) => finding.loss_class || 'unsupported_loss');
   const acceptanceCounts = countBy(findings, (finding) => finding.loss_acceptance || 'unacceptable');
   const classRollups = fixtureClassRollups(gatedFixtureResults, findings);
@@ -435,6 +473,7 @@ export function normalizeFixtureMatrixResult(input = {}) {
       fixture_classes: Object.fromEntries(Object.entries(classRollups).map(([key, row]) => [key, row.fixture_count])),
       classes: classRollups,
       quality_budgets: qualityBudgetSummaries(classRollups),
+      editor_quality: aggregateEditorQuality([...editorQualityByFixture.values()], nativeRateGate),
     },
     fixtures: gatedFixtureResults,
     findings,
@@ -738,6 +777,9 @@ function classifyLossClass({ raw, kind, group_key, repair_bucket, message, resul
   if (kind === 'fixture_failed' || group_key === 'fixture_failed') {
     return 'fixture_failed';
   }
+  if (group_key === 'low_native_conversion' || kind === LOW_NATIVE_CONVERSION_KIND || /native conversion rate .* below/i.test(haystack)) {
+    return 'low_native_conversion';
+  }
   if (group_key === 'visual_parity_mismatch' || kind === VISUAL_PARITY_MISMATCH_KIND || /visual parity mismatch|pixel (?:diff|mismatch)/i.test(haystack)) {
     return 'visual_parity_mismatch';
   }
@@ -867,6 +909,7 @@ function normalizeFixtureResult(input) {
     ssi_validation: input.ssi_validation || input.ssiValidation || null,
     import_report: input.import_report || input.importReport || null,
     quality_metrics: input.quality_metrics || input.qualityMetrics || {},
+    block_composition: input.block_composition || input.blockComposition || collectBlockComposition(input),
     blocks_engine_diagnostics: normalizeArray(input.blocks_engine_diagnostics || input.blocksEngineDiagnostics),
     invalid_block_counts: input.invalid_block_counts || input.invalidBlockCounts || {},
     missing_assets: normalizeArray(input.missing_assets || input.missingAssets),
@@ -897,6 +940,7 @@ function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDi
     ssi_validation: merged.ssi_validation || merged.ssiValidation || merged.validation || merged.static_site_importer || null,
     import_report: merged.import_report || merged.importReport || merged.report || null,
     quality_metrics: collectQualityMetrics(merged),
+    block_composition: collectBlockComposition(merged),
     blocks_engine_diagnostics: collectBlocksEngineDiagnostics(merged),
     invalid_block_counts: collectInvalidBlockCounts(merged),
     missing_assets: collectMissingAssets(merged),
@@ -1225,6 +1269,265 @@ function collectInvalidBlockCounts(payload) {
     invalid_blocks: payload.invalid_blocks || payload.invalidBlocks || quality.invalid_blocks,
     editor_invalid_blocks: payload.editor_invalid_blocks || payload.editorInvalidBlocks || quality.editor_invalid_blocks,
   });
+}
+
+// Surface the transformer's generic block-composition breakdown from whatever
+// import-artifact slot carries it (a `block_type_counts` / `detectBlockTypes`
+// map, or the nested conversion-report copy SSI preserves). Returns a normalized
+// `{ block_total, native_block_count, core_html_block_count, block_type_counts,
+// source }` shape, or null when no block-composition data is present (never
+// fabricated). When an explicit per-block-type breakdown is unavailable but
+// total/fallback counts are, it derives the composition from those counts.
+export function collectBlockComposition(payload) {
+  const breakdown = collectBlockTypeBreakdown(payload);
+  if (breakdown && breakdown.total > 0) {
+    return {
+      block_total: breakdown.total,
+      native_block_count: breakdown.native,
+      core_html_block_count: breakdown.core_html,
+      block_type_counts: breakdown.counts,
+      source: 'block_type_breakdown',
+    };
+  }
+  return blockCompositionFromQualityCounts(payload);
+}
+
+function collectBlockTypeBreakdown(payload) {
+  for (const source of blockTypeBreakdownSources(payload)) {
+    const counts = normalizeBlockTypeCounts(source);
+    if (counts) {
+      return summarizeBlockTypeCounts(counts);
+    }
+  }
+  return null;
+}
+
+function blockTypeBreakdownSources(payload) {
+  const object = objectValue(payload);
+  const quality = collectQualityMetrics(object);
+  const importReport = objectValue(object.import_report || object.importReport || object.report);
+  const blocksEngine = objectValue(importReport.blocks_engine || importReport.blocksEngine || object.blocks_engine || object.blocksEngine);
+  const conversionReport = objectValue(blocksEngine.conversion_report || blocksEngine.conversionReport);
+  return [
+    object.block_type_counts,
+    object.blockTypeCounts,
+    object.block_types,
+    object.blockTypes,
+    object.detected_block_types,
+    object.detectedBlockTypes,
+    object.detect_block_types,
+    quality.block_type_counts,
+    quality.blockTypeCounts,
+    conversionReport.block_type_counts,
+    conversionReport.blockTypeCounts,
+    conversionReport.block_types,
+    conversionReport.blockTypes,
+  ];
+}
+
+// Normalize any block-type breakdown — a `{ name: count }` map, a list of block
+// names, or a list of `{ name, count }`-shaped rows — into a single
+// `{ name: count }` map. Returns null when nothing usable is present.
+function normalizeBlockTypeCounts(value) {
+  if (!value) {
+    return null;
+  }
+  const counts = {};
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === 'string') {
+        const name = normalizeBlockName(entry);
+        if (name) {
+          counts[name] = (counts[name] || 0) + 1;
+        }
+      } else if (entry && typeof entry === 'object') {
+        const name = normalizeBlockName(entry.name || entry.block || entry.block_name || entry.blockName || entry.type);
+        if (!name) {
+          continue;
+        }
+        const count = firstNumber([entry.count, entry.occurrences, entry.total, entry.instances, entry.value]);
+        counts[name] = (counts[name] || 0) + (Number.isFinite(count) ? count : 1);
+      }
+    }
+  } else if (typeof value === 'object') {
+    for (const [key, raw] of Object.entries(value)) {
+      const name = normalizeBlockName(key);
+      const count = Number(raw);
+      if (name && Number.isFinite(count)) {
+        counts[name] = (counts[name] || 0) + count;
+      }
+    }
+  }
+  return Object.keys(counts).length > 0 ? counts : null;
+}
+
+function summarizeBlockTypeCounts(counts) {
+  let total = 0;
+  let native = 0;
+  let coreHtml = 0;
+  for (const [name, value] of Object.entries(counts)) {
+    const count = numberValue(value);
+    total += count;
+    if (name === CORE_HTML_BLOCK_NAME) {
+      coreHtml += count;
+    }
+    if (isNativeBlockName(name)) {
+      native += count;
+    }
+  }
+  return { total, native, core_html: coreHtml, counts };
+}
+
+// Best-effort fallback when no per-block-type breakdown exists but SSI's quality
+// report carries a total block count plus the fallback counts. Native blocks are
+// approximated as the non-fallback remainder (total minus core/html and
+// core/freeform). Returns null when no total block count is available.
+function blockCompositionFromQualityCounts(payload) {
+  const object = objectValue(payload);
+  const quality = collectQualityMetrics(object);
+  const importReport = objectValue(object.import_report || object.importReport || object.report);
+  const blocksEngine = objectValue(importReport.blocks_engine || importReport.blocksEngine || object.blocks_engine || object.blocksEngine);
+  const conversionReport = objectValue(blocksEngine.conversion_report || blocksEngine.conversionReport);
+  const total = firstNumber([
+    quality.block_count,
+    quality.total_block_count,
+    quality.blockCount,
+    object.block_count,
+    object.blockCount,
+    conversionReport.block_count,
+  ]);
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+  const coreHtml = numberValue(quality.core_html_block_count ?? quality.coreHtmlBlockCount ?? object.core_html_block_count);
+  const freeform = numberValue(quality.freeform_block_count ?? quality.freeformBlockCount ?? object.freeform_block_count);
+  return {
+    block_total: total,
+    native_block_count: Math.max(0, total - coreHtml - freeform),
+    core_html_block_count: coreHtml,
+    block_type_counts: null,
+    source: 'quality_counts',
+  };
+}
+
+function normalizeBlockName(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+// Generic block-namespace classification: a block is native/editable when it
+// belongs to a core or known Automattic namespace and is not a non-native
+// fallback wrapper. No per-fixture knowledge is involved.
+function isNativeBlockName(name) {
+  const normalized = normalizeBlockName(name);
+  if (!normalized || NON_NATIVE_FALLBACK_BLOCK_NAMES.has(normalized)) {
+    return false;
+  }
+  const namespace = normalized.includes('/') ? normalized.split('/')[0] : '';
+  return NATIVE_BLOCK_NAMESPACES.includes(namespace);
+}
+
+function qualityRatio(part, total) {
+  return total > 0 ? Number((numberValue(part) / total).toFixed(4)) : null;
+}
+
+// Per-fixture editor-quality score. `native_conversion_rate` and
+// `core_html_fallback_ratio` come from the generic block composition;
+// `editor_invalid_count` reuses the #537 `editor_block_invalid` findings.
+function computeFixtureEditorQuality(result, findings) {
+  const composition = objectValue(result.block_composition);
+  const blockTotal = numberValue(composition.block_total);
+  const editorInvalidCount = findings.filter((finding) => finding.fixture_id === result.fixture_id
+    && (finding.loss_class === 'editor_block_invalid' || finding.kind === EDITOR_BLOCK_INVALID_KIND)).length;
+  const scored = blockTotal > 0;
+  return compactObject({
+    scored,
+    source: result.block_composition ? (composition.source || 'unknown') : 'none',
+    block_total: blockTotal,
+    native_block_count: numberValue(composition.native_block_count),
+    core_html_block_count: numberValue(composition.core_html_block_count),
+    native_conversion_rate: scored ? qualityRatio(composition.native_block_count, blockTotal) : null,
+    core_html_fallback_ratio: scored ? qualityRatio(composition.core_html_block_count, blockTotal) : null,
+    editor_invalid_count: editorInvalidCount,
+  });
+}
+
+function attachFixtureEditorQuality(result, editorQuality) {
+  return { ...result, editor_quality: editorQuality || computeFixtureEditorQuality(result, []) };
+}
+
+// Roll the per-fixture editor-quality scores into one aggregate. Rates are
+// recomputed from summed block totals (not an average of per-fixture rates) so
+// the aggregate stays a true native/total ratio across the corpus.
+function aggregateEditorQuality(editorQualityList, nativeRateGate = { minNativeRate: 0 }) {
+  let blockTotal = 0;
+  let native = 0;
+  let coreHtml = 0;
+  let editorInvalid = 0;
+  let scored = 0;
+  for (const editorQuality of editorQualityList) {
+    blockTotal += numberValue(editorQuality.block_total);
+    native += numberValue(editorQuality.native_block_count);
+    coreHtml += numberValue(editorQuality.core_html_block_count);
+    editorInvalid += numberValue(editorQuality.editor_invalid_count);
+    if (editorQuality.scored) {
+      scored += 1;
+    }
+  }
+  return {
+    scored_fixture_count: scored,
+    block_total: blockTotal,
+    native_block_count: native,
+    core_html_block_count: coreHtml,
+    editor_invalid_count: editorInvalid,
+    native_conversion_rate: qualityRatio(native, blockTotal),
+    core_html_fallback_ratio: qualityRatio(coreHtml, blockTotal),
+    native_rate_gate: {
+      enabled: nativeRateGate.minNativeRate > 0,
+      min_native_rate: nativeRateGate.minNativeRate || 0,
+    },
+  };
+}
+
+function normalizeNativeRateGateOptions(options) {
+  const source = objectValue(options);
+  let minNativeRate = firstNumber([source.minNativeRate, source.min_native_rate]);
+  if (!Number.isFinite(minNativeRate) || minNativeRate < 0) {
+    minNativeRate = 0;
+  }
+  // Allow the threshold to be expressed as a percentage (e.g. 80) or a ratio.
+  if (minNativeRate > 1) {
+    minNativeRate = minNativeRate / 100;
+  }
+  return { minNativeRate };
+}
+
+// Opt-in gate: when a positive minimum native-conversion rate is configured,
+// every scored fixture below it earns an unacceptable `low_native_conversion`
+// finding so it fails the same quality gate as other unacceptable losses.
+function buildNativeRateGateFindings(fixtureResults, editorQualityByFixture, nativeRateGate) {
+  const findings = [];
+  for (const result of fixtureResults) {
+    const editorQuality = editorQualityByFixture.get(result.fixture_id);
+    if (!editorQuality || !editorQuality.scored || editorQuality.native_conversion_rate === null) {
+      continue;
+    }
+    if (editorQuality.native_conversion_rate >= nativeRateGate.minNativeRate) {
+      continue;
+    }
+    const ratePercent = (editorQuality.native_conversion_rate * 100).toFixed(1);
+    const minPercent = (nativeRateGate.minNativeRate * 100).toFixed(1);
+    findings.push(normalizeDiagnosticFinding({
+      kind: LOW_NATIVE_CONVERSION_KIND,
+      loss_class: 'low_native_conversion',
+      native_conversion_rate: editorQuality.native_conversion_rate,
+      min_native_rate: nativeRateGate.minNativeRate,
+      block_total: editorQuality.block_total,
+      native_block_count: editorQuality.native_block_count,
+      core_html_block_count: editorQuality.core_html_block_count,
+      message: `Native conversion rate ${ratePercent}% is below the ${minPercent}% minimum (${editorQuality.native_block_count}/${editorQuality.block_total} native blocks, ${editorQuality.core_html_block_count} core/html).`,
+    }, result, findings.length));
+  }
+  return findings;
 }
 
 function collectMissingAssets(payload) {
@@ -1618,6 +1921,7 @@ function fixtureClassRollups(fixtureResults, findings) {
     if (result.raw_status === 'not_run' && result.status !== 'not_run') {
       row.not_run += 1;
     }
+    accumulateEditorQuality(row.editor_quality, result.editor_quality);
     byClass[key] = row;
   }
 
@@ -1637,7 +1941,9 @@ function fixtureClassRollups(fixtureResults, findings) {
     byClass[key] = row;
   }
 
-  return Object.fromEntries(Object.entries(byClass).sort(([left], [right]) => fixtureClassRank(left) - fixtureClassRank(right)));
+  return Object.fromEntries(Object.entries(byClass)
+    .map(([key, row]) => [key, { ...row, editor_quality: finalizeEditorQuality(row.editor_quality) }])
+    .sort(([left], [right]) => fixtureClassRank(left) - fixtureClassRank(right)));
 }
 
 function classRollup(key) {
@@ -1653,6 +1959,27 @@ function classRollup(key) {
     loss_classes: {},
     repair_buckets: {},
     candidate_repos: {},
+    editor_quality: { scored_fixture_count: 0, block_total: 0, native_block_count: 0, core_html_block_count: 0, editor_invalid_count: 0 },
+  };
+}
+
+function accumulateEditorQuality(target, editorQuality) {
+  const source = objectValue(editorQuality);
+  target.block_total += numberValue(source.block_total);
+  target.native_block_count += numberValue(source.native_block_count);
+  target.core_html_block_count += numberValue(source.core_html_block_count);
+  target.editor_invalid_count += numberValue(source.editor_invalid_count);
+  if (source.scored) {
+    target.scored_fixture_count += 1;
+  }
+}
+
+function finalizeEditorQuality(accumulator) {
+  const blockTotal = numberValue(accumulator.block_total);
+  return {
+    ...accumulator,
+    native_conversion_rate: qualityRatio(accumulator.native_block_count, blockTotal),
+    core_html_fallback_ratio: qualityRatio(accumulator.core_html_block_count, blockTotal),
   };
 }
 
@@ -1674,6 +2001,7 @@ function qualityBudgetSummaries(classRollups) {
       preserved_runtime_island_count: row.loss_classes.preserved_runtime_island || 0,
       findings_per_fixture: row.fixture_count ? Number((row.finding_count / row.fixture_count).toFixed(2)) : 0,
       dominant_repair_buckets: dominantRepairBuckets.slice(0, 5),
+      editor_quality: row.editor_quality,
     }];
   }));
 }
@@ -1832,6 +2160,8 @@ function normalizeLossClass(value) {
     invalid_block_content: 'invalid_block_content',
     editor_block_invalid: 'editor_block_invalid',
     editor_invalid_block: 'editor_block_invalid',
+    low_native_conversion: 'low_native_conversion',
+    native_conversion_rate_below_min: 'low_native_conversion',
     visual_parity_mismatch: 'visual_parity_mismatch',
     visual_parity: 'visual_parity_mismatch',
     pixel_mismatch: 'visual_parity_mismatch',
