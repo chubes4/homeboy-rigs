@@ -107,6 +107,35 @@ test('classifies fixtures into generic product taxonomy from metadata and files'
   assert.equal(matrix.fixtures.find((fixture) => fixture.id === 'interactive-demo').fixture_class, 'canvas/webgl/audio/runtime-heavy');
 });
 
+test('classifies fixtures from directory taxonomy before heuristic fallback', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-directory-taxonomy-'));
+  const cases = [
+    ['marketing-static', 'spring-shop', '<h1>Product Catalog Checkout</h1>', 'marketing/static'],
+    ['docs-blog', 'admin-portal', '<h1>Dashboard Settings</h1>', 'docs/blog'],
+    ['ecommerce-catalog', 'launch-page', '<h1>Marketing Landing Hero</h1>', 'ecommerce/catalog'],
+    ['app-dashboard', 'news-guide', '<article>Blog documentation tutorial</article>', 'app/dashboard'],
+    ['runtime-heavy', 'plain-copy', '<h1>Simple static brochure</h1>', 'canvas/webgl/audio/runtime-heavy'],
+    ['canvas-webgl-audio', 'plain-copy', '<h1>Simple static brochure</h1>', 'canvas/webgl/audio/runtime-heavy'],
+    ['edge-cases', 'shop-catalog', '<h1>Product Catalog Checkout</h1>', 'unknown'],
+  ];
+
+  for (const [directoryClass, fixtureName, html] of cases) {
+    const fixtureDirectory = path.join(root, directoryClass, fixtureName);
+    mkdirSync(fixtureDirectory, { recursive: true });
+    writeFileSync(path.join(fixtureDirectory, 'index.html'), html);
+  }
+
+  const matrix = createFixtureMatrix({ fixture_root: root });
+  const byId = new Map(matrix.fixtures.map((fixture) => [fixture.id, fixture]));
+
+  for (const [directoryClass, fixtureName, , fixtureClass] of cases) {
+    assert.equal(byId.get(`${directoryClass}-${fixtureName}`).fixture_class, fixtureClass);
+    assert.deepEqual(byId.get(`${directoryClass}-${fixtureName}`).taxonomy.signals, ['directory_taxonomy']);
+  }
+
+  assert.equal(classifyFixture({ fixture_class: 'docs/blog', root, directory: path.join(root, 'marketing-static', 'manual') }).fixture_class, 'docs/blog');
+});
+
 test('rolls fixture matrix summaries up by fixture class and repair bucket', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-class-rollups-'));
   const shop = path.join(root, 'shop-catalog');
