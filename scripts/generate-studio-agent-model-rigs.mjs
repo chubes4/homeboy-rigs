@@ -50,6 +50,8 @@ const variants = Array.isArray(data.variants) ? data.variants : [];
 const shared = data.shared || {};
 const ids = new Set();
 const failures = [];
+const rigs = [];
+const trunkEquivalentBranches = new Set(['trunk', 'main', 'origin/trunk', 'origin/main']);
 
 if (variants.length === 0) {
   throw new Error(`${variantsPath}: variants must contain at least one variant`);
@@ -57,11 +59,37 @@ if (variants.length === 0) {
 
 for (const variant of variants) {
   const rig = rigFromVariant(variant, shared);
+  const expectedDescriptionRef = rig.components.studio.branch.endsWith('/main') || rig.components.studio.branch === 'main'
+    ? 'main'
+    : 'trunk';
+
   if (ids.has(rig.id)) {
     throw new Error(`${variantsPath}: duplicate variant id ${rig.id}`);
   }
   ids.add(rig.id);
 
+  if (rig.id.endsWith('-trunk')) {
+    const description = rig.description.toLowerCase();
+    if (!trunkEquivalentBranches.has(rig.components.studio.branch)) {
+      failures.push(`${rig.id}: reserved *-trunk variants must use a trunk/main-equivalent studio_branch, got ${rig.components.studio.branch}`);
+    }
+    if (!description.includes(expectedDescriptionRef)) {
+      failures.push(`${rig.id}: description must mention ${expectedDescriptionRef} to match studio_branch ${rig.components.studio.branch}`);
+    }
+  }
+
+  rigs.push(rig);
+}
+
+if (failures.length > 0) {
+  console.error('Generated Studio agent model rig metadata is invalid:');
+  for (const failure of failures) {
+    console.error(`- ${failure}`);
+  }
+  process.exit(1);
+}
+
+for (const rig of rigs) {
   const rigPath = path.join(repoRoot, 'Automattic/studio/rigs', rig.id, 'rig.json');
   const next = stableJson(rig);
 

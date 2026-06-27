@@ -4,7 +4,7 @@
   "components": {
     "studio": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_AGENT_CLAUDE_EVALTIMING__STUDIO}",
-      "branch": "agent-sdk-baseline",
+      "branch": "trunk",
       "extensions": {
         "nodejs": {
           "studio_bench_variant": "claude-sonnet-4-6-trunk",
