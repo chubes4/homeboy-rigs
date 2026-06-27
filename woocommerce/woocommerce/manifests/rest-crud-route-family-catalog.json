@@ -14,11 +14,24 @@
         "workloads": ["generated-rest-request-cases", "rest-schema-query-attribution", "rest-product-batch-import"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "workload": "rest-product-batch-import",
+        "rollback_artifacts": ["raw_result"],
+        "executable_operations": ["create", "update"]
+      },
+      "payload_fixtures": {
+        "namespace": "wc/v3",
+        "roles": ["administrator", "shop_manager"],
+        "create": ["simple product", "grouped product", "variable product parent"],
+        "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails"],
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifact contract is unavailable" }
+      },
       "readiness": {
         "create": { "level": "executable", "via": "rest-product-batch-import" },
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "executable", "via": "rest-product-batch-import" },
-        "delete": { "level": "declared", "upstream_blocker": "rollback-safe REST delete primitive and delete-boundary rollback artifacts are unavailable" }
+        "delete": { "level": "declared", "upstream_blocker": "generic rollback-safe REST delete primitive must emit reviewer-facing delete-boundary rollback artifacts before this route family is executable" }
       },
       "skipped_coverage": [
         {
@@ -40,6 +53,19 @@
       "owned_by": {
         "workloads": ["rest-product-batch-import"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "mutation_contract": {
+        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "workload": "rest-product-batch-import",
+        "rollback_artifacts": ["raw_result"],
+        "executable_operations": ["create", "update"]
+      },
+      "payload_fixtures": {
+        "namespace": "wc/v3",
+        "roles": ["administrator", "shop_manager"],
+        "create": ["simple product", "grouped product", "variable product parent"],
+        "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails"],
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifact contract is unavailable" }
       },
       "readiness": {
         "create": { "level": "executable", "via": "isolated_mutation" },
@@ -63,6 +89,19 @@
       "owned_by": {
         "workloads": ["rest-product-batch-import"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "mutation_contract": {
+        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "workload": "rest-product-batch-import",
+        "rollback_artifacts": ["raw_result"],
+        "executable_operations": ["create", "update"]
+      },
+      "payload_fixtures": {
+        "namespace": "wc/v3",
+        "roles": ["administrator", "shop_manager"],
+        "create": ["variation under fixture-owned variable product"],
+        "update": ["regular/sale price", "stock and status", "attribute option and image assignment"],
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifact contract is unavailable" }
       },
       "readiness": {
         "create": { "level": "executable", "via": "isolated_mutation" },

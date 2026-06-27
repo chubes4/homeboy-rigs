@@ -25,7 +25,7 @@
       "level": "executable",
       "profile": "product-rest-crud-fuzzer",
       "execution": "wp-codebox-isolated-mutation",
-      "coverage_contract": "WP Codebox can execute isolated WooCommerce product and variation batch create/update cases with synthetic fixture readback. Delete remains declared until rollback-safe delete primitives emit rollback artifacts, and proven status still requires reviewer-facing run evidence.",
+      "coverage_contract": "WP Codebox can execute isolated WooCommerce product and variation batch create/update cases through the generic rollback-safe REST mutation primitive with synthetic fixture readback. Delete remains declared until rollback-safe delete primitives emit delete-boundary rollback artifacts, and proven status still requires reviewer-facing run evidence.",
       "upstream_blockers": [
         "Reviewer-facing fuzz run artifacts and rollback/gap reports are required before proven status.",
         "Rollback-safe REST delete primitives and delete-boundary artifacts are required before delete coverage can execute."
@@ -45,8 +45,10 @@
       "crud": {
         "create": {
           "level": "executable",
+          "primitive": "wordpress.rollback-safe-rest-mutation",
           "safety_class": "isolated_mutation",
-          "fixture_scope": "synthetic_products_attributes_terms_and_variations"
+          "fixture_scope": "synthetic_products_attributes_terms_and_variations",
+          "rollback_artifacts": ["raw_result"]
         },
         "read": {
           "level": "executable",
@@ -55,19 +57,54 @@
         },
         "update": {
           "level": "executable",
+          "primitive": "wordpress.rollback-safe-rest-mutation",
           "safety_class": "isolated_mutation",
-          "fixture_scope": "synthetic_products_attributes_terms_and_variations"
+          "fixture_scope": "synthetic_products_attributes_terms_and_variations",
+          "rollback_artifacts": ["raw_result"]
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "The current workload exercises batch create/update and readback guardrails only; delete coverage waits for an upstream rollback-safe REST delete primitive and delete-boundary artifact contract."
+          "upstream_blocker": "The current workload exercises batch create/update and readback guardrails only; delete coverage waits for the generic rollback-safe REST delete primitive to emit a reviewer-facing delete-boundary rollback artifact contract."
         }
       },
       "mutation": {
-        "safety_boundary": "Product, attribute, term, and variation mutations are bounded to disposable WP Codebox WordPress fixtures and must be represented in the required raw_result artifact before any proof claim.",
+        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "safety_boundary": "Product, attribute, term, and variation create/update mutations are bounded to disposable WP Codebox WordPress fixtures and must be represented in the required raw_result artifact before any proof claim.",
         "rollback_artifacts": [
           "raw_result"
         ]
+      }
+    },
+    "payload_fixtures": {
+      "namespace": "wc/v3",
+      "roles": ["administrator", "shop_manager"],
+      "routes": [
+        "/wc/v3/products/batch",
+        "/wc/v3/products/<product_id>/variations/batch"
+      ],
+      "product_create": {
+        "methods": ["POST"],
+        "payload_shape": "synthetic simple, grouped, and variable products with unique SKU/title/slug inputs",
+        "rollback_artifact": "raw_result"
+      },
+      "product_update": {
+        "methods": ["PUT", "PATCH"],
+        "payload_shape": "synthetic product price, catalog visibility, attributes, category, image, slug, title, and duplicate-meta readback updates",
+        "rollback_artifact": "raw_result"
+      },
+      "variation_create": {
+        "methods": ["POST"],
+        "payload_shape": "synthetic variations under fixture-owned variable products with attribute option matrix values",
+        "rollback_artifact": "raw_result"
+      },
+      "variation_update": {
+        "methods": ["PUT", "PATCH"],
+        "payload_shape": "synthetic variation price, stock, status, attribute, image, and duplicate-meta readback updates",
+        "rollback_artifact": "raw_result"
+      },
+      "delete": {
+        "level": "declared",
+        "upstream_blocker": "Delete payload execution requires a generic delete-boundary rollback artifact contract before Woo marks delete executable."
       }
     },
     "fixture": {
