@@ -309,7 +309,7 @@ export function composerPathRepositoryConfig(rootComposer, packagePath) {
   return {
     type: 'path',
     url: packagePath,
-    canonical: false,
+    canonical: true,
     options: {
       symlink: false,
       versions: {
