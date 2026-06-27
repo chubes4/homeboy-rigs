@@ -15,7 +15,8 @@
       "static-site-importer-fixture-matrix:${env.HOMEBOY_SETTINGS_STATIC_SITE_IMPORTER_FIXTURE_MATRIX_NAMESPACE}"
     ],
     "paths": [
-      "${components.static-site-importer.path}"
+      "${components.static-site-importer.path}",
+      "/tmp/homeboy-rigs-ssi-fixture-matrix-${env.HOMEBOY_SETTINGS_STATIC_SITE_IMPORTER_FIXTURE_MATRIX_NAMESPACE}"
     ]
   },
   "bench": {
@@ -58,6 +59,12 @@
         "command": "node \"${package.root}/tools/fixture-matrix.test.mjs\""
       }
     ],
-    "down": []
+    "down": [
+      {
+        "kind": "command",
+        "label": "Remove run-scoped SSI fixture matrix temp resources",
+        "command": "test -n \"${env.HOMEBOY_SETTINGS_STATIC_SITE_IMPORTER_FIXTURE_MATRIX_NAMESPACE}\" && rm -rf \"/tmp/homeboy-rigs-ssi-fixture-matrix-${env.HOMEBOY_SETTINGS_STATIC_SITE_IMPORTER_FIXTURE_MATRIX_NAMESPACE}\" || true"
+      }
+    ]
   }
 }
