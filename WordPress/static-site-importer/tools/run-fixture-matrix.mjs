@@ -182,7 +182,7 @@ function runCommand(step) {
   }
 }
 
-function summarizeRun(plan) {
+export function summarizeRun(plan) {
   const output = readJson(plan.output_file);
   const resultSummary = findFirstKey(output, 'result_summary') || {};
   const artifacts = findFirstKey(output, 'artifacts') || findFirstKey(output, 'artifact_refs') || {};
@@ -196,6 +196,9 @@ function summarizeRun(plan) {
     finding_count: Number(resultSummary.finding_count || 0),
     top_buckets: topObjectCounts(resultSummary.buckets || resultSummary.groups || {}),
     top_kinds: topObjectCounts(resultSummary.kinds || {}),
+    top_pattern_families: normalizeSummaryRows(resultSummary.top_pattern_families),
+    fixture_exemplars: normalizeSummaryRows(resultSummary.fixture_exemplars),
+    diagnostic_blind_spots: normalizeSummaryRows(resultSummary.diagnostic_blind_spots),
     artifact_urls: collectArtifactUrls(artifacts),
     output_file: plan.output_file,
   };
@@ -279,6 +282,10 @@ function topObjectCounts(value, limit = 10) {
     .filter((row) => Number.isFinite(row.count))
     .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key))
     .slice(0, limit);
+}
+
+function normalizeSummaryRows(value, limit = 10) {
+  return Array.isArray(value) ? value.slice(0, limit) : [];
 }
 
 function collectArtifactUrls(value) {
