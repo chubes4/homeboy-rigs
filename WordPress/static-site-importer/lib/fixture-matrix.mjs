@@ -241,10 +241,13 @@ export function normalizeFixtureMatrixResult(input = {}) {
   const findings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix })));
   const actionableFindings = findings.filter(isActionableFinding);
   const grouped = groupFindings(actionableFindings);
+  const acceptableActionableFindings = actionableFindings.filter((finding) => finding.loss_acceptance === 'acceptable');
+  const unacceptableActionableFindings = actionableFindings.filter((finding) => finding.loss_acceptance !== 'acceptable');
   const gatedFixtureResults = fixtureResults.map((result) => applyFixtureQualityGate(result, findings));
   const lossClassCounts = countBy(findings, (finding) => finding.loss_class || 'unsupported_loss');
   const acceptanceCounts = countBy(findings, (finding) => finding.loss_acceptance || 'unacceptable');
   const classRollups = fixtureClassRollups(gatedFixtureResults, findings);
+  const fanoutGroups = buildFanoutGroups(actionableFindings);
 
   return {
     schema: FIXTURE_MATRIX_RESULT_SCHEMA,
@@ -266,6 +269,9 @@ export function normalizeFixtureMatrixResult(input = {}) {
       preserved_runtime_island_count: lossClassCounts.preserved_runtime_island || 0,
       groups: Object.fromEntries(Object.entries(grouped).map(([key, items]) => [key, items.length])),
       top_pattern_families: topPatternFamilies(actionableFindings),
+      top_acceptable_pattern_families: topPatternFamilies(acceptableActionableFindings),
+      top_unacceptable_pattern_families: topPatternFamilies(unacceptableActionableFindings),
+      unacceptable_candidate_repos: candidateRepoRollups(unacceptableActionableFindings),
       fixture_exemplars: fixtureExemplars(actionableFindings),
       diagnostic_blind_spots: diagnosticBlindSpots(actionableFindings),
       fixture_classes: Object.fromEntries(Object.entries(classRollups).map(([key, row]) => [key, row.fixture_count])),
@@ -274,14 +280,7 @@ export function normalizeFixtureMatrixResult(input = {}) {
     },
     fixtures: gatedFixtureResults,
     findings,
-    fanout_groups: Object.entries(grouped).map(([group_key, items], index) => ({
-      group_key,
-      index,
-      count: items.length,
-      top_pattern_families: topPatternFamilies(items, 5),
-      fixture_exemplars: fixtureExemplars(items, 5),
-      findings: items,
-    })),
+    fanout_groups: fanoutGroups.map((group, index) => ({ ...group, index })),
   };
 }
 
@@ -1043,6 +1042,86 @@ function groupFindings(findings) {
     groups[key].push(finding);
     return groups;
   }, {});
+}
+
+function buildFanoutGroups(findings) {
+  const groups = new Map();
+  for (const finding of findings) {
+    const acceptance = finding.loss_acceptance === 'acceptable' ? 'acceptable' : 'unacceptable';
+    const pattern = finding.pattern_family || patternFamily(finding);
+    const candidateRepo = finding.candidate_repo || 'unknown';
+    const key = `${acceptance}:${candidateRepo}:${pattern}`;
+    const row = groups.get(key) || {
+      group_key: key,
+      acceptance,
+      candidate_repo: candidateRepo,
+      pattern_family: pattern,
+      count: 0,
+      top_pattern_families: [],
+      fixture_exemplars: [],
+      findings: [],
+    };
+    row.count += 1;
+    row.findings.push(finding);
+    groups.set(key, row);
+  }
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      top_pattern_families: topPatternFamilies(group.findings, 5),
+      fixture_exemplars: fixtureExemplars(group.findings, 5),
+    }))
+    .sort(fanoutGroupSort);
+}
+
+function fanoutGroupSort(left, right) {
+  const acceptanceDelta = acceptanceRank(left.acceptance) - acceptanceRank(right.acceptance);
+  if (acceptanceDelta !== 0) {
+    return acceptanceDelta;
+  }
+  return right.count - left.count
+    || genericBucketRank(left) - genericBucketRank(right)
+    || left.candidate_repo.localeCompare(right.candidate_repo)
+    || left.pattern_family.localeCompare(right.pattern_family);
+}
+
+function acceptanceRank(value) {
+  return value === 'unacceptable' ? 0 : 1;
+}
+
+function genericBucketRank(group) {
+  return group.pattern_family === 'static_site_import_quality:static_site_fixture_diagnostic:(none)' ? 1 : 0;
+}
+
+function candidateRepoRollups(findings, limit = 10) {
+  const repos = new Map();
+  for (const finding of findings) {
+    const key = finding.candidate_repo || 'unknown';
+    const row = repos.get(key) || {
+      candidate_repo: key,
+      count: 0,
+      fixture_ids: [],
+      loss_classes: {},
+      repair_buckets: {},
+      top_pattern_families: [],
+      fixture_exemplars: [],
+      findings: [],
+    };
+    row.count += 1;
+    pushUnique(row.fixture_ids, finding.fixture_id, 10);
+    row.loss_classes[finding.loss_class || 'unsupported_loss'] = (row.loss_classes[finding.loss_class || 'unsupported_loss'] || 0) + 1;
+    row.repair_buckets[finding.repair_bucket || finding.group_key || 'static_site_import_quality'] = (row.repair_buckets[finding.repair_bucket || finding.group_key || 'static_site_import_quality'] || 0) + 1;
+    row.findings.push(finding);
+    row.top_pattern_families = topPatternFamilies(row.findings, 5);
+    row.fixture_exemplars = fixtureExemplars(row.findings, 5);
+    repos.set(key, row);
+  }
+
+  return [...repos.values()]
+    .map(({ findings: _findings, ...row }) => row)
+    .sort((left, right) => right.count - left.count || left.candidate_repo.localeCompare(right.candidate_repo))
+    .slice(0, limit);
 }
 
 function fixtureClassRollups(fixtureResults, findings) {
