@@ -55,6 +55,7 @@ export function buildFixtureMatrixRunPlan(input) {
     run_id: options.runId,
     static_site_importer: options.staticSiteImporter,
     blocks_engine: options.blocksEngine,
+    homeboy_bin: options.homeboyBin,
     fixture_root: options.fixtureRoot,
     fixture_count: fixtureCount,
     canonical_fixture_count: CANONICAL_FIXTURE_COUNT,
@@ -108,6 +109,7 @@ function normalizeOptions(input) {
     sharedState: input.sharedState ? path.resolve(input.sharedState) : path.join(tempRoot, 'shared-state'),
     artifactRoot: input.artifactRoot ? path.resolve(input.artifactRoot) : path.join(tempRoot, 'artifacts'),
     runner: input.runner || '',
+    homeboyBin: input.homeboyBin || process.env.HOMEBOY_BIN || 'homeboy',
   };
 }
 
@@ -137,14 +139,14 @@ function buildSteps(options, settings) {
   if (!options.skipInstall) {
     steps.push({
       label: 'Refresh installed SSI fixture matrix rig',
-      command: 'homeboy',
+      command: options.homeboyBin,
       args: withCommonRouting(['rig', 'install', packageRoot, '--id', RIG_ID, '--reinstall'], options),
     });
   }
   if (!options.skipSync) {
     steps.push({
       label: 'Sync/materialize rig components',
-      command: 'homeboy',
+      command: options.homeboyBin,
       args: withCommonRouting(['rig', 'sync', RIG_ID], options),
     });
   }
@@ -170,7 +172,7 @@ function buildSteps(options, settings) {
   }
   steps.push({
     label: 'Run SSI fixture matrix bench through Homeboy/Lab/WP Codebox',
-    command: 'homeboy',
+    command: options.homeboyBin,
     args: routedBenchArgs,
   });
 
