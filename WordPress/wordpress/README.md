@@ -1,9 +1,9 @@
 # Legacy WordPress Core Bench/Trace Rigs
 
 This package is deprecated and remains only as a compatibility path for existing
-bench-oriented WordPress Core scaffolding. New Core fuzz workload contracts belong in
-`../wordpress-develop`, the canonical `WordPress/wordpress-develop` rig package
-for `homeboy/fuzz-workload/v1` manifests.
+bench-oriented WordPress Core scaffolding. Keep new Core fuzz workload contracts
+in `../wordpress-develop`, the canonical `WordPress/wordpress-develop` rig
+package for `homeboy/fuzz-workload/v1` manifests.
 
 ## `wordpress-core-api-route-inventory`
 
