@@ -58,7 +58,7 @@ return function (): array {
 		throw new RuntimeException( 'Remote image import mode requires WC_REST_BATCH_IMPORT_REMOTE_IMAGE_BASE to point at a deterministic image endpoint.' );
 	}
 	$focus_phase      = (string) ( getenv( 'WC_REST_BATCH_IMPORT_FOCUS_PHASE' ) ?: 'variation_create' );
-	$valid_focus_phases = array( 'simple_create', 'simple_update', 'variable_parent_create', 'variable_parent_update', 'variation_create', 'variation_update' );
+	$valid_focus_phases = array( 'simple_create', 'simple_update', 'grouped_create', 'variable_parent_create', 'variable_parent_update', 'variation_create', 'variation_update' );
 	if ( ! in_array( $focus_phase, $valid_focus_phases, true ) ) {
 		throw new RuntimeException( 'Invalid WC_REST_BATCH_IMPORT_FOCUS_PHASE: ' . $focus_phase );
 	}
@@ -654,6 +654,7 @@ return function (): array {
 	add_action( 'save_post_product_variation', $reentrant_save_post_variation, 10, 1 );
 
 	$internal_guardrail_meta_keys       = array( '_stock', '_manage_stock', '_stock_status', '_regular_price', '_price', '_sku' );
+	$grouped_guardrail_meta_keys        = array( '_sku' );
 	$preexisting_internal_meta_writes   = 0;
 	$preexisting_internal_meta_post_ids = array();
 	$preexisting_internal_meta_seed     = static function ( int $post_id ) use ( $run_id, &$preexisting_internal_meta_writes, &$preexisting_internal_meta_post_ids ): void {
@@ -976,6 +977,20 @@ return function (): array {
 	}
 	$simple_update_result = $dispatch_batch( '/wc/v3/products/batch', array( 'update' => $simple_update ) );
 
+	$grouped_create = array();
+	for ( $i = 0; $i < $batch_size; $i++ ) {
+		$grouped_create[] = array(
+			'name'             => $name_for( 'grouped', $i ),
+			'type'             => 'grouped',
+			'slug'             => $slug_for( 'grouped', $i ),
+			'sku'              => $sku_for( 'grouped', $i ),
+			'grouped_products' => array_values( array_map( 'intval', $simple_ids ) ),
+			'categories'       => $terms_for( $i ),
+		);
+	}
+	$grouped_create_result = $dispatch_batch( '/wc/v3/products/batch', array( 'create' => $grouped_create ) );
+	$grouped_ids           = wp_list_pluck( (array) ( $grouped_create_result['data']['create'] ?? array() ), 'id' );
+
 	$variation_create = array();
 	for ( $i = 0; $i < $batch_size; $i++ ) {
 		$variation_attributes = array();
@@ -1273,6 +1288,7 @@ return function (): array {
 
 	$variation_products      = array_filter( array_map( 'wc_get_product', array_map( 'intval', $variation_ids ) ) );
 	$simple_products         = array_filter( array_map( 'wc_get_product', array_map( 'intval', $simple_ids ) ) );
+	$grouped_products        = array_filter( array_map( 'wc_get_product', array_map( 'intval', $grouped_ids ) ) );
 	$variable_parent_product = wc_get_product( $parent_id );
 	$parent_after            = $variable_parent_product;
 	$active_plugins          = array_values( array_map( 'strval', (array) get_option( 'active_plugins', array() ) ) );
@@ -1295,6 +1311,7 @@ return function (): array {
 		}
 	}
 	$expected_simple_skus          = array();
+	$expected_grouped_skus         = array();
 	$expected_simple_regular_price = array();
 	$expected_simple_price         = array();
 	$expected_simple_stock         = array();
@@ -1338,6 +1355,9 @@ return function (): array {
 		$expected_simple_image_ids[ (int) $simple_id ]     = (int) ( $expected_image_ids[0] ?? 0 );
 		$expected_simple_gallery_ids[ (int) $simple_id ]   = array_values( array_slice( array_map( 'intval', $expected_image_ids ), 1 ) );
 	}
+	foreach ( $grouped_ids as $index => $grouped_id ) {
+		$expected_grouped_skus[ (int) $grouped_id ] = $sku_for( 'grouped', $index );
+	}
 	$expected_variation_prices = array();
 	$expected_variation_stock  = array();
 	$expected_variation_skus   = array();
@@ -1362,6 +1382,9 @@ return function (): array {
 	$simple_image_readback_mismatches = 0;
 	$simple_gallery_readback_mismatches = 0;
 	$variation_sku_readback_mismatches = 0;
+	$grouped_sku_readback_mismatches = 0;
+	$grouped_type_mismatches         = 0;
+	$grouped_child_mismatches        = 0;
 	$variation_stock_status_mismatches = 0;
 	$variation_image_readback_mismatches = 0;
 	$variable_parent_attribute_missing = 0;
@@ -1409,13 +1432,33 @@ return function (): array {
 			}
 		}
 	}
+	$expected_grouped_children = array_values( array_map( 'intval', $simple_ids ) );
+	sort( $expected_grouped_children );
+	foreach ( $grouped_products as $grouped_product ) {
+		$grouped_id = $grouped_product->get_id();
+		if ( ! $grouped_product instanceof WC_Product_Grouped ) {
+			++$grouped_type_mismatches;
+		}
+		if ( (string) $grouped_product->get_sku() !== (string) ( $expected_grouped_skus[ $grouped_id ] ?? '' ) ) {
+			++$grouped_sku_readback_mismatches;
+		}
+		$actual_children = array_values( array_map( 'intval', $grouped_product->get_children() ) );
+		sort( $actual_children );
+		if ( $actual_children !== $expected_grouped_children ) {
+			++$grouped_child_mismatches;
+		}
+	}
 	$simple_duplicate_meta_rows    = $get_duplicate_postmeta_rows( $simple_ids );
+	$grouped_duplicate_meta_rows   = $get_duplicate_postmeta_rows( $grouped_ids );
 	$variation_duplicate_meta_rows = $get_duplicate_postmeta_rows( $variation_ids );
 	$simple_internal_duplicate_meta_row_count    = $count_duplicate_postmeta_rows_for_keys( $simple_duplicate_meta_rows, $internal_guardrail_meta_keys );
+	$grouped_internal_duplicate_meta_row_count   = $count_duplicate_postmeta_rows_for_keys( $grouped_duplicate_meta_rows, $grouped_guardrail_meta_keys );
 	$variation_internal_duplicate_meta_row_count = $count_duplicate_postmeta_rows_for_keys( $variation_duplicate_meta_rows, $internal_guardrail_meta_keys );
 	$simple_sku_lookup_mismatches                = $count_sku_lookup_mismatches( $simple_ids, $expected_simple_skus );
+	$grouped_sku_lookup_mismatches               = $count_sku_lookup_mismatches( $grouped_ids, $expected_grouped_skus );
 	$variation_sku_lookup_mismatches             = $count_sku_lookup_mismatches( $variation_ids, $expected_variation_skus );
 	$simple_adjacent_meta_missing_count          = $count_adjacent_meta_missing( $simple_ids, $internal_guardrail_meta_keys );
+	$grouped_adjacent_meta_missing_count         = $count_adjacent_meta_missing( $grouped_ids, $grouped_guardrail_meta_keys );
 	$variation_adjacent_meta_missing_count       = $count_adjacent_meta_missing( $variation_ids, $internal_guardrail_meta_keys );
 	$simple_meta_value_mismatches                = array(
 		'_sku'           => $count_meta_value_mismatches( $simple_ids, '_sku', static fn( int $product_id ) => (string) ( $expected_simple_skus[ $product_id ] ?? '' ) ),
@@ -1575,15 +1618,20 @@ return function (): array {
 	$record_invariant( 'variable_parent_update_response_has_no_errors', 0 === $count_response_errors( (array) ( $variable_parent_update_result['data']['update'] ?? array() ) ) );
 	$record_invariant( 'simple_create_response_has_no_errors', 0 === $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ) );
 	$record_invariant( 'simple_update_response_has_no_errors', 0 === $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ) );
+	$record_invariant( 'grouped_create_response_has_no_errors', 0 === $count_response_errors( (array) ( $grouped_create_result['data']['create'] ?? array() ) ) );
 	$record_invariant( 'variation_create_response_has_no_errors', 0 === $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ) );
 	$record_invariant( 'variation_update_response_has_no_errors', 0 === $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) ) );
 	$record_invariant( 'variable_parent_created_count_matches_batch', count( $variable_parent_ids ) === 1, array( 'expected' => 1, 'actual' => count( $variable_parent_ids ) ) );
 	$record_invariant( 'variable_parent_loaded_as_variable_product', 0 === $variable_parent_type_mismatch, array( 'product_id' => $parent_id ) );
 	$record_invariant( 'variable_parent_attributes_match_payload', 0 === $variable_parent_attribute_missing, array( 'missing' => $variable_parent_attribute_missing ) );
 	$record_invariant( 'simple_created_count_matches_batch', count( $simple_ids ) === $batch_size, array( 'expected' => $batch_size, 'actual' => count( $simple_ids ) ) );
+	$record_invariant( 'grouped_created_count_matches_batch', count( $grouped_ids ) === $batch_size, array( 'expected' => $batch_size, 'actual' => count( $grouped_ids ) ) );
 	$record_invariant( 'variation_created_count_matches_batch', count( $variation_ids ) === $batch_size, array( 'expected' => $batch_size, 'actual' => count( $variation_ids ) ) );
 	$record_invariant( 'simple_loaded_count_matches_batch', count( $simple_products ) === $batch_size, array( 'expected' => $batch_size, 'actual' => count( $simple_products ) ) );
+	$record_invariant( 'grouped_loaded_count_matches_batch', count( $grouped_products ) === $batch_size, array( 'expected' => $batch_size, 'actual' => count( $grouped_products ) ) );
 	$record_invariant( 'variation_loaded_count_matches_batch', count( $variation_products ) === $batch_size, array( 'expected' => $batch_size, 'actual' => count( $variation_products ) ) );
+	$record_invariant( 'grouped_products_load_as_grouped_type', 0 === $grouped_type_mismatches, array( 'mismatches' => $grouped_type_mismatches ) );
+	$record_invariant( 'grouped_products_reference_created_simple_products', 0 === $grouped_child_mismatches, array( 'mismatches' => $grouped_child_mismatches, 'expected_children' => $expected_grouped_children ) );
 	$record_invariant( 'parent_child_count_matches_batch', ( $parent_after ? count( $parent_after->get_children() ) : 0 ) === $batch_size, array( 'expected' => $batch_size, 'actual' => $parent_after ? count( $parent_after->get_children() ) : 0 ) );
 	$record_invariant( 'variation_parent_ids_match', 0 === $variation_parent_mismatches, array( 'mismatches' => $variation_parent_mismatches ) );
 	$record_invariant( 'variation_prices_match_update_payload', 0 === $variation_price_mismatches, array( 'mismatches' => $variation_price_mismatches ) );
@@ -1592,8 +1640,10 @@ return function (): array {
 	$record_invariant( 'preexisting_simple_internal_meta_is_overwritten', 0 === array_sum( $simple_meta_value_mismatches ), array( 'mismatches' => $simple_meta_value_mismatches ) );
 	$record_invariant( 'variation_internal_meta_values_are_canonical', 0 === array_sum( $variation_meta_value_mismatches ), array( 'mismatches' => $variation_meta_value_mismatches ) );
 	$record_invariant( 'simple_sku_readback_matches_payload_after_reentrant_save', 0 === $simple_sku_readback_mismatches, array( 'mismatches' => $simple_sku_readback_mismatches ) );
+	$record_invariant( 'grouped_sku_readback_matches_payload_after_reentrant_save', 0 === $grouped_sku_readback_mismatches, array( 'mismatches' => $grouped_sku_readback_mismatches ) );
 	$record_invariant( 'variation_sku_readback_matches_payload', 0 === $variation_sku_readback_mismatches, array( 'mismatches' => $variation_sku_readback_mismatches ) );
 	$record_invariant( 'simple_sku_lookup_resolves_created_product', 0 === $simple_sku_lookup_mismatches, array( 'mismatches' => $simple_sku_lookup_mismatches ) );
+	$record_invariant( 'grouped_sku_lookup_resolves_created_product', 0 === $grouped_sku_lookup_mismatches, array( 'mismatches' => $grouped_sku_lookup_mismatches ) );
 	$record_invariant( 'variation_sku_lookup_resolves_created_variation', 0 === $variation_sku_lookup_mismatches, array( 'mismatches' => $variation_sku_lookup_mismatches ) );
 	$record_invariant( 'simple_product_image_readback_matches_rest_response', 'none' === $image_mode || 0 === $simple_image_readback_mismatches, array( 'mismatches' => $simple_image_readback_mismatches, 'mode' => $image_mode ) );
 	$record_invariant( 'simple_product_gallery_readback_matches_rest_response', 'none' === $image_mode || 0 === $simple_gallery_readback_mismatches, array( 'mismatches' => $simple_gallery_readback_mismatches, 'mode' => $image_mode ) );
@@ -1606,9 +1656,11 @@ return function (): array {
 	$record_invariant( 'simple_create_has_no_duplicate_meta_rows_after_reentrant_save', empty( $simple_duplicate_meta_rows ), array( 'duplicates' => array_slice( $simple_duplicate_meta_rows, 0, 20 ) ) );
 	$record_invariant( 'variation_create_has_no_duplicate_meta_rows', empty( $variation_duplicate_meta_rows ), array( 'duplicates' => array_slice( $variation_duplicate_meta_rows, 0, 20 ) ) );
 	$record_invariant( 'simple_internal_meta_duplicate_rows_stay_bounded', 0 === $simple_internal_duplicate_meta_row_count, array( 'duplicates' => $simple_internal_duplicate_meta_row_count ) );
+	$record_invariant( 'grouped_internal_meta_duplicate_rows_stay_bounded', 0 === $grouped_internal_duplicate_meta_row_count, array( 'duplicates' => $grouped_internal_duplicate_meta_row_count ) );
 	$record_invariant( 'variation_internal_meta_duplicate_rows_stay_bounded', 0 === $variation_internal_duplicate_meta_row_count, array( 'duplicates' => $variation_internal_duplicate_meta_row_count ) );
 	$record_invariant( 'third_party_adjacent_meta_hooks_fired', $third_party_adjacent_meta_writes > 0, array( 'writes' => $third_party_adjacent_meta_writes ) );
 	$record_invariant( 'third_party_adjacent_meta_exists_for_simple_products', 0 === $simple_adjacent_meta_missing_count, array( 'missing' => $simple_adjacent_meta_missing_count ) );
+	$record_invariant( 'third_party_adjacent_meta_exists_for_grouped_products', 0 === $grouped_adjacent_meta_missing_count, array( 'missing' => $grouped_adjacent_meta_missing_count ) );
 	$record_invariant( 'third_party_adjacent_meta_exists_for_variations', 0 === $variation_adjacent_meta_missing_count, array( 'missing' => $variation_adjacent_meta_missing_count ) );
 	$record_invariant( 'shared_product_data_store_was_reused', $shared_product_data_store_loads > 1, array( 'loads' => $shared_product_data_store_loads, 'class' => is_object( $shared_product_data_store ) ? get_class( $shared_product_data_store ) : '' ) );
 	$record_invariant( 'shared_variation_data_store_was_reused', $shared_variation_data_store_loads > 1, array( 'loads' => $shared_variation_data_store_loads, 'class' => is_object( $shared_variation_data_store ) ? get_class( $shared_variation_data_store ) : '' ) );
@@ -1617,11 +1669,13 @@ return function (): array {
 	$record_invariant( 'variation_posts_have_expected_parent', 0 === $variation_post_parent_mismatches, array( 'mismatches' => $variation_post_parent_mismatches ) );
 	$record_invariant( 'variation_required_postmeta_rows_exist', 0 === $variation_required_meta_missing_total, array( 'missing_counts' => $variation_meta_key_missing_counts ) );
 	$record_invariant( 'simple_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $simple_products ) ) );
+	$record_invariant( 'grouped_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $grouped_products ) ) );
 	$record_invariant( 'variation_skus_are_unique', 0 === $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $variation_products ) ) );
 	$record_invariant( 'simple_slugs_are_unique_after_collision_pressure', 0 === $count_string_duplicates( $actual_simple_slugs ), array( 'requested_duplicate_slugs' => $count_string_duplicates( $requested_simple_slugs ), 'actual_duplicate_slugs' => $count_string_duplicates( $actual_simple_slugs ) ) );
 	$record_invariant( 'duplicate_sku_retry_returns_one_create_error', 1 === $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ), array( 'errors' => $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ) ) );
 	$record_invariant( 'duplicate_sku_retry_does_not_multiply_internal_meta_rows', 0 === $retry_internal_meta_row_delta, array( 'before' => $retry_internal_meta_rows_before, 'after' => $retry_internal_meta_rows_after, 'delta' => $retry_internal_meta_row_delta ) );
 	$record_invariant( 'simple_lookup_rows_exist', 0 === $count_missing_lookup_rows( $simple_ids ) );
+	$record_invariant( 'grouped_lookup_rows_exist', 0 === $count_missing_lookup_rows( $grouped_ids ) );
 	$record_invariant( 'variation_lookup_rows_exist', 0 === $count_missing_lookup_rows( $variation_ids ) );
 	$record_invariant( 'variation_attribute_lookup_rows_exist_after_callbacks', 0 === $attribute_lookup_missing_rows, array( 'missing_rows' => $attribute_lookup_missing_rows, 'expected_rows' => count( $expected_attribute_lookup_rows ), 'actual_variation_rows' => $attribute_lookup_variation_rows ) );
 
@@ -1664,6 +1718,7 @@ return function (): array {
 		'variable_parent_update' => $variable_parent_update_result,
 		'simple_create'          => $simple_create_result,
 		'simple_update'          => $simple_update_result,
+		'grouped_create'         => $grouped_create_result,
 		'variation_create'       => $variation_create_result,
 		'variation_update'       => $variation_update_result,
 		'duplicate_sku_retry' => $retry_duplicate_sku_result,
@@ -1728,10 +1783,12 @@ return function (): array {
 	$variable_parent_create_count = max( 1, count( $variable_parent_ids ) );
 	$variable_parent_update_count = 1;
 	$variation_create_count       = max( 1, (int) $variation_create_result['counter_delta']['new_variations'] );
-	$created_item_count     = max( 1, count( $simple_ids ) + count( $variation_ids ) );
+	$grouped_create_count         = max( 1, count( $grouped_ids ) );
+	$created_item_count           = max( 1, count( $simple_ids ) + count( $grouped_ids ) + count( $variation_ids ) );
 	$lookup_pressure_rows   = array(
 		$simple_create_result,
 		$simple_update_result,
+		$grouped_create_result,
 		$variable_parent_create_result,
 		$variable_parent_update_result,
 		$variation_create_result,
@@ -1741,6 +1798,7 @@ return function (): array {
 	$phase_results = array(
 		'simple_create'           => $simple_create_result,
 		'simple_update'           => $simple_update_result,
+		'grouped_create'          => $grouped_create_result,
 		'variable_parent_create'  => $variable_parent_create_result,
 		'variable_parent_update'  => $variable_parent_update_result,
 		'variation_create'        => $variation_create_result,
@@ -1749,6 +1807,7 @@ return function (): array {
 	$phase_item_counts = array(
 		'simple_create'           => $simple_create_count,
 		'simple_update'           => $simple_update_count,
+		'grouped_create'          => $grouped_create_count,
 		'variable_parent_create'  => $variable_parent_create_count,
 		'variable_parent_update'  => $variable_parent_update_count,
 		'variation_create'        => max( 1, count( $variation_ids ) ),
@@ -1759,6 +1818,7 @@ return function (): array {
 		'variable_parent_update' => 'product-batch-update',
 		'simple_create'          => 'product-batch-create',
 		'simple_update'          => 'product-batch-update',
+		'grouped_create'         => 'product-batch-create',
 		'variation_create'       => 'variation-batch-create',
 		'variation_update'       => 'variation-batch-update',
 		'duplicate_sku_retry'    => 'product-batch-create',
@@ -2026,9 +2086,11 @@ return function (): array {
 		return (int) ( $row['http_profile']['request_count'] ?? 0 );
 	};
 	$simple_product_count    = max( 1, count( $simple_ids ) );
+	$grouped_product_count   = max( 1, count( $grouped_ids ) );
 	$variation_product_count = max( 1, count( $variation_ids ) );
 	$media_rest_error_count  = $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) )
 		+ $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) )
+		+ $count_response_errors( (array) ( $grouped_create_result['data']['create'] ?? array() ) )
 		+ $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) )
 		+ $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) );
 
@@ -2066,25 +2128,30 @@ return function (): array {
 		'focused_phase_hook_clean_post_cache'   => (int) $focused_result['counter_delta']['clean_post_cache'],
 		'simple_create_ms_per_item'             => (float) $simple_create_result['elapsed_ms'] / $phase_item_counts['simple_create'],
 		'simple_update_ms_per_item'             => (float) $simple_update_result['elapsed_ms'] / $phase_item_counts['simple_update'],
+		'grouped_create_ms_per_item'            => (float) $grouped_create_result['elapsed_ms'] / $phase_item_counts['grouped_create'],
 		'variation_create_ms_per_item'          => (float) $variation_create_result['elapsed_ms'] / $phase_item_counts['variation_create'],
 		'variation_update_ms_per_item'          => (float) $variation_update_result['elapsed_ms'] / $phase_item_counts['variation_update'],
 		'simple_create_queries_per_item'        => (float) $simple_create_result['query_count'] / $phase_item_counts['simple_create'],
 		'simple_update_queries_per_item'        => (float) $simple_update_result['query_count'] / $phase_item_counts['simple_update'],
+		'grouped_create_queries_per_item'       => (float) $grouped_create_result['query_count'] / $phase_item_counts['grouped_create'],
 		'media_image_mode'                     => $image_mode,
 		'media_images_per_product'             => $image_count,
 		'media_gallery_images_per_product'     => $gallery_count,
 		'media_fixture_attachment_count'       => count( $media_attachment_ids ),
 		'media_simple_create_ms_per_product'   => (float) $simple_create_result['elapsed_ms'] / $simple_product_count,
 		'media_simple_update_ms_per_product'   => (float) $simple_update_result['elapsed_ms'] / $simple_product_count,
+		'media_grouped_create_ms_per_product'  => (float) $grouped_create_result['elapsed_ms'] / $grouped_product_count,
 		'media_variation_create_ms_per_product' => (float) $variation_create_result['elapsed_ms'] / $variation_product_count,
 		'media_variation_update_ms_per_product' => (float) $variation_update_result['elapsed_ms'] / $variation_product_count,
 		'media_simple_create_queries_per_product' => (float) $simple_create_result['query_count'] / $simple_product_count,
 		'media_simple_update_queries_per_product' => (float) $simple_update_result['query_count'] / $simple_product_count,
+		'media_grouped_create_queries_per_product' => (float) $grouped_create_result['query_count'] / $grouped_product_count,
 		'media_variation_create_queries_per_product' => (float) $variation_create_result['query_count'] / $variation_product_count,
 		'media_variation_update_queries_per_product' => (float) $variation_update_result['query_count'] / $variation_product_count,
-		'media_http_request_count'             => $http_request_count( $simple_create_result ) + $http_request_count( $simple_update_result ) + $http_request_count( $variation_create_result ) + $http_request_count( $variation_update_result ),
+		'media_http_request_count'             => $http_request_count( $simple_create_result ) + $http_request_count( $simple_update_result ) + $http_request_count( $grouped_create_result ) + $http_request_count( $variation_create_result ) + $http_request_count( $variation_update_result ),
 		'media_simple_create_http_requests'    => $http_request_count( $simple_create_result ),
 		'media_simple_update_http_requests'    => $http_request_count( $simple_update_result ),
+		'media_grouped_create_http_requests'   => $http_request_count( $grouped_create_result ),
 		'media_variation_create_http_requests' => $http_request_count( $variation_create_result ),
 		'media_variation_update_http_requests' => $http_request_count( $variation_update_result ),
 		'media_rest_error_count'               => $media_rest_error_count,
@@ -2103,6 +2170,7 @@ return function (): array {
 		'scenario_term_mode_new'               => 'new' === $term_mode ? 1 : 0,
 		'scenario_term_mode_mixed'             => 'mixed' === $term_mode ? 1 : 0,
 		'scenario_reentrant_save_post_product' => 1,
+		'scenario_grouped_product_create_guardrail' => 1,
 		'scenario_shared_product_data_store'   => 1,
 		'scenario_preexisting_internal_meta'   => 1,
 		'scenario_third_party_meta_hooks'      => 1,
@@ -2112,6 +2180,7 @@ return function (): array {
 		'variable_parent_update_ms'            => (float) $variable_parent_update_result['elapsed_ms'],
 		'simple_create_ms'                     => (float) $simple_create_result['elapsed_ms'],
 		'simple_update_ms'                     => (float) $simple_update_result['elapsed_ms'],
+		'grouped_create_ms'                    => (float) $grouped_create_result['elapsed_ms'],
 		'variation_create_ms'                  => (float) $variation_create_result['elapsed_ms'],
 		'variation_update_ms'                  => (float) $variation_update_result['elapsed_ms'],
 		'duplicate_sku_retry_ms'               => (float) $retry_duplicate_sku_result['elapsed_ms'],
@@ -2119,6 +2188,7 @@ return function (): array {
 		'variable_parent_update_queries'       => (int) $variable_parent_update_result['query_count'],
 		'simple_create_queries'                => (int) $simple_create_result['query_count'],
 		'simple_update_queries'                => (int) $simple_update_result['query_count'],
+		'grouped_create_queries'               => (int) $grouped_create_result['query_count'],
 		'variation_create_queries'             => (int) $variation_create_result['query_count'],
 		'variation_update_queries'             => (int) $variation_update_result['query_count'],
 		'duplicate_sku_retry_queries'          => (int) $retry_duplicate_sku_result['query_count'],
@@ -2128,7 +2198,21 @@ return function (): array {
 		'lookup_pressure_term_relationship_queries' => $profile_total( $lookup_pressure_rows, 'categories', 'term_lookup' ),
 		'lookup_pressure_post_postmeta_queries' => $profile_total( $lookup_pressure_rows, 'categories', 'post_write_read' ) + $profile_total_keys( $lookup_pressure_rows, 'categories', array( 'meta_exists', 'meta_read', 'meta_insert', 'meta_update' ) ),
 		'lookup_pressure_postmeta_lookup_queries' => $profile_total_keys( $lookup_pressure_rows, 'categories', array( 'meta_exists', 'meta_read' ) ),
-		'lookup_pressure_rest_errors'          => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ) + $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) ) + $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ),
+		'lookup_pressure_rest_errors'          => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ) + $count_response_errors( (array) ( $grouped_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ) + $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) ) + $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ),
+		'grouped_create_profile_sku_lookup_queries' => $profile_value( $grouped_create_result, 'categories', 'sku_lookup' ),
+		'grouped_create_profile_slug_lookup_queries' => $profile_value( $grouped_create_result, 'categories', 'slug_lookup' ),
+		'grouped_create_profile_lookup_table_queries' => $profile_value( $grouped_create_result, 'categories', 'lookup_table' ),
+		'grouped_create_profile_term_lookup_queries' => $profile_value( $grouped_create_result, 'categories', 'term_lookup' ),
+		'grouped_create_profile_meta_exists_queries' => $profile_value( $grouped_create_result, 'categories', 'meta_exists' ),
+		'grouped_create_profile_meta_read_queries' => $profile_value( $grouped_create_result, 'categories', 'meta_read' ),
+		'grouped_create_profile_meta_insert_queries' => $profile_value( $grouped_create_result, 'categories', 'meta_insert' ),
+		'grouped_create_profile_select_postmeta_queries' => $profile_value( $grouped_create_result, 'operation_tables', 'select:postmeta' ),
+		'grouped_create_profile_insert_postmeta_queries' => $profile_value( $grouped_create_result, 'operation_tables', 'insert:postmeta' ),
+		'grouped_create_profile_meta_key_scan_queries' => $profile_value( $grouped_create_result, 'details', 'meta_key_scan' ),
+		'grouped_create_hook_added_post_meta' => (int) $grouped_create_result['counter_delta']['added_post_meta'],
+		'grouped_create_hook_updated_post_meta' => (int) $grouped_create_result['counter_delta']['updated_post_meta'],
+		'grouped_create_hook_deleted_post_meta' => (int) $grouped_create_result['counter_delta']['deleted_post_meta'],
+		'grouped_create_hook_save_post_product' => (int) $grouped_create_result['counter_delta']['save_post_product'],
 		'lookup_pressure_sku_lookup_queries_per_created_item' => (float) $profile_total( $lookup_pressure_rows, 'categories', 'sku_lookup' ) / $created_item_count,
 		'lookup_pressure_slug_uniqueness_queries_per_created_item' => (float) $profile_total( $lookup_pressure_rows, 'categories', 'slug_lookup' ) / $created_item_count,
 		'lookup_pressure_term_queries_per_created_item' => (float) $profile_total( $lookup_pressure_rows, 'categories', 'term_lookup' ) / $created_item_count,
@@ -2272,6 +2356,7 @@ return function (): array {
 		'side_effect_variable_parent_update_response_errors' => $count_response_errors( (array) ( $variable_parent_update_result['data']['update'] ?? array() ) ),
 		'side_effect_simple_create_response_errors' => $count_response_errors( (array) ( $simple_create_result['data']['create'] ?? array() ) ),
 		'side_effect_simple_update_response_errors' => $count_response_errors( (array) ( $simple_update_result['data']['update'] ?? array() ) ),
+		'side_effect_grouped_create_response_errors' => $count_response_errors( (array) ( $grouped_create_result['data']['create'] ?? array() ) ),
 		'side_effect_variation_create_response_errors' => $count_response_errors( (array) ( $variation_create_result['data']['create'] ?? array() ) ),
 		'side_effect_variation_update_response_errors' => $count_response_errors( (array) ( $variation_update_result['data']['update'] ?? array() ) ),
 		'side_effect_duplicate_sku_retry_response_errors' => $count_response_errors( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) ),
@@ -2287,9 +2372,13 @@ return function (): array {
 		'side_effect_variable_parent_type_mismatches' => $variable_parent_type_mismatch,
 		'side_effect_variable_parent_attribute_missing_count' => $variable_parent_attribute_missing,
 		'side_effect_simple_created_count' => count( $simple_ids ),
+		'side_effect_grouped_created_count' => count( $grouped_ids ),
 		'side_effect_variation_created_count' => count( $variation_ids ),
 		'side_effect_simple_loaded_count' => count( $simple_products ),
+		'side_effect_grouped_loaded_count' => count( $grouped_products ),
 		'side_effect_variation_loaded_count' => count( $variation_products ),
+		'side_effect_grouped_type_mismatches' => $grouped_type_mismatches,
+		'side_effect_grouped_child_mismatches' => $grouped_child_mismatches,
 		'side_effect_requested_existing_term_count' => $requested_existing_term_count,
 		'side_effect_requested_new_term_count' => $requested_new_term_count,
 		'side_effect_requested_simple_slug_duplicates' => $count_string_duplicates( $requested_simple_slugs ),
@@ -2305,14 +2394,18 @@ return function (): array {
 		'side_effect_shared_product_data_store_loads' => $shared_product_data_store_loads,
 		'side_effect_shared_variation_data_store_loads' => $shared_variation_data_store_loads,
 		'side_effect_simple_duplicate_meta_row_count' => count( $simple_duplicate_meta_rows ),
+		'side_effect_grouped_duplicate_meta_row_count' => count( $grouped_duplicate_meta_rows ),
 		'side_effect_variation_duplicate_meta_row_count' => count( $variation_duplicate_meta_rows ),
 		'side_effect_simple_internal_duplicate_meta_row_count' => $simple_internal_duplicate_meta_row_count,
+		'side_effect_grouped_internal_duplicate_meta_row_count' => $grouped_internal_duplicate_meta_row_count,
 		'side_effect_variation_internal_duplicate_meta_row_count' => $variation_internal_duplicate_meta_row_count,
 		'side_effect_simple_internal_meta_value_mismatches' => array_sum( $simple_meta_value_mismatches ),
 		'side_effect_variation_internal_meta_value_mismatches' => array_sum( $variation_meta_value_mismatches ),
 		'side_effect_simple_sku_readback_mismatches' => $simple_sku_readback_mismatches,
+		'side_effect_grouped_sku_readback_mismatches' => $grouped_sku_readback_mismatches,
 		'side_effect_variation_sku_readback_mismatches' => $variation_sku_readback_mismatches,
 		'side_effect_simple_sku_lookup_mismatches' => $simple_sku_lookup_mismatches,
+		'side_effect_grouped_sku_lookup_mismatches' => $grouped_sku_lookup_mismatches,
 		'side_effect_variation_sku_lookup_mismatches' => $variation_sku_lookup_mismatches,
 		'side_effect_simple_manage_stock_readback_mismatches' => $simple_manage_stock_mismatches,
 		'side_effect_simple_stock_readback_mismatches' => $simple_stock_mismatches,
@@ -2327,11 +2420,14 @@ return function (): array {
 		'side_effect_variation_stock_mismatches' => $variation_stock_mismatches,
 		'side_effect_variation_stock_status_mismatches' => $variation_stock_status_mismatches,
 		'side_effect_simple_adjacent_meta_missing_count' => $simple_adjacent_meta_missing_count,
+		'side_effect_grouped_adjacent_meta_missing_count' => $grouped_adjacent_meta_missing_count,
 		'side_effect_variation_adjacent_meta_missing_count' => $variation_adjacent_meta_missing_count,
 		'side_effect_variation_empty_attribute_count' => $variation_attribute_empty_count,
 		'side_effect_simple_duplicate_skus' => $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $simple_products ) ),
+		'side_effect_grouped_duplicate_skus' => $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $grouped_products ) ),
 		'side_effect_variation_duplicate_skus' => $count_duplicate_skus( array_map( static fn( $product ) => $product->get_sku(), $variation_products ) ),
 		'side_effect_simple_missing_lookup_rows' => $count_missing_lookup_rows( $simple_ids ),
+		'side_effect_grouped_missing_lookup_rows' => $count_missing_lookup_rows( $grouped_ids ),
 		'side_effect_variation_missing_lookup_rows' => $count_missing_lookup_rows( $variation_ids ),
 		'side_effect_pending_action_count_before' => $pending_action_count_before,
 		'side_effect_pending_action_count_after' => $pending_action_count_after,
@@ -2351,6 +2447,7 @@ return function (): array {
 		$summary,
 		$product_phase_metrics( 'simple_create', $simple_create_result, $simple_create_count ),
 		$product_phase_metrics( 'simple_update', $simple_update_result, $simple_update_count ),
+		$product_phase_metrics( 'grouped_create', $grouped_create_result, $grouped_create_count ),
 		$product_phase_metrics( 'variable_parent_create', $variable_parent_create_result, $variable_parent_create_count ),
 		$product_phase_metrics( 'variable_parent_update', $variable_parent_update_result, $variable_parent_update_count )
 	);
@@ -2384,6 +2481,7 @@ return function (): array {
 					'parent_product_id'     => $parent_id,
 					'variable_parent_product_ids' => array_map( 'intval', $variable_parent_ids ),
 					'simple_product_ids'    => array_map( 'intval', $simple_ids ),
+					'grouped_product_ids'   => array_map( 'intval', $grouped_ids ),
 					'variation_ids'         => array_map( 'intval', $variation_ids ),
 					'active_plugins'        => $active_plugins,
 					'attribute_taxonomies'  => $attribute_taxonomies,
@@ -2401,6 +2499,7 @@ return function (): array {
 						'expected_variation_image_ids'                 => $expected_variation_image_ids,
 						'scenario_labels'                             => array(
 							'variable_parent_product_batch_create_update',
+							'grouped_product_batch_create',
 							'catalog_size_lookup_pressure',
 							'catalog_variation_density_pressure',
 							'sku_shape_lookup_pressure',
@@ -2424,6 +2523,7 @@ return function (): array {
 						'variation_meta_value_mismatches'              => $variation_meta_value_mismatches,
 						'missing_parent_child_ids'                     => $missing_parent_child_ids,
 						'simple_duplicate_meta_rows'                   => $simple_duplicate_meta_rows,
+						'grouped_duplicate_meta_rows'                  => $grouped_duplicate_meta_rows,
 						'variation_duplicate_meta_rows'                => $variation_duplicate_meta_rows,
 						'meta_hook_counts'                            => $meta_hook_counts,
 						'row_counts_before'                           => $row_counts_before,

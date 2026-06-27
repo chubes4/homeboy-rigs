@@ -1,0 +1,29 @@
+{
+  "schema": "wp-codebox/wordpress-workload-run/v1",
+  "wordpress_version": "latest",
+  "steps": [
+    {
+      "command": "wordpress.run-workload",
+      "args": [
+        "path=${package.root}/bench/rest-product-batch-import.php",
+        "type=php"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "raw_result",
+      "path": "rest-product-batch-import/raw_result.json",
+      "kind": "json",
+      "contentType": "application/json",
+      "required": true,
+      "metadata": {
+        "semantic_key": "fuzz.report"
+      }
+    }
+  ],
+  "metadata": {
+    "runner": "wp-codebox",
+    "workload": "rest-product-batch-import"
+  }
+}
