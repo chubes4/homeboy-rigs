@@ -258,16 +258,19 @@
       }
     },
     "product-rest-crud-fuzzer": {
-      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness, with delete explicitly blocked until upstream rollback-safe delete primitives land.",
+      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness plus generic rollback-safe product delete-boundary coverage.",
       "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
       "hotspot_artifact_contract_manifest": "manifests/db-api-hotspot-artifact-io.json",
       "generic_upstream_contracts": [
         "wordpress.rollback-safe-rest-mutation",
-        "wp-codebox/wordpress-workload-run/v1"
+        "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+        "wp-codebox/wordpress-workload-run/v1",
+        "wp-codebox/mutation-isolation-artifact/v1",
+        "wp-codebox/delete-boundary-artifact/v1"
       ],
       "readiness": {
         "level": "executable",
-        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import. Delete remains declared until rollback-safe delete primitives and delete-boundary rollback artifacts exist; proven status requires reviewer-facing run artifacts and gap reports.",
+        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import, and product collection delete-boundary coverage through the generic rollback-safe REST mutation contract. Proven status requires reviewer-facing run artifacts and gap reports.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -298,14 +301,22 @@
             "safety_class": "isolated_mutation"
           },
           "delete": {
-            "level": "declared",
-            "upstream_blocker": "Generic rollback-safe REST delete primitive must emit reviewer-facing delete-boundary rollback artifacts before this profile marks delete executable."
+            "level": "executable",
+            "workload": "generated-rest-request-cases",
+            "primitive": "wordpress.rollback-safe-rest-mutation",
+            "safety_class": "isolated_mutation",
+            "rollback_contract_schema": "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+            "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1"
           }
         },
         "mutation": {
           "primitive": "wordpress.rollback-safe-rest-mutation",
-          "safety_boundary": "Executable product create/update cases run only inside disposable WP Codebox fixtures and must emit rollback/readback details in raw_result before any proof claim.",
-          "rollback_artifacts": ["raw_result"]
+          "safety_boundary": "Executable product create/update/delete cases run only inside disposable WP Codebox fixtures and must emit rollback/readback or delete-boundary details before any proof claim.",
+          "rollback_artifacts": ["raw_result", "delete_boundary"],
+          "rollback_artifact_schemas": [
+            "wp-codebox/mutation-isolation-artifact/v1",
+            "wp-codebox/delete-boundary-artifact/v1"
+          ]
         }
       }
     }

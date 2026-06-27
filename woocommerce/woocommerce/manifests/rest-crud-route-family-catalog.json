@@ -18,20 +18,36 @@
         "primitive": "wordpress.rollback-safe-rest-mutation",
         "workload": "rest-product-batch-import",
         "rollback_artifacts": ["raw_result"],
-        "executable_operations": ["create", "update"]
+        "delete_workload": "generated-rest-request-cases",
+        "rollback_contract_schema": "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_rollback_artifacts": ["wp-codebox/delete-boundary-artifact/v1"],
+        "executable_operations": ["create", "update", "delete"]
       },
       "payload_fixtures": {
         "namespace": "wc/v3",
         "roles": ["administrator", "shop_manager"],
         "create": ["simple product", "grouped product", "variable product parent"],
         "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails"],
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifact contract is unavailable" }
+        "delete": {
+          "level": "executable",
+          "contract_refs": [
+            "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+            "wp-codebox/delete-boundary-artifact/v1"
+          ]
+        }
       },
       "readiness": {
         "create": { "level": "executable", "via": "rest-product-batch-import" },
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "executable", "via": "rest-product-batch-import" },
-        "delete": { "level": "declared", "upstream_blocker": "generic rollback-safe REST delete primitive must emit reviewer-facing delete-boundary rollback artifacts before this route family is executable" }
+        "delete": {
+          "level": "executable",
+          "via": "generated-rest-request-cases",
+          "primitive": "wordpress.rollback-safe-rest-mutation",
+          "safety_class": "isolated_mutation",
+          "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1"
+        }
       },
       "skipped_coverage": [
         {
@@ -39,8 +55,8 @@
           "reason_code": "owned_by_batch_import_workload"
         },
         {
-          "scope": "delete",
-          "reason_code": "missing_rollback_safe_delete_primitive"
+          "scope": "non_batch_delete_payloads",
+          "reason_code": "owned_by_generated_rest_request_cases"
         }
       ]
     },
@@ -153,6 +169,7 @@
     "fixture_owned_dynamic_path_parameter",
     "missing_rollback_safe_delete_primitive",
     "current_workload_does_not_execute_delete",
-    "owned_by_batch_import_workload"
+    "owned_by_batch_import_workload",
+    "owned_by_generated_rest_request_cases"
   ]
 }
