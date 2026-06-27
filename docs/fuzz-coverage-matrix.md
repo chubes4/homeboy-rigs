@@ -80,27 +80,22 @@ support or reviewer-facing fuzz artifacts.
 
 ## WordPress Core
 
-Canonical Core fuzz contracts live under `WordPress/wordpress-develop`. The
-legacy `WordPress/wordpress` package remains listed only where existing
-bench/trace workloads back compatibility coverage; it is not a fuzz-contract or
-benchmark-fallback path for the canonical Core fuzz rig.
+Canonical Core fuzz contracts live under `WordPress/wordpress-develop`.
 
 | Surface | Status | Current assets | Proven / missing edge |
 |---|---|---|---|
-| API | D/E | `WordPress/wordpress-develop/fuzz/rest-api.json`, `WordPress/wordpress-develop/manifests/rest-route-coverage.json`; legacy compatibility: `WordPress/wordpress/bench/wordpress-core-rest-route-inventory.php`, `WordPress/wordpress/bench/generated-rest-request-cases.workload.json` | Route inventory, generated safe REST cases, and role permission-boundary contracts are declared/executable. No reviewer-facing proof bundle is linked yet. |
-| DB | D/E | `WordPress/wordpress-develop/fuzz/db-inventory-query-profile.json`; legacy compatibility: `WordPress/wordpress/bench/db-inventory.workload.json`, `WordPress/wordpress/bench/rest-db-query-profile.workload.json` | Schema inventory, REST query profile, and options/postmeta/rewrite attribution contracts are declared/executable. Core-specific proof artifacts are pending. |
-| Admin | D/E | `WordPress/wordpress-develop/fuzz/admin-page-coverage.json`; legacy compatibility: `WordPress/wordpress/browser-scenarios/posts_list.json`, `post_editor.json`, `pages_list.json`, `page_editor.json`, `site_editor.json`, `media_library.json`, `media_new.json`, `users_list.json`, `profile.json`, `WordPress/wordpress/rigs/wordpress-core-browser-coverage/rig.json` | Safe Woo-equivalent Core wp-admin menu/submenu enumeration is declared with administrator/editor/author/contributor/subscriber role boundaries, skipped destructive reason codes, query attribution, and a required artifact contract. Proof artifacts are pending. |
-| External HTTP | D/E | Legacy compatibility: `WordPress/wordpress/bench/wordpress-core-external-http-guardrail.php` | Guardrail executable exists; proof artifacts are pending. |
+| API | D/E | `WordPress/wordpress-develop/fuzz/rest-api.json`, `WordPress/wordpress-develop/manifests/rest-route-coverage.json` | Route inventory, generated safe REST cases, and role permission-boundary contracts are declared/executable. No reviewer-facing proof bundle is linked yet. |
+| DB | D/E | `WordPress/wordpress-develop/fuzz/db-inventory-query-profile.json` | Schema inventory, REST query profile, and options/postmeta/rewrite attribution contracts are declared/executable. Core-specific proof artifacts are pending. |
+| Admin | D/E | `WordPress/wordpress-develop/fuzz/admin-page-coverage.json` | Safe Woo-equivalent Core wp-admin menu/submenu enumeration is declared with administrator/editor/author/contributor/subscriber role boundaries, skipped destructive reason codes, query attribution, and a required artifact contract. Proof artifacts are pending. |
+| External HTTP | D/E | `WordPress/wordpress-develop/fuzz/performance-surfaces.json` | External HTTP/performance observation coverage is declared. Proof artifacts are pending. |
 | Hooks / cron / options | D/E | `WordPress/wordpress-develop/fuzz/hooks-cron-options.json`, `manifests/hooks-cron-options.json`, `manifests/fuzzer-profile.json`, `rigs/wordpress-core-fuzz-coverage/rig.json` | Hook inventory, cron scheduling, autoloaded options, transients, postmeta, rewrite rules, and rewrite query attribution are declared with required proof artifact names. Proof artifacts are pending before P. |
-| Frontend / rendering | D/E | `WordPress/wordpress-develop/fuzz/frontend-rendering-request-coverage.json`; legacy compatibility: `WordPress/wordpress/browser-scenarios/front_page.json`, posts/pages/media/users scenarios, `WordPress/wordpress/bench/wordpress-core-browser-coverage.trace.mjs` | Frontend request/rendering coverage is declared for front page, singular posts/pages, archive, search, feed, attachment, and browser request capture. Rendering correctness and visual comparison are not claimed. |
-| Performance-related fuzz | D/E partial | `WordPress/wordpress-develop/fuzz/performance-surfaces.json`, `WordPress/wordpress-develop/manifests/performance-surfaces.json`; legacy compatibility: REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | The full-surface profile declares representative frontend, REST, admin, editor, cron, media, option/autoload, request-timing, query-count, and asset observations, but no targeted core performance bug proof is linked. |
+| Frontend / rendering | D/E | `WordPress/wordpress-develop/fuzz/frontend-rendering-request-coverage.json` | Frontend request/rendering coverage is declared for front page, singular posts/pages, archive, search, feed, attachment, and browser request capture. Rendering correctness and visual comparison are not claimed. |
+| Performance-related fuzz | D/E partial | `WordPress/wordpress-develop/fuzz/performance-surfaces.json`, `WordPress/wordpress-develop/manifests/performance-surfaces.json` | The full-surface profile declares representative frontend, REST, admin, editor, cron, media, option/autoload, request-timing, query-count, and asset observations, but no targeted core performance bug proof is linked. |
 
 CRUD/mutation readiness: read coverage is declared/executable for REST, admin,
 frontend, media, user, option, postmeta, hook, cron, and rewrite inventories.
 Create/update/delete remain declared-only until upstream fuzz runner primitives
-provide rollback-safe Core fixture mutation and durable artifact manifests. The
-legacy `WordPress/wordpress` package should not grow product-specific mutation
-workarounds; canonical contracts belong under `WordPress/wordpress-develop`.
+provide rollback-safe Core fixture mutation and durable artifact manifests.
 
 ## Gutenberg
 

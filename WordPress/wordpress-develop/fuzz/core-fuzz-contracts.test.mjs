@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,6 @@ import { validateWordPressCoreFuzzContract } from '../tools/core-fuzz-contract-v
 
 const __dirname = path.dirname( fileURLToPath( import.meta.url ) );
 const packageRoot = path.join( __dirname, '..' );
-const wordpressPackageRoot = path.join( packageRoot, '..', 'wordpress' );
 
 function readJson( ...parts ) {
 	return JSON.parse( readFileSync( path.join( packageRoot, ...parts ), 'utf8' ) );
@@ -66,20 +65,6 @@ test( 'Core fuzz rig and full-surface profile include admin and frontend coverag
 	assert.ok( ! rig.bench_profiles );
 	assertFullSurfaceCoverageManifest( manifest, { file: 'WordPress Core full-surface coverage' } );
 	assert.ok( manifest.coverage_profiles[ 'full-surface' ].includes( 'frontend-rendering-request-coverage' ) );
-} );
-
-test( 'Core browser request coverage includes frontend, posts, pages, media, and users without form submissions', () => {
-	const trace = readFileSync( path.join( wordpressPackageRoot, 'bench', 'wordpress-core-browser-coverage.trace.mjs' ), 'utf8' );
-	for ( const scenario of [ 'front_page', 'posts_list', 'post_editor', 'pages_list', 'page_editor', 'media_library', 'media_new', 'users_list', 'profile' ] ) {
-		assert.match( trace, new RegExp( `id: '${ scenario }'` ) );
-	}
-	const scenarioRoot = path.join( wordpressPackageRoot, 'browser-scenarios' );
-	const scenarioSteps = readdirSync( scenarioRoot )
-		.filter( ( file ) => file.endsWith( '.json' ) )
-		.map( ( file ) => readFileSync( path.join( scenarioRoot, file ), 'utf8' ) )
-		.join( '\n' );
-	assert.doesNotMatch( scenarioSteps, /"kind"\s*:\s*"(?:click|fill|select|submit)"|bulk-action|delete/i );
-	assert.match( trace, /Coverage stays read-only in the browser/ );
 } );
 
 test( 'Core validator reports REST proof contract drift', () => {

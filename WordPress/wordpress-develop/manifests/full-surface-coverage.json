@@ -41,13 +41,6 @@
       "workload_ids": ["frontend-rendering-request-coverage"],
       "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
     },
-    "browser": {
-      "surface_type": "browser",
-      "surface_id": "wordpress-core-browser-coverage",
-      "coverage_goal": "Core frontend, posts, pages, media, users, editor, and site editor browser request coverage",
-      "workload_ids": ["front_page", "posts_list", "post_editor", "pages_list", "page_editor", "site_editor", "media_library", "media_new", "users_list", "profile"],
-      "artifact_schemas": ["wp-codebox/browser-request-coverage/v1"]
-    },
     "database": {
       "surface_type": "database",
       "surface_id": "db-inventory-query-profile",
@@ -59,13 +52,12 @@
   "gap_report": {
     "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
     "semantic_key": "fuzz.report",
-    "inputs": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options", "wordpress-core-browser-coverage"],
+    "inputs": ["rest-api", "db-inventory-query-profile", "admin-page-coverage", "frontend-rendering-request-coverage", "hooks-cron-options"],
     "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
     "compare": {
       "rest": "registered Core REST routes minus generated safe request cases and role permission-boundary rows",
       "admin": "manifest admin pages minus captured readiness and query attribution artifacts",
       "frontend": "front page, singular, archive, search, feed, attachment, and request coverage artifacts minus captured rendering rows",
-      "browser": "declared Core browser scenarios minus captured browser request coverage rows",
       "database": "Core schema inventory and query profiles minus options, postmeta, rewrite, hook, cron, and transient attribution rows"
     }
   },

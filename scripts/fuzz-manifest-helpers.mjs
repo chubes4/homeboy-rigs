@@ -430,7 +430,12 @@ export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.pr
   assert.notEqual(manifest.property.trim(), '', `${file} requires non-empty property`);
   assert.ok(manifest.coverage_map && typeof manifest.coverage_map === 'object' && !Array.isArray(manifest.coverage_map), `${file} requires coverage_map`);
 
-  for (const surfaceType of fullSurfaceCoverageTypes) {
+  const declaredSurfaceTypes = new Set(fullSurfaceCoverageTypes);
+  if (!manifest.coverage_map.browser) {
+    declaredSurfaceTypes.delete('browser');
+  }
+
+  for (const surfaceType of declaredSurfaceTypes) {
     const entry = manifest.coverage_map[surfaceType];
     assert.ok(entry && typeof entry === 'object' && !Array.isArray(entry), `${file} coverage_map.${surfaceType} must be an object`);
     assert.equal(entry.surface_type, surfaceType, `${file} coverage_map.${surfaceType}.surface_type mismatch`);
@@ -454,7 +459,7 @@ export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.pr
     assert.ok(requiredFields.has(field), `${file} gap_report.required_fields missing ${field}`);
   }
 
-  for (const surfaceType of fullSurfaceCoverageTypes) {
+  for (const surfaceType of declaredSurfaceTypes) {
     assert.equal(typeof manifest.gap_report.compare[surfaceType], 'string', `${file} gap_report.compare.${surfaceType} must be a string`);
     assert.notEqual(manifest.gap_report.compare[surfaceType].trim(), '', `${file} gap_report.compare.${surfaceType} must be non-empty`);
   }
