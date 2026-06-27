@@ -25,7 +25,8 @@
   "bench_workloads": {
     "nodejs": [
       {
-        "path": "${package.root}/bench/static-site-fixture-matrix.bench.mjs"
+        "path": "${package.root}/bench/static-site-fixture-matrix.bench.mjs",
+        "env_provider_extensions": ["wordpress"]
       }
     ]
   },
