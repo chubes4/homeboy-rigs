@@ -128,10 +128,45 @@ The workload composes these generic surfaces:
   execution when `--run` is explicitly provided.
 - WP Codebox `workspace-recipe/v1` steps using generic `wordpress.wp-cli`
   commands.
+- WP Codebox `wordpress.editor-canvas-probe` command for the editor-side block
+  validity step (see below).
 
 SSI-specific behavior remains here: plugin slug/defaults, fixture artifact
 packing, `static-site-importer validate-artifact` command construction,
 artifact expectations, and diagnostic-to-repair grouping.
+
+## Editor Block Validity Gate
+
+The PHP `validate-artifact` step proves blocks *serialize* (PHP
+`parse_blocks`/`serialize_blocks` round-trip). It does **not** run the editor's
+JS save-comparison validation, which is what surfaces the "This block contains
+unexpected or invalid content" warning users actually see.
+
+After each fixture's import step, `buildFixtureMatrixRecipe` appends a
+`wordpress.editor-canvas-probe` step that opens the imported post in the real
+block editor canvas (same WP Codebox sandbox) and probes the
+`editor_block_invalid` selector group (`.block-editor-warning`,
+`.block-editor-block-list__block.is-invalid`). This reuses the existing
+wp-codebox editor command and mirrors the `wp.blocks.validateBlock` pass in
+`Automattic/studio/bench/studio-agent-site-build.bench.mjs` rather than
+rebuilding a validator.
+
+`collectEditorValidationDiagnostics` reads the probe's `selectorSummary`
+(invalid-warning matches) — and, when present, per-block `isValid`/`validateBlock`
+results — back into `editor_block_invalid` diagnostics. These classify into the
+Blocks Engine feature/visual-parity bucket (`candidate_repo: blocks-engine`,
+`repair_mode: editor-block-validation-parity`) with the unacceptable
+`editor_block_invalid` loss class, so the honest gate fails the fixture. Valid
+blocks emit nothing. Set `editorValidation: false` to omit the step.
+
+Live caveat: a full editor-validation pass requires a healthy Lab runner (the
+runner currently has a controller/daemon version drift). The wiring and the
+finding-parsing/gating logic are unit-tested in
+`tools/fixture-matrix.test.mjs`. For per-block name/clientId fidelity equal to
+the studio bench, wp-codebox's `editor-actions`/`inspectState` would need to
+emit `getBlocks()` `isValid` (or run `wp.blocks.validateBlock`); the probe path
+used here detects invalid blocks via the warning DOM without any wp-codebox
+change, which `collectEditorValidationDiagnostics` already consumes.
 
 ## Generated Artifact Intake Contract
 

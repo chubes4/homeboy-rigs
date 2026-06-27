@@ -7,7 +7,36 @@ export const WEBSITE_ARTIFACT_SCHEMA = 'blocks-engine/php-transformer/site-artif
 
 const DEFAULT_ENTRYPOINT = 'website/index.html';
 const DEFAULT_IMPORTER_SLUG = 'static-site-importer';
+
+// Editor-side block validity (JS save-comparison) wiring. The imported post is
+// opened in a real block editor inside the same WP Codebox sandbox the matrix
+// already spins up, then probed for invalid-block warnings. This mirrors the
+// `wp.blocks.validateBlock` pass in
+// `Automattic/studio/bench/studio-agent-site-build.bench.mjs`, but reuses the
+// existing `wordpress.editor-canvas-probe` recipe command rather than rebuilding
+// a validator. The editor renders `.block-editor-warning` /
+// `is-invalid` for blocks whose stored markup no longer matches the block
+// type's `save()` output ("This block contains unexpected or invalid content").
+export const EDITOR_BLOCK_INVALID_KIND = 'editor_block_invalid';
+export const EDITOR_INVALID_BLOCK_SELECTOR_GROUP = 'editor_block_invalid';
+export const EDITOR_INVALID_BLOCK_SELECTORS = [
+  '.block-editor-warning',
+  '.block-editor-block-list__block.is-invalid',
+  '.wp-block[data-block].is-invalid',
+];
+const DEFAULT_EDITOR_VALIDATION_URL = '/wp-admin/post-new.php';
+const EDITOR_BLOCK_INVALID_DEFAULT_DETAIL = 'This block contains unexpected or invalid content';
+
 const DEFAULT_FINDING_GROUPS = {
+  // Editor-side block invalidity routes to the Blocks Engine feature/visual
+  // parity bucket and must gate. Listed first so the `editor_block_invalid`
+  // kind classifies here instead of the structural PHP `invalid_block_content`
+  // group, even though both mention "invalid content".
+  editor_block_invalid: {
+    patterns: [/editor_block_invalid/i, /editor block validation/i, /block-editor-warning/i, /this block contains unexpected or invalid content/i],
+    candidate_repo: 'blocks-engine',
+    repair_mode: 'editor-block-validation-parity',
+  },
   button_style_loss: {
     patterns: [/default gray button/i, /button.*gray/i, /button.*style/i],
     candidate_repo: 'blocks-engine',
@@ -46,6 +75,7 @@ const UNACCEPTABLE_LOSS_CLASSES = new Set([
   'importer_materialization_bug',
   'invalid_block_output',
   'invalid_block_content',
+  'editor_block_invalid',
   'missing_asset',
   'missing_output',
   'fixture_not_run',
@@ -191,6 +221,8 @@ export function buildFixtureMatrixRecipe(input = {}) {
   const importer = normalizeStaticSiteImporterPlugin(input);
   const mounts = normalizeArray(input.mounts);
   const extraPlugins = [importer.extraPlugin, ...normalizeArray(input.extraPlugins || input.extra_plugins)];
+  const editorValidationEnabled = input.editorValidation !== false && input.editor_validation !== false;
+  const editorValidationUrl = input.editorValidationUrl || input.editor_validation_url || DEFAULT_EDITOR_VALIDATION_URL;
 
   if (playgroundArtifactsDirectory) {
     mounts.push({
@@ -213,17 +245,40 @@ export function buildFixtureMatrixRecipe(input = {}) {
     workflow: {
       steps: [
         importer.activationStep,
-        ...matrix.fixtures.map((fixture) => ({
-          command: 'wordpress.wp-cli',
-          args: [
-            `command=static-site-importer validate-artifact --artifact=${shellToken(path.join(commandArtifactsDirectory, fixture.id, 'artifact.json'))} --slug=${shellToken(fixture.id)} --name=${shellToken(fixture.label)} --allow-missing-woocommerce --allow-failure`,
-          ],
-        })),
+        ...matrix.fixtures.flatMap((fixture) => [
+          {
+            command: 'wordpress.wp-cli',
+            args: [
+              `command=static-site-importer validate-artifact --artifact=${shellToken(path.join(commandArtifactsDirectory, fixture.id, 'artifact.json'))} --slug=${shellToken(fixture.id)} --name=${shellToken(fixture.label)} --allow-missing-woocommerce --allow-failure`,
+            ],
+          },
+          ...(editorValidationEnabled ? [editorBlockValidationStep({ fixture, url: editorValidationUrl })] : []),
+        ]),
       ],
     },
     artifacts: {
       directory: artifactsDirectory,
     },
+  };
+}
+
+// Compose the existing `wordpress.editor-canvas-probe` recipe command into an
+// editor-validation step. The probe opens the imported post in the real block
+// editor canvas and reports DOM matches for the invalid-block warning selectors,
+// which is exactly the surface Gutenberg renders for JS save-comparison
+// failures. No new wp-codebox capability is introduced — the invalid-block
+// signal is read back out of the probe's `selectorSummary` by
+// `collectEditorValidationDiagnostics`.
+export function editorBlockValidationStep(input = {}) {
+  const fixture = input.fixture || {};
+  const url = input.url || input.editorValidationUrl || fixture.editor_url || fixture.editorUrl || DEFAULT_EDITOR_VALIDATION_URL;
+  const selectorGroups = [{ name: EDITOR_INVALID_BLOCK_SELECTOR_GROUP, selectors: EDITOR_INVALID_BLOCK_SELECTORS }];
+  return {
+    command: 'wordpress.editor-canvas-probe',
+    args: [
+      `url=${url}`,
+      `selector-groups-json=${JSON.stringify(selectorGroups)}`,
+    ],
   };
 }
 
@@ -593,6 +648,9 @@ function classifyLossClass({ raw, kind, group_key, repair_bucket, message, resul
   if (kind === 'fixture_failed' || group_key === 'fixture_failed') {
     return 'fixture_failed';
   }
+  if (group_key === 'editor_block_invalid' || kind === EDITOR_BLOCK_INVALID_KIND || /editor block validation|block-editor-warning|this block contains unexpected or invalid content/i.test(haystack)) {
+    return 'editor_block_invalid';
+  }
   if (group_key === 'invalid_block_content' || /invalid block|block validation/i.test(haystack)) {
     return 'invalid_block_content';
   }
@@ -757,6 +815,7 @@ function collectFixtureDiagnostics(payload) {
     ...collectBlocksEngineDiagnostics(payload),
     ...collectRuntimeTargetGaps(payload).map((gap) => ({ kind: 'runtime_target_gap', ...objectValue(gap), message: diagnosticMessage(gap) || 'Runtime target gap detected.' })),
     ...collectMissingAssets(payload).map((asset) => ({ kind: missingAssetKind(asset), ...objectValue(asset), message: diagnosticMessage(asset) || 'Missing imported asset.' })),
+    ...collectEditorValidationDiagnostics(payload),
   ];
   const invalidBlockCount = Object.values(collectInvalidBlockCounts(payload)).reduce((sum, value) => sum + numberValue(value), 0);
   if (invalidBlockCount > 0) {
@@ -984,7 +1043,7 @@ function hasPayloadData(value) {
 }
 
 function readFixturePayloadFiles(directory) {
-  return ['validation-result.json', 'result.json', 'import-report.json', 'quality.json', 'blocks-engine-diagnostics.json']
+  return ['validation-result.json', 'result.json', 'import-report.json', 'quality.json', 'blocks-engine-diagnostics.json', 'editor-validation.json', 'editor-canvas-summary.json']
     .map((fileName) => readJsonFileIfExists(path.join(directory, fileName)))
     .filter(Boolean);
 }
@@ -1083,6 +1142,122 @@ function collectBlocksEngineDiagnostics(payload) {
     ...normalizeArray(payload.blocks_engine?.diagnostics || payload.blocksEngine?.diagnostics),
     ...normalizeArray(payload.transformer_diagnostics || payload.transformerDiagnostics),
   ];
+}
+
+// Turn editor-validation evidence (either explicit per-block validity from a
+// `validateBlock`/getBlocks pass, or `wordpress.editor-canvas-probe`
+// invalid-block warning matches) into `editor_block_invalid` diagnostics. These
+// flow through `normalizeDiagnosticFinding` and gate via the
+// `editor_block_invalid` unacceptable loss class. Valid blocks emit nothing.
+export function collectEditorValidationDiagnostics(payload) {
+  const diagnostics = [];
+
+  for (const block of collectEditorValidatedBlocks(payload)) {
+    if (isInvalidEditorBlock(block)) {
+      diagnostics.push(editorInvalidBlockDiagnostic(block));
+    }
+  }
+
+  for (const group of collectEditorCanvasInvalidGroups(payload)) {
+    const count = numberValue(group.visible_count ?? group.visibleCount ?? group.count);
+    if (count <= 0) {
+      continue;
+    }
+    const detail = firstString([group.first_match?.text, group.firstMatch?.text, EDITOR_BLOCK_INVALID_DEFAULT_DETAIL]);
+    diagnostics.push({
+      kind: EDITOR_BLOCK_INVALID_KIND,
+      selector: group.selector || EDITOR_INVALID_BLOCK_SELECTORS[0],
+      source_path: group.source_path || group.sourcePath || '',
+      observed_output: detail,
+      message: `Editor rendered ${count} invalid-block warning${count === 1 ? '' : 's'} for the imported post (${detail}).`,
+    });
+  }
+
+  return diagnostics;
+}
+
+function collectEditorValidatedBlocks(payload) {
+  return [
+    ...normalizeArray(payload.editor_blocks || payload.editorBlocks),
+    ...normalizeArray(payload.editor_validation?.blocks || payload.editorValidation?.blocks),
+    ...normalizeArray(payload.editor_validation?.results || payload.editorValidation?.results),
+    ...normalizeArray(payload.editor_state?.blocks || payload.editorState?.blocks),
+  ];
+}
+
+function isInvalidEditorBlock(block) {
+  if (!block || typeof block !== 'object') {
+    return false;
+  }
+  if (block.isValid === false || block.is_valid === false || block.valid === false) {
+    return true;
+  }
+  // A `validateBlock`-style result: [isValid, issues] or { isValid }.
+  if (Array.isArray(block.validation)) {
+    return block.validation[0] === false;
+  }
+  return false;
+}
+
+function editorInvalidBlockDiagnostic(block) {
+  const name = block.name || block.block_name || block.blockName || '';
+  const clientId = block.clientId || block.client_id || '';
+  const selector = block.selector || (clientId ? `[data-block="${clientId}"]` : '');
+  const detail = firstString([
+    Array.isArray(block.issues) ? block.issues.join('; ') : '',
+    Array.isArray(block.validationIssues) ? block.validationIssues.map((issue) => diagnosticMessage(issue)).filter(Boolean).join('; ') : '',
+    block.validity_detail || block.validityDetail,
+    block.reason,
+    EDITOR_BLOCK_INVALID_DEFAULT_DETAIL,
+  ]);
+  return {
+    kind: EDITOR_BLOCK_INVALID_KIND,
+    block_name: name,
+    observed_block_name: name,
+    selector,
+    source_path: block.source_path || block.source || '',
+    observed_output: firstString([block.originalContent, block.expectedContent, block.html_excerpt]),
+    message: `Editor reported block "${name || 'unknown'}" as invalid: ${detail}.`,
+  };
+}
+
+function collectEditorCanvasInvalidGroups(payload) {
+  const groups = [];
+  for (const summary of collectEditorCanvasSummaries(payload)) {
+    for (const group of normalizeArray(summary.selectorSummary?.groups || summary.selector_summary?.groups || summary.groups)) {
+      if (isEditorInvalidBlockGroup(group)) {
+        groups.push(group);
+      }
+    }
+  }
+  return groups;
+}
+
+function collectEditorCanvasSummaries(payload) {
+  const summaries = [];
+  for (const candidate of [
+    payload.summary,
+    payload.editor_canvas || payload.editorCanvas,
+    payload.editor_validation?.canvas || payload.editorValidation?.canvas,
+  ]) {
+    for (const value of normalizeArray(candidate)) {
+      if (value && typeof value === 'object' && (value.selectorSummary || value.selector_summary || value.groups)) {
+        summaries.push(value);
+      }
+    }
+  }
+  return summaries;
+}
+
+function isEditorInvalidBlockGroup(group) {
+  if (!group || typeof group !== 'object') {
+    return false;
+  }
+  const name = String(group.name || '').toLowerCase();
+  if (name === EDITOR_INVALID_BLOCK_SELECTOR_GROUP || /invalid|warning/.test(name)) {
+    return true;
+  }
+  return /block-editor-warning|is-invalid/.test(String(group.selector || ''));
 }
 
 function groupFindings(findings) {
@@ -1383,6 +1558,8 @@ function normalizeLossClass(value) {
     invalid_block: 'invalid_block_content',
     invalid_block_output: 'invalid_block_output',
     invalid_block_content: 'invalid_block_content',
+    editor_block_invalid: 'editor_block_invalid',
+    editor_invalid_block: 'editor_block_invalid',
     missing_asset: 'missing_asset',
     missing_assets: 'missing_asset',
     missing_output: 'missing_output',
