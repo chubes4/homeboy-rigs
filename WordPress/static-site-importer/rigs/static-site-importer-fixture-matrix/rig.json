@@ -21,6 +21,7 @@
   },
   "bench": {
     "default_component": "static-site-importer",
+    "iterations": 1,
     "warmup_iterations": 0,
     "result_gates": {
       "failed_fixture_count": { "lte": 0 }
