@@ -75,6 +75,23 @@ URLs, and the structured Homeboy bench output file. Pass `--dry-run` to inspect
 the composed commands without running Lab/WP Codebox. Arguments after `--` are
 forwarded to the lower-level bench, preserving the existing script options:
 
+### Code freshness guard
+
+Before running, the wrapper resolves the git freshness of the override/source
+checkouts (`--blocks-engine` / `--blocks-engine-php-transformer-path` and
+`--static-site-importer`) relative to their upstream. The plan and operator
+summary include a `code_freshness` block (per path: `branch`, `upstream`,
+`behind`, `ahead`, `dirty`, `commit`, `status`) plus the resolved
+`transformer_commit` so findings are attributable to the exact code under test.
+
+If any override is **behind or diverged** vs upstream, the wrapper warns loudly
+and **refuses to run** (exit non-zero) — a stale transformer produces
+semantic-parity findings that may already be fixed upstream (phantom findings).
+Refresh the checkout to upstream, or pass `--allow-stale-override` to proceed
+anyway. `--dry-run` always prints the resolved freshness and whether it *would*
+block, without running. Fresh/clean (or ahead-only) checkouts proceed with no
+new friction.
+
 ```bash
 node WordPress/static-site-importer/tools/run-fixture-matrix.mjs \
   --runner homeboy-lab \

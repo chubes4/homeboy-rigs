@@ -11,8 +11,10 @@ import runFixtureMatrixBench, {
   runFixtureMatrix,
 } from '../bench/static-site-fixture-matrix.bench.mjs';
 import {
+  buildCodeFreshness,
   buildFixtureMatrixRunPlan,
   CANONICAL_FIXTURE_COUNT,
+  resolvePathFreshness,
   summarizeRun,
 } from './run-fixture-matrix.mjs';
 import {
@@ -557,6 +559,141 @@ module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
     restoreEnv('SSI_FIXTURE_MATRIX_RUN', previousRun);
     restoreEnv('SSI_FIXTURE_MATRIX_BATCH_SIZE', previousBatchSize);
   }
+});
+
+function fakeGitRunner(stateByPath) {
+  return (cwd, args) => {
+    const state = stateByPath[path.resolve(cwd)];
+    if (!state) {
+      return { status: 1, stdout: '', stderr: 'not a git repo' };
+    }
+    const joined = args.join(' ');
+    if (joined === 'rev-parse --is-inside-work-tree') {
+      return { status: 0, stdout: 'true', stderr: '' };
+    }
+    if (joined === 'rev-parse --abbrev-ref HEAD') {
+      return { status: 0, stdout: state.branch || 'trunk', stderr: '' };
+    }
+    if (joined === 'rev-parse HEAD') {
+      return { status: 0, stdout: state.commit || 'deadbeef', stderr: '' };
+    }
+    if (joined === 'status --porcelain') {
+      return { status: 0, stdout: state.dirty ? ' M file.php' : '', stderr: '' };
+    }
+    if (joined === 'rev-parse --abbrev-ref --symbolic-full-name @{upstream}') {
+      return state.upstream
+        ? { status: 0, stdout: state.upstream, stderr: '' }
+        : { status: 128, stdout: '', stderr: 'no upstream' };
+    }
+    if (args[0] === 'rev-list') {
+      return { status: 0, stdout: `${state.behind || 0}\t${state.ahead || 0}`, stderr: '' };
+    }
+    return { status: 1, stdout: '', stderr: 'unhandled git command' };
+  };
+}
+
+test('code freshness guard blocks stale overrides unless explicitly allowed', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-freshness-stale-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const blocksEngine = path.join(root, 'blocks-engine');
+  const fixtureRoot = path.join(blocksEngine, 'fixtures', 'websites');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(fixtureRoot, 'fixture-a'), { recursive: true });
+
+  const gitRunner = fakeGitRunner({
+    [path.resolve(blocksEngine)]: { branch: 'trunk', upstream: 'origin/trunk', behind: 33, ahead: 0, commit: 'staleabc' },
+    [path.resolve(staticSiteImporter)]: { branch: 'main', upstream: 'origin/main', behind: 0, ahead: 0, commit: 'freshxyz' },
+  });
+
+  const stalePlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    blocksEngine,
+    runId: 'ssi-freshness-stale',
+    skipInstall: true,
+    skipSync: true,
+    gitRunner,
+  });
+
+  assert.equal(stalePlan.code_freshness.would_block, true);
+  assert.deepEqual(stalePlan.code_freshness.stale_overrides, ['blocks_engine_php_transformer_path']);
+  assert.equal(stalePlan.code_freshness.paths.blocks_engine_php_transformer_path.status, 'behind');
+  assert.equal(stalePlan.code_freshness.paths.blocks_engine_php_transformer_path.behind, 33);
+  assert.equal(stalePlan.code_freshness.paths.static_site_importer.status, 'fresh');
+  assert.equal(stalePlan.transformer_commit, 'staleabc');
+  assert.ok(stalePlan.warnings.some((warning) => warning.code === 'stale_override'));
+  assert.equal(stalePlan.warnings.some((warning) => warning.code === 'stale_override_allowed'), false);
+
+  const allowedPlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    blocksEngine,
+    runId: 'ssi-freshness-stale-allowed',
+    skipInstall: true,
+    skipSync: true,
+    allowStaleOverride: true,
+    gitRunner,
+  });
+
+  assert.equal(allowedPlan.code_freshness.would_block, true);
+  assert.equal(allowedPlan.allow_stale_override, true);
+  assert.ok(allowedPlan.warnings.some((warning) => warning.code === 'stale_override_allowed'));
+});
+
+test('code freshness guard lets fresh and diverged overrides through with accurate status', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-freshness-fresh-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const blocksEngine = path.join(root, 'blocks-engine');
+  const fixtureRoot = path.join(blocksEngine, 'fixtures', 'websites');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(fixtureRoot, 'fixture-a'), { recursive: true });
+
+  const freshPlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    blocksEngine,
+    runId: 'ssi-freshness-fresh',
+    skipInstall: true,
+    skipSync: true,
+    gitRunner: fakeGitRunner({
+      [path.resolve(blocksEngine)]: { branch: 'trunk', upstream: 'origin/trunk', behind: 0, ahead: 2, commit: 'aheadcommit' },
+      [path.resolve(staticSiteImporter)]: { branch: 'main', upstream: 'origin/main', behind: 0, ahead: 0, commit: 'freshcommit' },
+    }),
+  });
+
+  assert.equal(freshPlan.code_freshness.would_block, false);
+  assert.deepEqual(freshPlan.code_freshness.stale_overrides, []);
+  assert.equal(freshPlan.code_freshness.paths.blocks_engine_php_transformer_path.status, 'ahead');
+  assert.equal(freshPlan.warnings.some((warning) => warning.code === 'stale_override'), false);
+
+  const diverged = resolvePathFreshness(
+    'blocks_engine_php_transformer_path',
+    blocksEngine,
+    fakeGitRunner({
+      [path.resolve(blocksEngine)]: { branch: 'trunk', upstream: 'origin/trunk', behind: 5, ahead: 3, dirty: true, commit: 'divergedc' },
+    }),
+  );
+  assert.equal(diverged.status, 'diverged');
+  assert.equal(diverged.stale, true);
+  assert.equal(diverged.dirty, true);
+});
+
+test('code freshness marks non-git override paths without blocking', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-freshness-nongit-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const blocksEngine = path.join(root, 'blocks-engine');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(blocksEngine, 'fixtures', 'websites', 'fixture-a'), { recursive: true });
+
+  const freshness = buildCodeFreshness(
+    {
+      staticSiteImporter,
+      blocksEngine,
+      blocksEnginePhpTransformerPath: blocksEngine,
+    },
+    fakeGitRunner({}),
+  );
+
+  assert.equal(freshness.would_block, false);
+  assert.equal(freshness.paths.blocks_engine_php_transformer_path.in_git_repo, false);
+  assert.equal(freshness.paths.blocks_engine_php_transformer_path.status, 'not_git');
 });
 
 function restoreEnv(key, value) {

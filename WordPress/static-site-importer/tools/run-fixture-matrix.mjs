@@ -18,8 +18,18 @@ async function main() {
   }
 
   const plan = buildFixtureMatrixRunPlan(options);
+
+  if (plan.code_freshness.would_block) {
+    process.stderr.write(freshnessGuardBanner(plan.code_freshness, options));
+  }
+
   if (options.dryRun) {
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+    return;
+  }
+
+  if (plan.code_freshness.would_block && !options.allowStaleOverride) {
+    process.exitCode = 1;
     return;
   }
 
@@ -47,7 +57,8 @@ export function buildFixtureMatrixRunPlan(input) {
     ...(options.wpCodeboxBin ? { SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN: options.wpCodeboxBin } : {}),
   };
   const fixtureCount = countTopLevelFixtureDirectories(options.fixtureRoot);
-  const warnings = buildWarnings(options);
+  const codeFreshness = buildCodeFreshness(options, options.gitRunner || defaultGitRunner);
+  const warnings = [...buildWarnings(options), ...buildFreshnessWarnings(codeFreshness, options)];
 
   return {
     schema: 'homeboy-rigs/static-site-importer-fixture-matrix-operator-run/v1',
@@ -67,6 +78,9 @@ export function buildFixtureMatrixRunPlan(input) {
     artifact_root: options.artifactRoot,
     shared_state: options.sharedState,
     namespace: options.namespace,
+    allow_stale_override: Boolean(options.allowStaleOverride),
+    code_freshness: codeFreshness,
+    transformer_commit: resolveTransformerCommit(codeFreshness),
     warnings,
     dependency_overrides: options.blocksEnginePhpTransformerPath
       ? { blocks_engine_php_transformer: { path: options.blocksEnginePhpTransformerPath } }
@@ -134,6 +148,166 @@ function buildWarnings(options) {
       message: '--allow-dirty-lab-workspace permits reusing or overwriting a dirty Lab workspace.',
     }] : []),
   ];
+}
+
+export const CODE_FRESHNESS_SCHEMA = 'homeboy-rigs/static-site-importer-fixture-matrix-code-freshness/v1';
+
+// Roles checked for git freshness. Stale (behind/diverged) overrides risk
+// producing phantom findings from code that no longer reflects upstream.
+function freshnessTargets(options) {
+  const targets = [];
+  if (options.blocksEnginePhpTransformerPath) {
+    targets.push({ role: 'blocks_engine_php_transformer_path', path: options.blocksEnginePhpTransformerPath });
+  }
+  if (options.blocksEngine && options.blocksEngine !== options.blocksEnginePhpTransformerPath) {
+    targets.push({ role: 'blocks_engine', path: options.blocksEngine });
+  }
+  if (options.staticSiteImporter) {
+    targets.push({ role: 'static_site_importer', path: options.staticSiteImporter });
+  }
+  return targets;
+}
+
+export function buildCodeFreshness(options, gitRunner = defaultGitRunner) {
+  const paths = {};
+  for (const target of freshnessTargets(options)) {
+    paths[target.role] = resolvePathFreshness(target.role, target.path, gitRunner);
+  }
+  const stale = Object.values(paths).filter((entry) => entry.stale);
+  return {
+    schema: CODE_FRESHNESS_SCHEMA,
+    would_block: stale.length > 0,
+    stale_overrides: stale.map((entry) => entry.role),
+    paths,
+  };
+}
+
+export function resolvePathFreshness(role, targetPath, gitRunner = defaultGitRunner) {
+  const resolved = path.resolve(targetPath);
+  const base = {
+    role,
+    path: resolved,
+    in_git_repo: false,
+    branch: '',
+    upstream: null,
+    behind: 0,
+    ahead: 0,
+    dirty: false,
+    commit: '',
+    status: 'not_git',
+    stale: false,
+  };
+
+  if (!fs.existsSync(resolved)) {
+    return { ...base, status: 'missing' };
+  }
+
+  const inside = gitText(resolved, ['rev-parse', '--is-inside-work-tree'], gitRunner);
+  if (inside.status !== 0 || inside.stdout !== 'true') {
+    return base;
+  }
+
+  base.in_git_repo = true;
+  base.branch = gitText(resolved, ['rev-parse', '--abbrev-ref', 'HEAD'], gitRunner).stdout;
+  base.commit = gitText(resolved, ['rev-parse', 'HEAD'], gitRunner).stdout;
+  base.dirty = gitText(resolved, ['status', '--porcelain'], gitRunner).stdout !== '';
+
+  const upstream = gitText(resolved, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], gitRunner);
+  if (upstream.status !== 0 || !upstream.stdout) {
+    base.status = base.branch === 'HEAD' ? 'detached' : 'no_upstream';
+    return base;
+  }
+
+  base.upstream = upstream.stdout;
+  const counts = gitText(resolved, ['rev-list', '--left-right', '--count', `${upstream.stdout}...HEAD`], gitRunner);
+  if (counts.status === 0 && /^\d+\s+\d+$/.test(counts.stdout)) {
+    const [behind, ahead] = counts.stdout.split(/\s+/).map(Number);
+    base.behind = behind;
+    base.ahead = ahead;
+  }
+
+  base.status = freshnessStatus(base);
+  // Behind or diverged means the override no longer matches upstream — block.
+  base.stale = base.behind > 0;
+  return base;
+}
+
+function freshnessStatus(entry) {
+  if (entry.behind > 0 && entry.ahead > 0) {
+    return 'diverged';
+  }
+  if (entry.behind > 0) {
+    return 'behind';
+  }
+  if (entry.ahead > 0) {
+    return 'ahead';
+  }
+  return 'fresh';
+}
+
+function buildFreshnessWarnings(codeFreshness, options) {
+  const warnings = [];
+  for (const role of codeFreshness.stale_overrides) {
+    const entry = codeFreshness.paths[role];
+    warnings.push({
+      code: 'stale_override',
+      message: `${role} (${entry.path}) is ${entry.status} vs ${entry.upstream} (behind ${entry.behind}, ahead ${entry.ahead}); findings may be phantom from stale code. Refresh it or pass --allow-stale-override to proceed.`,
+    });
+  }
+  if (codeFreshness.would_block && options.allowStaleOverride) {
+    warnings.push({
+      code: 'stale_override_allowed',
+      message: '--allow-stale-override permits running against a stale/diverged override; findings may not reproduce on upstream.',
+    });
+  }
+  return warnings;
+}
+
+function resolveTransformerCommit(codeFreshness) {
+  const entry = codeFreshness?.paths?.blocks_engine_php_transformer_path || codeFreshness?.paths?.blocks_engine;
+  return entry?.commit || '';
+}
+
+function freshnessGuardBanner(codeFreshness, options) {
+  const lines = [
+    '',
+    '================================================================',
+    options.allowStaleOverride
+      ? 'WARNING: running against a STALE/diverged override (--allow-stale-override)'
+      : 'REFUSING TO RUN: a code override is STALE/diverged vs upstream',
+    '================================================================',
+  ];
+  for (const role of codeFreshness.stale_overrides) {
+    const entry = codeFreshness.paths[role];
+    lines.push(`  - ${role}: ${entry.path}`);
+    lines.push(`      branch ${entry.branch} is ${entry.status} vs ${entry.upstream} (behind ${entry.behind}, ahead ${entry.ahead}, ${entry.dirty ? 'dirty' : 'clean'})`);
+    lines.push(`      commit ${entry.commit}`);
+  }
+  lines.push('Findings produced against stale code may not reproduce on upstream (phantom findings).');
+  if (options.allowStaleOverride) {
+    lines.push('Proceeding because --allow-stale-override was passed.');
+  } else {
+    lines.push('Refresh the checkout(s) to upstream, or pass --allow-stale-override to proceed anyway.');
+  }
+  lines.push('================================================================', '');
+  return `${lines.join('\n')}\n`;
+}
+
+function defaultGitRunner(cwd, args) {
+  const result = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+  return {
+    status: result.error ? 1 : (result.status ?? 1),
+    stdout: (result.stdout || '').trim(),
+    stderr: (result.stderr || '').trim(),
+  };
+}
+
+function gitText(cwd, args, gitRunner) {
+  try {
+    return gitRunner(cwd, args);
+  } catch {
+    return { status: 1, stdout: '', stderr: '' };
+  }
 }
 
 function buildSteps(options, settings) {
@@ -218,6 +392,8 @@ export function summarizeRun(plan) {
     schema: 'homeboy-rigs/static-site-importer-fixture-matrix-operator-summary/v1',
     mode: plan.mode,
     run_id: findFirstKey(output, 'run_id') || plan.run_id,
+    code_freshness: plan.code_freshness || null,
+    transformer_commit: plan.transformer_commit || resolveTransformerCommit(plan.code_freshness),
     fixture_count: Number(findFirstKey(output, 'fixture_count') || plan.fixture_count || 0),
     passed_fixture_count: Number(resultSummary.succeeded || resultSummary.passed || 0),
     failed_fixture_count: Number(resultSummary.failed || 0),
@@ -251,7 +427,7 @@ function parseArgs(args) {
     if (arg.startsWith('--')) {
       const [rawKey, rawValue] = arg.slice(2).split('=');
       const key = camelCase(rawKey);
-      const booleanKeys = new Set(['dryRun', 'skipInstall', 'skipSync', 'labOnly', 'allowLocalFallback', 'detachAfterHandoff', 'allowDirtyLabWorkspace']);
+      const booleanKeys = new Set(['dryRun', 'skipInstall', 'skipSync', 'labOnly', 'allowLocalFallback', 'detachAfterHandoff', 'allowDirtyLabWorkspace', 'allowStaleOverride']);
       if (booleanKeys.has(key)) {
         options[key] = true;
         continue;
@@ -356,7 +532,7 @@ function sanitizePathSegment(value) {
 }
 
 function printHelp() {
-  process.stdout.write(`Usage: node WordPress/static-site-importer/tools/run-fixture-matrix.mjs --runner <id> --static-site-importer <path> --blocks-engine <path> [options] [-- <bench args>...]\n\nRuns the canonical Static Site Importer fixture matrix through Homeboy/Lab/WP Codebox.\n\nOptions:\n  --static-site-importer <path>       Static Site Importer checkout/plugin path. Required.\n  --blocks-engine <path>              Blocks Engine checkout. Defaults fixture root and PHP transformer override.\n  --fixture-root <path>               Fixture corpus. Defaults to <blocks-engine>/fixtures/websites.\n  --blocks-engine-php-transformer-path <path>\n                                      Override transformer package/repo path. Defaults to --blocks-engine.\n  --runner <id>                       Homeboy Lab runner, for example homeboy-lab.\n  --mode <development-override|release-proof>\n                                      Labels output; default is development-override when transformer override is used.\n  --run-id <id>                       Stable proof label. Defaults to ssi-matrix-<mode>-<timestamp>.\n  --shared-state <dir>                Shared Homeboy bench state directory.\n  --artifact-root <dir>               Homeboy artifact root.\n  --output <file>                     Structured Homeboy bench output file.\n  --batch-size <n>                    SSI fixture matrix WP Codebox batch size.\n  --wordpress-version <version>       WP Codebox WordPress version.\n  --wp-codebox-bin <path>             WP Codebox CLI path.\n  --lab-only                          Require Lab routing.\n  --allow-local-fallback              Allow selected Lab runner local fallback.\n  --allow-dirty-lab-workspace         Allow runner workspace overwrite.\n  --detach-after-handoff              Return after remote runner accepts the job.\n  --skip-install                      Skip homeboy rig install --reinstall.\n  --skip-sync                         Skip homeboy rig sync.\n  --dry-run                           Print the composed plan without running it.\n\nAny args after -- are passed through to the lower-level bench runner.\n`);
+  process.stdout.write(`Usage: node WordPress/static-site-importer/tools/run-fixture-matrix.mjs --runner <id> --static-site-importer <path> --blocks-engine <path> [options] [-- <bench args>...]\n\nRuns the canonical Static Site Importer fixture matrix through Homeboy/Lab/WP Codebox.\n\nOptions:\n  --static-site-importer <path>       Static Site Importer checkout/plugin path. Required.\n  --blocks-engine <path>              Blocks Engine checkout. Defaults fixture root and PHP transformer override.\n  --fixture-root <path>               Fixture corpus. Defaults to <blocks-engine>/fixtures/websites.\n  --blocks-engine-php-transformer-path <path>\n                                      Override transformer package/repo path. Defaults to --blocks-engine.\n  --runner <id>                       Homeboy Lab runner, for example homeboy-lab.\n  --mode <development-override|release-proof>\n                                      Labels output; default is development-override when transformer override is used.\n  --run-id <id>                       Stable proof label. Defaults to ssi-matrix-<mode>-<timestamp>.\n  --shared-state <dir>                Shared Homeboy bench state directory.\n  --artifact-root <dir>               Homeboy artifact root.\n  --output <file>                     Structured Homeboy bench output file.\n  --batch-size <n>                    SSI fixture matrix WP Codebox batch size.\n  --wordpress-version <version>       WP Codebox WordPress version.\n  --wp-codebox-bin <path>             WP Codebox CLI path.\n  --allow-stale-override              Proceed even when an override checkout is behind/diverged vs upstream.\n  --lab-only                          Require Lab routing.\n  --allow-local-fallback              Allow selected Lab runner local fallback.\n  --allow-dirty-lab-workspace         Allow runner workspace overwrite.\n  --detach-after-handoff              Return after remote runner accepts the job.\n  --skip-install                      Skip homeboy rig install --reinstall.\n  --skip-sync                         Skip homeboy rig sync.\n  --dry-run                           Print the composed plan without running it.\n\nAny args after -- are passed through to the lower-level bench runner.\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
