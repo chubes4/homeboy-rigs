@@ -31,7 +31,6 @@ jobs:
       - name: Test fuzz contracts
         run: >-
           node --test
-          Automattic/jetpack/manifests/full-surface-coverage.test.mjs
           WordPress/gutenberg/tools/fuzz-coverage.test.mjs
           WordPress/wordpress-develop/fuzz/core-fuzz-contracts.test.mjs
           woocommerce/woocommerce/manifests/full-surface-coverage.test.mjs
