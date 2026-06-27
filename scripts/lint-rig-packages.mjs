@@ -3,12 +3,11 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   assertFuzzReadinessMetadata,
-  assertJetpackFuzzManifestReadinessContract,
   collectGenericFuzzWorkloadIssues,
 } from './fuzz-manifest-helpers.mjs';
-import { validateWordPressCoreFuzzContract } from '../WordPress/wordpress-develop/tools/core-fuzz-contract-validator.mjs';
 
 const args = process.argv.slice(2);
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
@@ -21,6 +20,7 @@ const jsonFiles = [];
 const fuzzWorkloadFiles = [];
 const portableSourceFiles = [];
 const fuzzManifestValidators = [];
+const fuzzWorkloadValidatorFiles = [];
 const failures = [];
 const warnings = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
@@ -65,7 +65,31 @@ function walk(directory) {
     if (entry.isFile() && entry.name === 'validate-fuzz-manifests.mjs') {
       fuzzManifestValidators.push(join(directory, entry.name));
     }
+
+    if (entry.isFile() && entry.name === 'fuzz-workload-validator.mjs') {
+      fuzzWorkloadValidatorFiles.push(join(directory, entry.name));
+    }
   }
+}
+
+async function loadFuzzWorkloadValidators() {
+  const validators = [];
+
+  for (const file of fuzzWorkloadValidatorFiles.sort()) {
+    try {
+      const module = await import(pathToFileURL(file));
+      const validate = module.validateFuzzWorkload || module.default;
+      if (typeof validate !== 'function') {
+        failures.push(`${relative(root, file)}: fuzz workload validator must export validateFuzzWorkload(workloadContext) or a default function`);
+        continue;
+      }
+      validators.push({ file, validate });
+    } catch (error) {
+      failures.push(`${relative(root, file)}: failed to load fuzz workload validator: ${error.message}`);
+    }
+  }
+
+  return validators;
 }
 
 function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
@@ -399,7 +423,7 @@ function lintPortableSource(file) {
   }
 }
 
-function lintFuzzWorkload(file) {
+function lintFuzzWorkload(file, fuzzWorkloadValidators) {
   const rel = relative(root, file);
   let workload;
 
@@ -429,7 +453,7 @@ function lintFuzzWorkload(file) {
   }
 
   lintFuzzReadinessMetadata(rel, workload);
-  lintJetpackFuzzContract(rel, workload);
+  lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadValidators);
 
   if (workload.limits) {
     if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
@@ -440,8 +464,6 @@ function lintFuzzWorkload(file) {
       failures.push(`${rel}: limits.max_duration_seconds must be a positive integer`);
     }
   }
-
-  failures.push(...validateWordPressCoreFuzzContract({ rel, root, workload }));
 }
 
 function lintFuzzReadinessMetadata(rel, workload) {
@@ -478,20 +500,21 @@ function lintFuzzReadinessMetadata(rel, workload) {
   }
 }
 
-function lintJetpackFuzzContract(rel, workload) {
-  const isJetpackFuzz = rel.startsWith('Automattic/jetpack/fuzz/')
-    || (rel.startsWith('fuzz/') && root.endsWith('/Automattic/jetpack'))
-    || workload.target?.slug === 'jetpack'
-    || workload.target?.component === 'jetpack';
-
-  if (!isJetpackFuzz) {
-    return;
-  }
-
-  try {
-    assertJetpackFuzzManifestReadinessContract(workload, { file: rel });
-  } catch (error) {
-    failures.push(error.message);
+function lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadValidators) {
+  for (const validator of fuzzWorkloadValidators) {
+    try {
+      const issues = validator.validate({ rel, root, file, workload });
+      if (issues === undefined) {
+        continue;
+      }
+      if (!Array.isArray(issues)) {
+        failures.push(`${relative(root, validator.file)}: validateFuzzWorkload must return an array of failure strings or undefined`);
+        continue;
+      }
+      failures.push(...issues);
+    } catch (error) {
+      failures.push(error.message);
+    }
   }
 }
 
@@ -559,10 +582,11 @@ function lintFuzzManifestValidators() {
 
 walk(root);
 
+const fuzzWorkloadValidators = await loadFuzzWorkloadValidators();
 const fuzzWorkloadsByPackageRoot = collectFuzzWorkloads();
 
 rigFiles.forEach((file) => lintRigPortability(file, fuzzWorkloadsByPackageRoot));
-fuzzWorkloadFiles.forEach(lintFuzzWorkload);
+fuzzWorkloadFiles.forEach((file) => lintFuzzWorkload(file, fuzzWorkloadValidators));
 portableSourceFiles.forEach(lintPortableSource);
 lintGeneratedStudioModelRigs();
 lintFuzzManifestValidators();

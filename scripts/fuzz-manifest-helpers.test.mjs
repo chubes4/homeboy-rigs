@@ -4,7 +4,6 @@ import {
   assertFuzzProofBundle,
   assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
-  assertJetpackFuzzManifestReadinessContract,
   declaredFuzzIds,
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
@@ -190,27 +189,6 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
       generic_primitive: { status: 'blocked' },
     },
   })), false);
-});
-
-test('assertJetpackFuzzManifestReadinessContract rejects executable readiness with optional artifacts', () => {
-  assert.throws(
-    () => assertJetpackFuzzManifestReadinessContract(fuzzManifest({
-      target: { type: 'wordpress-plugin', slug: 'jetpack', component: 'jetpack' },
-      metadata: {
-        workload_path: '${package.root}/bench/product.workload.json',
-        readiness: { level: 'executable', coverage_contract: 'Jetpack executable fuzz contract.' },
-      },
-      cases: [
-        {
-          case_id: 'product-fuzz:default',
-          surface_ids: ['product-api'],
-          operations: ['route-inventory'],
-          artifacts: [{ name: 'report', path: 'report.json', required: false }],
-        },
-      ],
-    }), { file: 'jetpack-fuzz.json' }),
-    /executable Jetpack readiness requires case artifact report to be required/
-  );
 });
 
 test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {
