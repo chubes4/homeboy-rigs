@@ -5,8 +5,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import runFixtureMatrixBench, {
+  boundedConcurrency,
   composerPathRepositoryConfig,
   fixtureMatrixBatchRunSummary,
+  mapWithConcurrency,
   resolveBlocksEnginePhpTransformerPath,
   runFixtureMatrix,
 } from '../bench/static-site-fixture-matrix.bench.mjs';
@@ -943,11 +945,19 @@ test('fixture matrix dry-run plan surfaces local fallback and dirty workspace wa
 
   assert.equal(plan.namespace, 'proof-run-1');
   assert.equal(plan.temp_root, '/tmp/homeboy-rigs-ssi-fixture-matrix-proof-run-1');
+  // The single-fixture temp corpus drifts from the canonical pin, so the plan
+  // surfaces a non-silent drift warning alongside the routing warnings.
   assert.deepEqual(plan.warnings.map((warning) => warning.code), [
     'local_runner_default',
     'local_fallback_allowed',
     'dirty_lab_workspace_allowed',
+    'canonical_fixture_count_drift',
   ]);
+  assert.equal(plan.fixture_count_matches_canonical, false);
+  assert.match(
+    plan.warnings.find((warning) => warning.code === 'canonical_fixture_count_drift').message,
+    /CANONICAL_FIXTURE_COUNT is \d+/,
+  );
 });
 
 test('operator summary preserves matrix rollups for fanout agents', () => {
@@ -982,6 +992,51 @@ test('operator summary preserves matrix rollups for fanout agents', () => {
   assert.equal(summary.top_pattern_families[0].count, 312);
   assert.equal(summary.fixture_exemplars[0].fixture_id, 'shader-site');
   assert.equal(summary.diagnostic_blind_spots[0].kind, 'missing_source_context');
+});
+
+test('mapWithConcurrency runs bounded N in parallel and preserves input ordering', async () => {
+  const items = Array.from({ length: 10 }, (_value, index) => index);
+  let inFlight = 0;
+  let peakInFlight = 0;
+
+  const results = await mapWithConcurrency(items, 3, async (value) => {
+    inFlight += 1;
+    peakInFlight = Math.max(peakInFlight, inFlight);
+    // Yield so the pool genuinely overlaps work rather than resolving instantly.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    inFlight -= 1;
+    return value * 2;
+  });
+
+  // Up to 3 workers actually overlapped (proves real parallelism), never more.
+  assert.equal(peakInFlight, 3);
+  // Results stay aligned to input order regardless of completion order.
+  assert.deepEqual(results, items.map((value) => value * 2));
+});
+
+test('mapWithConcurrency handles empty input and caps the pool at item count', async () => {
+  assert.deepEqual(await mapWithConcurrency([], 4, async () => 1), []);
+
+  let peakInFlight = 0;
+  let inFlight = 0;
+  const results = await mapWithConcurrency([1, 2], 8, async (value) => {
+    inFlight += 1;
+    peakInFlight = Math.max(peakInFlight, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    inFlight -= 1;
+    return value;
+  });
+  assert.deepEqual(results, [1, 2]);
+  assert.equal(peakInFlight, 2);
+});
+
+test('boundedConcurrency clamps to the hard cap and falls back on invalid input', () => {
+  assert.equal(boundedConcurrency('8', 4, 16), 8);
+  assert.equal(boundedConcurrency('500', 4, 16), 16);
+  assert.equal(boundedConcurrency(undefined, 4, 16), 4);
+  assert.equal(boundedConcurrency('0', 4, 16), 4);
+  assert.equal(boundedConcurrency('not-a-number', 4, 16), 4);
+  assert.equal(boundedConcurrency('-3', 4, 16), 4);
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
