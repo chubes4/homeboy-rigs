@@ -35,6 +35,23 @@ const DEFAULT_FINDING_GROUPS = {
   },
 };
 
+const ACCEPTABLE_LOSS_CLASSES = new Set([
+  'native_conversion',
+  'editable_approximation',
+  'preserved_runtime_island',
+]);
+
+const UNACCEPTABLE_LOSS_CLASSES = new Set([
+  'unsupported_loss',
+  'importer_materialization_bug',
+  'invalid_block_output',
+  'invalid_block_content',
+  'missing_asset',
+  'missing_output',
+  'fixture_not_run',
+  'fixture_failed',
+]);
+
 const FIXTURE_CLASSES = [
   'marketing/static',
   'docs/blog',
@@ -221,9 +238,12 @@ export function normalizeFixtureMatrixResult(input = {}) {
     resultByFixture.get(fixture.id) || normalizeFixtureResult({ fixture_id: fixture.id, fixture_path: fixture.fixture_path, status: 'not_run' }),
     fixture,
   ));
-  const findings = fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix }));
+  const findings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix })));
   const grouped = groupFindings(findings);
-  const classRollups = fixtureClassRollups(fixtureResults, findings);
+  const gatedFixtureResults = fixtureResults.map((result) => applyFixtureQualityGate(result, findings));
+  const lossClassCounts = countBy(findings, (finding) => finding.loss_class || 'unsupported_loss');
+  const acceptanceCounts = countBy(findings, (finding) => finding.loss_acceptance || 'unacceptable');
+  const classRollups = fixtureClassRollups(gatedFixtureResults, findings);
 
   return {
     schema: FIXTURE_MATRIX_RESULT_SCHEMA,
@@ -231,10 +251,16 @@ export function normalizeFixtureMatrixResult(input = {}) {
     fixture_root: matrix.fixture_root,
     summary: {
       fixture_count: matrix.fixtures.length,
-      succeeded: fixtureResults.filter((result) => result.status === 'passed').length,
-      failed: fixtureResults.filter((result) => result.status === 'failed').length,
-      not_run: fixtureResults.filter((result) => result.status === 'not_run').length,
+      succeeded: gatedFixtureResults.filter((result) => result.status === 'passed').length,
+      failed: gatedFixtureResults.filter((result) => result.status === 'failed').length,
+      not_run: gatedFixtureResults.filter((result) => result.raw_status === 'not_run').length,
       finding_count: findings.length,
+      acceptable_finding_count: acceptanceCounts.acceptable || 0,
+      unacceptable_finding_count: acceptanceCounts.unacceptable || 0,
+      loss_classes: lossClassCounts,
+      acceptable_loss_classes: Object.fromEntries(Object.entries(lossClassCounts).filter(([key]) => ACCEPTABLE_LOSS_CLASSES.has(key))),
+      unacceptable_loss_classes: Object.fromEntries(Object.entries(lossClassCounts).filter(([key]) => UNACCEPTABLE_LOSS_CLASSES.has(key))),
+      preserved_runtime_island_count: lossClassCounts.preserved_runtime_island || 0,
       groups: Object.fromEntries(Object.entries(grouped).map(([key, items]) => [key, items.length])),
       top_pattern_families: topPatternFamilies(findings),
       fixture_exemplars: fixtureExemplars(findings),
@@ -243,7 +269,7 @@ export function normalizeFixtureMatrixResult(input = {}) {
       classes: classRollups,
       quality_budgets: qualityBudgetSummaries(classRollups),
     },
-    fixtures: fixtureResults,
+    fixtures: gatedFixtureResults,
     findings,
     fanout_groups: Object.entries(grouped).map(([group_key, items], index) => ({
       group_key,
@@ -253,6 +279,24 @@ export function normalizeFixtureMatrixResult(input = {}) {
       fixture_exemplars: fixtureExemplars(items, 5),
       findings: items,
     })),
+  };
+}
+
+function applyFixtureQualityGate(result, findings) {
+  const fixtureFindings = findings.filter((finding) => finding.fixture_id === result.fixture_id);
+  const unacceptableFindings = fixtureFindings.filter((finding) => finding.loss_acceptance === 'unacceptable');
+  const status = unacceptableFindings.length > 0 ? 'failed' : 'passed';
+  return {
+    ...result,
+    raw_status: result.status,
+    status,
+    success: status === 'passed',
+    quality_gate: {
+      status,
+      acceptable_finding_count: fixtureFindings.length - unacceptableFindings.length,
+      unacceptable_finding_count: unacceptableFindings.length,
+      loss_classes: countBy(fixtureFindings, (finding) => finding.loss_class || 'unsupported_loss'),
+    },
   };
 }
 
@@ -452,6 +496,8 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
   const selector = raw.selector || rawSource.selector || rawReproduction.selector || '';
   const sourcePath = raw.source_path || raw.path || rawSource.path || rawReproduction.source_path || result.fixture_path || '';
   const repairBucket = raw.repair_bucket || group.group_key;
+  const lossClass = classifyLossClass({ raw, kind, group_key: group.group_key, repair_bucket: repairBucket, message, result });
+  const lossAcceptance = ACCEPTABLE_LOSS_CLASSES.has(lossClass) ? 'acceptable' : 'unacceptable';
   return {
     id: raw.id || `${result.fixture_id || 'fixture'}:${group.group_key}:${index + 1}`,
     kind,
@@ -473,9 +519,52 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
     observed_block_name: raw.block_name || rawObserved.block_name || '',
     repair_mode: raw.repair_mode || group.repair_mode,
     candidate_repo: raw.candidate_repo || group.candidate_repo,
+    loss_class: lossClass,
+    loss_acceptance: lossAcceptance,
+    acceptable_loss: lossAcceptance === 'acceptable',
     artifact_refs: normalizeArray(raw.artifact_refs),
     raw,
   };
+}
+
+function classifyLossClass({ raw, kind, group_key, repair_bucket, message, result }) {
+  const explicit = normalizeLossClass(raw.loss_class || raw.lossClass || raw.classification?.loss_class || raw.classification?.lossClass || raw.acceptability || raw.quality_class || raw.qualityClass);
+  if (explicit) {
+    return explicit;
+  }
+
+  const haystack = [kind, group_key, repair_bucket, message, raw.reason, raw.detail].filter(Boolean).join(' ');
+  if (/preserved[_\s-]+runtime[_\s-]+island|runtime island preserved|runtime[_\s-]+island/i.test(haystack)) {
+    return 'preserved_runtime_island';
+  }
+  if (/native[_\s-]+conversion|converted natively|native block/i.test(haystack)) {
+    return 'native_conversion';
+  }
+  if (/editable[_\s-]+approximation|editable approximation|approximation/i.test(haystack)) {
+    return 'editable_approximation';
+  }
+  if (kind === 'fixture_not_run' || group_key === 'fixture_not_run') {
+    return 'fixture_not_run';
+  }
+  if (kind === 'fixture_failed' || group_key === 'fixture_failed') {
+    return 'fixture_failed';
+  }
+  if (group_key === 'invalid_block_content' || /invalid block|block validation/i.test(haystack)) {
+    return 'invalid_block_content';
+  }
+  if (group_key === 'dropped_images' || group_key === 'broken_svg' || /missing asset|dropped image|missing image|asset.*missing/i.test(haystack)) {
+    return 'missing_asset';
+  }
+  if (/missing output|output.*missing|empty output/i.test(haystack)) {
+    return 'missing_output';
+  }
+  if (/materialization/i.test(haystack)) {
+    return 'importer_materialization_bug';
+  }
+  if (result.status === 'failed') {
+    return 'unsupported_loss';
+  }
+  return 'native_conversion';
 }
 
 function normalizeFixture(input) {
@@ -744,6 +833,28 @@ function dedupeDiagnostics(diagnostics) {
   });
 }
 
+function dedupeFindings(findings) {
+  const seen = new Set();
+  return findings.filter((finding) => {
+    const key = finding.selector || finding.source_snippet
+      ? [finding.fixture_id, finding.source_path, finding.selector || finding.selector_family, finding.source_snippet, finding.loss_class].join('\u0000')
+      : [finding.fixture_id, finding.loss_class, finding.kind, finding.group_key, finding.reason].join('\u0000');
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function countBy(values, keyCallback) {
+  return values.reduce((counts, value) => {
+    const key = keyCallback(value);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
 function collectFixtureArtifactRefs(payload, fixtureArtifactsDirectory) {
   const refs = [...normalizeArray(payload.artifact_refs || payload.artifactRefs), ...normalizeArray(payload.artifacts?.refs)];
   for (const [key, value] of Object.entries(payload.artifacts || {})) {
@@ -910,6 +1021,9 @@ function fixtureClassRollups(fixtureResults, findings) {
     const row = byClass[key] || classRollup(key);
     row.fixture_count += 1;
     row[result.status] = (row[result.status] || 0) + 1;
+    if (result.raw_status === 'not_run' && result.status !== 'not_run') {
+      row.not_run += 1;
+    }
     byClass[key] = row;
   }
 
@@ -918,6 +1032,12 @@ function fixtureClassRollups(fixtureResults, findings) {
     const row = byClass[key] || classRollup(key);
     const bucket = finding.repair_bucket || finding.group_key || 'static_site_import_quality';
     row.finding_count += 1;
+    row.loss_classes[finding.loss_class || 'unsupported_loss'] = (row.loss_classes[finding.loss_class || 'unsupported_loss'] || 0) + 1;
+    if (finding.loss_acceptance === 'acceptable') {
+      row.acceptable_finding_count += 1;
+    } else {
+      row.unacceptable_finding_count += 1;
+    }
     row.repair_buckets[bucket] = (row.repair_buckets[bucket] || 0) + 1;
     row.candidate_repos[finding.candidate_repo || 'unknown'] = (row.candidate_repos[finding.candidate_repo || 'unknown'] || 0) + 1;
     byClass[key] = row;
@@ -934,6 +1054,9 @@ function classRollup(key) {
     failed: 0,
     not_run: 0,
     finding_count: 0,
+    acceptable_finding_count: 0,
+    unacceptable_finding_count: 0,
+    loss_classes: {},
     repair_buckets: {},
     candidate_repos: {},
   };
@@ -951,6 +1074,10 @@ function qualityBudgetSummaries(classRollups) {
       failed: row.failed,
       not_run: row.not_run,
       finding_count: row.finding_count,
+      acceptable_finding_count: row.acceptable_finding_count,
+      unacceptable_finding_count: row.unacceptable_finding_count,
+      loss_classes: row.loss_classes,
+      preserved_runtime_island_count: row.loss_classes.preserved_runtime_island || 0,
       findings_per_fixture: row.fixture_count ? Number((row.finding_count / row.fixture_count).toFixed(2)) : 0,
       dominant_repair_buckets: dominantRepairBuckets.slice(0, 5),
     }];
@@ -1077,6 +1204,34 @@ function normalizeFixtureClass(value) {
     'canvas/webgl/audio/runtime-heavy': 'canvas/webgl/audio/runtime-heavy',
   };
   return aliases[normalized] || (FIXTURE_CLASSES.includes(normalized) ? normalized : 'unknown');
+}
+
+function normalizeLossClass(value) {
+  const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  const aliases = {
+    acceptable: 'native_conversion',
+    native: 'native_conversion',
+    native_conversion: 'native_conversion',
+    editable: 'editable_approximation',
+    editable_approximation: 'editable_approximation',
+    preserved_runtime_island: 'preserved_runtime_island',
+    runtime_island: 'preserved_runtime_island',
+    unsupported: 'unsupported_loss',
+    unsupported_loss: 'unsupported_loss',
+    materialization_bug: 'importer_materialization_bug',
+    importer_materialization_bug: 'importer_materialization_bug',
+    invalid_block: 'invalid_block_content',
+    invalid_block_output: 'invalid_block_output',
+    invalid_block_content: 'invalid_block_content',
+    missing_asset: 'missing_asset',
+    missing_assets: 'missing_asset',
+    missing_output: 'missing_output',
+    fixture_not_run: 'fixture_not_run',
+    not_run: 'fixture_not_run',
+    fixture_failed: 'fixture_failed',
+  };
+  const lossClass = aliases[normalized] || normalized;
+  return ACCEPTABLE_LOSS_CLASSES.has(lossClass) || UNACCEPTABLE_LOSS_CLASSES.has(lossClass) ? lossClass : '';
 }
 
 function fixtureClassRank(value) {

@@ -89,6 +89,59 @@ test('normalizes SSI diagnostics into product repair groups', () => {
   assert.equal(classifyStaticSiteFinding({ message: 'canvas target missing' }).repair_mode, 'runtime-dom-target-parity');
 });
 
+test('gates fixture matrix failures by unacceptable loss classes', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'loss-class-gate-test' });
+  const acceptableResult = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'runtime_dependency_missing_dom_target',
+            loss_class: 'preserved_runtime_island',
+            source_path: 'website/index.html',
+            selector: '#hero canvas',
+            message: 'Runtime island preserved for editor-safe import.',
+          },
+          {
+            kind: 'html_canvas_runtime_fallback',
+            loss_class: 'preserved_runtime_island',
+            source_path: 'website/index.html',
+            selector: '#hero canvas',
+            message: 'Blocks Engine reported the same preserved runtime island.',
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(acceptableResult.summary.succeeded, 1);
+  assert.equal(acceptableResult.summary.failed, 0);
+  assert.equal(acceptableResult.summary.acceptable_finding_count, 1);
+  assert.equal(acceptableResult.summary.unacceptable_finding_count, 0);
+  assert.equal(acceptableResult.summary.preserved_runtime_island_count, 1);
+  assert.equal(acceptableResult.findings.length, 1);
+  assert.equal(acceptableResult.fixtures[0].raw_status, 'failed');
+  assert.equal(acceptableResult.fixtures[0].status, 'passed');
+  assert.equal(acceptableResult.fixtures[0].quality_gate.loss_classes.preserved_runtime_island, 1);
+
+  const unacceptableResult = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+      },
+    ],
+  });
+
+  assert.equal(unacceptableResult.summary.failed, 1);
+  assert.equal(unacceptableResult.summary.unacceptable_finding_count, 1);
+  assert.equal(unacceptableResult.summary.unacceptable_loss_classes.fixture_failed, 1);
+});
+
 test('classifies fixtures into generic product taxonomy from metadata and files', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-taxonomy-'));
   const shop = path.join(root, 'spring-shop');
@@ -318,12 +371,14 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
     runner: 'homeboy-lab',
     staticSiteImporter,
     blocksEngine,
+    homeboyBin: '/tmp/homeboy-latest',
     runId: 'ssi-matrix-dev-proof',
     passthrough: ['--batch-size', '5'],
     skipInstall: true,
   });
 
   assert.equal(plan.mode, 'development-override');
+  assert.equal(plan.homeboy_bin, '/tmp/homeboy-latest');
   assert.equal(plan.fixture_root, fixtureRoot);
   assert.equal(plan.fixture_count, CANONICAL_FIXTURE_COUNT);
   assert.equal(plan.fixture_count_matches_canonical, true);
@@ -338,6 +393,7 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
 
   const benchStep = plan.steps.at(-1);
   assert.deepEqual(benchStep.args.slice(0, 5), ['bench', '--rig', 'static-site-importer-fixture-matrix', '--profile', 'fixture-matrix']);
+  assert.equal(benchStep.command, '/tmp/homeboy-latest');
   assert.ok(benchStep.args.includes('--runner'));
   assert.ok(benchStep.args.includes('homeboy-lab'));
   assert.ok(benchStep.args.includes(`bench_env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT=${fixtureRoot}`));
