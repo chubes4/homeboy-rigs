@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import {
   assertFullSurfaceCoverageManifest,
   assertGenericFuzzManifest,
-  assertJetpackFuzzManifestReadinessContract,
   collectFuzzManifests,
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
@@ -14,6 +13,7 @@ import {
   fuzzManifestHasExecutableArtifactContract,
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import { assertJetpackFuzzManifestReadinessContract } from './fuzz-workload-validator.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');

@@ -7,6 +7,60 @@ import test from 'node:test';
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
 const sharedValidator = new URL('./fixtures/shared-fuzz-validator.cjs', import.meta.url).pathname;
+const wordpressCoreFuzzValidatorSource = `
+export function validateFuzzWorkload({ rel, root, workload }) {
+  const failures = [];
+  const isWordPressDevelopFuzz = rel.startsWith('WordPress/wordpress-develop/fuzz/')
+    || (rel.startsWith('fuzz/') && root.endsWith('/WordPress/wordpress-develop'));
+  const surfaceIds = Array.isArray(workload.surface_ids) ? workload.surface_ids : [];
+  const isWordPressCoreFuzz = workload.target?.type === 'wordpress-core'
+    || workload.target?.component === 'wordpress-develop'
+    || workload.metadata?.kind === 'wordpress-core-fuzz'
+    || surfaceIds.some((surfaceId) => typeof surfaceId === 'string' && surfaceId.startsWith('wordpress-core-'));
+
+  if (isWordPressCoreFuzz && !isWordPressDevelopFuzz) {
+    failures.push(\`${'${rel}'}: WordPress Core fuzz workloads must live under WordPress/wordpress-develop/fuzz; WordPress/wordpress is legacy bench/trace compatibility scaffolding\`);
+  }
+
+  if (!isWordPressDevelopFuzz) {
+    return failures;
+  }
+
+  const semanticKeys = new Set((workload.artifacts?.expected || []).map((artifact) => artifact?.semantic_key).filter(Boolean));
+  if (workload.id === 'rest-api') {
+    for (const operation of ['rest-route-inventory', 'generated-rest-case-plan', 'request-case-execution', 'permission-boundary-classification', 'role-boundary-execution']) {
+      if (!workload.operations?.includes(operation)) {
+        failures.push(\`${'${rel}'}: rest-api must include ${'${operation}'} in operations\`);
+      }
+    }
+    for (const semanticKey of ['fuzz.rest.route_inventory', 'fuzz.rest.generated_cases', 'fuzz.rest.permission_boundaries']) {
+      if (!semanticKeys.has(semanticKey)) {
+        failures.push(\`${'${rel}'}: rest-api must declare expected artifact semantic key ${'${semanticKey}'}\`);
+      }
+    }
+  }
+
+  if (workload.id === 'db-inventory-query-profile') {
+    for (const surfaceId of ['wordpress-core-database', 'wordpress-core-rest-routes', 'wordpress-core-options', 'wordpress-core-postmeta', 'wordpress-core-rewrites']) {
+      if (!workload.surface_ids?.includes(surfaceId)) {
+        failures.push(\`${'${rel}'}: db-inventory-query-profile must include ${'${surfaceId}'} in surface_ids\`);
+      }
+    }
+    for (const operation of ['schema-inventory', 'rest-query-profile', 'options-query-attribution', 'postmeta-query-attribution', 'rewrite-query-attribution']) {
+      if (!workload.operations?.includes(operation)) {
+        failures.push(\`${'${rel}'}: db-inventory-query-profile must include ${'${operation}'} in operations\`);
+      }
+    }
+    for (const semanticKey of ['fuzz.db.schema_inventory', 'fuzz.db.rest_query_attribution', 'fuzz.db.options_postmeta_rewrite_attribution']) {
+      if (!semanticKeys.has(semanticKey)) {
+        failures.push(\`${'${rel}'}: db-inventory-query-profile must declare expected artifact semantic key ${'${semanticKey}'}\`);
+      }
+    }
+  }
+
+  return failures;
+}
+`;
 
 function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
@@ -49,11 +103,14 @@ function createWordPressDevelopFuzzPackage(workload) {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-wp-lint-'));
   const fuzzRoot = join(directory, 'WordPress', 'wordpress-develop', 'fuzz');
   const manifestsRoot = join(directory, 'WordPress', 'wordpress-develop', 'manifests');
+  const toolsRoot = join(directory, 'WordPress', 'wordpress-develop', 'tools');
 
   mkdirSync(fuzzRoot, { recursive: true });
   mkdirSync(manifestsRoot, { recursive: true });
+  mkdirSync(toolsRoot, { recursive: true });
   writeJson(join(manifestsRoot, 'rest-route-coverage.json'), { schema: 'test' });
   writeJson(join(fuzzRoot, `${workload.id}.json`), workload);
+  writeFileSync(join(toolsRoot, 'fuzz-workload-validator.mjs'), wordpressCoreFuzzValidatorSource);
 
   return directory;
 }
@@ -417,6 +474,26 @@ test('accepts package-root scoped lint for rigs and fuzz directories', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
+test('discovers product fuzz workload validators without central product branches', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const toolsRoot = join(directory, 'Vendor', 'product', 'tools');
+  mkdirSync(toolsRoot, { recursive: true });
+  writeFileSync(join(toolsRoot, 'fuzz-workload-validator.mjs'), `
+export function validateFuzzWorkload({ rel, workload }) {
+  return workload.id === 'generic-fuzz' ? [\`${'${rel}'}: product-local validator ran\`] : [];
+}
+`);
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /product-local validator ran/);
+});
+
 test('requires WordPress Core REST fuzz permission proof artifacts', () => {
   const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
     id: 'rest-api',
@@ -465,8 +542,11 @@ test('requires WordPress Core proof artifacts when linting package root directly
 test('rejects WordPress Core fuzz workloads outside wordpress-develop', () => {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-wp-legacy-lint-'));
   const fuzzRoot = join(directory, 'WordPress', 'wordpress', 'fuzz');
+  const toolsRoot = join(directory, 'WordPress', 'wordpress-develop', 'tools');
 
   mkdirSync(fuzzRoot, { recursive: true });
+  mkdirSync(toolsRoot, { recursive: true });
+  writeFileSync(join(toolsRoot, 'fuzz-workload-validator.mjs'), wordpressCoreFuzzValidatorSource);
   writeJson(join(fuzzRoot, 'rest-api.json'), fuzzWorkload({
     id: 'rest-api',
     surface_ids: ['wordpress-core-rest-routes'],
