@@ -158,16 +158,15 @@ export async function runFixtureMatrix(options) {
           artifactRefs,
         }));
       }
-      batchRuns.push({
-        batch: batchNumber,
-        batch_id: `${matrix.id}-batch-${batchSuffix}`,
-        fixture_count: fixtures.length,
-        recipe_file: batchRecipeFile,
-        output_file: outputFile,
-        artifact_refs: artifactRefs,
-        exit_code: batchRuntime?.exitCode ?? 0,
-        error: batchError ? batchError.message : '',
-      });
+      batchRuns.push(fixtureMatrixBatchRunSummary({
+        batchNumber,
+        batchMatrix,
+        fixtures,
+        batchRecipeFile,
+        outputFile,
+        batchRuntime,
+        batchError,
+      }));
       batchResults.push(collectFixtureMatrixRunResults({
         matrix: batchMatrix,
         outputDirectory,
@@ -318,6 +317,29 @@ export function composerPathRepositoryConfig(rootComposer, packagePath) {
       },
     },
   };
+}
+
+export function fixtureMatrixBatchRunSummary(input = {}) {
+  const batchError = input.batchError || null;
+  const batchRuntime = input.batchRuntime || null;
+  const fixtureIds = normalizeFixtureIds(input.fixtures);
+  return {
+    batch: input.batchNumber,
+    batch_id: input.batchMatrix?.id || '',
+    fixture_ids: fixtureIds,
+    fixture_count: fixtureIds.length,
+    recipe_file: input.batchRecipeFile || '',
+    output_file: input.outputFile || '',
+    exit_code: batchRuntime?.exitCode ?? 0,
+    error: batchError ? batchError.message : '',
+    stderr_tail: batchError ? textTail(batchError.stderr) : '',
+    stdout_tail: batchError ? textTail(batchError.stdout) : '',
+    parsed_output: Boolean(batchRuntime?.json),
+  };
+}
+
+function normalizeFixtureIds(fixtures) {
+  return Array.isArray(fixtures) ? fixtures.map((fixture) => fixture.id).filter(Boolean) : [];
 }
 
 function composerPathRepositoryVersion(rootComposer) {
@@ -487,6 +509,13 @@ function parseJsonText(text) {
   } catch {
     return null;
   }
+}
+
+function textTail(value, maxLength = 4000) {
+  if (typeof value !== 'string' || value.length === 0) {
+    return '';
+  }
+  return value.length > maxLength ? value.slice(value.length - maxLength) : value;
 }
 
 function camelCase(value) {

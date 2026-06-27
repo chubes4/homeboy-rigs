@@ -6,6 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import runFixtureMatrixBench, {
   composerPathRepositoryConfig,
+  fixtureMatrixBatchRunSummary,
   resolveBlocksEnginePhpTransformerPath,
   runFixtureMatrix,
 } from '../bench/static-site-fixture-matrix.bench.mjs';
@@ -356,6 +357,31 @@ test('builds Composer path repository override matching SSI constraints', () => 
       },
     },
   });
+});
+
+test('summarizes failed WP Codebox batches with fixture ids and child output tails', () => {
+  const stderr = `${'x'.repeat(4100)}stderr failure for fixture-beta`;
+  const stdout = 'stdout includes child JSON/error context';
+  const summary = fixtureMatrixBatchRunSummary({
+    batchNumber: 2,
+    batchMatrix: { id: 'matrix-batch-002' },
+    fixtures: [{ id: 'fixture-alpha' }, { id: 'fixture-beta' }],
+    batchRecipeFile: '/tmp/wp-codebox-static-site-fixture-matrix-batch-002.json',
+    outputFile: '/tmp/wp-codebox-output-batch-002.json',
+    batchRuntime: { exitCode: 1, json: { ok: false } },
+    batchError: { message: 'recipe-run failed', stderr, stdout },
+  });
+
+  assert.equal(summary.batch, 2);
+  assert.equal(summary.batch_id, 'matrix-batch-002');
+  assert.deepEqual(summary.fixture_ids, ['fixture-alpha', 'fixture-beta']);
+  assert.equal(summary.fixture_count, 2);
+  assert.equal(summary.exit_code, 1);
+  assert.equal(summary.error, 'recipe-run failed');
+  assert.equal(summary.parsed_output, true);
+  assert.equal(summary.stderr_tail.length, 4000);
+  assert.match(summary.stderr_tail, /stderr failure for fixture-beta$/);
+  assert.equal(summary.stdout_tail, stdout);
 });
 
 test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
