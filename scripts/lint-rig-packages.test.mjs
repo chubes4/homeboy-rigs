@@ -384,6 +384,28 @@ test('rejects proven fuzz readiness without proof bundle linkage', () => {
   assert.match(result.stderr, /proven readiness requires proof_bundle/);
 });
 
+test('accepts proven fuzz readiness with canonical fuzz envelope proof linkage', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload({
+        metadata: {
+          kind: 'generic-fuzz',
+          readiness: {
+            level: 'proven',
+            coverage_contract: 'Generic fuzz coverage is proven.',
+            proof_bundle: {
+              canonical_fuzz_envelope_ref: 'homeboy://run/product-fuzz/artifact/fuzz-envelope',
+            },
+          },
+        },
+      }),
+    },
+  });
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
