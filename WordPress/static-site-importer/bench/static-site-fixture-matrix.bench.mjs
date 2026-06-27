@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
+import { runWpCodeboxRecipe, wpCodeboxCommand, wpCodeboxBin } from '../../../shared/wp-codebox/recipe.mjs';
 import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs';
 import {
   buildFixtureMatrixRecipe,
@@ -36,6 +36,7 @@ export default async function runFixtureMatrixBench() {
   const options = { ...optionsFromEnv(), ...parseArgs(process.argv.slice(2)) };
   const { summary, runtimeError } = await runFixtureMatrix(options);
   if (runtimeError) {
+    attachChildCommandFailures(runtimeError, summary.runtime?.child_command_failures || []);
     throw runtimeError;
   }
 
@@ -65,7 +66,7 @@ export default async function runFixtureMatrixBench() {
   };
 }
 
-async function runFixtureMatrix(options) {
+export async function runFixtureMatrix(options) {
   const outputDirectory = path.resolve(options.outputDirectory || path.join(process.cwd(), 'artifacts', 'static-site-importer-fixture-matrix'));
   const intake = options.artifactRoot
     ? materializeGeneratedArtifactFixtures({
@@ -105,6 +106,7 @@ async function runFixtureMatrix(options) {
     const batchSize = positiveInteger(options.batchSize, DEFAULT_BATCH_SIZE);
     const batchRuns = [];
     const batchResults = [];
+    const childCommandFailures = [];
     for (const [batchIndex, fixtures] of chunk(matrix.fixtures, batchSize).entries()) {
       const batchNumber = batchIndex + 1;
       const batchSuffix = String(batchNumber).padStart(3, '0');
@@ -125,6 +127,7 @@ async function runFixtureMatrix(options) {
       });
       const batchRecipeFile = path.join(outputDirectory, `wp-codebox-static-site-fixture-matrix-batch-${batchSuffix}.json`);
       const outputFile = path.join(outputDirectory, `wp-codebox-output-batch-${batchSuffix}.json`);
+      const artifactRefs = batchArtifactRefs({ outputDirectory, batchSuffix, batchRecipeFile, outputFile });
       fs.writeFileSync(batchRecipeFile, `${JSON.stringify(batchRecipe, null, 2)}\n`);
 
       let batchRuntime = null;
@@ -144,12 +147,24 @@ async function runFixtureMatrix(options) {
           json: parseJsonText(error?.stdout),
         };
         runtimeError ||= error;
+        childCommandFailures.push(buildWpCodeboxChildCommandFailure({
+          error,
+          batchNumber,
+          batchSuffix,
+          batchRecipeFile,
+          outputFile,
+          artifactsDir: outputDirectory,
+          wpCodeboxBin: options.wpCodeboxBin,
+          artifactRefs,
+        }));
       }
       batchRuns.push({
         batch: batchNumber,
+        batch_id: `${matrix.id}-batch-${batchSuffix}`,
         fixture_count: fixtures.length,
         recipe_file: batchRecipeFile,
         output_file: outputFile,
+        artifact_refs: artifactRefs,
         exit_code: batchRuntime?.exitCode ?? 0,
         error: batchError ? batchError.message : '',
       });
@@ -169,6 +184,7 @@ async function runFixtureMatrix(options) {
       exitCode: runtimeError ? (batchRuns.find((batch) => batch.exit_code)?.exit_code || 1) : 0,
       batchSize,
       batches: batchRuns,
+      childCommandFailures,
     };
     writeFixtureMatrixResultArtifacts({ outputDirectory, matrix, result: collectedResult });
   }
@@ -183,6 +199,7 @@ async function runFixtureMatrix(options) {
     output_directory: outputDirectory,
     recipe_file: recipeFile,
     artifact_refs: written.artifact_refs,
+    ...(runtime?.childCommandFailures?.length ? { child_command_failures: runtime.childCommandFailures } : {}),
     result_file: path.join(outputDirectory, 'static-site-fixture-matrix-result.json'),
     result_summary: collectedResult.summary,
     runtime: runtime ? runtimeSummary(runtime, runtimeError) : null,
@@ -319,8 +336,73 @@ function runtimeSummary(runtime, runtimeError) {
     exit_code: runtime.exitCode,
     ...(runtime.batchSize ? { batch_size: runtime.batchSize } : {}),
     ...(runtime.batches ? { batches: runtime.batches } : {}),
+    ...(runtime.childCommandFailures?.length ? { child_command_failures: runtime.childCommandFailures } : {}),
     error: runtimeError ? runtimeError.message : '',
   };
+}
+
+function attachChildCommandFailures(error, childCommandFailures) {
+  if (!childCommandFailures.length) {
+    return;
+  }
+  error.child_command_failures = childCommandFailures;
+}
+
+function buildWpCodeboxChildCommandFailure({ error, batchNumber, batchSuffix, batchRecipeFile, outputFile, artifactsDir, wpCodeboxBin: bin, artifactRefs }) {
+  const command = wpCodeboxRecipeRunCommand({ recipeFile: batchRecipeFile, artifactsDir, outputFile, wpCodeboxBin: bin });
+  return {
+    schema: 'homeboy/child-command-failure/v1',
+    kind: 'child_command_failed',
+    label: `WP Codebox recipe-run batch ${batchSuffix}`,
+    batch: batchNumber,
+    batch_id: `batch-${batchSuffix}`,
+    command,
+    exit_status: exitStatus(error),
+    stdout_tail: tailText(error?.stdout),
+    stderr_tail: tailText(error?.stderr),
+    artifact_refs: artifactRefs,
+    message: error?.message || 'WP Codebox recipe-run failed',
+  };
+}
+
+function wpCodeboxRecipeRunCommand({ recipeFile, artifactsDir, outputFile, wpCodeboxBin: bin }) {
+  const base = wpCodeboxCommand(bin || wpCodeboxBin());
+  const argv = [
+    base.command,
+    ...(base.args || []),
+    'recipe-run',
+    recipeFile,
+    '--artifacts-dir', artifactsDir,
+    '--output', outputFile,
+  ];
+  return { argv };
+}
+
+function batchArtifactRefs({ outputDirectory, batchSuffix, batchRecipeFile, outputFile }) {
+  return {
+    artifacts_directory: outputDirectory,
+    recipe_file: batchRecipeFile,
+    output_file: outputFile,
+    cli_run: path.join(outputDirectory, 'cli-run.json'),
+    matrix: path.join(outputDirectory, 'matrix.json'),
+    result: path.join(outputDirectory, 'static-site-fixture-matrix-result.json'),
+    summary: path.join(outputDirectory, 'summary.json'),
+    finding_packets: path.join(outputDirectory, 'finding-packets.json'),
+    batch_recipe: path.join(outputDirectory, `wp-codebox-static-site-fixture-matrix-batch-${batchSuffix}.json`),
+    batch_output: path.join(outputDirectory, `wp-codebox-output-batch-${batchSuffix}.json`),
+  };
+}
+
+function exitStatus(error) {
+  const status = error?.status ?? error?.exitCode ?? error?.code;
+  return Number.isInteger(status) ? status : 1;
+}
+
+function tailText(value, maxLines = 40) {
+  if (!value) {
+    return '';
+  }
+  return String(value).split(/\r?\n/).slice(-maxLines).join('\n');
 }
 
 function parseArgs(args) {

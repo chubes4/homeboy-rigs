@@ -56,7 +56,7 @@ lower-level bench:
 
 - `homeboy rig install <this package> --id static-site-importer-fixture-matrix --reinstall`
 - `homeboy rig sync static-site-importer-fixture-matrix`
-- `homeboy bench --rig static-site-importer-fixture-matrix --profile fixture-matrix`
+- `homeboy bench --rig static-site-importer-fixture-matrix --profile fixture-matrix --iterations 1`
 
 It sets the SSI matrix bench environment for the canonical fixture root, Static
 Site Importer checkout, WP Codebox execution, shared state, and optional Blocks
@@ -64,6 +64,10 @@ Engine PHP transformer override. By default, `--blocks-engine` also supplies the
 release-free transformer override path. Use `--blocks-engine-php-transformer-path`
 to point at a different repo/package, or run a final release/bump proof with
 `--mode release-proof` and the released SSI dependency installed.
+
+The fixture matrix is a deterministic transformer feedback gate, not a
+performance benchmark. The rig and wrapper run a single Homeboy bench iteration
+by default; use repeated runs only for explicitly separate performance work.
 
 Output is a JSON operator summary with the run ID, fixture count, pass/fail
 counts, finding count, top buckets/kinds when present in Homeboy output, artifact
