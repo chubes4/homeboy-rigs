@@ -21,8 +21,7 @@
         "delete_workload": "generated-rest-request-cases",
         "rollback_contract_schema": "homeboy/wordpress-rest-mutation-rollback-contract/v1",
         "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
-        "delete_boundary_rollback_artifacts": ["wp-codebox/delete-boundary-artifact/v1"],
-        "executable_operations": ["create", "update", "delete"]
+        "executable_operations": ["create", "update"]
       },
       "payload_fixtures": {
         "namespace": "wc/v3",
@@ -30,11 +29,8 @@
         "create": ["simple product", "grouped product", "variable product parent"],
         "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails"],
         "delete": {
-          "level": "executable",
-          "contract_refs": [
-            "homeboy/wordpress-rest-mutation-rollback-contract/v1",
-            "wp-codebox/delete-boundary-artifact/v1"
-          ]
+          "level": "declared",
+          "upstream_blocker": "delete-boundary rollback artifact contract is unavailable"
         }
       },
       "readiness": {
@@ -42,11 +38,8 @@
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "executable", "via": "rest-product-batch-import" },
         "delete": {
-          "level": "executable",
-          "via": "generated-rest-request-cases",
-          "primitive": "wordpress.rollback-safe-rest-mutation",
-          "safety_class": "isolated_mutation",
-          "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1"
+          "level": "declared",
+          "upstream_blocker": "generated REST request cases do not emit delete-boundary rollback artifacts"
         }
       },
       "skipped_coverage": [

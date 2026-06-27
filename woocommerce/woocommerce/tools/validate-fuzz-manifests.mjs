@@ -530,13 +530,9 @@ assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.level, 'executable', 'product REST CRUD update readiness must be executable');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD update must use the generic rollback-safe REST mutation primitive');
 const productRestCrudProfile = rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'];
-assert.equal(hasDeleteBoundaryContractRefs({
-  generic_upstream_contracts: productRestCrudProfile?.generic_upstream_contracts,
-  mutation: productRestCrudProfile?.readiness?.mutation,
-}), true, 'product REST CRUD profile must reference generic delete-boundary contracts before delete is executable');
-assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'executable', 'product REST CRUD delete readiness must be executable when delete-boundary contract refs are present');
-assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD delete must use the generic rollback-safe REST mutation primitive');
-assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.delete_boundary_artifact_schema, 'wp-codebox/delete-boundary-artifact/v1', 'product REST CRUD delete must name the generic delete-boundary artifact schema');
+assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'declared', 'product REST CRUD delete readiness must remain declared until delete-boundary artifacts exist');
+assert.match(productRestCrudProfile?.readiness?.crud?.delete?.upstream_blocker || '', /delete-boundary rollback artifact contract/, 'product REST CRUD delete blocker must name missing delete-boundary rollback artifact contract');
+assert.equal(productRestCrudProfile?.readiness?.mutation?.rollback_artifacts?.includes('delete_boundary'), false, 'product REST CRUD mutation readiness must not require delete_boundary until delete is executable');
 
 const productBatchManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-product-batch-import')?.manifest;
 assert.equal(productBatchManifest.metadata?.readiness?.profile, 'product-rest-crud-fuzzer', 'product batch import readiness profile drifted');
