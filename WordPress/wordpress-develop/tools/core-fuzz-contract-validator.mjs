@@ -4,7 +4,7 @@ export function validateWordPressCoreFuzzContract({ rel, root, workload }) {
     || (rel.startsWith('fuzz/') && root.endsWith('/WordPress/wordpress-develop'));
 
   if (isWordPressCoreFuzzWorkload(workload) && !isWordPressDevelopFuzz) {
-    failures.push(`${rel}: WordPress Core fuzz workloads must live under WordPress/wordpress-develop/fuzz; WordPress/wordpress is legacy bench/trace compatibility scaffolding`);
+    failures.push(`${rel}: WordPress Core fuzz workloads must live under WordPress/wordpress-develop/fuzz`);
   }
 
   if (!isWordPressDevelopFuzz) {

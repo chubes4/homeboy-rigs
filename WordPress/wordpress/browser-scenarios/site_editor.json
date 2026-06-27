@@ -1,5 +1,0 @@
-[
-  { "kind": "navigate", "url": "/wp-admin/site-editor.php", "waitFor": "load" },
-  { "kind": "waitFor", "selector": "body", "timeout": "30s" },
-  { "kind": "screenshot", "name": "wordpress-core-site-editor" }
-]

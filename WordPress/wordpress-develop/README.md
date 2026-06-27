@@ -34,10 +34,6 @@ The `fuzzer` profile groups these manifests:
 
 Supporting manifests live in `manifests/` and define the intended coverage gap report shape. The manifests stay declarative until an offloaded `homeboy fuzz run` records persisted run evidence for the selected workload.
 
-## Browser Request Coverage
-
-`WordPress/wordpress/bench/wordpress-core-browser-coverage.trace.mjs` remains the executable WP Codebox browser request/rendering trace. It seeds one post, one page, and an author user, then visits read-only frontend/admin scenarios for front page, posts, post editor shell, pages, page editor shell, Site Editor shell, media library, media upload shell, users, and profile. It captures WP Codebox request coverage, console/errors, network, HTML, screenshots, and DOM snapshots without submitting forms or invoking bulk/destructive actions.
-
 ## Artifact Contracts
 
 Core fuzz artifacts use required `fuzz.report` contracts for newly tightened surfaces:
@@ -69,4 +65,4 @@ For WordPress Core REST API and database coverage, a proof-ready bundle must inc
 - `fuzz.db.options_postmeta_rewrite_attribution` for options, postmeta, and rewrite query attribution.
 - `fuzz.runtime.rewrite_postmeta_options_inventory` for runtime rewrite, postmeta, option, transient, hook, and cron inventory.
 
-The legacy `WordPress/wordpress` package remains a compatibility path for existing bench/trace workloads. Current fuzz coverage for `WordPress/wordpress-develop` is declared here and has no benchmark fallback declaration.
+Current fuzz coverage for `WordPress/wordpress-develop` is declared here and has no benchmark fallback declaration.
