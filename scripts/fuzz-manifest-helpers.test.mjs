@@ -270,14 +270,28 @@ test('assertFuzzProofBundle accepts Homeboy run artifact refs for canonical fuzz
 });
 
 test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs', () => {
-  assert.throws(
-    () => assertFuzzProofBundle({
-      artifact_refs: ['https://github.com/chubes4/homeboy-rigs/issues/254'],
-      run_ids: ['run:product-fuzz'],
-      gap_reports: ['https://github.com/chubes4/homeboy-rigs/issues/253'],
-      fuzz_result_artifacts: ['report'],
-      canonical_fuzz_envelope_ref: 'https://localhost:8881/fuzz-envelope.json',
-    }, fuzzManifest(), { file: 'product-fuzz.json' }),
-    /canonical_fuzz_envelope_ref must not use local evidence/
-  );
+  for (const localRef of [
+    'https://localhost:8881/fuzz-envelope.json',
+    'https://127.0.0.1:8881/fuzz-envelope.json',
+    'https://0.0.0.0:8881/fuzz-envelope.json',
+    'file:///tmp/fuzz-envelope.json',
+    '/tmp/fuzz-envelope.json',
+    '/Users/chris/fuzz-envelope.json',
+    './fuzz-envelope.json',
+    '../fuzz-envelope.json',
+    'homeboy-artifact:///tmp/fuzz-envelope.json',
+    'artifact:./fuzz-envelope.json',
+  ]) {
+    assert.throws(
+      () => assertFuzzProofBundle({
+        artifact_refs: ['https://github.com/chubes4/homeboy-rigs/issues/254'],
+        run_ids: ['run:product-fuzz'],
+        gap_reports: ['https://github.com/chubes4/homeboy-rigs/issues/253'],
+        fuzz_result_artifacts: ['report'],
+        canonical_fuzz_envelope_ref: localRef,
+      }, fuzzManifest(), { file: 'product-fuzz.json' }),
+      /canonical_fuzz_envelope_ref (must not use local evidence|must be a reviewer-facing artifact ref)/,
+      `${localRef} should be rejected`
+    );
+  }
 });

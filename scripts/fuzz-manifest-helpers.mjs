@@ -232,9 +232,31 @@ function assertReviewerFacingFuzzRef(value, context) {
     `${context} must be a reviewer-facing artifact ref`
   );
   assert.ok(
-    !/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value) && !value.startsWith('/Users/'),
+    !localOnlyReviewerFacingRef(value),
     `${context} must not use local evidence`
   );
+}
+
+function localOnlyReviewerFacingRef(value) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return false;
+  }
+  const ref = value.trim();
+  return localOnlyRefValue(ref) || localOnlySchemePayload(ref);
+}
+
+function localOnlySchemePayload(ref) {
+  const match = /^(?:artifact:|run:|homeboy-runs:|homeboy-artifact:\/\/)(.*)$/i.exec(ref);
+  return Boolean(match && localOnlyRefValue(match[1]));
+}
+
+function localOnlyRefValue(ref) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(ref)
+    || /^file:\/\//i.test(ref)
+    || /^\/Users\//.test(ref)
+    || /^\/private\//.test(ref)
+    || /^\/tmp(?:\/|$)/.test(ref)
+    || /^\.\.?(?:\/|$)/.test(ref);
 }
 
 export function assertRequiredFuzzProofContracts(manifest, {
@@ -365,8 +387,7 @@ function assertReviewerFacingRef(value, context) {
     /^(https:\/\/|gh:|homeboy-runs:|artifact:|run:)/.test(value),
     `${context} entries must be reviewer-facing refs`
   );
-  assert.ok(!/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value), `${context} entries must not use local URLs`);
-  assert.ok(!value.startsWith('/Users/'), `${context} entries must not use local filesystem paths`);
+  assert.ok(!localOnlyReviewerFacingRef(value), `${context} entries must not use local evidence`);
 }
 
 export function assertFuzzCrudReadiness(crud, { file } = {}) {
