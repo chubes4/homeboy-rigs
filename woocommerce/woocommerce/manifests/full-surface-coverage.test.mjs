@@ -185,7 +185,7 @@ test('REST DB query profile consumes generated request case artifacts with caps'
 });
 
 test('coverage gap and hotspot reports declare the generic artifact postprocess contract', () => {
-  assert.equal(coverageGapReport.metadata.readiness.level, 'declared');
+  assert.equal(coverageGapReport.metadata.readiness.level, 'executable');
   assert.equal(coverageGapReport.workload.path, '${package.root}/bench/coverage-gap-report.workload.json');
   assert.equal(coverageGapReport.workload.type, 'json');
   assert.equal(coverageGapReport.safety_class, 'read_only');
@@ -198,7 +198,7 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
     schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
   });
 
-  assert.equal(performanceHotspots.metadata.readiness.level, 'declared');
+  assert.equal(performanceHotspots.metadata.readiness.level, 'executable');
   assert.equal(performanceHotspots.workload.path, '${package.root}/bench/performance-hotspots-artifact-summary.workload.json');
   assert.equal(performanceHotspots.workload.type, 'json');
   assert.equal(performanceHotspots.safety_class, 'read_only');
