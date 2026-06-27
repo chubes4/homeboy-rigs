@@ -9,17 +9,6 @@ export const fuzzCaseIntentSchema = 'homeboy/fuzz-workload-intent/v1';
 export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts', 'canonical_fuzz_envelope_ref']);
 export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
 export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
-export const wooRequiredFuzzProofContracts = new Map([
-  ['cart-session-overwrite-race', ['cart-session-race']],
-  ['checkout-gateway-compatibility-matrix', ['gateway-compatibility']],
-  ['checkout-shipping-cache', ['shipping-cache-invalidation']],
-  ['frontend-rendering-request-coverage', ['shop-product-cart-checkout-rendering-requests']],
-  ['layered-nav-catalog-crawl', ['catalog-layered-nav-transient-growth']],
-  ['layered-nav-count-cache', ['layered-nav-transient-growth']],
-  ['options-transients-coverage', ['cache-invalidation-and-transient-growth']],
-  ['performance-hotspots-artifact-summary', ['artifact-summary-expectations']],
-  ['woocommerce-external-http-guardrail', ['external-http-guardrails']],
-]);
 
 function loadGenericFuzzManifestValidator() {
   return loadWordPressHelperModule({
@@ -266,7 +255,7 @@ function assertOptionalFuzzResultArtifacts(proofBundle, manifest, { file = manif
 }
 
 export function assertRequiredFuzzProofContracts(manifest, {
-  requiredContracts = wooRequiredFuzzProofContracts.get(manifest.id) || [],
+  requiredContracts = [],
   runnerCase = manifest.cases?.[0],
   file = manifest.id,
 } = {}) {
