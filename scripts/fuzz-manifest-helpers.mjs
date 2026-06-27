@@ -303,8 +303,11 @@ export function assertArtifactPostprocessWorkloadContract(workload, { id, action
     },
   }, `${id} collected artifact declaration drifted`);
 
-  assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay declared until upstream binds this command`);
-  assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document missing upstream fields`);
+  assert.equal(workload.metadata?.runner_support_status, 'supported', `${id} must use the supported artifact-postprocess runner binding`);
+  assert.equal(workload.metadata?.readiness?.level, 'executable', `${id} readiness must be executable through the generic artifact-postprocess command`);
+  assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('artifact root')), `${id} readiness must describe the artifact-root proof condition`);
+  assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('reviewer-facing evidence')), `${id} readiness must describe the reviewer-facing artifact proof condition`);
+  assert.equal(workload.metadata?.missing_upstream_contract, undefined, `${id} must not claim missing upstream artifact-postprocess fields`);
 }
 
 function collectRequiredArtifactNames(manifest) {

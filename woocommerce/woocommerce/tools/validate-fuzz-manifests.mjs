@@ -406,7 +406,7 @@ assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuz
 assert.equal(dbApiPerformanceFuzzerGapReport.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API gap report workload must point at the full-surface gap report source');
 assert.equal(dbApiPerformanceFuzzerGapReport.workload, 'fuzz/coverage-gap-report.json', 'DB/API gap report workload must link the executable fuzz workload');
 assert.deepEqual(dbApiPerformanceFuzzerGapReport.inputs, dbApiPerformanceFuzzerGapReportInputIds, 'DB/API gap report workload inputs drifted');
-assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'declared', 'DB/API gap report workload readiness must stay declared until upstream binds artifact-postprocess');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'executable', 'DB/API gap report workload readiness must be executable through artifact-postprocess');
 assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'artifact_aggregation', 'DB/API gap report workload must use artifact aggregation execution');
 assert.deepEqual(dbApiPerformanceFuzzerGapReport.generic_upstream_contracts, [
   'homeboy.artifact-postprocess',
@@ -415,7 +415,7 @@ assert.deepEqual(dbApiPerformanceFuzzerGapReport.generic_upstream_contracts, [
 ], 'DB/API gap report must link generic upstream artifact contracts');
 assertFuzzProofBundleRequirements(dbApiPerformanceFuzzerGapReport.readiness?.proof_bundle_requirements, { file: 'db-api-performance-fuzzer-gap-report readiness' });
 assert.ok(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers?.length > 0, 'DB/API gap report declaration must name upstream blockers');
-assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('args.helper')), 'DB/API gap report declaration must list the missing upstream artifact-postprocess fields');
+assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('fuzz-suite-result')), 'DB/API gap report declaration must list the remaining fuzz-suite proof blocker');
 assert.equal(dbApiFuzzCampaign.schema, 'homeboy-rigs/woocommerce-db-api-fuzz-campaign/v1', 'DB/API fuzz campaign schema drifted');
 assert.equal(dbApiFuzzCampaign.id, 'woocommerce-db-api-fuzz-campaign', 'DB/API fuzz campaign id drifted');
 assert.equal(dbApiFuzzCampaign.profile_id, 'db-api-performance-fuzzer', 'DB/API fuzz campaign profile id drifted');
@@ -428,7 +428,9 @@ assert.equal(dbApiFuzzCampaign.readiness?.execution, 'offloaded_fuzz_campaign', 
 assertFuzzProofBundleRequirements(dbApiFuzzCampaign.readiness?.proof_bundle_requirements, { file: 'db-api-fuzz-campaign readiness' });
 assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
-assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'requires-upstream-binding', 'DB/API fuzz campaign must not claim postprocess runner binding before upstream support lands');
+assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'supported', 'DB/API fuzz campaign postprocess must use supported artifact-postprocess binding');
+assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.every((condition) => !condition.includes('args.helper')), 'DB/API fuzz campaign postprocess blockers must not claim missing helper/action/input/output/parameters binding');
+assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('reviewer-facing evidence')), 'DB/API fuzz campaign postprocess blockers must include reviewer-facing evidence collection before proven readiness');
 assert.deepEqual(dbApiFuzzCampaign.postprocess?.artifact_roots, [
   {
     id: 'offloaded_campaign_artifacts',
@@ -458,6 +460,7 @@ assertCampaignPostprocessOutput(
   'DB/API campaign performance-hotspots postprocess output'
 );
 assert.equal(dbApiFuzzCampaign.operator_commands?.offload_required, true, 'DB/API fuzz campaign must require offloaded execution');
+assert.equal(dbApiFuzzCampaign.operator_commands?.status, 'executable_pending_offloaded_artifacts', 'DB/API fuzz campaign operator commands must be executable but pending offloaded artifacts for proof');
 assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /homeboy\.artifact-postprocess/, 'DB/API fuzz campaign operator commands must document generic postprocess execution');
 assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /\$\{artifacts\.root\}/, 'DB/API fuzz campaign operator commands must name the offloaded artifact root placeholder');
 assert.ok(dbApiFuzzCampaign.operator_commands?.commands?.every((command) => command.startsWith('homeboy ')), 'DB/API fuzz campaign commands must use Homeboy rig/fuzz commands');
@@ -478,7 +481,7 @@ for (const artifact of dbApiFuzzCampaign.required_upstream_artifact_refs) {
 }
 assert.equal(dbApiHotspotArtifactIo.schema, 'homeboy-rigs/woocommerce-db-api-hotspot-artifact-io/v1', 'DB/API hotspot artifact IO schema drifted');
 assert.equal(dbApiHotspotArtifactIo.postprocess_command, 'homeboy.artifact-postprocess', 'DB/API hotspot artifact IO must use upstream artifact-postprocess');
-assert.equal(dbApiHotspotArtifactIo.readiness?.level, 'declared', 'DB/API hotspot artifact IO must stay declared until artifact-postprocess binding lands');
+assert.equal(dbApiHotspotArtifactIo.readiness?.level, 'executable', 'DB/API hotspot artifact IO must be executable through artifact-postprocess');
 assert.deepEqual(dbApiHotspotArtifactIo.generic_upstream_contracts, [
   'homeboy.artifact-postprocess',
   'wp-codebox/wordpress-workload-run/v1',

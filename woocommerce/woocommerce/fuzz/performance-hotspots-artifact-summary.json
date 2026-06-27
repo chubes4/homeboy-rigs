@@ -27,12 +27,18 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. The workload uses the forward-compatible homeboy.artifact-postprocess command shape; executable readiness requires the upstream runner binding for that command. Proven status still requires reviewer-facing run artifacts produced by offloaded workloads.",
-      "upstream_blockers": [
-        "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters.",
-        "The runner must pass an artifact root for prior workload outputs and collect the declared fuzz.report JSON artifact."
-      ]
+      "level": "executable",
+      "coverage_contract": "Summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs through the supported homeboy.artifact-postprocess command shape. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "proof_bundle_requirements": {
+        "status": "required_before_proven",
+        "required_refs": [
+          "reviewer-facing artifact-postprocess run id",
+          "reviewer-facing performance hotspot summary artifact ref"
+        ],
+        "required_artifacts": [
+          "performance_hotspots_summary"
+        ]
+      }
     },
     "fixture": {
       "runtime": "wp-codebox",
