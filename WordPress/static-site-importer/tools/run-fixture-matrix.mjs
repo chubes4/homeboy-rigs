@@ -2,7 +2,6 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -46,6 +45,7 @@ export function buildFixtureMatrixRunPlan(input) {
     ...(options.wpCodeboxBin ? { SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN: options.wpCodeboxBin } : {}),
   };
   const fixtureCount = countTopLevelFixtureDirectories(options.fixtureRoot);
+  const warnings = buildWarnings(options);
 
   return {
     schema: 'homeboy-rigs/static-site-importer-fixture-matrix-operator-run/v1',
@@ -60,8 +60,11 @@ export function buildFixtureMatrixRunPlan(input) {
     canonical_fixture_count: CANONICAL_FIXTURE_COUNT,
     fixture_count_matches_canonical: fixtureCount === CANONICAL_FIXTURE_COUNT,
     output_file: options.output,
+    temp_root: options.tempRoot,
     artifact_root: options.artifactRoot,
     shared_state: options.sharedState,
+    namespace: options.namespace,
+    warnings,
     dependency_overrides: options.blocksEnginePhpTransformerPath
       ? { blocks_engine_php_transformer: { path: options.blocksEnginePhpTransformerPath } }
       : {},
@@ -86,28 +89,47 @@ function normalizeOptions(input) {
     : (input.blocksEnginePhpTransformerPath ? path.resolve(input.blocksEnginePhpTransformerPath) : '');
   const mode = input.mode || (blocksEnginePhpTransformerPath ? 'development-override' : 'release-proof');
   const runId = input.runId || `ssi-matrix-${mode}-${timestamp()}`;
+  const namespace = sanitizePathSegment(input.namespace || runId);
+  const tempRoot = input.tempRoot ? path.resolve(input.tempRoot) : defaultTempRoot(namespace, input);
   const output = path.resolve(input.output || path.join(process.cwd(), 'artifacts', `${runId}.homeboy-bench.json`));
 
   return {
     ...input,
     mode,
     runId,
+    namespace,
+    tempRoot,
     output,
     fixtureRoot,
     blocksEngine,
     blocksEnginePhpTransformerPath,
+    passthrough: Array.isArray(input.passthrough) ? input.passthrough : [],
     staticSiteImporter: path.resolve(input.staticSiteImporter),
-    sharedState: input.sharedState ? path.resolve(input.sharedState) : defaultSharedState(input.runner),
-    artifactRoot: input.artifactRoot ? path.resolve(input.artifactRoot) : '',
+    sharedState: input.sharedState ? path.resolve(input.sharedState) : path.join(tempRoot, 'shared-state'),
+    artifactRoot: input.artifactRoot ? path.resolve(input.artifactRoot) : path.join(tempRoot, 'artifacts'),
     runner: input.runner || '',
   };
 }
 
-function defaultSharedState(runner) {
-  if (runner) {
-    return '/tmp/homeboy-rigs-ssi-fixture-matrix-shared-state';
-  }
-  return path.resolve(path.join(os.tmpdir(), 'homeboy-rigs-ssi-fixture-matrix-shared-state'));
+function defaultTempRoot(namespace) {
+  return path.resolve(path.join('/tmp', `homeboy-rigs-ssi-fixture-matrix-${namespace}`));
+}
+
+function buildWarnings(options) {
+  return [
+    ...(!options.runner && !options.labOnly ? [{
+      code: 'local_runner_default',
+      message: 'No --runner/--lab-only routing was provided; the plan will use the local Homeboy runner.',
+    }] : []),
+    ...(options.allowLocalFallback ? [{
+      code: 'local_fallback_allowed',
+      message: '--allow-local-fallback permits Lab routing to fall back to local execution if the runner allows it.',
+    }] : []),
+    ...(options.allowDirtyLabWorkspace ? [{
+      code: 'dirty_lab_workspace_allowed',
+      message: '--allow-dirty-lab-workspace permits reusing or overwriting a dirty Lab workspace.',
+    }] : []),
+  ];
 }
 
 function buildSteps(options, settings) {
@@ -136,6 +158,7 @@ function buildSteps(options, settings) {
     '--run-id', options.runId,
     '--output', options.output,
     '--json',
+    '--setting', `static_site_importer_fixture_matrix_namespace=${options.namespace}`,
     ...Object.entries(settings).flatMap(([key, value]) => ['--setting', `bench_env.${key}=${value}`]),
   ];
   if (options.artifactRoot) {
@@ -321,6 +344,10 @@ function camelCase(value) {
 
 function timestamp() {
   return new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, 'Z');
+}
+
+function sanitizePathSegment(value) {
+  return String(value).replace(/[^A-Za-z0-9_.-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'run';
 }
 
 function printHelp() {

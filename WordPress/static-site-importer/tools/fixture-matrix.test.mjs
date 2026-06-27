@@ -241,7 +241,11 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   assert.equal(plan.fixture_root, fixtureRoot);
   assert.equal(plan.fixture_count, CANONICAL_FIXTURE_COUNT);
   assert.equal(plan.fixture_count_matches_canonical, true);
-  assert.equal(plan.shared_state, '/tmp/homeboy-rigs-ssi-fixture-matrix-shared-state');
+  assert.equal(plan.namespace, 'ssi-matrix-dev-proof');
+  assert.equal(plan.temp_root, '/tmp/homeboy-rigs-ssi-fixture-matrix-ssi-matrix-dev-proof');
+  assert.equal(plan.shared_state, '/tmp/homeboy-rigs-ssi-fixture-matrix-ssi-matrix-dev-proof/shared-state');
+  assert.equal(plan.artifact_root, '/tmp/homeboy-rigs-ssi-fixture-matrix-ssi-matrix-dev-proof/artifacts');
+  assert.deepEqual(plan.warnings, []);
   assert.equal(plan.dependency_overrides.blocks_engine_php_transformer.path, blocksEngine);
   assert.equal(plan.steps.some((step) => step.args.includes('install')), false);
   assert.ok(plan.steps.some((step) => step.args.includes('sync')));
@@ -254,6 +258,8 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   assert.ok(benchStep.args.includes(`bench_env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH=${staticSiteImporter}`));
   assert.ok(benchStep.args.includes(`bench_env.SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH=${blocksEngine}`));
   assert.ok(benchStep.args.includes('bench_env.SSI_FIXTURE_MATRIX_RUN=1'));
+  assert.ok(benchStep.args.includes('static_site_importer_fixture_matrix_namespace=ssi-matrix-dev-proof'));
+  assert.ok(benchStep.args.includes('/tmp/homeboy-rigs-ssi-fixture-matrix-ssi-matrix-dev-proof/artifacts'));
   assert.deepEqual(benchStep.args.slice(-3), ['--', '--batch-size', '5']);
 
   const releasePlan = buildFixtureMatrixRunPlan({
@@ -264,6 +270,32 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   });
   assert.deepEqual(releasePlan.dependency_overrides, {});
   assert.equal(releasePlan.steps.at(-1).args.some((arg) => arg.includes('SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH')), false);
+});
+
+test('fixture matrix dry-run plan surfaces local fallback and dirty workspace warnings', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-warning-plan-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const fixtureRoot = path.join(root, 'fixtures');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(fixtureRoot, 'fixture-a'), { recursive: true });
+
+  const plan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    fixtureRoot,
+    runId: 'proof/run 1',
+    allowLocalFallback: true,
+    allowDirtyLabWorkspace: true,
+    skipInstall: true,
+    skipSync: true,
+  });
+
+  assert.equal(plan.namespace, 'proof-run-1');
+  assert.equal(plan.temp_root, '/tmp/homeboy-rigs-ssi-fixture-matrix-proof-run-1');
+  assert.deepEqual(plan.warnings.map((warning) => warning.code), [
+    'local_runner_default',
+    'local_fallback_allowed',
+    'dirty_lab_workspace_allowed',
+  ]);
 });
 
 test('operator summary preserves matrix rollups for fanout agents', () => {
