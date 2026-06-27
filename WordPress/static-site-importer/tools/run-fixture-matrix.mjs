@@ -157,6 +157,7 @@ function buildSteps(options, settings) {
     'bench',
     '--rig', RIG_ID,
     '--profile', 'fixture-matrix',
+    '--iterations', '1',
     '--path', options.staticSiteImporter,
     '--shared-state', options.sharedState,
     '--run-id', options.runId,

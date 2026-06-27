@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import {
+import runFixtureMatrixBench, {
   composerPathRepositoryConfig,
   resolveBlocksEnginePhpTransformerPath,
+  runFixtureMatrix,
 } from '../bench/static-site-fixture-matrix.bench.mjs';
 import {
   buildFixtureMatrixRunPlan,
@@ -392,7 +393,7 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   assert.ok(plan.steps.some((step) => step.args.includes('sync')));
 
   const benchStep = plan.steps.at(-1);
-  assert.deepEqual(benchStep.args.slice(0, 5), ['bench', '--rig', 'static-site-importer-fixture-matrix', '--profile', 'fixture-matrix']);
+  assert.deepEqual(benchStep.args.slice(0, 7), ['bench', '--rig', 'static-site-importer-fixture-matrix', '--profile', 'fixture-matrix', '--iterations', '1']);
   assert.equal(benchStep.command, '/tmp/homeboy-latest');
   assert.ok(benchStep.args.includes('--runner'));
   assert.ok(benchStep.args.includes('homeboy-lab'));
@@ -413,6 +414,99 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   assert.deepEqual(releasePlan.dependency_overrides, {});
   assert.equal(releasePlan.steps.at(-1).args.some((arg) => arg.includes('SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH')), false);
 });
+
+test('fixture matrix records generic child command failures for failed WP Codebox batches', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-codebox-failure-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const fixtureRoot = path.join(root, 'fixtures');
+  const outputDirectory = path.join(root, 'artifacts');
+  const helperPath = path.join(root, 'wp-codebox-recipe-helper.cjs');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(fixtureRoot, 'failing-fixture'), { recursive: true });
+  writeFileSync(path.join(fixtureRoot, 'failing-fixture', 'index.html'), '<h1>Failing fixture</h1>');
+  writeFileSync(helperPath, `
+function wpCodeboxBin() { return '/tmp/wp-codebox'; }
+function wpCodeboxCommand(bin) { return { command: bin, args: [] }; }
+async function runWpCodeboxRecipe() {
+  const error = new Error('recipe-run failed');
+  error.code = 17;
+  error.stdout = 'stdout line 1\\nstdout line 2';
+  error.stderr = 'stderr line 1\\nstderr line 2';
+  throw error;
+}
+module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
+`, 'utf8');
+  const previousHelper = process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
+  const previousFixtureRoot = process.env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT;
+  const previousOutputDirectory = process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY;
+  const previousImporterPath = process.env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH;
+  const previousRun = process.env.SSI_FIXTURE_MATRIX_RUN;
+  const previousBatchSize = process.env.SSI_FIXTURE_MATRIX_BATCH_SIZE;
+  process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = helperPath;
+
+  try {
+    const { summary, runtimeError } = await runFixtureMatrix({
+      fixtureRoot,
+      outputDirectory,
+      staticSiteImporterPath: staticSiteImporter,
+      run: true,
+      batchSize: 1,
+    });
+    const failure = summary.runtime.child_command_failures[0];
+
+    assert.equal(runtimeError.message, 'recipe-run failed');
+    assert.equal(summary.runtime.exit_code, 17);
+    assert.equal(failure.schema, 'homeboy/child-command-failure/v1');
+    assert.equal(failure.exit_status, 17);
+    assert.equal(failure.batch_id, 'batch-001');
+    assert.deepEqual(failure.command.argv, [
+      '/tmp/wp-codebox',
+      'recipe-run',
+      failure.artifact_refs.batch_recipe,
+      '--artifacts-dir', outputDirectory,
+      '--output', failure.artifact_refs.batch_output,
+    ]);
+    assert.equal(failure.stdout_tail, 'stdout line 1\nstdout line 2');
+    assert.equal(failure.stderr_tail, 'stderr line 1\nstderr line 2');
+    assert.equal(failure.artifact_refs.artifacts_directory, outputDirectory);
+    assert.equal(failure.artifact_refs.output_file, failure.artifact_refs.batch_output);
+    assert.ok(readFileSync(path.join(outputDirectory, 'cli-run.json'), 'utf8').includes('child_command_failures'));
+
+    process.env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT = fixtureRoot;
+    process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY = path.join(root, 'bench-export-artifacts');
+    process.env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH = staticSiteImporter;
+    process.env.SSI_FIXTURE_MATRIX_RUN = '1';
+    process.env.SSI_FIXTURE_MATRIX_BATCH_SIZE = '1';
+    await assert.rejects(
+      () => runFixtureMatrixBench(),
+      (error) => {
+        assert.equal(error.message, 'recipe-run failed');
+        assert.equal(error.child_command_failures[0].exit_status, 17);
+        assert.equal(error.child_command_failures[0].artifact_refs.artifacts_directory, process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY);
+        return true;
+      }
+    );
+  } finally {
+    if (previousHelper === undefined) {
+      delete process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
+    } else {
+      process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = previousHelper;
+    }
+    restoreEnv('SSI_FIXTURE_MATRIX_FIXTURE_ROOT', previousFixtureRoot);
+    restoreEnv('SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY', previousOutputDirectory);
+    restoreEnv('SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH', previousImporterPath);
+    restoreEnv('SSI_FIXTURE_MATRIX_RUN', previousRun);
+    restoreEnv('SSI_FIXTURE_MATRIX_BATCH_SIZE', previousBatchSize);
+  }
+});
+
+function restoreEnv(key, value) {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+}
 
 test('fixture matrix dry-run plan surfaces local fallback and dirty workspace warnings', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'ssi-warning-plan-'));
