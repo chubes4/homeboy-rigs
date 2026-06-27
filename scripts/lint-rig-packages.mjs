@@ -13,7 +13,15 @@ const args = process.argv.slice(2);
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
 const rootArg = args.find((arg) => !arg.startsWith('--'));
 const root = rootArg ? resolve(process.cwd(), rootArg) : process.cwd();
-const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
+// Keep this set a superset of homeboy core's `IGNORED_DIRECTORIES`
+// (src/core/rig/lint.rs) so a rig package never passes one linter and fails the
+// other. Core ignores `.sampleplugin` (generated WP Codebox sample-plugin
+// scaffolds); homeboy-rigs additionally has a real top-level `.datamachine/`.
+// The unified policy is the union of both. Converging this linter onto the core
+// primitive is tracked in Extra-Chill/homeboy#6783; the lint-only entry point
+// CI needs to consume `run_package_lint` (and the matching core `.datamachine`
+// ignore) is tracked in Extra-Chill/homeboy#6825.
+const ignoredDirectories = new Set(['.git', '.claude', '.sampleplugin', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
 const rigFiles = [];
 const jsonFiles = [];
