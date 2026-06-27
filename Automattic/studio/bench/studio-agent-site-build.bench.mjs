@@ -2,6 +2,8 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
+import { loadNodeWorkloadUtils } from '../../../shared/nodejs-workload-utils-loader.mjs';
+
 import {
   agentAuthoredBlockMetrics,
   collectGeneratedThemeUxGates,
@@ -87,6 +89,8 @@ export {
 } from './lib/site-build-gates.mjs';
 
 const requireFromBench = createRequire(import.meta.url);
+
+const { metric } = await loadNodeWorkloadUtils();
 
 export function normalizeImportReport(importReport) {
   return {
@@ -365,11 +369,6 @@ function validationMetrics(result) {
   }).length;
 
   return { validateCallCount, validateErrorCount, validatedAllCount };
-}
-
-function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
 }
 
 function toolMetrics(result) {

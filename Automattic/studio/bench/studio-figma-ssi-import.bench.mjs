@@ -2,11 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const WORKLOAD_UTILS = process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS;
-
-if (!WORKLOAD_UTILS) {
-  throw new Error('HOMEBOY_NODEJS_WORKLOAD_UTILS is required');
-}
+import { loadNodeWorkloadUtils } from '../../../shared/nodejs-workload-utils-loader.mjs';
 
 const {
   artifactDir: nodeArtifactDir,
@@ -15,7 +11,7 @@ const {
   runNode,
   safeResult: nodeSafeResult,
   setting,
-} = await import(WORKLOAD_UTILS);
+} = await loadNodeWorkloadUtils();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(__dirname, '..');

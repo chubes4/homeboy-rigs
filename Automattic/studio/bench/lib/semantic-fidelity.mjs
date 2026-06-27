@@ -3,13 +3,11 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { safeSlug, semanticComparisonTargets, stringArray, surfaceUrl } from './fidelity-targets.mjs';
+import { loadNodeWorkloadUtils } from '../../../../shared/nodejs-workload-utils-loader.mjs';
 
 const requireFromSemanticFidelity = createRequire(import.meta.url);
 
-function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? number : 0;
-}
+const { metric } = await loadNodeWorkloadUtils();
 
 
 async function loadSemanticSurface(page, url) {
