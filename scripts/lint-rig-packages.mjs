@@ -101,9 +101,40 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     failures.push(`${rel}: use shared/wp-codebox/check-cli.sh instead of duplicating WP Codebox CLI discovery in rig commands`);
   }
 
+  lintSharedPaths(rel, rig);
+
   lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot);
   lintFuzzProfiles(rel, rig);
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
+}
+
+function lintSharedPaths(rel, rig) {
+  if (!rig.shared_paths) {
+    return;
+  }
+
+  if (!Array.isArray(rig.shared_paths)) {
+    failures.push(`${rel}: shared_paths must be an array`);
+    return;
+  }
+
+  rig.shared_paths.forEach((sharedPath, index) => {
+    if (!sharedPath || typeof sharedPath !== 'object' || Array.isArray(sharedPath)) {
+      failures.push(`${rel}: shared_paths[${index}] must be an object`);
+      return;
+    }
+
+    const link = typeof sharedPath.link === 'string' ? sharedPath.link.trim() : '';
+    const target = typeof sharedPath.target === 'string' ? sharedPath.target.trim() : '';
+
+    if (!link || !target) {
+      return;
+    }
+
+    if (link === target && sharedPath.allow_self_target !== true) {
+      failures.push(`${rel}: shared_paths[${index}] link and target must differ unless allow_self_target is true`);
+    }
+  });
 }
 
 function packageRootForRig(file) {

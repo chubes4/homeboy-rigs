@@ -520,7 +520,7 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
 
 `rigs/isolated-block-editor/rig.json` runs the checks used while shaving Isolated Block Editor toward modern Gutenberg APIs.
 
-The rig declares `node_modules` as a Homeboy `shared_paths` entry. When the active checkout is a worktree without local dependencies, `shared-path ensure` borrows `~/Developer/isolated-block-editor/node_modules` from the primary checkout and `down` removes only the symlink it created.
+The rig declares `node_modules` as a Homeboy `shared_paths` entry. When the active checkout is a worktree without local dependencies, set `HOMEBOY_RIG_SHARED_PATH_TARGET__ISOLATED_BLOCK_EDITOR__NODE_MODULES` to the primary checkout's `node_modules` directory; `shared-path ensure` borrows that directory and `down` removes only the symlink it created.
 
 ## Conventions
 
