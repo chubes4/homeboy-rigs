@@ -130,6 +130,8 @@ The workload composes these generic surfaces:
   commands.
 - WP Codebox `wordpress.editor-canvas-probe` command for the editor-side block
   validity step (see below).
+- WP Codebox `wordpress.visual-compare` command for the pixel visual-parity step
+  (see below).
 
 SSI-specific behavior remains here: plugin slug/defaults, fixture artifact
 packing, `static-site-importer validate-artifact` command construction,
@@ -167,6 +169,47 @@ the studio bench, wp-codebox's `editor-actions`/`inspectState` would need to
 emit `getBlocks()` `isValid` (or run `wp.blocks.validateBlock`); the probe path
 used here detects invalid blocks via the warning DOM without any wp-codebox
 change, which `collectEditorValidationDiagnostics` already consumes.
+
+## Pixel Visual Parity Gate
+
+Structural, feature, and editor-block validity all run *without ever rendering a
+browser*. After each fixture's import step, `buildFixtureMatrixRecipe` appends a
+`wordpress.visual-compare` step that renders the fixture's original static source
+vs the imported WordPress candidate in the same WP Codebox sandbox and emits
+`source.png`/`candidate.png`/`diff.png` plus `mismatch_pixels`/`total_pixels`
+(`wp-codebox/visual-compare/v1`). This is the exact recipe command the reusable
+`runVisualParityWorkload` helper composes in homeboy-extensions — the matrix
+emits it inline rather than spinning up a separate sandbox, so no new wp-codebox
+capability is introduced.
+
+`collectVisualParityDiagnostics` reads the comparison back out (from either the
+raw `wp-codebox/visual-compare/v1` diff or a normalized
+`homeboy/VisualParityArtifact/v1` artifact) and emits a `visual_parity_mismatch`
+diagnostic when `mismatch_pixels / total_pixels` exceeds the threshold (or a
+dimension mismatch is reported). Findings route to the visual-parity repair
+bucket (`candidate_repo: blocks-engine`, `repair_mode: visual-parity`). The
+screenshots, diff, and metrics are also captured into the SSI
+`visual_parity_artifacts` slot (`static-site-importer/visual-parity-artifacts/v1`)
+on the fixture result, even when the gate is off.
+
+Gating is **opt-in**, because pixel diffs can be flaky. By default a mismatch is
+captured but non-gating (the `visual_parity_mismatch` loss class resolves to
+`acceptable`). Pass `--visual-parity-gate` (run wrapper) /
+`SSI_FIXTURE_MATRIX_VISUAL_PARITY_GATE=1` to make a mismatch-over-threshold a
+HARD gate (the loss class flips to the unacceptable, fixture-failing form, the
+same conditional-acceptance pattern as `preserved_runtime_island`). The mismatch
+threshold is configurable via `--pixel-threshold` /
+`SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD` (default `0.1`, also passed as
+the per-pixel `threshold=` arg so a higher value loosens the gate monotonically).
+Set `--no-visual-parity` / `visualParity: false` to omit the step entirely.
+
+Live caveat: a full visual-parity render requires a healthy Lab runner (the
+runner currently has a controller/daemon version drift). The wiring and the
+finding-parsing/threshold/gating logic are unit-tested in
+`tools/fixture-matrix.test.mjs`. Wiring the exact servable source URL per fixture
+is the remaining live-run enablement; the step uses generic, configurable
+source/candidate URLs with per-fixture overrides today, mirroring how the editor
+step uses a configurable URL rather than resolving each imported post.
 
 ## Generated Artifact Intake Contract
 

@@ -95,6 +95,7 @@ export async function runFixtureMatrix(options) {
     staticSiteImporterPath,
     staticSiteImporterPlugin: options.staticSiteImporterPlugin,
     staticSiteImporterSlug: options.staticSiteImporterSlug,
+    ...visualParityRecipeInput(options),
   });
   const recipeFile = path.join(outputDirectory, 'wp-codebox-static-site-fixture-matrix-recipe.json');
   fs.writeFileSync(recipeFile, `${JSON.stringify(recipe, null, 2)}\n`);
@@ -124,6 +125,7 @@ export async function runFixtureMatrix(options) {
         staticSiteImporterPath,
         staticSiteImporterPlugin: options.staticSiteImporterPlugin,
         staticSiteImporterSlug: options.staticSiteImporterSlug,
+        ...visualParityRecipeInput(options),
       });
       const batchRecipeFile = path.join(outputDirectory, `wp-codebox-static-site-fixture-matrix-batch-${batchSuffix}.json`);
       const outputFile = path.join(outputDirectory, `wp-codebox-output-batch-${batchSuffix}.json`);
@@ -173,6 +175,7 @@ export async function runFixtureMatrix(options) {
         outputFile,
         codeboxOutput: batchRuntime?.json,
         codeboxError: batchError,
+        visualParity: visualParityGateInput(options),
       }));
     }
     collectedResult = normalizeFixtureMatrixResult({
@@ -472,6 +475,29 @@ function optionsFromEnv(env = process.env) {
     batchSize: benchEnv.SSI_FIXTURE_MATRIX_BATCH_SIZE || env.SSI_FIXTURE_MATRIX_BATCH_SIZE,
     run: isTruthy(benchEnv.SSI_FIXTURE_MATRIX_RUN) || isTruthy(env.SSI_FIXTURE_MATRIX_RUN),
     wpCodeboxBin: benchEnv.SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN || env.SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN,
+    visualParity: !isFalsy(benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY ?? env.SSI_FIXTURE_MATRIX_VISUAL_PARITY),
+    visualParityGate: isTruthy(benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_GATE) || isTruthy(env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_GATE),
+    pixelThreshold: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD,
+    visualParityCandidateUrl: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_CANDIDATE_URL || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_CANDIDATE_URL,
+    visualParitySourceBaseUrl: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_SOURCE_BASE_URL || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_SOURCE_BASE_URL,
+  };
+}
+
+// Visual-parity options shared by the recipe (capture step) and the result
+// collector (gating). Enable defaults on; gating defaults off (opt-in).
+function visualParityRecipeInput(options) {
+  return {
+    visualParity: options.visualParity !== false,
+    pixelThreshold: options.pixelThreshold,
+    visualParityCandidateUrl: options.visualParityCandidateUrl,
+    visualParitySourceBaseUrl: options.visualParitySourceBaseUrl,
+  };
+}
+
+function visualParityGateInput(options) {
+  return {
+    threshold: options.pixelThreshold,
+    gate: options.visualParityGate === true,
   };
 }
 
@@ -488,6 +514,10 @@ function settingsBenchEnv(env = process.env) {
 
 function isTruthy(value) {
   return value === true || value === '1' || value === 'true';
+}
+
+function isFalsy(value) {
+  return value === false || value === '0' || value === 'false' || value === 'no' || value === 'off';
 }
 
 function chunk(items, size) {
