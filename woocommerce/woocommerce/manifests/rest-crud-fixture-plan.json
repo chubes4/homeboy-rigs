@@ -1,0 +1,192 @@
+{
+  "schema": "wp-codebox/fuzz-fixture-plan/v1",
+  "id": "woocommerce-rest-crud-fixture-plan",
+  "version": "1",
+  "operations": [
+    {
+      "id": "products-create",
+      "kind": "mutation",
+      "resource": { "kind": "product", "id": "products", "metadata": { "fixture_family": "products", "fixture_scope": "synthetic_products_attributes_terms_and_variations", "route_family_ids": ["products-collection", "products-batch", "product-variations-batch", "product-attributes-and-terms"] } },
+      "method": "POST",
+      "target": "wc/v3:products-collection|products-batch|product-variations-batch|product-attributes-and-terms",
+      "input": { "payload_shapes": ["simple product", "grouped product", "variable product parent", "variation under fixture-owned variable product"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted rollback/isolation artifacts for product creates" },
+      "metadata": { "operation": "create", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "products-update",
+      "kind": "mutation",
+      "resource": { "kind": "product", "id": "products", "metadata": { "fixture_family": "products", "fixture_scope": "synthetic_products_attributes_terms_and_variations", "route_family_ids": ["products-collection", "products-batch", "product-variations-batch", "product-attributes-and-terms"] } },
+      "method": "PUT",
+      "target": "wc/v3:products-collection|products-batch|product-variations-batch|product-attributes-and-terms",
+      "input": { "payload_shapes": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails", "stock and variation attribute updates"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted rollback/isolation artifacts for product updates" },
+      "metadata": { "operation": "update", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "products-delete",
+      "kind": "mutation",
+      "resource": { "kind": "product", "id": "products", "metadata": { "fixture_family": "products", "fixture_scope": "synthetic_products_attributes_terms_and_variations", "route_family_ids": ["products-collection", "products-batch", "product-variations-batch", "product-attributes-and-terms"] } },
+      "method": "DELETE",
+      "target": "wc/v3:products-collection|products-batch|product-variations-batch|product-attributes-and-terms",
+      "input": { "payload_shapes": ["fixture-owned product or variation id with delete-boundary artifact"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "delete-boundary rollback artifact contract is unavailable" },
+      "metadata": { "operation": "delete", "safety_class": "destructive", "rollback_required": true, "delete_boundary_required": true, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "orders-create",
+      "kind": "mutation",
+      "resource": { "kind": "order", "id": "orders", "metadata": { "fixture_family": "orders", "fixture_scope": "synthetic_customers_products_coupons_and_orders", "route_family_ids": ["orders-collection", "orders-notes", "orders-refunds"] } },
+      "method": "POST",
+      "target": "wc/v3:orders-collection|orders-notes|orders-refunds",
+      "input": { "payload_shapes": ["order with fixture-owned line items", "order with billing/shipping address", "order with coupon line"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not accepted order payload fixtures" },
+      "metadata": { "operation": "create", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "orders-update",
+      "kind": "mutation",
+      "resource": { "kind": "order", "id": "orders", "metadata": { "fixture_family": "orders", "fixture_scope": "synthetic_customers_products_coupons_and_orders", "route_family_ids": ["orders-collection", "orders-notes", "orders-refunds"] } },
+      "method": "PUT",
+      "target": "wc/v3:orders-collection|orders-notes|orders-refunds",
+      "input": { "payload_shapes": ["status transition", "billing/shipping address update", "metadata update"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not emitted rollback contracts for order updates" },
+      "metadata": { "operation": "update", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "orders-delete",
+      "kind": "mutation",
+      "resource": { "kind": "order", "id": "orders", "metadata": { "fixture_family": "orders", "fixture_scope": "synthetic_customers_products_coupons_and_orders", "route_family_ids": ["orders-collection", "orders-notes", "orders-refunds"] } },
+      "method": "DELETE",
+      "target": "wc/v3:orders-collection|orders-notes|orders-refunds",
+      "input": { "payload_shapes": ["fixture-owned order id with delete-boundary artifact"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "delete-boundary rollback artifact contract is unavailable" },
+      "metadata": { "operation": "delete", "safety_class": "destructive", "rollback_required": true, "delete_boundary_required": true, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "customers-create",
+      "kind": "mutation",
+      "resource": { "kind": "customer", "id": "customers", "metadata": { "fixture_family": "customers", "fixture_scope": "synthetic_customers", "route_family_ids": ["customers-collection"] } },
+      "method": "POST",
+      "target": "wc/v3:customers-collection",
+      "input": { "payload_shapes": ["customer with unique email and username", "customer billing/shipping profile"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not accepted customer payload fixtures" },
+      "metadata": { "operation": "create", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "customers-update",
+      "kind": "mutation",
+      "resource": { "kind": "customer", "id": "customers", "metadata": { "fixture_family": "customers", "fixture_scope": "synthetic_customers", "route_family_ids": ["customers-collection"] } },
+      "method": "PUT",
+      "target": "wc/v3:customers-collection",
+      "input": { "payload_shapes": ["billing/shipping address update", "role-neutral profile metadata update"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not emitted rollback contracts for customer updates" },
+      "metadata": { "operation": "update", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "customers-delete",
+      "kind": "mutation",
+      "resource": { "kind": "customer", "id": "customers", "metadata": { "fixture_family": "customers", "fixture_scope": "synthetic_customers", "route_family_ids": ["customers-collection"] } },
+      "method": "DELETE",
+      "target": "wc/v3:customers-collection",
+      "input": { "payload_shapes": ["fixture-owned customer id with delete-boundary artifact"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "delete-boundary rollback artifact contract is unavailable" },
+      "metadata": { "operation": "delete", "safety_class": "destructive", "rollback_required": true, "delete_boundary_required": true, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "coupons-create",
+      "kind": "mutation",
+      "resource": { "kind": "coupon", "id": "coupons", "metadata": { "fixture_family": "coupons", "fixture_scope": "synthetic_coupons", "route_family_ids": ["coupons-collection"] } },
+      "method": "POST",
+      "target": "wc/v3:coupons-collection",
+      "input": { "payload_shapes": ["percent coupon with unique code", "fixed cart coupon with usage limits"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not accepted coupon payload fixtures" },
+      "metadata": { "operation": "create", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "coupons-update",
+      "kind": "mutation",
+      "resource": { "kind": "coupon", "id": "coupons", "metadata": { "fixture_family": "coupons", "fixture_scope": "synthetic_coupons", "route_family_ids": ["coupons-collection"] } },
+      "method": "PUT",
+      "target": "wc/v3:coupons-collection",
+      "input": { "payload_shapes": ["amount/date/usage limit update", "product/category restriction update"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "generic REST mutation runner has not emitted rollback contracts for coupon updates" },
+      "metadata": { "operation": "update", "safety_class": "isolated_mutation", "rollback_required": true, "delete_boundary_required": false, "proof_status": "declared_contract" }
+    },
+    {
+      "id": "coupons-delete",
+      "kind": "mutation",
+      "resource": { "kind": "coupon", "id": "coupons", "metadata": { "fixture_family": "coupons", "fixture_scope": "synthetic_coupons", "route_family_ids": ["coupons-collection"] } },
+      "method": "DELETE",
+      "target": "wc/v3:coupons-collection",
+      "input": { "payload_shapes": ["fixture-owned coupon id with delete-boundary artifact"], "namespace": "wc/v3", "roles": ["administrator", "shop_manager"] },
+      "expected": { "readiness_level": "declared", "execute": false, "blocked_until": "delete-boundary rollback artifact contract is unavailable" },
+      "metadata": { "operation": "delete", "safety_class": "destructive", "rollback_required": true, "delete_boundary_required": true, "proof_status": "declared_contract" }
+    }
+  ],
+  "operationKinds": ["mutation"],
+  "metadata": {
+    "source_manifest": "manifests/rest-crud-payload-fixtures.json",
+    "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
+    "owner_profile": "product-rest-crud-fuzzer",
+    "readiness_level": "declared",
+    "runner_behavior": "none",
+    "proof_status": "declared_contract",
+    "execution_enabled": false,
+    "blocker": "Generic REST mutation runner, rollback/isolation artifacts, delete-boundary artifacts, and reviewer-facing evidence refs are required before execution.",
+    "operation_ready_refs": [
+      {
+        "family_id": "products",
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "fixture_plan_schema": "wp-codebox/fuzz-fixture-plan/v1",
+        "opt_in_schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+        "operation_refs": [
+          { "operation": "create", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/products-create", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "update", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/products-update", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "delete", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/products-delete", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false }
+        ]
+      },
+      {
+        "family_id": "orders",
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "fixture_plan_schema": "wp-codebox/fuzz-fixture-plan/v1",
+        "opt_in_schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+        "operation_refs": [
+          { "operation": "create", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/orders-create", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "update", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/orders-update", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "delete", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/orders-delete", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false }
+        ]
+      },
+      {
+        "family_id": "customers",
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "fixture_plan_schema": "wp-codebox/fuzz-fixture-plan/v1",
+        "opt_in_schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+        "operation_refs": [
+          { "operation": "create", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/customers-create", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "update", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/customers-update", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "delete", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/customers-delete", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false }
+        ]
+      },
+      {
+        "family_id": "coupons",
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "fixture_plan_schema": "wp-codebox/fuzz-fixture-plan/v1",
+        "opt_in_schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+        "operation_refs": [
+          { "operation": "create", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/coupons-create", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "update", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/coupons-update", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false },
+          { "operation": "delete", "fixture_plan_ref": "manifests/rest-crud-fixture-plan.json#operations/coupons-delete", "opt_in_manifest_ref": "manifests/rest-crud-fixture-opt-ins.json", "execute": false }
+        ]
+      }
+    ]
+  }
+}

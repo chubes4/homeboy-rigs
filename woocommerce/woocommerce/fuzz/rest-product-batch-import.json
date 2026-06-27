@@ -76,6 +76,33 @@
       }
     },
     "payload_fixtures": {
+      "manifest": "manifests/rest-crud-payload-fixtures.json",
+      "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
+      "rest_mutation_fixture_opt_ins_manifest": "manifests/rest-crud-fixture-opt-ins.json",
+      "fixture_contracts": {
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
+        "artifacts": [
+          {
+            "id": "rest_crud_fixture_plan",
+            "schema": "wp-codebox/fuzz-fixture-plan/v1",
+            "path": "manifests/rest-crud-fixture-plan.json",
+            "semantic_key": "fixture.plan",
+            "readiness": "declared_contract"
+          },
+          {
+            "id": "rest_crud_fixture_opt_ins",
+            "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+            "path": "manifests/rest-crud-fixture-opt-ins.json",
+            "semantic_key": "fixture.opt_ins",
+            "readiness": "declared_contract"
+          }
+        ],
+        "operation_ready_ref_families": ["products"]
+      },
+      "family_ids": ["products"],
       "namespace": "wc/v3",
       "roles": ["administrator", "shop_manager"],
       "routes": [

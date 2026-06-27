@@ -10,6 +10,8 @@ import {
   buildArtifactPostprocessPayload,
   buildCoverageGapReport,
   buildPerformanceHotspotsSummary,
+  classifyGenericArtifactSurface,
+  classifyWooCommercePerformanceSurface,
   extractRestRequestCases,
   normalizeArtifactPostprocessStep,
   readArtifactTree,
@@ -95,7 +97,9 @@ test('performance hotspot summary ranks available artifacts relatively', () => {
     },
   ];
 
-  const summary = buildPerformanceHotspotsSummary(artifacts);
+  const summary = buildPerformanceHotspotsSummary(artifacts, {
+    classifySurface: classifyWooCommercePerformanceSurface,
+  });
 
   assert.equal(summary.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1');
   assert.equal(summary.threshold_policy, 'relative_ranking_only');
@@ -111,6 +115,17 @@ test('performance hotspot summary ranks available artifacts relatively', () => {
     'run_refs',
     'surface',
   ]);
+});
+
+test('generic artifact scanning does not bake in WooCommerce hotspot labels', () => {
+  assert.equal(
+    classifyGenericArtifactSurface('checkout-shipping-cache', { metadata: { coverage_shape: 'checkout shipping cache profile' } }),
+    'checkout shipping cache profile'
+  );
+  assert.equal(
+    classifyWooCommercePerformanceSurface('checkout-shipping-cache', { metadata: { coverage_shape: 'checkout shipping cache profile' } }),
+    'checkout'
+  );
 });
 
 test('generic artifact postprocess contract drives coverage gap output', () => {
