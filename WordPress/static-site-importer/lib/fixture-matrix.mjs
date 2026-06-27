@@ -239,7 +239,8 @@ export function normalizeFixtureMatrixResult(input = {}) {
     fixture,
   ));
   const findings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix })));
-  const grouped = groupFindings(findings);
+  const actionableFindings = findings.filter(isActionableFinding);
+  const grouped = groupFindings(actionableFindings);
   const gatedFixtureResults = fixtureResults.map((result) => applyFixtureQualityGate(result, findings));
   const lossClassCounts = countBy(findings, (finding) => finding.loss_class || 'unsupported_loss');
   const acceptanceCounts = countBy(findings, (finding) => finding.loss_acceptance || 'unacceptable');
@@ -255,6 +256,8 @@ export function normalizeFixtureMatrixResult(input = {}) {
       failed: gatedFixtureResults.filter((result) => result.status === 'failed').length,
       not_run: gatedFixtureResults.filter((result) => result.raw_status === 'not_run').length,
       finding_count: findings.length,
+      actionable_finding_count: actionableFindings.length,
+      non_actionable_finding_count: findings.length - actionableFindings.length,
       acceptable_finding_count: acceptanceCounts.acceptable || 0,
       unacceptable_finding_count: acceptanceCounts.unacceptable || 0,
       loss_classes: lossClassCounts,
@@ -262,9 +265,9 @@ export function normalizeFixtureMatrixResult(input = {}) {
       unacceptable_loss_classes: Object.fromEntries(Object.entries(lossClassCounts).filter(([key]) => UNACCEPTABLE_LOSS_CLASSES.has(key))),
       preserved_runtime_island_count: lossClassCounts.preserved_runtime_island || 0,
       groups: Object.fromEntries(Object.entries(grouped).map(([key, items]) => [key, items.length])),
-      top_pattern_families: topPatternFamilies(findings),
-      fixture_exemplars: fixtureExemplars(findings),
-      diagnostic_blind_spots: diagnosticBlindSpots(findings),
+      top_pattern_families: topPatternFamilies(actionableFindings),
+      fixture_exemplars: fixtureExemplars(actionableFindings),
+      diagnostic_blind_spots: diagnosticBlindSpots(actionableFindings),
       fixture_classes: Object.fromEntries(Object.entries(classRollups).map(([key, row]) => [key, row.fixture_count])),
       classes: classRollups,
       quality_budgets: qualityBudgetSummaries(classRollups),
@@ -496,7 +499,8 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
   const selector = raw.selector || rawSource.selector || rawReproduction.selector || '';
   const sourcePath = raw.source_path || raw.path || rawSource.path || rawReproduction.source_path || result.fixture_path || '';
   const repairBucket = raw.repair_bucket || group.group_key;
-  const lossClass = classifyLossClass({ raw, kind, group_key: group.group_key, repair_bucket: repairBucket, message, result });
+  const countOnlyDiagnostic = isCountOnlyStaticSiteFixtureDiagnostic({ raw, kind, message, selector });
+  const lossClass = countOnlyDiagnostic ? 'native_conversion' : classifyLossClass({ raw, kind, group_key: group.group_key, repair_bucket: repairBucket, message, result });
   const lossAcceptance = ACCEPTABLE_LOSS_CLASSES.has(lossClass) ? 'acceptable' : 'unacceptable';
   return {
     id: raw.id || `${result.fixture_id || 'fixture'}:${group.group_key}:${index + 1}`,
@@ -522,9 +526,35 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
     loss_class: lossClass,
     loss_acceptance: lossAcceptance,
     acceptable_loss: lossAcceptance === 'acceptable',
+    actionability: countOnlyDiagnostic ? 'count_only' : 'actionable',
+    actionable: !countOnlyDiagnostic,
     artifact_refs: normalizeArray(raw.artifact_refs),
     raw,
   };
+}
+
+function isActionableFinding(finding) {
+  return finding.actionable !== false;
+}
+
+function isCountOnlyStaticSiteFixtureDiagnostic({ raw, kind, message, selector }) {
+  if (kind !== 'static_site_fixture_diagnostic' || selector) {
+    return false;
+  }
+
+  const rawObject = raw && typeof raw === 'object' ? raw : {};
+  const hasActionableContext = Boolean(
+    rawObject.code
+    || rawObject.type
+    || rawObject.reason_code
+    || rawObject.detail
+    || rawObject.source_path
+    || rawObject.path
+    || rawObject.source?.selector
+    || rawObject.source?.snippet
+    || rawObject.observed?.output
+  );
+  return !hasActionableContext && /^\d+(?:\.\d+)?$/.test(String(message || '').trim());
 }
 
 function classifyLossClass({ raw, kind, group_key, repair_bucket, message, result }) {
