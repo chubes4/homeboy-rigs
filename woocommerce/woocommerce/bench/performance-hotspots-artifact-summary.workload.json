@@ -51,6 +51,17 @@
     "runner_support_status": "supported",
     "readiness": {
       "level": "executable",
+      "coverage_contract": "Artifact-postprocess can execute the Woo performance hotspot summary over an approved offloaded DB/API campaign artifact root, but proven status requires reviewer-facing run and performance_hotspots_summary artifact refs.",
+      "proof_bundle_requirements": {
+        "status": "required_before_proven",
+        "required_refs": [
+          "reviewer-facing artifact-postprocess run id",
+          "reviewer-facing performance hotspot summary artifact ref"
+        ],
+        "required_artifacts": [
+          "performance_hotspots_summary"
+        ]
+      },
       "proven_when": [
         "An approved offloaded campaign run provides a reviewer-facing artifact root for prior workload outputs.",
         "The runner collects the declared performance_hotspots_summary fuzz.report JSON artifact as reviewer-facing evidence."

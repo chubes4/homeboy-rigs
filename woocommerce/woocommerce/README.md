@@ -187,11 +187,12 @@ The Woo DB/API fuzz progression is split into two focused profiles:
   on the same upstream rollback-safe delete primitive and delete-boundary artifact
   contract.
 
-The hotspot and coverage aggregation workloads intentionally keep
-`homeboy.artifact-postprocess` as a runner blocker. Do not shim aggregation in
-the rig: Homeboy/Homeboy Extensions must bind `args.helper`, `args.action`,
-`args.input`, `args.output`, and `args.parameters`, then collect the declared
-`fuzz.report` artifact before those contracts can become executable.
+The hotspot and coverage aggregation workloads execute through
+`homeboy.artifact-postprocess` when the approved offloaded runner provides the
+campaign artifact root. Do not shim aggregation in the rig: Homeboy/Homeboy
+Extensions must bind `args.helper`, `args.action`, `args.input`, `args.output`,
+and `args.parameters`, then collect the declared `fuzz.report` artifact before
+those contracts can become proven.
 
 The DB/API campaign manifest wires those two aggregation workloads to generic
 postprocess metadata instead of abstract proof placeholders:

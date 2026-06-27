@@ -11,6 +11,7 @@ import {
   assertFuzzProofBundleRequirements,
   assertFuzzReadinessLevel,
   assertGenericFuzzManifest,
+  assertReviewerFacingFuzzRef,
   collectFuzzManifests,
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
@@ -174,6 +175,64 @@ function assertNoLocalOnlyRefs(value, context = 'value') {
     for (const [key, entry] of Object.entries(value)) {
       assertNoLocalOnlyRefs(entry, `${context}.${key}`);
     }
+  }
+}
+
+function assertNoProofPlaceholders(value, context = 'value') {
+  if (typeof value === 'string') {
+    assert.ok(!value.includes('contract_only_placeholder'), `${context} must not use contract_only_placeholder proof language`);
+    assert.ok(!/^<[^>]+>$/.test(value.trim()), `${context} must not use placeholder proof refs`);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoProofPlaceholders(entry, `${context}[${index}]`));
+    return;
+  }
+
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      assertNoProofPlaceholders(entry, `${context}.${key}`);
+    }
+  }
+}
+
+function assertExecutableReadinessNeedsProofRequirements(readiness, context) {
+  assertProfileReadiness(readiness, context);
+  if (readiness.level === 'executable') {
+    assertFuzzProofBundleRequirements(readiness.proof_bundle_requirements, { file: `${context}.proof_bundle_requirements` });
+    assert.equal(readiness.proof_bundle, undefined, `${context} executable readiness must not include proof_bundle before reviewer-facing refs exist`);
+  }
+}
+
+function assertDbApiCampaignPromotionContract(campaign) {
+  const requiredArtifacts = ['codebox_fuzz_suite_result', 'wordpress_hotspots', 'homeboy_fuzz_coverage', 'homeboy_hotspot_summary', 'coverage_gap_report'];
+  const requiredSchemas = new Map(campaign.required_upstream_artifact_refs.map((artifact) => [artifact.id, artifact.schema]));
+  assert.deepEqual(new Set(requiredSchemas.keys()), new Set(requiredArtifacts), 'DB/API campaign required artifact ids drifted');
+  assert.deepEqual(new Set(campaign.readiness?.proof_bundle_requirements?.required_artifacts || []), new Set(requiredArtifacts), 'DB/API campaign proof bundle required artifacts must match required upstream artifact refs');
+  assert.equal(campaign.readiness?.proof_bundle_requirements?.local_only_refs_allowed, false, 'DB/API campaign proof refs must reject local-only refs');
+  assert.equal(campaign.readiness?.proof_bundle_requirements?.placeholder_refs_allowed, false, 'DB/API campaign proof refs must reject placeholders');
+
+  const promotion = campaign.readiness?.promotion_to_proven;
+  assert.ok(promotion && typeof promotion === 'object' && !Array.isArray(promotion), 'DB/API campaign requires promotion_to_proven contract');
+  assert.equal(promotion.local_only_refs_allowed, false, 'DB/API promotion must reject local-only refs');
+  assert.equal(promotion.placeholder_refs_allowed, false, 'DB/API promotion must reject placeholder refs');
+  assert.equal(promotion.ref_field, 'readiness.proof_bundle.required_artifact_refs', 'DB/API promotion ref field drifted');
+  assert.ok(Array.isArray(promotion.accepted_ref_schemes) && promotion.accepted_ref_schemes.length > 0, 'DB/API promotion requires accepted ref schemes');
+  assert.deepEqual(new Set((promotion.required_artifact_refs || []).map((artifact) => artifact.id)), new Set(requiredArtifacts), 'DB/API promotion required artifact refs drifted');
+  for (const artifact of promotion.required_artifact_refs || []) {
+    assert.equal(artifact.schema, requiredSchemas.get(artifact.id), `DB/API promotion artifact ${artifact.id} schema drifted`);
+    assert.equal(typeof artifact.semantic_key, 'string', `DB/API promotion artifact ${artifact.id} requires semantic_key`);
+  }
+
+  if (campaign.readiness?.level === 'proven') {
+    const proofRefs = campaign.readiness?.proof_bundle?.required_artifact_refs;
+    assert.ok(proofRefs && typeof proofRefs === 'object' && !Array.isArray(proofRefs), 'DB/API proven campaign requires readiness.proof_bundle.required_artifact_refs');
+    for (const artifactId of requiredArtifacts) {
+      assertReviewerFacingFuzzRef(proofRefs[artifactId], `DB/API campaign proof ref ${artifactId}`);
+    }
+  } else {
+    assert.equal(campaign.readiness?.proof_bundle, undefined, 'DB/API declared campaign must not carry a proof_bundle');
   }
 }
 
@@ -377,6 +436,8 @@ assert.ok(codeboxWorkloadRun.before.some((step) => step.command === 'wordpress.e
 assert.ok(codeboxWorkloadRun.steps.some((step) => step.command === 'wp-codebox/run-fuzz-suite'), 'codebox workload must route through public run-fuzz-suite ability');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.schema, 'wp-codebox/fuzz-suite-result/v1');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.required, false, 'codebox workload proof artifact must remain optional until captured');
+assert.equal(codeboxWorkloadRun.metadata?.proof_status, 'declared_contract');
+assertNoProofPlaceholders(codeboxWorkloadRun, 'codebox-fuzz-suite-smoke workload');
 
 const codeboxSuite = readJson(packageRoot, 'manifests/codebox-fuzz-suite-smoke.json');
 assert.equal(codeboxSuite.schema, 'wp-codebox/fuzz-suite/v1');
@@ -439,6 +500,8 @@ assert.equal(dbApiFuzzCampaign.readiness?.level, 'declared', 'DB/API fuzz campai
 assert.equal(dbApiFuzzCampaign.readiness?.execution, 'offloaded_fuzz_campaign', 'DB/API fuzz campaign execution mode drifted');
 assertFuzzProofBundleRequirements(dbApiFuzzCampaign.readiness?.proof_bundle_requirements, { file: 'db-api-fuzz-campaign readiness' });
 assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
+assertNoProofPlaceholders(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
+assertDbApiCampaignPromotionContract(dbApiFuzzCampaign);
 assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
 assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'supported', 'DB/API fuzz campaign postprocess must use supported artifact-postprocess binding');
 assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.every((condition) => !condition.includes('args.helper')), 'DB/API fuzz campaign postprocess blockers must not claim missing helper/action/input/output/parameters binding');
@@ -507,6 +570,8 @@ assertFuzzProofBundleRequirements(dbApiHotspotArtifactIo.readiness?.proof_bundle
 assert.deepEqual(new Set(dbApiHotspotArtifactIo.expected_inputs.map((input) => input.workload_id)), new Set(dbApiPerformanceFuzzerGapReportInputIds), 'DB/API hotspot artifact IO inputs drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1', 'DB/API hotspot sample output schema drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.threshold_policy, 'relative_ranking_only', 'DB/API hotspot sample output must use relative ranking');
+assertExecutableReadinessNeedsProofRequirements(coverageGapReportWorkload.metadata?.readiness, 'coverage-gap-report workload readiness');
+assertExecutableReadinessNeedsProofRequirements(performanceHotspotsWorkload.metadata?.readiness, 'performance-hotspots-artifact-summary workload readiness');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.read?.level, 'executable', 'DB/API rig profile read CRUD boundary must be executable');
 for (const operation of ['create', 'update', 'delete']) {
   assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.level, 'declared', `DB/API rig profile ${operation} CRUD boundary must be declared`);
@@ -616,8 +681,10 @@ assert.equal(targetInventory.targets.performance_hotspots.artifact_io_manifest, 
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.route_inventory_artifact, 'route_inventory');
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.request_cases_artifact, 'rest_request_cases');
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.query_attribution_artifact, 'rest_schema_query_attribution');
-assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'contract_only_placeholder');
+assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'declared_contract');
 assert.equal(codeboxSuite.metadata?.readiness_level, 'declared');
+assert.equal(codeboxSuite.metadata?.proof_status, 'declared_contract');
+assertNoProofPlaceholders(codeboxSuite, 'codebox suite');
 
 const proofReadyContracts = {
   'rest-namespace-generated-cases': ['namespace-classification', 'generated-safe-get-cases', 'route-gap-attribution'],

@@ -216,6 +216,23 @@ export function normalizeArtifactPostprocessStep(step) {
   if (output.contentType !== 'application/json') {
     throw new Error(`Unsupported artifact postprocess output contentType: ${output.contentType}`);
   }
+  if (output.schema === coverageGapSchema) {
+    const requiredFields = output.required_fields || [];
+    const expectedFields = ['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs'];
+    if (JSON.stringify(requiredFields) !== JSON.stringify(expectedFields)) {
+      throw new Error(`Coverage gap output required_fields must be ${expectedFields.join(', ')}`);
+    }
+  }
+  if (output.schema === hotspotSummarySchema) {
+    const requiredFields = output.ranking?.required_fields || [];
+    const expectedFields = ['rank', 'surface', 'relative_score', 'request_attribution', 'query_attribution', 'fixture_scale', 'run_refs'];
+    if (output.ranking?.mode !== 'relative') {
+      throw new Error('Performance hotspot output ranking.mode must be relative');
+    }
+    if (JSON.stringify(requiredFields) !== JSON.stringify(expectedFields)) {
+      throw new Error(`Performance hotspot output ranking.required_fields must be ${expectedFields.join(', ')}`);
+    }
+  }
 
   return {
     command: args.action,

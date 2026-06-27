@@ -39,6 +39,6 @@
     "workload": "codebox-fuzz-suite-smoke",
     "contract": "wp-codebox/wordpress-workload-run/v1",
     "fuzz_suite": "${package.root}/manifests/codebox-fuzz-suite-smoke.json",
-    "proof_status": "contract_only_placeholder"
+    "proof_status": "declared_contract"
   }
 }

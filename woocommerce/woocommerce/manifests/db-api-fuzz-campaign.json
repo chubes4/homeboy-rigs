@@ -151,6 +151,8 @@
     "coverage_contract": "The campaign is executable only through the declared Woo fuzz workloads in an approved offloaded WP Codebox/Homeboy runner. It remains declared until reviewer-facing artifact refs exist for Codebox fuzz-suite results, WordPress hotspot artifacts, Homeboy fuzz coverage, Homeboy hotspot summary, and the coverage gap report.",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
+      "local_only_refs_allowed": false,
+      "placeholder_refs_allowed": false,
       "required_refs": [
         "reviewer-facing wp-codebox/fuzz-suite-result/v1 artifact ref",
         "reviewer-facing wp-codebox/wordpress-hotspots/v1 artifact ref",
@@ -164,6 +166,39 @@
         "homeboy_fuzz_coverage",
         "homeboy_hotspot_summary",
         "coverage_gap_report"
+      ]
+    },
+    "promotion_to_proven": {
+      "local_only_refs_allowed": false,
+      "placeholder_refs_allowed": false,
+      "ref_field": "readiness.proof_bundle.required_artifact_refs",
+      "accepted_ref_schemes": ["https://", "gh:", "homeboy-runs:", "homeboy://run/", "homeboy-artifact://", "artifact:", "run:"],
+      "required_artifact_refs": [
+        {
+          "id": "codebox_fuzz_suite_result",
+          "schema": "wp-codebox/fuzz-suite-result/v1",
+          "semantic_key": "fuzz.suite_result"
+        },
+        {
+          "id": "wordpress_hotspots",
+          "schema": "wp-codebox/wordpress-hotspots/v1",
+          "semantic_key": "wordpress.hotspots"
+        },
+        {
+          "id": "homeboy_fuzz_coverage",
+          "schema": "homeboy/fuzz-coverage/v1",
+          "semantic_key": "fuzz.coverage"
+        },
+        {
+          "id": "homeboy_hotspot_summary",
+          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "semantic_key": "fuzz.report"
+        },
+        {
+          "id": "coverage_gap_report",
+          "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
+          "semantic_key": "fuzz.report"
+        }
       ]
     },
     "upstream_blockers": [

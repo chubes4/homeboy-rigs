@@ -185,7 +185,7 @@ export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workl
   );
 }
 
-function assertReviewerFacingFuzzRef(value, context) {
+export function assertReviewerFacingFuzzRef(value, context) {
   assert.equal(typeof value, 'string', `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(value.trim().length > 0, `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(
@@ -198,7 +198,7 @@ function assertReviewerFacingFuzzRef(value, context) {
   );
 }
 
-function localOnlyReviewerFacingRef(value) {
+export function localOnlyReviewerFacingRef(value) {
   if (typeof value !== 'string' || value.trim() === '') {
     return false;
   }
