@@ -323,6 +323,11 @@ export function assertArtifactPostprocessWorkloadContract(workload, { id, action
   }, `${id} collected artifact declaration drifted`);
 
   assert.equal(workload.metadata?.runner_support_status, 'requires-upstream-binding', `${id} must stay declared until upstream binds this command`);
+  assert.equal(workload.metadata?.readiness?.level, 'declared', `${id} readiness must stay declared until upstream binds this command`);
+  assert.equal(workload.metadata?.readiness?.blocked_by, 'homeboy.artifact-postprocess runner binding', `${id} readiness must name the upstream binding blocker`);
+  assert.ok(workload.metadata?.readiness?.unblocks_when?.some((condition) => condition.includes('args.helper')), `${id} readiness must describe the helper/action/input/output/parameters unblock condition`);
+  assert.ok(workload.metadata?.readiness?.unblocks_when?.some((condition) => condition.includes('artifact root')), `${id} readiness must describe the artifact-root unblock condition`);
+  assert.ok(workload.metadata?.readiness?.unblocks_when?.some((condition) => condition.includes('reviewer-facing evidence')), `${id} readiness must describe the reviewer-facing artifact unblock condition`);
   assert.match(workload.metadata?.missing_upstream_contract || '', /args\.helper, args\.action, args\.input, args\.output, and args\.parameters/, `${id} must document missing upstream fields`);
 }
 

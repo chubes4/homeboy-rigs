@@ -45,6 +45,15 @@
     "runner": "wp-codebox",
     "workload": "coverage-gap-report",
     "runner_support_status": "requires-upstream-binding",
+    "readiness": {
+      "level": "declared",
+      "blocked_by": "homeboy.artifact-postprocess runner binding",
+      "unblocks_when": [
+        "WP Codebox/Homeboy Extensions binds args.helper, args.action, args.input, args.output, and args.parameters for homeboy.artifact-postprocess steps.",
+        "The runner passes an artifact root for prior workload outputs.",
+        "The runner collects the declared fuzz.report JSON artifact as reviewer-facing evidence."
+      ]
+    },
     "missing_upstream_contract": "WP Codebox/Homeboy Extensions must bind homeboy.artifact-postprocess steps with args.helper, args.action, args.input, args.output, and args.parameters exactly as declared here.",
     "coverage_shape": "Executable coverage gap report over available WooCommerce DB/API fuzzer artifacts",
     "manifest": "manifests/db-api-performance-fuzzer-gap-report.json"

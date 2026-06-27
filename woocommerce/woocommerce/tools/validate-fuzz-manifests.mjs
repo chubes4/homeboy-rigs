@@ -429,6 +429,9 @@ assertFuzzProofBundleRequirements(dbApiFuzzCampaign.readiness?.proof_bundle_requ
 assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
 assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'requires-upstream-binding', 'DB/API fuzz campaign must not claim postprocess runner binding before upstream support lands');
+assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('args.helper')), 'DB/API fuzz campaign postprocess blockers must include the missing helper/action/input/output/parameters binding');
+assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('artifact root')), 'DB/API fuzz campaign postprocess blockers must include artifact-root passing');
+assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('reviewer-facing evidence')), 'DB/API fuzz campaign postprocess blockers must include reviewer-facing evidence collection');
 assert.deepEqual(dbApiFuzzCampaign.postprocess?.artifact_roots, [
   {
     id: 'offloaded_campaign_artifacts',
@@ -458,6 +461,7 @@ assertCampaignPostprocessOutput(
   'DB/API campaign performance-hotspots postprocess output'
 );
 assert.equal(dbApiFuzzCampaign.operator_commands?.offload_required, true, 'DB/API fuzz campaign must require offloaded execution');
+assert.equal(dbApiFuzzCampaign.operator_commands?.status, 'planned_until_artifact_postprocess_binding', 'DB/API fuzz campaign operator commands must stay planned until artifact-postprocess binding lands');
 assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /homeboy\.artifact-postprocess/, 'DB/API fuzz campaign operator commands must document generic postprocess execution');
 assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /\$\{artifacts\.root\}/, 'DB/API fuzz campaign operator commands must name the offloaded artifact root placeholder');
 assert.ok(dbApiFuzzCampaign.operator_commands?.commands?.every((command) => command.startsWith('homeboy ')), 'DB/API fuzz campaign commands must use Homeboy rig/fuzz commands');
