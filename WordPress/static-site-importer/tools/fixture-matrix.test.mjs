@@ -296,6 +296,81 @@ test('suppresses count-only fixture diagnostics from actionable fanout rollups',
   assert.equal(result.fanout_groups[0].findings[0].kind, 'core_html_block');
 });
 
+test('splits acceptable and unacceptable pattern rollups for minion fanout', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fanout-rollups-'));
+  for (const fixture of ['fixture-alpha', 'fixture-beta', 'fixture-gamma']) {
+    mkdirSync(path.join(root, fixture), { recursive: true });
+    writeFileSync(path.join(root, fixture, 'index.html'), '<main>Fixture</main>');
+  }
+
+  const matrix = createFixtureMatrix({ fixture_root: root, id: 'fanout-rollup-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'fixture-alpha',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'layout_shift',
+            candidate_repo: 'blocks-engine',
+            source_path: 'website/index.html',
+            message: 'Unexpected layout shift in imported hero.',
+          },
+          {
+            kind: 'native_block_conversion',
+            loss_class: 'native_conversion',
+            candidate_repo: 'blocks-engine',
+            source_path: 'website/index.html',
+            message: 'Converted natively to editor blocks.',
+          },
+        ],
+      },
+      {
+        fixture_id: 'fixture-beta',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'layout_shift',
+            candidate_repo: 'blocks-engine',
+            source_path: 'website/index.html',
+            message: 'Unexpected layout shift in imported hero.',
+          },
+        ],
+      },
+      {
+        fixture_id: 'fixture-gamma',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'font_color_loss',
+            candidate_repo: 'static-site-importer',
+            source_path: 'website/index.html',
+            message: 'Font color changed after import.',
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result.summary.finding_count, 4);
+  assert.equal(result.summary.actionable_finding_count, 4);
+  assert.equal(result.summary.acceptable_finding_count, 1);
+  assert.equal(result.summary.unacceptable_finding_count, 3);
+  assert.equal(result.summary.groups.static_site_import_quality, 4);
+  assert.equal(result.summary.top_acceptable_pattern_families[0].key, 'static_site_import_quality:native_block_conversion:(none)');
+  assert.equal(result.summary.top_unacceptable_pattern_families[0].key, 'static_site_import_quality:layout_shift:(none)');
+  assert.equal(result.summary.top_unacceptable_pattern_families[0].count, 2);
+  assert.equal(result.summary.unacceptable_candidate_repos[0].candidate_repo, 'blocks-engine');
+  assert.equal(result.summary.unacceptable_candidate_repos[0].count, 2);
+  assert.equal(result.summary.unacceptable_candidate_repos[0].top_pattern_families[0].key, 'static_site_import_quality:layout_shift:(none)');
+  assert.equal(result.fanout_groups[0].acceptance, 'unacceptable');
+  assert.equal(result.fanout_groups[0].candidate_repo, 'blocks-engine');
+  assert.equal(result.fanout_groups[0].pattern_family, 'static_site_import_quality:layout_shift:(none)');
+  assert.equal(result.fanout_groups[0].count, 2);
+  assert.notEqual(result.fanout_groups[0].group_key, 'static_site_import_quality');
+});
+
 test('collects SSI finding packet source and observed context from fixture artifacts', () => {
   const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-finding-packet-context-'));
   const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'packet-context-test' });
