@@ -130,17 +130,19 @@
     "offload_required": true,
     "status": "executable_pending_offloaded_artifacts",
     "note": "Run these through an approved Homeboy Lab/runner/offloaded environment. Do not use local benchmark execution as proof for this campaign.",
+    "tracker_ref_placeholder": "$WC_TRACKER_REF",
+    "reviewer_evidence_refs_command": "homeboy runs refs --rig woocommerce-performance --kind fuzz --status completed --tracker-ref \"$WC_TRACKER_REF\" --artifact-kind canonical_fuzz_envelope --artifact-kind codebox_fuzz_suite_result --artifact-kind wordpress_hotspots --artifact-kind homeboy_fuzz_coverage --artifact-kind coverage_gap_report --artifact-kind performance_hotspots_summary",
     "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads execute the generic homeboy.artifact-postprocess step against the offloaded ${artifacts.root}; their helper/action/input/output/parameters contracts are declared in postprocess.outputs and must be collected as reviewer-facing artifacts before proven readiness.",
     "commands": [
       "homeboy rig up woocommerce-performance",
-      "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m",
-      "homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory --seed 1 --max-duration 10m",
-      "homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-db-api-generated-cases --seed 1 --max-duration 20m",
-      "homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-db-api-query-profile --seed 1 --max-duration 20m",
-      "homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-api-db-inventory --seed 1 --max-duration 10m",
-      "homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution --seed 1 --max-duration 20m",
-      "homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m",
-      "homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m"
+      "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-db-api-generated-cases --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-db-api-query-profile --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-api-db-inventory --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m --tracker-ref \"$WC_TRACKER_REF\""
     ]
   },
   "readiness": {
