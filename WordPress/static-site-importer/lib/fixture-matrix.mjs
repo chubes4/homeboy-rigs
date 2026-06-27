@@ -190,10 +190,20 @@ export function normalizeFixtureMatrixResult(input = {}) {
       not_run: fixtureResults.filter((result) => result.status === 'not_run').length,
       finding_count: findings.length,
       groups: Object.fromEntries(Object.entries(grouped).map(([key, items]) => [key, items.length])),
+      top_pattern_families: topPatternFamilies(findings),
+      fixture_exemplars: fixtureExemplars(findings),
+      diagnostic_blind_spots: diagnosticBlindSpots(findings),
     },
     fixtures: fixtureResults,
     findings,
-    fanout_groups: Object.entries(grouped).map(([group_key, items], index) => ({ group_key, index, findings: items })),
+    fanout_groups: Object.entries(grouped).map(([group_key, items], index) => ({
+      group_key,
+      index,
+      count: items.length,
+      top_pattern_families: topPatternFamilies(items, 5),
+      fixture_exemplars: fixtureExemplars(items, 5),
+      findings: items,
+    })),
   };
 }
 
@@ -253,7 +263,7 @@ export function writeFixtureMatrixResultArtifacts(input = {}) {
 }
 
 export function classifyStaticSiteFinding(input = {}) {
-  const haystack = [input.kind, input.code, input.category, input.message, input.reason, input.detail]
+  const haystack = [input.kind, input.type, input.code, input.category, input.repair_bucket, input.group_key, input.message, input.reason, input.detail]
     .filter(Boolean)
     .join(' ');
   for (const [group_key, group] of Object.entries(DEFAULT_FINDING_GROUPS)) {
@@ -282,19 +292,33 @@ function findingsForFixtureResult(result, context = {}) {
 
 function normalizeDiagnosticFinding(diagnostic, result, index) {
   const raw = diagnostic && typeof diagnostic === 'object' ? diagnostic : { message: String(diagnostic || '') };
-  const message = raw.message || raw.reason || raw.detail || raw.code || result.error || '';
+  const rawSource = objectValue(raw.source);
+  const rawObserved = objectValue(raw.observed);
+  const rawExpected = objectValue(raw.expected);
+  const rawReproduction = objectValue(raw.reproduction_context || raw.reproductionContext);
+  const message = raw.message || raw.reason || raw.detail || rawObserved.reason_code || rawExpected.outcome || raw.code || result.error || '';
   const group = classifyStaticSiteFinding({ ...raw, message });
+  const kind = raw.kind || raw.code || raw.type || rawObserved.reason_code || 'static_site_fixture_diagnostic';
+  const selector = raw.selector || rawSource.selector || rawReproduction.selector || '';
+  const sourcePath = raw.source_path || raw.path || rawSource.path || rawReproduction.source_path || result.fixture_path || '';
+  const repairBucket = raw.repair_bucket || group.group_key;
   return {
     id: raw.id || `${result.fixture_id || 'fixture'}:${group.group_key}:${index + 1}`,
-    kind: raw.kind || raw.code || 'static_site_fixture_diagnostic',
+    kind,
     category: raw.category || group.group_key,
     group_key: group.group_key,
+    repair_bucket: repairBucket,
     severity: raw.severity || (result.status === 'failed' ? 'error' : 'warning'),
     fixture_id: result.fixture_id || '',
-    path: raw.path || raw.source_path || result.fixture_path || '',
-    source_path: raw.source_path || raw.path || result.fixture_path || '',
-    selector: raw.selector || '',
+    path: sourcePath,
+    source_path: sourcePath,
+    selector,
+    selector_family: selectorFamily(selector),
+    pattern_family: patternFamily({ ...raw, kind, group_key: group.group_key, repair_bucket: repairBucket, selector }),
     reason: message,
+    source_snippet: raw.source_html_preview || raw.html_excerpt || rawSource.snippet || '',
+    observed_output: raw.emitted_block_preview || rawObserved.output || '',
+    observed_block_name: raw.block_name || rawObserved.block_name || '',
     repair_mode: raw.repair_mode || group.repair_mode,
     candidate_repo: raw.candidate_repo || group.candidate_repo,
     artifact_refs: normalizeArray(raw.artifact_refs),
@@ -378,6 +402,7 @@ function collectFixtureDiagnostics(payload) {
     ...normalizeArray(payload.diagnostics),
     ...normalizeArray(payload.fixture_diagnostics?.diagnostics || payload.fixtureDiagnostics?.diagnostics),
     ...normalizeArray(payload.findings),
+    ...collectFindingPacketDiagnostics(payload),
     ...normalizeArray(payload.messages),
     ...normalizeArray(payload.errors),
     ...normalizeArray(payload.warnings),
@@ -391,6 +416,139 @@ function collectFixtureDiagnostics(payload) {
     diagnostics.push({ kind: 'invalid_block_content', message: `${invalidBlockCount} invalid block${invalidBlockCount === 1 ? '' : 's'} reported by SSI validation.` });
   }
   return dedupeDiagnostics(diagnostics);
+}
+
+function collectFindingPacketDiagnostics(payload) {
+  return [
+    ...normalizeArray(payload.finding_packets?.packets || payload.findingPackets?.packets),
+    ...normalizeArray(payload.import_report?.finding_packets?.packets || payload.importReport?.finding_packets?.packets),
+    ...normalizeArray(payload.report?.finding_packets?.packets),
+  ];
+}
+
+function topPatternFamilies(findings, limit = 10) {
+  const families = new Map();
+  for (const finding of findings) {
+    const key = finding.pattern_family || patternFamily(finding);
+    const row = families.get(key) || {
+      key,
+      count: 0,
+      repair_bucket: finding.repair_bucket || finding.group_key || '',
+      kind: finding.kind || '',
+      candidate_repo: finding.candidate_repo || '',
+      fixture_ids: [],
+      selectors: [],
+      exemplars: [],
+    };
+    row.count += 1;
+    pushUnique(row.fixture_ids, finding.fixture_id, 5);
+    pushUnique(row.selectors, finding.selector, 5);
+    if (row.exemplars.length < 3) {
+      row.exemplars.push(fixtureExemplar(finding));
+    }
+    families.set(key, row);
+  }
+  return [...families.values()]
+    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key))
+    .slice(0, limit);
+}
+
+function fixtureExemplars(findings, limit = 10) {
+  const exemplars = [];
+  const seen = new Set();
+  for (const finding of findings) {
+    const exemplar = fixtureExemplar(finding);
+    const key = [exemplar.pattern_family, exemplar.fixture_id, exemplar.selector, exemplar.source_path].join('\u0000');
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    exemplars.push(exemplar);
+    if (exemplars.length >= limit) {
+      break;
+    }
+  }
+  return exemplars;
+}
+
+function fixtureExemplar(finding) {
+  return compactObject({
+    fixture_id: finding.fixture_id,
+    pattern_family: finding.pattern_family || patternFamily(finding),
+    repair_bucket: finding.repair_bucket || finding.group_key,
+    kind: finding.kind,
+    candidate_repo: finding.candidate_repo,
+    source_path: finding.source_path || finding.path,
+    selector: finding.selector,
+    selector_family: finding.selector_family || selectorFamily(finding.selector),
+    reason: finding.reason,
+    source_snippet: finding.source_snippet,
+    observed_block_name: finding.observed_block_name,
+    observed_output: finding.observed_output,
+  });
+}
+
+function diagnosticBlindSpots(findings) {
+  const spots = [];
+  const genericFindings = findings.filter((finding) => isGenericFinding(finding));
+  const missingSourceContext = findings.filter((finding) => !finding.selector && !finding.source_snippet && !finding.observed_output);
+  if (genericFindings.length > 0) {
+    spots.push(blindSpot('generic_finding_family', genericFindings, 'Findings need a specific type, repair bucket, or reason code before fanout.'));
+  }
+  if (missingSourceContext.length > 0) {
+    spots.push(blindSpot('missing_source_context', missingSourceContext, 'Findings need selector, source snippet, or observed block output for direct transformer repair.'));
+  }
+  return spots;
+}
+
+function blindSpot(kind, findings, recommendation) {
+  return {
+    kind,
+    count: findings.length,
+    recommendation,
+    exemplars: fixtureExemplars(findings, 5),
+  };
+}
+
+function isGenericFinding(finding) {
+  return ['static_site_fixture_diagnostic', 'import_diagnostic', 'diagnostic'].includes(finding.kind)
+    || ['static_site_import_quality'].includes(finding.group_key)
+    || !finding.reason;
+}
+
+function patternFamily(finding) {
+  return [
+    finding.repair_bucket || finding.group_key || 'static_site_import_quality',
+    finding.kind || 'diagnostic',
+    selectorFamily(finding.selector),
+  ].join(':');
+}
+
+function selectorFamily(selector) {
+  const value = String(selector || '').trim();
+  if (!value) {
+    return '(none)';
+  }
+
+  const firstToken = value.split(/\s+|\s*[>+~]\s*/).find(Boolean) || value;
+  if (firstToken.startsWith('#')) {
+    return `id:${firstToken.slice(1).split(/[:.#[\]]/)[0] || '(unknown)'}`;
+  }
+  if (firstToken.startsWith('.')) {
+    return `class:${firstToken.slice(1).split(/[:.#[\]]/)[0] || '(unknown)'}`;
+  }
+  if (firstToken.startsWith('[')) {
+    return `attr:${firstToken.slice(1).split(/[=\]]/)[0] || '(unknown)'}`;
+  }
+
+  return firstToken.split(/[:.#[\]]/)[0] || firstToken;
+}
+
+function pushUnique(values, value, limit) {
+  if (!value || values.includes(value) || values.length >= limit) {
+    return;
+  }
+  values.push(value);
 }
 
 function dedupeDiagnostics(diagnostics) {

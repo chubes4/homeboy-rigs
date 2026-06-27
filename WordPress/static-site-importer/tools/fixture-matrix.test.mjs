@@ -11,6 +11,7 @@ import {
 import {
   buildFixtureMatrixRunPlan,
   CANONICAL_FIXTURE_COUNT,
+  summarizeRun,
 } from './run-fixture-matrix.mjs';
 import {
   compareFindingPackets,
@@ -19,6 +20,7 @@ import {
 import {
   buildFixtureMatrixRecipe,
   classifyStaticSiteFinding,
+  collectFixtureMatrixRunResults,
   createFixtureMatrix,
   normalizeFixtureMatrixResult,
   writeFixtureMatrixArtifacts,
@@ -84,6 +86,79 @@ test('normalizes SSI diagnostics into product repair groups', () => {
   assert.equal(result.summary.groups.dropped_images, 1);
   assert.equal(result.summary.groups.invalid_block_content, 1);
   assert.equal(classifyStaticSiteFinding({ message: 'canvas target missing' }).repair_mode, 'runtime-dom-target-parity');
+});
+
+test('aggregates pattern families, fixture exemplars, and diagnostic blind spots', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'diagnostic-rollup-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'runtime_dependency_missing_dom_target',
+            repair_bucket: 'runtime_target_gap',
+            candidate_repo: 'blocks-engine',
+            source_path: 'website/index.html',
+            selector: '#hero canvas',
+            source_html_preview: '<canvas id="hero"></canvas>',
+            emitted_block_preview: '<!-- wp:group -->',
+            message: 'Runtime target #hero canvas is missing after import.',
+          },
+          { message: 'Unclassified import quality issue.' },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result.summary.top_pattern_families[0].key, 'runtime_target_gap:runtime_dependency_missing_dom_target:id:hero');
+  assert.equal(result.summary.fixture_exemplars[0].fixture_id, 'simple-site');
+  assert.equal(result.summary.fixture_exemplars[0].source_snippet, '<canvas id="hero"></canvas>');
+  assert.equal(result.fanout_groups[0].count, 1);
+  assert.ok(result.summary.diagnostic_blind_spots.some((spot) => spot.kind === 'generic_finding_family'));
+});
+
+test('collects SSI finding packet source and observed context from fixture artifacts', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-finding-packet-context-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'packet-context-test' });
+  const fixtureDirectory = path.join(outputDirectory, 'simple-site');
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(path.join(fixtureDirectory, 'import-report.json'), JSON.stringify({
+    success: false,
+    fixture_id: 'simple-site',
+    finding_packets: {
+      packets: [
+        {
+          type: 'runtime_dependency_missing_dom_target',
+          severity: 'error',
+          source: {
+            path: 'website/index.html',
+            selector: '.shader canvas',
+            snippet: '<canvas class="shader"></canvas>',
+          },
+          observed: {
+            reason_code: 'runtime_dependency_missing_dom_target',
+            output: '<!-- wp:html /-->',
+          },
+          expected: {
+            outcome: 'Runtime target should exist after import.',
+          },
+        },
+      ],
+    },
+  }));
+
+  const result = collectFixtureMatrixRunResults({ matrix, outputDirectory });
+  const finding = result.findings[0];
+
+  assert.equal(result.summary.finding_count, 1);
+  assert.equal(finding.source_path, 'website/index.html');
+  assert.equal(finding.selector, '.shader canvas');
+  assert.equal(finding.selector_family, 'class:shader');
+  assert.equal(finding.source_snippet, '<canvas class="shader"></canvas>');
+  assert.equal(finding.observed_output, '<!-- wp:html /-->');
 });
 
 test('materializes generated artifact roots into matrix-compatible fixtures', () => {
@@ -189,6 +264,40 @@ test('builds one-command canonical Blocks Engine fixture matrix plan', () => {
   });
   assert.deepEqual(releasePlan.dependency_overrides, {});
   assert.equal(releasePlan.steps.at(-1).args.some((arg) => arg.includes('SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH')), false);
+});
+
+test('operator summary preserves matrix rollups for fanout agents', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-operator-summary-'));
+  const outputFile = path.join(root, 'homeboy-bench.json');
+  writeFileSync(outputFile, JSON.stringify({
+    run_id: 'ssi-matrix-rollup-proof',
+    result_summary: {
+      failed: 71,
+      finding_count: 1126,
+      groups: { runtime_target_gap: 806 },
+      top_pattern_families: [
+        { key: 'runtime_target_gap:runtime_dependency_missing_dom_target:canvas', count: 312, fixture_ids: ['shader-site'] },
+      ],
+      fixture_exemplars: [
+        { fixture_id: 'shader-site', selector: 'canvas', reason: 'Runtime target missing.' },
+      ],
+      diagnostic_blind_spots: [
+        { kind: 'missing_source_context', count: 12 },
+      ],
+    },
+  }));
+
+  const summary = summarizeRun({
+    mode: 'development-override',
+    run_id: 'planned-run',
+    fixture_count: 71,
+    output_file: outputFile,
+  });
+
+  assert.equal(summary.run_id, 'ssi-matrix-rollup-proof');
+  assert.equal(summary.top_pattern_families[0].count, 312);
+  assert.equal(summary.fixture_exemplars[0].fixture_id, 'shader-site');
+  assert.equal(summary.diagnostic_blind_spots[0].kind, 'missing_source_context');
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
