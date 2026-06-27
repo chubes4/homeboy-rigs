@@ -498,7 +498,7 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
   const selector = raw.selector || rawSource.selector || rawReproduction.selector || '';
   const sourcePath = raw.source_path || raw.path || rawSource.path || rawReproduction.source_path || result.fixture_path || '';
   const repairBucket = raw.repair_bucket || group.group_key;
-  const countOnlyDiagnostic = isCountOnlyStaticSiteFixtureDiagnostic({ raw, kind, message, selector });
+  const countOnlyDiagnostic = isCountOnlyStaticSiteFixtureDiagnostic({ raw, result, kind, message, selector });
   const lossClass = countOnlyDiagnostic ? 'native_conversion' : classifyLossClass({ raw, kind, group_key: group.group_key, repair_bucket: repairBucket, message, result });
   const lossAcceptance = ACCEPTABLE_LOSS_CLASSES.has(lossClass) ? 'acceptable' : 'unacceptable';
   return {
@@ -536,19 +536,20 @@ function isActionableFinding(finding) {
   return finding.actionable !== false;
 }
 
-function isCountOnlyStaticSiteFixtureDiagnostic({ raw, kind, message, selector }) {
+function isCountOnlyStaticSiteFixtureDiagnostic({ raw, result, kind, message, selector }) {
   if (kind !== 'static_site_fixture_diagnostic' || selector) {
     return false;
   }
 
   const rawObject = raw && typeof raw === 'object' ? raw : {};
+  const sourcePath = rawObject.source_path || rawObject.path;
+  const sourceIsFixturePath = sourcePath && result?.fixture_path && path.resolve(String(sourcePath)) === path.resolve(String(result.fixture_path));
   const hasActionableContext = Boolean(
     rawObject.code
     || rawObject.type
     || rawObject.reason_code
     || rawObject.detail
-    || rawObject.source_path
-    || rawObject.path
+    || (sourcePath && !sourceIsFixturePath)
     || rawObject.source?.selector
     || rawObject.source?.snippet
     || rawObject.observed?.output
