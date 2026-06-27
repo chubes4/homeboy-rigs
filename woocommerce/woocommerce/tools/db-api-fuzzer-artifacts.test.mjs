@@ -173,6 +173,52 @@ test('generic artifact postprocess contract rejects invented commands and incomp
   );
 });
 
+test('generic artifact postprocess contract rejects drifted coverage output schema', () => {
+  assert.throws(
+    () => normalizeArtifactPostprocessStep({
+      command: artifactPostprocessCommand,
+      args: {
+        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
+        action: 'coverage-gap-report',
+        input: { type: 'artifact-root', path: '/tmp/artifacts', artifact_globs: ['**/*.json'] },
+        output: {
+          artifact: 'coverage_gap_report',
+          path: 'coverage-gap-report/coverage_gap_report.json',
+          kind: 'json',
+          contentType: 'application/json',
+          schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+          semantic_key: 'fuzz.report',
+          required_fields: ['surface_type'],
+        },
+      },
+    }),
+    /Coverage gap output required_fields/
+  );
+});
+
+test('generic artifact postprocess contract rejects drifted hotspot ranking schema', () => {
+  assert.throws(
+    () => normalizeArtifactPostprocessStep({
+      command: artifactPostprocessCommand,
+      args: {
+        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
+        action: 'performance-hotspots-summary',
+        input: { type: 'artifact-root', path: '/tmp/artifacts', artifact_globs: ['**/*.json'] },
+        output: {
+          artifact: 'performance_hotspots_summary',
+          path: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
+          kind: 'json',
+          contentType: 'application/json',
+          schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+          semantic_key: 'fuzz.report',
+          ranking: { mode: 'absolute', required_fields: ['rank'] },
+        },
+      },
+    }),
+    /ranking\.mode must be relative/
+  );
+});
+
 test('CLI rejects unsupported artifact commands', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'woo-db-api-cli-'));
   const result = spawnSync(process.execPath, [

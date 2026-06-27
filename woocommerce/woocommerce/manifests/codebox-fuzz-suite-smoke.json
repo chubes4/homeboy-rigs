@@ -78,7 +78,7 @@
       },
       "metadata": {
         "safety_class": "read_only",
-        "proof_status": "contract_only_placeholder",
+        "proof_status": "declared_contract",
         "readiness_level": "declared"
       }
     }
@@ -86,7 +86,7 @@
   "metadata": {
     "component": "woocommerce",
     "contract": "wp-codebox/fuzz-suite/v1",
-    "proof_status": "contract_only_placeholder",
+    "proof_status": "declared_contract",
     "readiness_level": "declared",
     "public_result_contract": "wp-codebox/fuzz-suite-result/v1"
   }

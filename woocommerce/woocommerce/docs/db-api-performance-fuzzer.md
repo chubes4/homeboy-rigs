@@ -42,6 +42,11 @@ log. The reviewer-facing proof bundle must contain artifacts with these schemas:
 - `homeboy/woocommerce-performance-hotspots-summary/v1` for hotspot ranking output.
 - `homeboy-rigs/wordpress-coverage-gap-report/v1` for the coverage gap report.
 
+Every proof ref must be durable and reviewer-facing, using one of the accepted
+Homeboy/GitHub ref forms (`https://`, `gh:`, `homeboy-runs:`,
+`homeboy://run/`, `homeboy-artifact://`, `artifact:`, or `run:`). Local paths,
+`file://` URLs, localhost URLs, and placeholder refs are not proof.
+
 The declared source contracts live in:
 
 - `manifests/db-api-fuzz-campaign.json`.
@@ -229,11 +234,11 @@ Runs:
 - `wc-db-api-hotspots-summary-candidate`: <stable-run-ref>
 
 Required artifacts:
-- `wp-codebox/fuzz-suite-result/v1`: <artifact-ref>
-- `wp-codebox/wordpress-hotspots/v1`: <artifact-ref>
-- `homeboy/fuzz-coverage/v1`: <artifact-ref>
-- `homeboy-rigs/wordpress-coverage-gap-report/v1`: <artifact-ref>
-- `homeboy/woocommerce-performance-hotspots-summary/v1`: <artifact-ref>
+- `wp-codebox/fuzz-suite-result/v1`: durable artifact ref from `homeboy runs refs`
+- `wp-codebox/wordpress-hotspots/v1`: durable artifact ref from `homeboy runs refs`
+- `homeboy/fuzz-coverage/v1`: durable artifact ref from `homeboy runs refs`
+- `homeboy-rigs/wordpress-coverage-gap-report/v1`: durable artifact ref from `homeboy runs refs`
+- `homeboy/woocommerce-performance-hotspots-summary/v1`: durable artifact ref from `homeboy runs refs`
 
 Compare: <compare-artifact-ref>
 Result: <pass/fail/partial with the concrete gap or hotspot delta>

@@ -4,10 +4,12 @@ import {
   assertFuzzProofBundle,
   assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
+  assertReviewerFacingFuzzRef,
   declaredFuzzIds,
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   fuzzProofBundleFields,
+  localOnlyReviewerFacingRef,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
 
@@ -269,4 +271,18 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
       `${localRef} should be rejected`
     );
   }
+});
+
+test('reviewer-facing fuzz refs accept durable refs and reject placeholders/local refs', () => {
+  assert.doesNotThrow(() => assertReviewerFacingFuzzRef('homeboy://run/product-fuzz/artifact/report', 'proof ref'));
+  assert.equal(localOnlyReviewerFacingRef('artifact:./report.json'), true);
+  assert.equal(localOnlyReviewerFacingRef('homeboy-artifact:///tmp/report.json'), true);
+  assert.throws(
+    () => assertReviewerFacingFuzzRef('<artifact-ref>', 'proof ref'),
+    /must be a reviewer-facing artifact ref/
+  );
+  assert.throws(
+    () => assertReviewerFacingFuzzRef('artifact:./report.json', 'proof ref'),
+    /must not use local evidence/
+  );
 });
