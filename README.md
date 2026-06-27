@@ -320,11 +320,11 @@ WooCommerce site-generation benchmarks are tracked as future work until the Stud
 
 `rigs/studio-agent-claude-ssi/rig.json` and `rigs/studio-agent-gpt55-ssi/rig.json` are paired bench rigs for Studio agent-runtime and SSI site-build A/B checks across models. `rigs/studio-agent-claude-trunk/rig.json` remains available for trunk-vs-SSI comparisons. They share `bench/studio-agent-runtime.bench.mjs`, `bench/studio-agent-site-build.bench.mjs`, and `bench/studio-bfb-write-path.bench.mjs`.
 
-Those model-comparison rigs are generated from `rigs/studio-agent-model-comparison.variants.json` so the shared workload and pipeline configuration has one repo-local source of truth while Homeboy still consumes ordinary `rig.json` files. Update the variant data, then run:
+Those model-comparison rigs consume Homeboy's rig template-inheritance primitive: each `rig.json` declares `"extends": "../studio-agent-model-comparison.base.json"` and overrides only its own `id`, `description`, and `components`. The shared workload, resources, bench, and pipeline configuration lives once in `rigs/studio-agent-model-comparison.base.json`, and Homeboy materializes the full spec at install time. To add or change a variant, edit the base for shared config or the child `rig.json` for variant-specific fields — no generator step. Verify a materialized spec with:
 
 ```bash
-node scripts/generate-studio-agent-model-rigs.mjs
-node scripts/generate-studio-agent-model-rigs.mjs --check
+homeboy rig install --all ./Automattic/studio
+homeboy rig show studio-agent-claude-trunk
 ```
 
 `stacks/studio-combined.json` rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.

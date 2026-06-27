@@ -1,4 +1,5 @@
 {
+  "extends": "../studio-agent-model-comparison.base.json",
   "id": "studio-agent-claude-trunk",
   "description": "Studio Claude Sonnet 4.6 on current Automattic/studio trunk. Used as the reference rig for trunk-vs-SSI comparisons.",
   "components": {
@@ -12,67 +13,5 @@
         }
       }
     }
-  },
-  "resources": {
-    "paths": [
-      "${components.studio.path}"
-    ]
-  },
-  "bench": {
-    "default_component": "studio"
-  },
-  "bench_workloads": {
-    "nodejs": [
-      {
-        "path": "${package.root}/bench/studio-agent-runtime.bench.mjs"
-      },
-      {
-        "path": "${package.root}/bench/studio-agent-site-build.bench.mjs",
-        "port_range_size": 10
-      },
-      {
-        "path": "${package.root}/bench/studio-bfb-write-path.bench.mjs"
-      }
-    ]
-  },
-  "pipeline": {
-    "up": [
-      {
-        "kind": "check",
-        "label": "npm available",
-        "command": "command -v npm >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "command",
-        "label": "Install Studio dependencies",
-        "cwd": "${components.studio.path}",
-        "command": "npm install"
-      },
-      {
-        "kind": "command",
-        "label": "Build Studio CLI",
-        "cwd": "${components.studio.path}",
-        "command": "npm run cli:build --silent"
-      }
-    ],
-    "check": [
-      {
-        "kind": "check",
-        "label": "npm available",
-        "command": "command -v npm >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "Studio CLI eval runner built",
-        "file": "${components.studio.path}/apps/cli/dist/cli/eval-runner.mjs"
-      },
-      {
-        "kind": "check",
-        "label": "Studio package dependencies installed",
-        "file": "${components.studio.path}/node_modules"
-      }
-    ]
   }
 }
