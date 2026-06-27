@@ -35,6 +35,38 @@ const DEFAULT_FINDING_GROUPS = {
   },
 };
 
+const FIXTURE_CLASSES = [
+  'marketing/static',
+  'docs/blog',
+  'ecommerce/catalog',
+  'app/dashboard',
+  'canvas/webgl/audio/runtime-heavy',
+  'unknown',
+];
+
+const FIXTURE_CLASS_RULES = [
+  {
+    key: 'canvas/webgl/audio/runtime-heavy',
+    patterns: [/\b(canvas|webgl|shader|three\.js|threejs|babylon|p5\.js|audio|webaudio|oscillator|animation|runtime target|runtime_dependency)\b/i],
+  },
+  {
+    key: 'ecommerce/catalog',
+    patterns: [/\b(ecommerce|e-commerce|commerce|catalog|product|products|shop|store|cart|checkout|price|sku|woocommerce|add to cart)\b/i],
+  },
+  {
+    key: 'app/dashboard',
+    patterns: [/\b(app|dashboard|admin|account|login|settings|analytics|chart|table|kanban|calendar|portal|workspace)\b/i],
+  },
+  {
+    key: 'docs/blog',
+    patterns: [/\b(docs|documentation|guide|manual|reference|blog|post|article|news|changelog|tutorial|markdown)\b/i],
+  },
+  {
+    key: 'marketing/static',
+    patterns: [/\b(marketing|landing|homepage|hero|pricing|feature|features|about|contact|portfolio|agency|brochure|static|simple site)\b/i],
+  },
+];
+
 export function discoverFixtures(root, options = {}) {
   const fixtureRoot = requiredDirectory(root || options.fixtureRoot || options.fixture_root, 'fixtureRoot');
   const entrypoint = options.entrypoint || 'index.html';
@@ -175,9 +207,13 @@ export function normalizeFixtureMatrixResult(input = {}) {
   const matrix = input.matrix || createFixtureMatrix(input);
   const results = normalizeArray(input.results || input.fixture_results || input.fixtureResults).map(normalizeFixtureResult);
   const resultByFixture = new Map(results.map((result) => [result.fixture_id, result]));
-  const fixtureResults = matrix.fixtures.map((fixture) => resultByFixture.get(fixture.id) || normalizeFixtureResult({ fixture_id: fixture.id, fixture_path: fixture.fixture_path, status: 'not_run' }));
+  const fixtureResults = matrix.fixtures.map((fixture) => attachFixtureTaxonomy(
+    resultByFixture.get(fixture.id) || normalizeFixtureResult({ fixture_id: fixture.id, fixture_path: fixture.fixture_path, status: 'not_run' }),
+    fixture,
+  ));
   const findings = fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix }));
   const grouped = groupFindings(findings);
+  const classRollups = fixtureClassRollups(fixtureResults, findings);
 
   return {
     schema: FIXTURE_MATRIX_RESULT_SCHEMA,
@@ -193,6 +229,9 @@ export function normalizeFixtureMatrixResult(input = {}) {
       top_pattern_families: topPatternFamilies(findings),
       fixture_exemplars: fixtureExemplars(findings),
       diagnostic_blind_spots: diagnosticBlindSpots(findings),
+      fixture_classes: Object.fromEntries(Object.entries(classRollups).map(([key, row]) => [key, row.fixture_count])),
+      classes: classRollups,
+      quality_budgets: qualityBudgetSummaries(classRollups),
     },
     fixtures: fixtureResults,
     findings,
@@ -204,6 +243,24 @@ export function normalizeFixtureMatrixResult(input = {}) {
       fixture_exemplars: fixtureExemplars(items, 5),
       findings: items,
     })),
+  };
+}
+
+function attachFixtureTaxonomy(result, fixture) {
+  const taxonomy = fixture.taxonomy || classifyFixture(fixture);
+  const fixtureClass = normalizeFixtureClass(result.fixture_class) !== 'unknown' ? normalizeFixtureClass(result.fixture_class) : taxonomy.fixture_class;
+  const productClass = normalizeFixtureClass(result.product_class) !== 'unknown' ? normalizeFixtureClass(result.product_class) : taxonomy.product_class;
+  return {
+    ...result,
+    fixture_path: result.fixture_path || fixture.fixture_path,
+    fixture_class: fixtureClass,
+    product_class: productClass,
+    taxonomy: {
+      ...taxonomy,
+      ...result.taxonomy,
+      fixture_class: fixtureClass,
+      product_class: productClass,
+    },
   };
 }
 
@@ -278,6 +335,62 @@ export function classifyStaticSiteFinding(input = {}) {
   };
 }
 
+export function classifyFixture(input = {}) {
+  const explicit = normalizeFixtureClass(input.fixture_class || input.fixtureClass || input.product_class || input.productClass || input.class || input.taxonomy?.fixture_class || input.taxonomy?.product_class);
+  if (explicit && explicit !== 'unknown') {
+    return { fixture_class: explicit, product_class: explicit, signals: ['explicit_metadata'] };
+  }
+
+  const files = normalizeArray(input.files || input.fixture_files || input.fixtureFiles);
+  const diagnostics = normalizeArray(input.diagnostics || input.findings || input.messages || input.runtime_target_gaps || input.runtimeTargetGaps);
+  const text = [
+    input.id,
+    input.slug,
+    input.label,
+    input.name,
+    input.description,
+    input.directory,
+    input.fixture_path,
+    ...normalizeArray(input.tags),
+    ...normalizeArray(input.categories),
+    ...normalizeArray(input.keywords),
+    ...files.map((file) => file.relative_path || file.path || file.name || ''),
+    ...diagnostics.map((diagnostic) => diagnosticMessage(diagnostic)),
+  ].filter(Boolean).join(' ');
+  const scores = new Map(FIXTURE_CLASSES.map((key) => [key, 0]));
+  const signals = [];
+
+  for (const rule of FIXTURE_CLASS_RULES) {
+    for (const pattern of rule.patterns) {
+      if (pattern.test(text)) {
+        scores.set(rule.key, scores.get(rule.key) + 3);
+        signals.push(`${rule.key}:text`);
+        break;
+      }
+    }
+  }
+
+  if (files.some((file) => /\.(js|mjs)$/i.test(file.relative_path || file.path || ''))) {
+    scores.set('canvas/webgl/audio/runtime-heavy', scores.get('canvas/webgl/audio/runtime-heavy') + 1);
+    signals.push('canvas/webgl/audio/runtime-heavy:script_file');
+  }
+  if (files.some((file) => /(^|\/)posts?\/|(^|\/)blog\/|\.md$/i.test(file.relative_path || file.path || ''))) {
+    scores.set('docs/blog', scores.get('docs/blog') + 2);
+    signals.push('docs/blog:content_path');
+  }
+  if (files.length > 0 && files.every((file) => !/\.(js|mjs)$/i.test(file.relative_path || file.path || ''))) {
+    scores.set('marketing/static', scores.get('marketing/static') + 1);
+    signals.push('marketing/static:static_files');
+  }
+
+  const ranked = [...scores.entries()]
+    .filter(([key]) => key !== 'unknown')
+    .sort((left, right) => right[1] - left[1] || FIXTURE_CLASSES.indexOf(left[0]) - FIXTURE_CLASSES.indexOf(right[0]));
+  const [fixtureClass, score] = ranked[0] || ['unknown', 0];
+  const normalized = score > 0 ? fixtureClass : 'unknown';
+  return { fixture_class: normalized, product_class: normalized, signals: signals.slice(0, 8) };
+}
+
 function findingsForFixtureResult(result, context = {}) {
   const diagnostics = normalizeArray(result.diagnostics || result.findings || result.messages);
   const findings = diagnostics.map((diagnostic, index) => normalizeDiagnosticFinding(diagnostic, result, index));
@@ -310,6 +423,8 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
     repair_bucket: repairBucket,
     severity: raw.severity || (result.status === 'failed' ? 'error' : 'warning'),
     fixture_id: result.fixture_id || '',
+    fixture_class: result.fixture_class || result.taxonomy?.fixture_class || 'unknown',
+    product_class: result.product_class || result.taxonomy?.product_class || result.fixture_class || 'unknown',
     path: sourcePath,
     source_path: sourcePath,
     selector,
@@ -331,6 +446,8 @@ function normalizeFixture(input) {
   const root = input.root || input.fixture_root || input.fixtureRoot || path.dirname(directory);
   const relative = path.relative(path.resolve(root), path.resolve(directory));
   const id = slug(input.id || input.slug || (relative && !relative.startsWith('..') ? relative : path.basename(directory)));
+  const files = input.files || input.fixture_files || input.fixtureFiles || collectFixtureFiles(directory, { maxFiles: input.maxFiles || input.max_files || 1000 });
+  const taxonomy = classifyFixture({ ...input, id, directory, files });
   return {
     id,
     label: input.label || input.name || id,
@@ -338,6 +455,9 @@ function normalizeFixture(input) {
     fixture_path: directory,
     fixture_root: root,
     entrypoint: input.entrypoint || 'index.html',
+    fixture_class: taxonomy.fixture_class,
+    product_class: taxonomy.product_class,
+    taxonomy,
   };
 }
 
@@ -351,6 +471,9 @@ function normalizeFixtureResult(input) {
   return {
     fixture_id: input.fixture_id || input.fixtureId || input.id || '',
     fixture_path: input.fixture_path || input.fixturePath || input.path || '',
+    fixture_class: normalizeFixtureClass(input.fixture_class || input.fixtureClass || input.product_class || input.productClass || input.taxonomy?.fixture_class) || 'unknown',
+    product_class: normalizeFixtureClass(input.product_class || input.productClass || input.fixture_class || input.fixtureClass || input.taxonomy?.product_class) || 'unknown',
+    taxonomy: input.taxonomy || {},
     status,
     success: status === 'passed',
     error: input.error || input.message || '',
@@ -725,6 +848,60 @@ function groupFindings(findings) {
   }, {});
 }
 
+function fixtureClassRollups(fixtureResults, findings) {
+  const byClass = {};
+  for (const result of fixtureResults) {
+    const key = normalizeFixtureClass(result.fixture_class) || 'unknown';
+    const row = byClass[key] || classRollup(key);
+    row.fixture_count += 1;
+    row[result.status] = (row[result.status] || 0) + 1;
+    byClass[key] = row;
+  }
+
+  for (const finding of findings) {
+    const key = normalizeFixtureClass(finding.fixture_class) || 'unknown';
+    const row = byClass[key] || classRollup(key);
+    const bucket = finding.repair_bucket || finding.group_key || 'static_site_import_quality';
+    row.finding_count += 1;
+    row.repair_buckets[bucket] = (row.repair_buckets[bucket] || 0) + 1;
+    row.candidate_repos[finding.candidate_repo || 'unknown'] = (row.candidate_repos[finding.candidate_repo || 'unknown'] || 0) + 1;
+    byClass[key] = row;
+  }
+
+  return Object.fromEntries(Object.entries(byClass).sort(([left], [right]) => fixtureClassRank(left) - fixtureClassRank(right)));
+}
+
+function classRollup(key) {
+  return {
+    fixture_class: key,
+    fixture_count: 0,
+    passed: 0,
+    failed: 0,
+    not_run: 0,
+    finding_count: 0,
+    repair_buckets: {},
+    candidate_repos: {},
+  };
+}
+
+function qualityBudgetSummaries(classRollups) {
+  return Object.fromEntries(Object.entries(classRollups).map(([key, row]) => {
+    const dominantRepairBuckets = Object.entries(row.repair_buckets)
+      .map(([bucket, count]) => ({ bucket, count }))
+      .sort((left, right) => right.count - left.count || left.bucket.localeCompare(right.bucket));
+    return [key, {
+      fixture_class: key,
+      fixture_count: row.fixture_count,
+      passed: row.passed,
+      failed: row.failed,
+      not_run: row.not_run,
+      finding_count: row.finding_count,
+      findings_per_fixture: row.fixture_count ? Number((row.finding_count / row.fixture_count).toFixed(2)) : 0,
+      dominant_repair_buckets: dominantRepairBuckets.slice(0, 5),
+    }];
+  }));
+}
+
 function inferFixtureSuccess(payload, diagnostics, error, payloadCount) {
   if (payload.success === true || payload.ok === true || payload.passed === true) {
     return diagnostics.length === 0 && !error;
@@ -815,6 +992,41 @@ function diagnosticMessage(value) {
     return value;
   }
   return value?.message || value?.reason || value?.detail || value?.path || value?.target || value?.selector || '';
+}
+
+function normalizeFixtureClass(value) {
+  const normalized = String(value || '').trim().toLowerCase().replace(/[_\s-]+/g, '/');
+  const aliases = {
+    marketing: 'marketing/static',
+    static: 'marketing/static',
+    marketingstatic: 'marketing/static',
+    'marketing/static': 'marketing/static',
+    docs: 'docs/blog',
+    documentation: 'docs/blog',
+    blog: 'docs/blog',
+    'docs/blog': 'docs/blog',
+    ecommerce: 'ecommerce/catalog',
+    commerce: 'ecommerce/catalog',
+    catalog: 'ecommerce/catalog',
+    shop: 'ecommerce/catalog',
+    'ecommerce/catalog': 'ecommerce/catalog',
+    app: 'app/dashboard',
+    dashboard: 'app/dashboard',
+    'app/dashboard': 'app/dashboard',
+    canvas: 'canvas/webgl/audio/runtime-heavy',
+    webgl: 'canvas/webgl/audio/runtime-heavy',
+    audio: 'canvas/webgl/audio/runtime-heavy',
+    runtime: 'canvas/webgl/audio/runtime-heavy',
+    'runtime/heavy': 'canvas/webgl/audio/runtime-heavy',
+    'canvas/webgl/audio/runtime/heavy': 'canvas/webgl/audio/runtime-heavy',
+    'canvas/webgl/audio/runtime-heavy': 'canvas/webgl/audio/runtime-heavy',
+  };
+  return aliases[normalized] || (FIXTURE_CLASSES.includes(normalized) ? normalized : 'unknown');
+}
+
+function fixtureClassRank(value) {
+  const index = FIXTURE_CLASSES.indexOf(value);
+  return index >= 0 ? index : FIXTURE_CLASSES.length;
 }
 
 function missingAssetKind(value) {
