@@ -34,6 +34,7 @@ import {
   editorBlockValidationStep,
   EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
   normalizeFixtureMatrixResult,
+  normalizeLossClass,
   VISUAL_PARITY_MISMATCH_KIND,
   visualParityCompareStep,
   writeFixtureMatrixArtifacts,
@@ -217,6 +218,52 @@ test('passes the gate when a preserved_runtime_island carries a runtime-carried 
   assert.equal(finding.acceptable_loss, true);
   assert.equal(result.summary.acceptable_finding_count, 1);
   assert.equal(result.summary.unacceptable_finding_count, 0);
+  assert.equal(result.summary.succeeded, 1);
+  assert.equal(result.summary.failed, 0);
+  assert.equal(result.fixtures[0].status, 'passed');
+});
+
+test('normalizes the transformer-emitted runtime_island_preserved loss class to the canonical preserved_runtime_island', () => {
+  // The php-transformer emits `runtime_island_preserved` (FallbackDiagnostic /
+  // HtmlTransformer). The alias must deterministically canonicalize it without
+  // relying on the wording regex fallback.
+  assert.equal(normalizeLossClass('runtime_island_preserved'), 'preserved_runtime_island');
+  assert.equal(normalizeLossClass('preserved_runtime_island'), 'preserved_runtime_island');
+  assert.equal(normalizeLossClass('runtime_island'), 'preserved_runtime_island');
+});
+
+test('classifies a transformer runtime_island_preserved finding as acceptable without relying on message wording', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'runtime-island-preserved-alias-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'html_script_fallback',
+            // Exact string emitted by the php-transformer; carries no
+            // "runtime island" wording in kind/message so acceptance must come
+            // from the explicit alias, not the wording regex fallback.
+            loss_class: 'runtime_island_preserved',
+            runtime_carried: true,
+            source_path: 'website/index.html',
+            selector: 'script#app',
+            message: 'Script kept verbatim.',
+          },
+        ],
+      },
+    ],
+  });
+
+  const finding = result.findings[0];
+  assert.equal(finding.loss_class, 'preserved_runtime_island');
+  assert.equal(finding.loss_acceptance, 'acceptable');
+  assert.equal(finding.acceptable_loss, true);
+  assert.equal(result.summary.acceptable_finding_count, 1);
+  assert.equal(result.summary.unacceptable_finding_count, 0);
+  assert.equal(result.summary.preserved_runtime_island_count, 1);
   assert.equal(result.summary.succeeded, 1);
   assert.equal(result.summary.failed, 0);
   assert.equal(result.fixtures[0].status, 'passed');
