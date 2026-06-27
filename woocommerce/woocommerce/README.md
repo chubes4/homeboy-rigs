@@ -216,6 +216,9 @@ requires reviewer-facing refs for `wp-codebox/fuzz-suite-result/v1`,
 summary, and the coverage gap report before anyone can mark it proven. Run the
 campaign commands from that manifest only through an approved Homeboy
 Lab/runner/offloaded environment; do not run local benchmarks as campaign proof.
+See `docs/db-api-performance-fuzzer.md` for the reviewer-facing operator recipe
+covering inventory, planning, offloaded run handoff, persisted evidence refs,
+artifact schemas, and baseline/candidate comparison.
 
 The declared full-surface fuzz proof is API/DB/admin/server coverage plus the
 issue-focused checkout/catalog workloads above. Browser request and performance
