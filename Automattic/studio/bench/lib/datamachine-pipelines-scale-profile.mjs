@@ -1,6 +1,10 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { loadNodeWorkloadUtils } from '../../../../shared/nodejs-workload-utils-loader.mjs';
+
+const { metric: metricValue } = await loadNodeWorkloadUtils();
+
 const REST_ENDPOINTS = [
   { key: 'pipelines', needle: '/datamachine/v1/pipelines' },
   { key: 'flows', needle: '/datamachine/v1/flows' },
@@ -16,9 +20,10 @@ function intEnv(name, fallback) {
   return Math.floor(value);
 }
 
+// This profile reports integer milliseconds, so round the shared metric helper
+// (which preserves fractional values) at the call boundary.
 function metric(value) {
-  const number = Number(value ?? 0);
-  return Number.isFinite(number) ? Math.round(number) : 0;
+  return Math.round(metricValue(value));
 }
 
 function pageUrl(siteUrl, pagePath) {

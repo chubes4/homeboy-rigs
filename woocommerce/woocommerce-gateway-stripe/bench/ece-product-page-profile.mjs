@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { loadNodeWorkloadUtils } from '../../../shared/nodejs-workload-utils-loader.mjs';
 
 export const DEFAULT_PROFILE = 'smoke';
 export const REAL_WALLET_PROFILE = 'real-wallet';
@@ -93,24 +93,7 @@ const PROFILE_METADATA = {
 
 const SYNTHETIC_FANOUT_PUBLISHABLE_KEY = 'pk_test_TYooMQauvdEDq54NiTphI7jx';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-function nodeWorkloadUtilsPath() {
-  if (process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS) {
-    return process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS;
-  }
-
-  const repoRoot = path.resolve(__dirname, '../../..');
-  const siblingPath = path.join(path.dirname(repoRoot), 'homeboy-extensions', 'nodejs/scripts/bench/lib/workload-utils.mjs');
-  return existsSync(siblingPath) ? siblingPath : '';
-}
-
-const workloadUtilsPath = nodeWorkloadUtilsPath();
-if (!workloadUtilsPath) {
-  throw new Error('Homeboy Extensions Node workload settings helper is unavailable. Update homeboy-extensions or set HOMEBOY_NODEJS_WORKLOAD_UTILS.');
-}
-
-const { setting: homeboySetting } = await import(pathToFileURL(workloadUtilsPath).href);
+const { setting: homeboySetting } = await loadNodeWorkloadUtils();
 
 function profileMetadata(profile) {
   return PROFILE_METADATA[profile] || PROFILE_METADATA[DEFAULT_PROFILE];
