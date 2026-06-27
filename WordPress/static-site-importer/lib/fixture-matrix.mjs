@@ -52,6 +52,20 @@ const UNACCEPTABLE_LOSS_CLASSES = new Set([
   'fixture_failed',
 ]);
 
+// Loss classes whose acceptability is conditional rather than automatic.
+// `preserved_runtime_island` only earns an acceptable verdict when the finding
+// carries an explicit signal that the interactive runtime/behavior was actually
+// carried or mapped into the WordPress site. "Markup preserved, behavior dead"
+// is a feature-parity failure, not an acceptable loss.
+const RUNTIME_CARRIED_SIGNAL_KEYS = [
+  'runtime_carried',
+  'runtimeCarried',
+  'runtime_mapped',
+  'runtimeMapped',
+  'runtime_mapping',
+  'runtimeMapping',
+];
+
 const FIXTURE_CLASSES = [
   'marketing/static',
   'docs/blog',
@@ -500,7 +514,7 @@ function normalizeDiagnosticFinding(diagnostic, result, index) {
   const repairBucket = raw.repair_bucket || group.group_key;
   const countOnlyDiagnostic = isCountOnlyStaticSiteFixtureDiagnostic({ raw, result, kind, message, selector });
   const lossClass = countOnlyDiagnostic ? 'native_conversion' : classifyLossClass({ raw, kind, group_key: group.group_key, repair_bucket: repairBucket, message, result });
-  const lossAcceptance = ACCEPTABLE_LOSS_CLASSES.has(lossClass) ? 'acceptable' : 'unacceptable';
+  const lossAcceptance = resolveLossAcceptance(lossClass, raw);
   return {
     id: raw.id || `${result.fixture_id || 'fixture'}:${group.group_key}:${index + 1}`,
     kind,
@@ -595,6 +609,42 @@ function classifyLossClass({ raw, kind, group_key, repair_bucket, message, resul
     return 'unsupported_loss';
   }
   return 'native_conversion';
+}
+
+function resolveLossAcceptance(lossClass, raw) {
+  if (lossClass === 'preserved_runtime_island') {
+    // Feature parity: a preserved interactive island is only acceptable when the
+    // required runtime/behavior was actually carried or mapped. Absent that
+    // explicit positive signal, the behavior is dead and the gate must fail.
+    return hasRuntimeCarriedSignal(raw) ? 'acceptable' : 'unacceptable';
+  }
+  return ACCEPTABLE_LOSS_CLASSES.has(lossClass) ? 'acceptable' : 'unacceptable';
+}
+
+function hasRuntimeCarriedSignal(raw) {
+  const rawObject = objectValue(raw);
+  const classification = objectValue(rawObject.classification);
+  return RUNTIME_CARRIED_SIGNAL_KEYS.some((key) => isTruthySignal(rawObject[key]) || isTruthySignal(classification[key]));
+}
+
+function isTruthySignal(value) {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return !['', 'false', '0', 'no', 'none', 'null', 'undefined'].includes(normalized);
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value !== 0;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+  return Boolean(value);
 }
 
 function normalizeFixture(input) {

@@ -105,6 +105,7 @@ test('gates fixture matrix failures by unacceptable loss classes', () => {
           {
             kind: 'runtime_dependency_missing_dom_target',
             loss_class: 'preserved_runtime_island',
+            runtime_carried: true,
             source_path: 'website/index.html',
             selector: '#hero canvas',
             message: 'Runtime island preserved for editor-safe import.',
@@ -112,6 +113,7 @@ test('gates fixture matrix failures by unacceptable loss classes', () => {
           {
             kind: 'html_canvas_runtime_fallback',
             loss_class: 'preserved_runtime_island',
+            runtime_carried: true,
             source_path: 'website/index.html',
             selector: '#hero canvas',
             message: 'Blocks Engine reported the same preserved runtime island.',
@@ -144,6 +146,101 @@ test('gates fixture matrix failures by unacceptable loss classes', () => {
   assert.equal(unacceptableResult.summary.failed, 1);
   assert.equal(unacceptableResult.summary.unacceptable_finding_count, 1);
   assert.equal(unacceptableResult.summary.unacceptable_loss_classes.fixture_failed, 1);
+});
+
+test('fails the gate when a preserved_runtime_island carries no runtime-carried signal', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'runtime-island-no-signal-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'html_form_fallback',
+            loss_class: 'preserved_runtime_island',
+            source_path: 'posts/page-contact.post_content',
+            selector: 'form#contact',
+            message: 'Contact form markup preserved but no handler was carried.',
+          },
+        ],
+      },
+    ],
+  });
+
+  const finding = result.findings[0];
+  assert.equal(finding.loss_class, 'preserved_runtime_island');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(finding.acceptable_loss, false);
+  assert.equal(result.summary.preserved_runtime_island_count, 1);
+  assert.equal(result.summary.acceptable_finding_count, 0);
+  assert.equal(result.summary.unacceptable_finding_count, 1);
+  assert.equal(result.summary.failed, 1);
+  assert.equal(result.summary.succeeded, 0);
+  assert.equal(result.fixtures[0].status, 'failed');
+});
+
+test('passes the gate when a preserved_runtime_island carries a runtime-carried signal', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'runtime-island-signal-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'html_form_fallback',
+            loss_class: 'preserved_runtime_island',
+            runtime_mapped: 'wp-block-contact-form',
+            source_path: 'posts/page-contact.post_content',
+            selector: 'form#contact',
+            message: 'Contact form markup preserved and behavior mapped to a native block.',
+          },
+        ],
+      },
+    ],
+  });
+
+  const finding = result.findings[0];
+  assert.equal(finding.loss_class, 'preserved_runtime_island');
+  assert.equal(finding.loss_acceptance, 'acceptable');
+  assert.equal(finding.acceptable_loss, true);
+  assert.equal(result.summary.acceptable_finding_count, 1);
+  assert.equal(result.summary.unacceptable_finding_count, 0);
+  assert.equal(result.summary.succeeded, 1);
+  assert.equal(result.summary.failed, 0);
+  assert.equal(result.fixtures[0].status, 'passed');
+});
+
+test('keeps native_conversion findings acceptable without a runtime-carried signal', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'native-conversion-acceptance-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'failed',
+        diagnostics: [
+          {
+            kind: 'native_block_conversion',
+            loss_class: 'native_conversion',
+            source_path: 'website/index.html',
+            message: 'Converted natively to editor blocks.',
+          },
+        ],
+      },
+    ],
+  });
+
+  const finding = result.findings[0];
+  assert.equal(finding.loss_class, 'native_conversion');
+  assert.equal(finding.loss_acceptance, 'acceptable');
+  assert.equal(result.summary.acceptable_finding_count, 1);
+  assert.equal(result.summary.unacceptable_finding_count, 0);
+  assert.equal(result.summary.succeeded, 1);
+  assert.equal(result.fixtures[0].status, 'passed');
 });
 
 test('classifies fixtures into generic product taxonomy from metadata and files', () => {
