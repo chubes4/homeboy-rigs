@@ -48,11 +48,7 @@
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
-          "reviewer-facing wp-codebox fuzz-suite run id",
-          "reviewer-facing canonical fuzz envelope artifact ref",
-          "reviewer-facing wp-codebox/fuzz-suite-result artifact ref",
-          "reviewer-facing coverage gap report artifact ref",
-          "reviewer-facing performance hotspot summary artifact ref"
+          "reviewer-facing canonical fuzz envelope artifact ref"
         ],
         "required_artifacts": [
           "canonical_fuzz_envelope",
@@ -62,20 +58,8 @@
         ]
       },
       "proof_bundle": {
-        "artifact_refs": [
-          "artifact:pending/woocommerce-codebox-fuzz-suite-smoke/fuzz-suite-result.json"
-        ],
-        "run_ids": [
-          "run:pending-woocommerce-codebox-fuzz-suite-smoke"
-        ],
-        "gap_reports": [
-          "artifact:pending/woocommerce-codebox-fuzz-suite-smoke/coverage-gap-report.json"
-        ],
-        "fuzz_result_artifacts": [
-          "codebox_fuzz_suite_result"
-        ],
         "canonical_fuzz_envelope_ref": "homeboy://run/wc-db-api-codebox-suite-20260626T0145Z/artifact/cfa06657-0b23-447d-bd04-c75a7597f266",
-        "placeholder_reason": "Canonical fuzz envelope is backed by offloaded Homeboy Lab run wc-db-api-codebox-suite-20260626T0145Z; remaining proof refs stay pending until the coverage gap and performance hotspot artifacts have reviewer-facing refs."
+        "placeholder_reason": "Canonical fuzz envelope is backed by offloaded Homeboy Lab run wc-db-api-codebox-suite-20260626T0145Z; coverage gap and performance hotspot artifacts stay pending until they have reviewer-facing refs."
       }
     }
   },

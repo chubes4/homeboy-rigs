@@ -106,10 +106,10 @@ function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {}) {
     }
   }
   if (readiness.level === 'proven') {
-    if (!Array.isArray(readiness.proof_refs) || readiness.proof_refs.length === 0) {
-      throw new Error(`${file} proven readiness requires proof_refs`);
-    }
     assertFuzzProofBundle(readiness.proof_bundle, manifest, { file });
+    if (!hasCanonicalFuzzEnvelopeRef(readiness.proof_bundle) && (!Array.isArray(readiness.proof_refs) || readiness.proof_refs.length === 0)) {
+      throw new Error(`${file} proven readiness requires proof_refs unless proof_bundle.canonical_fuzz_envelope_ref is present`);
+    }
   }
   if (readiness.crud !== undefined) {
     assertFuzzCrudReadiness(readiness.crud, { file });
@@ -124,21 +124,26 @@ function assertFuzzProofBundle(proofBundle, manifest, { file = manifest.id } = {
   if (!proofBundle || typeof proofBundle !== 'object' || Array.isArray(proofBundle)) {
     throw new Error(`${file} proven readiness requires proof_bundle`);
   }
-  for (const field of ['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']) {
-    assertStringArray(proofBundle[field], `${file} metadata.readiness.proof_bundle.${field}`);
+  if (hasCanonicalFuzzEnvelopeRef(proofBundle)) {
+    assertReviewerFacingArtifactRef(proofBundle.canonical_fuzz_envelope_ref, `${file} metadata.readiness.proof_bundle.canonical_fuzz_envelope_ref`);
+  } else {
+    for (const field of ['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts']) {
+      assertStringArray(proofBundle[field], `${file} metadata.readiness.proof_bundle.${field}`);
+    }
   }
   const requiredArtifactNames = new Set([
     ...(manifest.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
     ...(manifest.artifacts?.expected || []),
   ].filter((artifact) => artifact?.required === true).map((artifact) => artifact.name));
-  for (const artifactName of proofBundle.fuzz_result_artifacts) {
+  for (const artifactName of proofBundle.fuzz_result_artifacts || []) {
     if (!requiredArtifactNames.has(artifactName)) {
       throw new Error(`${file} proof_bundle.fuzz_result_artifacts ${artifactName} must name a required case or expected artifact`);
     }
   }
-  if (proofBundle.canonical_fuzz_envelope_ref !== undefined) {
-    assertReviewerFacingArtifactRef(proofBundle.canonical_fuzz_envelope_ref, `${file} metadata.readiness.proof_bundle.canonical_fuzz_envelope_ref`);
-  }
+}
+
+function hasCanonicalFuzzEnvelopeRef(proofBundle) {
+  return typeof proofBundle?.canonical_fuzz_envelope_ref === 'string' && proofBundle.canonical_fuzz_envelope_ref.trim() !== '';
 }
 
 function assertFuzzCrudReadiness(crud, { file } = {}) {

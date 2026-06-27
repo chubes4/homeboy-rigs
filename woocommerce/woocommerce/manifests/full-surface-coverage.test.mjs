@@ -220,5 +220,9 @@ test('DB/API campaign consumes the Codebox fixture canonical fuzz envelope ref',
     proofBundle.canonical_fuzz_envelope_ref,
     'homeboy://run/wc-db-api-codebox-suite-20260626T0145Z/artifact/cfa06657-0b23-447d-bd04-c75a7597f266'
   );
-  assert.match(proofBundle.placeholder_reason, /remaining proof refs stay pending/);
+  assert.equal(proofBundle.artifact_refs, undefined);
+  assert.equal(proofBundle.run_ids, undefined);
+  assert.equal(proofBundle.gap_reports, undefined);
+  assert.equal(proofBundle.fuzz_result_artifacts, undefined);
+  assert.match(proofBundle.placeholder_reason, /coverage gap and performance hotspot artifacts stay pending/);
 });

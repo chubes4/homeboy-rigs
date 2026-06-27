@@ -248,13 +248,9 @@ test('assertGenericFuzzManifest can require readiness metadata', () => {
   );
 });
 
-test('assertFuzzProofBundle accepts a canonical fuzz envelope artifact ref alongside legacy refs', () => {
+test('assertFuzzProofBundle accepts a canonical fuzz envelope artifact ref as the primary proof pointer', () => {
   assert.ok(fuzzProofBundleFields.has('canonical_fuzz_envelope_ref'));
   assert.doesNotThrow(() => assertFuzzProofBundle({
-    artifact_refs: ['https://github.com/chubes4/homeboy-rigs/issues/254'],
-    run_ids: ['run:product-fuzz'],
-    gap_reports: ['https://github.com/chubes4/homeboy-rigs/issues/253'],
-    fuzz_result_artifacts: ['report'],
     canonical_fuzz_envelope_ref: 'homeboy-runs:product-fuzz/artifacts/fuzz-envelope.json',
   }, fuzzManifest(), { file: 'product-fuzz.json' }));
 });

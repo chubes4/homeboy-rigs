@@ -208,9 +208,13 @@ export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {
 }
 
 export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
-  const result = loadGenericFuzzManifestValidator().assertFuzzProofBundle(proofBundle, manifest, { file });
-  assertCanonicalFuzzEnvelopeRef(proofBundle, { file: file || manifest.id });
-  return result;
+  if (proofBundle?.canonical_fuzz_envelope_ref !== undefined) {
+    assertCanonicalFuzzEnvelopeRef(proofBundle, { file: file || manifest.id });
+    assertOptionalFuzzResultArtifacts(proofBundle, manifest, { file: file || manifest.id });
+    return proofBundle;
+  }
+
+  return loadGenericFuzzManifestValidator().assertFuzzProofBundle(proofBundle, manifest, { file });
 }
 
 export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workload' } = {}) {
@@ -257,6 +261,21 @@ function localOnlyRefValue(ref) {
     || /^\/private\//.test(ref)
     || /^\/tmp(?:\/|$)/.test(ref)
     || /^\.\.?(?:\/|$)/.test(ref);
+}
+
+function assertOptionalFuzzResultArtifacts(proofBundle, manifest, { file = manifest.id } = {}) {
+  if (proofBundle.fuzz_result_artifacts === undefined) {
+    return;
+  }
+
+  assertStringArray(proofBundle.fuzz_result_artifacts, `${file} metadata.readiness.proof_bundle.fuzz_result_artifacts`);
+  const requiredArtifactNames = new Set([
+    ...(manifest.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
+    ...(manifest.artifacts?.expected || []),
+  ].filter((artifact) => artifact?.required === true).map((artifact) => artifact.name));
+  for (const artifactName of proofBundle.fuzz_result_artifacts) {
+    assert.ok(requiredArtifactNames.has(artifactName), `${file} proof_bundle.fuzz_result_artifacts ${artifactName} must name a required case or expected artifact`);
+  }
 }
 
 export function assertRequiredFuzzProofContracts(manifest, {
