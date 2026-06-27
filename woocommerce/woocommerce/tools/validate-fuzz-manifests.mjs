@@ -177,6 +177,18 @@ function assertNoLocalOnlyRefs(value, context = 'value') {
   }
 }
 
+function hasDeleteBoundaryContractRefs(container) {
+  const refs = [
+    ...(container?.generic_upstream_contracts || []),
+    ...(container?.mutation?.rollback_artifact_schemas || []),
+    ...(container?.rollback_artifact_schemas || []),
+    ...(container?.delete_boundary_rollback_artifacts || []),
+    container?.delete_boundary_artifact_schema,
+    container?.rollback_contract_schema,
+  ].filter(Boolean);
+  return refs.includes('homeboy/wordpress-rest-mutation-rollback-contract/v1') && refs.includes('wp-codebox/delete-boundary-artifact/v1');
+}
+
 assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
   id: 'coverage-gap-report',
   action: 'coverage-gap-report',
@@ -505,18 +517,40 @@ const productCrudProfileIds = ['rest-product-batch-import', 'woocommerce-rest-ro
 assert.deepEqual(rig.fuzz_profiles?.['product-rest-crud-fuzzer'], productCrudProfileIds, 'product REST CRUD fuzzer profile workload ids drifted');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.route_family_catalog_manifest, 'manifests/rest-crud-route-family-catalog.json', 'product REST CRUD profile must link the route-family catalog');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.hotspot_artifact_contract_manifest, 'manifests/db-api-hotspot-artifact-io.json', 'product REST CRUD profile must link the hotspot artifact IO contract');
+assert.deepEqual(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.generic_upstream_contracts, [
+  'wordpress.rollback-safe-rest-mutation',
+  'homeboy/wordpress-rest-mutation-rollback-contract/v1',
+  'wp-codebox/wordpress-workload-run/v1',
+  'wp-codebox/mutation-isolation-artifact/v1',
+  'wp-codebox/delete-boundary-artifact/v1',
+], 'product REST CRUD profile must consume the generic rollback-safe REST mutation primitive');
 assertProfileReadiness(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness, 'fuzz_profile_metadata.product-rest-crud-fuzzer.readiness');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.create?.level, 'executable', 'product REST CRUD create readiness must be executable');
+assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.create?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD create must use the generic rollback-safe REST mutation primitive');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.level, 'executable', 'product REST CRUD update readiness must be executable');
-assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.delete?.level, 'declared', 'product REST CRUD delete readiness must be declared/blocked by upstream');
-assert.equal(typeof rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.delete?.upstream_blocker, 'string', 'product REST CRUD delete readiness must name upstream blocker');
+assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD update must use the generic rollback-safe REST mutation primitive');
+const productRestCrudProfile = rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'];
+assert.equal(hasDeleteBoundaryContractRefs({
+  generic_upstream_contracts: productRestCrudProfile?.generic_upstream_contracts,
+  mutation: productRestCrudProfile?.readiness?.mutation,
+}), true, 'product REST CRUD profile must reference generic delete-boundary contracts before delete is executable');
+assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'executable', 'product REST CRUD delete readiness must be executable when delete-boundary contract refs are present');
+assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD delete must use the generic rollback-safe REST mutation primitive');
+assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.delete_boundary_artifact_schema, 'wp-codebox/delete-boundary-artifact/v1', 'product REST CRUD delete must name the generic delete-boundary artifact schema');
 
 const productBatchManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-product-batch-import')?.manifest;
 assert.equal(productBatchManifest.metadata?.readiness?.profile, 'product-rest-crud-fuzzer', 'product batch import readiness profile drifted');
 assert.equal(productBatchManifest.metadata?.readiness?.level, 'executable', 'product batch import create/update readiness must be executable');
 assert.equal(productBatchManifest.metadata?.readiness?.crud?.create?.level, 'executable', 'product batch import create readiness must be executable');
+assert.equal(productBatchManifest.metadata?.readiness?.crud?.create?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import create must consume rollback-safe REST mutation');
 assert.equal(productBatchManifest.metadata?.readiness?.crud?.update?.level, 'executable', 'product batch import update readiness must be executable');
+assert.equal(productBatchManifest.metadata?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import update must consume rollback-safe REST mutation');
 assert.equal(productBatchManifest.metadata?.readiness?.crud?.delete?.level, 'declared', 'product batch import delete readiness must remain declared/blocked');
+assert.match(productBatchManifest.metadata?.readiness?.crud?.delete?.upstream_blocker, /delete-boundary rollback artifact contract/, 'product batch import delete blocker must name missing delete-boundary rollback artifact contract');
+assert.equal(productBatchManifest.metadata?.readiness?.mutation?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import mutation readiness must name the generic mutation primitive');
+assert.deepEqual(productBatchManifest.metadata?.payload_fixtures?.roles, ['administrator', 'shop_manager'], 'product batch import payload fixtures must declare Woo REST roles');
+assert.equal(productBatchManifest.metadata?.payload_fixtures?.namespace, 'wc/v3', 'product batch import payload fixtures must declare Woo REST namespace');
+assert.equal(productBatchManifest.metadata?.payload_fixtures?.delete?.level, 'declared', 'product batch import delete payload fixture must remain declared');
 assert.ok(productBatchManifest.route_families.includes('wc/v3/products/batch'), 'product batch import must list products batch route family');
 assert.ok(productBatchManifest.route_families.includes('wc/v3/products/<product_id>/variations/batch'), 'product batch import must list variations batch route family');
 
@@ -533,6 +567,30 @@ for (const family of restCrudRouteFamilyCatalog.route_families) {
   assert.ok(family.readiness?.delete, `${family.id} must declare delete readiness`);
   for (const operation of ['create', 'read', 'update', 'delete']) {
     assertFuzzReadinessLevel(family.readiness?.[operation]?.level, `${family.id} ${operation} readiness level`);
+  }
+  if (['products-collection', 'products-batch', 'product-variations-batch'].includes(family.id)) {
+    assert.equal(family.mutation_contract?.primitive, 'wordpress.rollback-safe-rest-mutation', `${family.id} must consume the generic rollback-safe REST mutation primitive`);
+    assert.deepEqual(family.mutation_contract?.rollback_artifacts, ['raw_result'], `${family.id} must declare raw_result as the rollback artifact`);
+    const familyHasDeleteBoundaryContracts = hasDeleteBoundaryContractRefs(family.mutation_contract);
+    assert.deepEqual(
+      family.mutation_contract?.executable_operations,
+      familyHasDeleteBoundaryContracts ? ['create', 'update', 'delete'] : ['create', 'update'],
+      `${family.id} executable operations must match declared rollback/delete-boundary contract refs`
+    );
+    assert.equal(family.payload_fixtures?.namespace, 'wc/v3', `${family.id} payload fixtures must declare wc/v3 namespace`);
+    assert.deepEqual(family.payload_fixtures?.roles, ['administrator', 'shop_manager'], `${family.id} payload fixtures must declare Woo REST roles`);
+    if (familyHasDeleteBoundaryContracts) {
+      assert.equal(family.payload_fixtures?.delete?.level, 'executable', `${family.id} delete payload fixture must be executable when delete-boundary contract refs are present`);
+      assert.deepEqual(family.mutation_contract?.delete_boundary_rollback_artifacts, ['wp-codebox/delete-boundary-artifact/v1'], `${family.id} executable delete requires delete-boundary rollback artifacts`);
+    } else {
+      assert.equal(family.payload_fixtures?.delete?.level, 'declared', `${family.id} delete payload fixture must remain declared without delete-boundary contract refs`);
+      assert.match(family.payload_fixtures?.delete?.upstream_blocker || '', /delete-boundary rollback artifact|current workload does not execute delete/, `${family.id} delete payload fixture must name the precise delete blocker`);
+    }
+  }
+  if (family.readiness.delete.level === 'executable') {
+    assert.ok(family.mutation_contract?.delete_boundary_rollback_artifacts?.length > 0, `${family.id} executable delete requires delete-boundary rollback artifacts`);
+  } else {
+    assert.match(family.readiness.delete.upstream_blocker || '', /delete-boundary rollback artifacts|current workload does not execute delete/, `${family.id} blocked delete must name the precise delete-boundary blocker`);
   }
 }
 
