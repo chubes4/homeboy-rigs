@@ -12,6 +12,7 @@ const packageRoot = path.join(__dirname, '..');
 const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const restCrudRouteFamilyCatalog = readJson(packageRoot, 'manifests/rest-crud-route-family-catalog.json');
+const restCrudPayloadFixtures = readJson(packageRoot, 'manifests/rest-crud-payload-fixtures.json');
 const blockInventoryRenderingFuzz = readJson(packageRoot, 'manifests/block-inventory-rendering-fuzz.json');
 const adminActionInventory = readJson(packageRoot, 'manifests/admin-action-inventory.json');
 const dbApiHotspotArtifactIo = readJson(packageRoot, 'manifests/db-api-hotspot-artifact-io.json');
@@ -33,6 +34,9 @@ const inventory = {
     full_surface: 'manifests/full-surface-coverage.json',
     rig: 'rigs/woocommerce-performance/rig.json',
     rest_crud_route_family_catalog: 'manifests/rest-crud-route-family-catalog.json',
+    rest_crud_payload_fixtures: 'manifests/rest-crud-payload-fixtures.json',
+    rest_crud_fixture_plan: 'manifests/rest-crud-fixture-plan.json',
+    rest_crud_fixture_opt_ins: 'manifests/rest-crud-fixture-opt-ins.json',
     block_inventory_rendering_fuzz: 'manifests/block-inventory-rendering-fuzz.json',
     admin_action_inventory: 'manifests/admin-action-inventory.json',
     db_api_hotspot_artifact_io: 'manifests/db-api-hotspot-artifact-io.json',
@@ -46,6 +50,15 @@ const inventory = {
         coverage_contract: 'REST route-family discovery is a Woo-owned inventory contract; executable/proven status requires the owning fuzz workloads to emit reviewer-facing artifacts.',
       },
       route_family_ids: restCrudRouteFamilyCatalog.route_families.map((family) => family.id),
+      payload_fixture_manifest: restCrudRouteFamilyCatalog.payload_fixture_manifest,
+    },
+    rest_payload_fixtures: {
+      manifest: 'manifests/rest-crud-payload-fixtures.json',
+      owner_profile: restCrudPayloadFixtures.owner_profile,
+      readiness: restCrudPayloadFixtures.readiness,
+      family_ids: restCrudPayloadFixtures.families.map((family) => family.id),
+      fixture_plan_manifest: restCrudPayloadFixtures.fixture_plan_manifest,
+      rest_mutation_fixture_opt_ins_manifest: restCrudPayloadFixtures.rest_mutation_fixture_opt_ins_manifest,
     },
     blocks: {
       manifest: 'manifests/block-inventory-rendering-fuzz.json',

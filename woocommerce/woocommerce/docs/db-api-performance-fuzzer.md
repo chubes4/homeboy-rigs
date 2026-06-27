@@ -50,11 +50,65 @@ Homeboy/GitHub ref forms (`https://`, `gh:`, `homeboy-runs:`,
 The declared source contracts live in:
 
 - `manifests/db-api-fuzz-campaign.json`.
+- `manifests/rest-crud-payload-fixtures.json` for declarative product, order,
+  customer, and coupon payload fixture families.
+- `manifests/rest-crud-fixture-plan.json` with schema
+  `wp-codebox/fuzz-fixture-plan/v1` for generated fixture operation refs.
+- `manifests/rest-crud-fixture-opt-ins.json` with schema
+  `wp-codebox/rest-mutation-fixture-opt-in/v1` for generated REST mutation
+  opt-ins.
 - `manifests/codebox-fuzz-suite-smoke.json`.
 - `manifests/db-api-performance-fuzzer-gap-report.json`.
 - `bench/coverage-gap-report.workload.json`.
 - `bench/performance-hotspots-artifact-summary.workload.json`.
 - `tools/db-api-fuzzer-artifacts.mjs`.
+
+The artifact aggregation in `tools/db-api-fuzzer-artifacts.mjs` is product-local
+temporary glue. It exists so the Woo DB/API campaign can declare the desired
+artifact shapes without copying that behavior into Homeboy core before the
+upstream generic primitives exist. Treat the coverage-gap and hotspot-summary
+postprocess outputs as declared campaign artifacts only; they become proof only
+after Homeboy collects reviewer-facing refs from an approved offloaded run.
+
+Blocked upstream extraction points:
+
+- A generic Homeboy artifact-postprocess primitive for scanning persisted run
+  artifact trees and emitting declared JSON outputs.
+- A generic hotspot aggregation primitive that owns ranking fields, evidence refs,
+  and threshold policy without WooCommerce-specific labels.
+- WP Codebox/Homeboy fuzz artifacts that expose durable fuzz-suite, hotspot, and
+  coverage refs from the same run set.
+- A generic rollback-safe REST mutation runner that consumes the declarative Woo
+  payload fixture manifest and emits rollback, isolation, and delete-boundary
+  artifacts before order, customer, coupon, or delete fixtures are executable.
+
+## Fixture Handoff
+
+The REST CRUD fixture path is declarative until durable Codebox/Homeboy artifacts
+exist:
+
+1. Rigs manifests declare Woo-specific route families and payload shapes in
+   `manifests/rest-crud-route-family-catalog.json` and
+   `manifests/rest-crud-payload-fixtures.json`.
+2. Rigs generates the generic contract artifacts
+   `manifests/rest-crud-fixture-plan.json` (`wp-codebox/fuzz-fixture-plan/v1`)
+   and `manifests/rest-crud-fixture-opt-ins.json`
+   (`wp-codebox/rest-mutation-fixture-opt-in/v1`). These include declared-only
+   operation refs for product, order, customer, and coupon create/update/delete
+   families.
+3. HBEX ingests the opt-ins and selects the matching fixture-plan operations for
+   a future rollback-safe REST mutation handoff.
+4. Codebox runs the mutation runner in a disposable WordPress fixture and emits
+   mutation isolation, rollback, and delete-boundary artifacts.
+5. Homeboy records durable reviewer-facing run and artifact refs. Only those refs
+   can promote the fixture contracts from declared to executable/proven.
+
+Until step 5 exists, the fixture metadata must stay
+`readiness_level: declared`, `execution_enabled: false`, and
+`proof_status: declared_contract`. The product batch workload remains separate
+create/update executable coverage, but the generated fixture-plan/opt-in path is
+not proof and does not make order, customer, coupon, or delete mutations
+executable.
 
 ## Inventory
 

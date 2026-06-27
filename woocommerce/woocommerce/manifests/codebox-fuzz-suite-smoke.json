@@ -27,7 +27,9 @@
         "fuzz/coverage-gap-report.json",
         "fuzz/performance-hotspots-artifact-summary.json",
         "manifests/db-api-fuzz-campaign.json",
-        "manifests/db-api-performance-fuzzer-gap-report.json"
+        "manifests/db-api-performance-fuzzer-gap-report.json",
+        "manifests/rest-crud-fixture-plan.json",
+        "manifests/rest-crud-fixture-opt-ins.json"
       ],
       "profile": {
         "id": "db-api-performance-fuzzer",
@@ -43,7 +45,30 @@
           "performance-hotspots-artifact-summary"
         ],
         "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
-        "campaign_manifest": "manifests/db-api-fuzz-campaign.json"
+        "campaign_manifest": "manifests/db-api-fuzz-campaign.json",
+        "fixture_contracts": {
+          "readiness_level": "declared",
+          "execution_enabled": false,
+          "proof_status": "declared_contract",
+          "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
+          "artifacts": [
+            {
+              "id": "rest_crud_fixture_plan",
+              "schema": "wp-codebox/fuzz-fixture-plan/v1",
+              "path": "manifests/rest-crud-fixture-plan.json",
+              "semantic_key": "fixture.plan",
+              "readiness": "declared_contract"
+            },
+            {
+              "id": "rest_crud_fixture_opt_ins",
+              "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+              "path": "manifests/rest-crud-fixture-opt-ins.json",
+              "semantic_key": "fixture.opt_ins",
+              "readiness": "declared_contract"
+            }
+          ],
+          "operation_ready_ref_families": ["products", "orders", "customers", "coupons"]
+        }
       },
       "proof_bundle_requirements": {
         "status": "required_before_proven",

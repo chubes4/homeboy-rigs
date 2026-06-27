@@ -3,6 +3,7 @@
   "id": "woocommerce-rest-crud-route-family-catalog",
   "description": "WooCommerce REST CRUD route-family catalog for production fuzzing readiness. This manifest declares fixture needs, executable status, skipped dynamic/non-GET coverage, and owning workloads/profiles without adding runner behavior.",
   "owner_profile": "product-rest-crud-fuzzer",
+  "payload_fixture_manifest": "manifests/rest-crud-payload-fixtures.json",
   "route_families": [
     {
       "id": "products-collection",
@@ -155,6 +156,116 @@
           "reason_code": "missing_rollback_safe_delete_primitive"
         }
       ]
+    },
+    {
+      "id": "orders-collection",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/orders", "/wc/v3/orders/<order_id>"],
+      "resources": ["order"],
+      "fixture_requirements": ["fixture-owned customer", "fixture-owned products", "optional fixture-owned coupon", "billing and shipping addresses"],
+      "owned_by": {
+        "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "payload_fixture_family": "orders",
+      "readiness": {
+        "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume order payload fixtures and emit rollback artifacts" },
+        "read": { "level": "executable", "via": "generated-rest-request-cases" },
+        "update": { "level": "declared", "upstream_blocker": "generic REST mutation runner must emit rollback artifacts for order updates" },
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifacts are unavailable" }
+      },
+      "skipped_coverage": [
+        { "scope": "mutating_order_payloads", "reason_code": "missing_generic_rest_mutation_runner" },
+        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+      ]
+    },
+    {
+      "id": "orders-notes",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/orders/<order_id>/notes"],
+      "resources": ["order_note"],
+      "fixture_requirements": ["fixture-owned order", "note content payload"],
+      "owned_by": {
+        "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "payload_fixture_family": "orders",
+      "readiness": {
+        "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume order note fixtures and emit rollback artifacts" },
+        "read": { "level": "declared", "upstream_blocker": "dynamic order id path cases require generated fixture-owned path parameter artifacts" },
+        "update": { "level": "declared", "upstream_blocker": "order notes do not have a declared update mutation fixture" },
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifacts are unavailable" }
+      },
+      "skipped_coverage": [
+        { "scope": "dynamic_order_id_paths", "reason_code": "fixture_owned_dynamic_path_parameter" },
+        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+      ]
+    },
+    {
+      "id": "orders-refunds",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/orders/<order_id>/refunds"],
+      "resources": ["order_refund"],
+      "fixture_requirements": ["fixture-owned paid order", "line item refund amounts", "tax/refund total guardrails"],
+      "owned_by": {
+        "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "payload_fixture_family": "orders",
+      "readiness": {
+        "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume refund fixtures and emit rollback artifacts" },
+        "read": { "level": "declared", "upstream_blocker": "dynamic paid order id path cases require generated fixture-owned path parameter artifacts" },
+        "update": { "level": "declared", "upstream_blocker": "refund updates are not declared as safe mutable fixtures" },
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifacts are unavailable" }
+      },
+      "skipped_coverage": [
+        { "scope": "dynamic_paid_order_id_paths", "reason_code": "fixture_owned_dynamic_path_parameter" },
+        { "scope": "refund_mutation_side_effects", "reason_code": "missing_generic_rest_mutation_runner" }
+      ]
+    },
+    {
+      "id": "customers-collection",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/customers", "/wc/v3/customers/<customer_id>"],
+      "resources": ["customer"],
+      "fixture_requirements": ["unique email", "unique username", "billing and shipping addresses"],
+      "owned_by": {
+        "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "payload_fixture_family": "customers",
+      "readiness": {
+        "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume customer payload fixtures and emit rollback artifacts" },
+        "read": { "level": "executable", "via": "generated-rest-request-cases" },
+        "update": { "level": "declared", "upstream_blocker": "generic REST mutation runner must emit rollback artifacts for customer updates" },
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifacts are unavailable" }
+      },
+      "skipped_coverage": [
+        { "scope": "mutating_customer_payloads", "reason_code": "missing_generic_rest_mutation_runner" },
+        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+      ]
+    },
+    {
+      "id": "coupons-collection",
+      "namespace": "wc/v3",
+      "routes": ["/wc/v3/coupons", "/wc/v3/coupons/<coupon_id>"],
+      "resources": ["coupon"],
+      "fixture_requirements": ["unique coupon code", "discount type and amount", "usage limit and product/category restrictions"],
+      "owned_by": {
+        "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
+        "profiles": ["product-rest-crud-fuzzer", "full-surface"]
+      },
+      "payload_fixture_family": "coupons",
+      "readiness": {
+        "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume coupon payload fixtures and emit rollback artifacts" },
+        "read": { "level": "executable", "via": "generated-rest-request-cases" },
+        "update": { "level": "declared", "upstream_blocker": "generic REST mutation runner must emit rollback artifacts for coupon updates" },
+        "delete": { "level": "declared", "upstream_blocker": "delete-boundary rollback artifacts are unavailable" }
+      },
+      "skipped_coverage": [
+        { "scope": "mutating_coupon_payloads", "reason_code": "missing_generic_rest_mutation_runner" },
+        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+      ]
     }
   ],
   "skip_reason_codes": [
@@ -163,6 +274,7 @@
     "missing_rollback_safe_delete_primitive",
     "current_workload_does_not_execute_delete",
     "owned_by_batch_import_workload",
-    "owned_by_generated_rest_request_cases"
+    "owned_by_generated_rest_request_cases",
+    "missing_generic_rest_mutation_runner"
   ]
 }

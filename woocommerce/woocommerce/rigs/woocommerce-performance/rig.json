@@ -185,9 +185,10 @@
     "full-surface": {
       "description": "WooCommerce full-surface fuzz inventory. Discovery manifests extend the executable fuzz workload list with declared REST route-family, block, admin action, and DB/API hotspot artifact contracts without claiming additional runner coverage.",
       "target_inventory_manifest": "manifests/target-inventory.json",
-      "discovery_manifests": {
-        "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
-        "blocks": "manifests/block-inventory-rendering-fuzz.json",
+        "discovery_manifests": {
+          "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
+          "rest_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
+          "blocks": "manifests/block-inventory-rendering-fuzz.json",
         "admin_actions": "manifests/admin-action-inventory.json",
         "db_api_hotspots": "manifests/db-api-hotspot-artifact-io.json"
       },
@@ -210,6 +211,29 @@
         "wordpress.summarize-performance-hotspots",
         "wordpress.coverage-gap-report"
       ],
+      "fixture_contracts": {
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
+        "artifacts": [
+          {
+            "id": "rest_crud_fixture_plan",
+            "schema": "wp-codebox/fuzz-fixture-plan/v1",
+            "path": "manifests/rest-crud-fixture-plan.json",
+            "semantic_key": "fixture.plan",
+            "readiness": "declared_contract"
+          },
+          {
+            "id": "rest_crud_fixture_opt_ins",
+            "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+            "path": "manifests/rest-crud-fixture-opt-ins.json",
+            "semantic_key": "fixture.opt_ins",
+            "readiness": "declared_contract"
+          }
+        ],
+        "operation_ready_ref_families": ["products", "orders", "customers", "coupons"]
+      },
       "readiness": {
         "level": "declared",
         "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; it does not claim CRUD or mutating REST execution until upstream rollback-safe primitives exist.",
@@ -260,7 +284,33 @@
     "product-rest-crud-fuzzer": {
       "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness. Product delete remains declared until rollback-safe delete emits delete-boundary artifacts.",
       "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
+      "payload_fixture_manifest": "manifests/rest-crud-payload-fixtures.json",
+      "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
+      "rest_mutation_fixture_opt_ins_manifest": "manifests/rest-crud-fixture-opt-ins.json",
       "hotspot_artifact_contract_manifest": "manifests/db-api-hotspot-artifact-io.json",
+      "fixture_contracts": {
+        "readiness_level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
+        "artifacts": [
+          {
+            "id": "rest_crud_fixture_plan",
+            "schema": "wp-codebox/fuzz-fixture-plan/v1",
+            "path": "manifests/rest-crud-fixture-plan.json",
+            "semantic_key": "fixture.plan",
+            "readiness": "declared_contract"
+          },
+          {
+            "id": "rest_crud_fixture_opt_ins",
+            "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+            "path": "manifests/rest-crud-fixture-opt-ins.json",
+            "semantic_key": "fixture.opt_ins",
+            "readiness": "declared_contract"
+          }
+        ],
+        "operation_ready_ref_families": ["products", "orders", "customers", "coupons"]
+      },
       "generic_upstream_contracts": [
         "wordpress.rollback-safe-rest-mutation",
         "homeboy/wordpress-rest-mutation-rollback-contract/v1",

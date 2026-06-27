@@ -1,0 +1,117 @@
+{
+  "schema": "homeboy-rigs/woocommerce-rest-crud-payload-fixtures/v1",
+  "id": "woocommerce-rest-crud-payload-fixtures",
+  "description": "Declarative WooCommerce REST CRUD payload fixture catalog for route-family planning. These fixtures describe intended product, order, customer, and coupon payload shapes for a future generic rollback-safe REST mutation runner and generate WP Codebox fixture-plan/REST opt-in artifacts; they do not make those mutations executable or proven.",
+  "owner_profile": "product-rest-crud-fuzzer",
+  "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
+  "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
+  "rest_mutation_fixture_opt_ins_manifest": "manifests/rest-crud-fixture-opt-ins.json",
+  "status": "blocked_declarative",
+  "runner_behavior": "none",
+  "generic_upstream_contracts": [
+    "wp-codebox/fuzz-fixture-plan/v1",
+    "wp-codebox/rest-mutation-fixture-opt-in/v1",
+    "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+    "wp-codebox/wordpress-workload-run/v1",
+    "wp-codebox/mutation-isolation-artifact/v1",
+    "wp-codebox/delete-boundary-artifact/v1"
+  ],
+  "readiness": {
+    "level": "declared",
+      "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits rollback, isolation, delete-boundary, and reviewer-facing evidence artifacts.",
+    "proof_bundle_requirements": {
+      "status": "required_before_proven",
+      "required_refs": [
+        "reviewer-facing generic REST mutation runner run id",
+        "reviewer-facing mutation isolation artifact ref",
+        "reviewer-facing rollback contract artifact ref",
+        "reviewer-facing delete-boundary artifact ref before delete is executable"
+      ],
+      "required_artifacts": [
+        "mutation_isolation_artifact",
+        "rest_mutation_rollback_contract",
+        "delete_boundary_artifact"
+      ]
+    },
+    "upstream_blockers": [
+        "Generic REST mutation runner must consume wp-codebox/fuzz-fixture-plan/v1 and wp-codebox/rest-mutation-fixture-opt-in/v1 artifacts generated from these Woo declarations.",
+        "Generic REST mutation runner must emit mutation isolation and rollback contract artifacts for create/update before any declarative fixture family becomes executable.",
+        "Generic REST mutation runner must emit delete-boundary rollback artifacts before delete fixtures become executable.",
+        "Homeboy/WP Codebox must collect reviewer-facing artifact refs before this manifest can be promoted beyond declared readiness."
+      ]
+  },
+  "families": [
+    {
+      "id": "products",
+      "route_family_ids": ["products-collection", "products-batch", "product-variations-batch", "product-attributes-and-terms"],
+      "namespace": "wc/v3",
+      "roles": ["administrator", "shop_manager"],
+      "fixture_scope": "synthetic_products_attributes_terms_and_variations",
+      "payload_shapes": {
+        "create": ["simple product", "grouped product", "variable product parent", "variation under fixture-owned variable product"],
+        "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails", "stock and variation attribute updates"],
+        "delete": ["fixture-owned product or variation id with delete-boundary artifact"]
+      },
+      "executable_operations": [],
+      "blocked_operations": {
+        "create": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted rollback/isolation artifacts for product creates",
+        "update": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted rollback/isolation artifacts for product updates",
+        "delete": "delete-boundary rollback artifact contract is unavailable"
+      }
+    },
+    {
+      "id": "orders",
+      "route_family_ids": ["orders-collection", "orders-notes", "orders-refunds"],
+      "namespace": "wc/v3",
+      "roles": ["administrator", "shop_manager"],
+      "fixture_scope": "synthetic_customers_products_coupons_and_orders",
+      "payload_shapes": {
+        "create": ["order with fixture-owned line items", "order with billing/shipping address", "order with coupon line"],
+        "update": ["status transition", "billing/shipping address update", "metadata update"],
+        "delete": ["fixture-owned order id with delete-boundary artifact"]
+      },
+      "executable_operations": [],
+      "blocked_operations": {
+        "create": "generic REST mutation runner has not accepted order payload fixtures",
+        "update": "generic REST mutation runner has not emitted rollback contracts for order updates",
+        "delete": "delete-boundary rollback artifact contract is unavailable"
+      }
+    },
+    {
+      "id": "customers",
+      "route_family_ids": ["customers-collection"],
+      "namespace": "wc/v3",
+      "roles": ["administrator", "shop_manager"],
+      "fixture_scope": "synthetic_customers",
+      "payload_shapes": {
+        "create": ["customer with unique email and username", "customer billing/shipping profile"],
+        "update": ["billing/shipping address update", "role-neutral profile metadata update"],
+        "delete": ["fixture-owned customer id with delete-boundary artifact"]
+      },
+      "executable_operations": [],
+      "blocked_operations": {
+        "create": "generic REST mutation runner has not accepted customer payload fixtures",
+        "update": "generic REST mutation runner has not emitted rollback contracts for customer updates",
+        "delete": "delete-boundary rollback artifact contract is unavailable"
+      }
+    },
+    {
+      "id": "coupons",
+      "route_family_ids": ["coupons-collection"],
+      "namespace": "wc/v3",
+      "roles": ["administrator", "shop_manager"],
+      "fixture_scope": "synthetic_coupons",
+      "payload_shapes": {
+        "create": ["percent coupon with unique code", "fixed cart coupon with usage limits"],
+        "update": ["amount/date/usage limit update", "product/category restriction update"],
+        "delete": ["fixture-owned coupon id with delete-boundary artifact"]
+      },
+      "executable_operations": [],
+      "blocked_operations": {
+        "create": "generic REST mutation runner has not accepted coupon payload fixtures",
+        "update": "generic REST mutation runner has not emitted rollback contracts for coupon updates",
+        "delete": "delete-boundary rollback artifact contract is unavailable"
+      }
+    }
+  ]
+}

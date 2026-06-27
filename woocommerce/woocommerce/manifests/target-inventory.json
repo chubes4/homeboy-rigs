@@ -13,6 +13,9 @@
     "full_surface": "manifests/full-surface-coverage.json",
     "rig": "rigs/woocommerce-performance/rig.json",
     "rest_crud_route_family_catalog": "manifests/rest-crud-route-family-catalog.json",
+    "rest_crud_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
+    "rest_crud_fixture_plan": "manifests/rest-crud-fixture-plan.json",
+    "rest_crud_fixture_opt_ins": "manifests/rest-crud-fixture-opt-ins.json",
     "block_inventory_rendering_fuzz": "manifests/block-inventory-rendering-fuzz.json",
     "admin_action_inventory": "manifests/admin-action-inventory.json",
     "db_api_hotspot_artifact_io": "manifests/db-api-hotspot-artifact-io.json"
@@ -29,8 +32,50 @@
         "products-collection",
         "products-batch",
         "product-variations-batch",
-        "product-attributes-and-terms"
-      ]
+        "product-attributes-and-terms",
+        "orders-collection",
+        "orders-notes",
+        "orders-refunds",
+        "customers-collection",
+        "coupons-collection"
+      ],
+      "payload_fixture_manifest": "manifests/rest-crud-payload-fixtures.json"
+    },
+    "rest_payload_fixtures": {
+      "manifest": "manifests/rest-crud-payload-fixtures.json",
+      "owner_profile": "product-rest-crud-fuzzer",
+      "readiness": {
+        "level": "declared",
+        "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits rollback, isolation, delete-boundary, and reviewer-facing evidence artifacts.",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "required_refs": [
+            "reviewer-facing generic REST mutation runner run id",
+            "reviewer-facing mutation isolation artifact ref",
+            "reviewer-facing rollback contract artifact ref",
+            "reviewer-facing delete-boundary artifact ref before delete is executable"
+          ],
+          "required_artifacts": [
+            "mutation_isolation_artifact",
+            "rest_mutation_rollback_contract",
+            "delete_boundary_artifact"
+          ]
+        },
+        "upstream_blockers": [
+          "Generic REST mutation runner must consume wp-codebox/fuzz-fixture-plan/v1 and wp-codebox/rest-mutation-fixture-opt-in/v1 artifacts generated from these Woo declarations.",
+          "Generic REST mutation runner must emit mutation isolation and rollback contract artifacts for create/update before any declarative fixture family becomes executable.",
+          "Generic REST mutation runner must emit delete-boundary rollback artifacts before delete fixtures become executable.",
+          "Homeboy/WP Codebox must collect reviewer-facing artifact refs before this manifest can be promoted beyond declared readiness."
+        ]
+      },
+      "family_ids": [
+        "products",
+        "orders",
+        "customers",
+        "coupons"
+      ],
+      "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
+      "rest_mutation_fixture_opt_ins_manifest": "manifests/rest-crud-fixture-opt-ins.json"
     },
     "blocks": {
       "manifest": "manifests/block-inventory-rendering-fuzz.json",

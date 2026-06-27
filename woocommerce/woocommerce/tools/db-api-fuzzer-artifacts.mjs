@@ -110,7 +110,10 @@ export function buildCoverageGapReport(artifacts) {
   };
 }
 
-export function buildPerformanceHotspotsSummary(artifacts, { maxQuerySamples = 50 } = {}) {
+export function buildPerformanceHotspotsSummary(artifacts, {
+  maxQuerySamples = 50,
+  classifySurface = classifyGenericArtifactSurface,
+} = {}) {
   const candidates = [];
 
   for (const artifact of artifacts) {
@@ -154,7 +157,11 @@ export function buildPerformanceHotspotsSummary(artifacts, { maxQuerySamples = 5
   };
 }
 
-function classifySurface(workload, json) {
+export function classifyGenericArtifactSurface(workload, json) {
+  return json.metadata?.surface || json.surface || json.metadata?.coverage_shape || workload || 'unknown';
+}
+
+export function classifyWooCommercePerformanceSurface(workload, json) {
   const haystack = `${workload} ${json.metadata?.coverage_shape || ''}`.toLowerCase();
   if (haystack.includes('checkout')) return 'checkout';
   if (haystack.includes('cart')) return 'cart';
@@ -251,7 +258,10 @@ export function buildArtifactPostprocessPayload(step, { inputRoot } = {}) {
   });
   const payload = contract.command === 'coverage-gap-report'
     ? buildCoverageGapReport(artifacts)
-    : buildPerformanceHotspotsSummary(artifacts, { maxQuerySamples: contract.maxQuerySamples });
+    : buildPerformanceHotspotsSummary(artifacts, {
+      maxQuerySamples: contract.maxQuerySamples,
+      classifySurface: classifyWooCommercePerformanceSurface,
+    });
 
   if (payload.schema !== contract.outputSchema) {
     throw new Error(`Artifact postprocess output schema mismatch: expected ${contract.outputSchema}, received ${payload.schema}`);
@@ -288,7 +298,7 @@ async function main() {
   const artifacts = readArtifactTree(inputRoot);
   const payload = command === 'coverage-gap-report'
     ? buildCoverageGapReport(artifacts)
-    : buildPerformanceHotspotsSummary(artifacts);
+    : buildPerformanceHotspotsSummary(artifacts, { classifySurface: classifyWooCommercePerformanceSurface });
   writeJsonArtifact(outputPath, payload);
 }
 
