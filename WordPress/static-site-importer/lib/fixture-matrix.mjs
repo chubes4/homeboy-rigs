@@ -67,6 +67,16 @@ const FIXTURE_CLASS_RULES = [
   },
 ];
 
+const FIXTURE_DIRECTORY_CLASSES = {
+  'marketing-static': 'marketing/static',
+  'docs-blog': 'docs/blog',
+  'ecommerce-catalog': 'ecommerce/catalog',
+  'app-dashboard': 'app/dashboard',
+  'runtime-heavy': 'canvas/webgl/audio/runtime-heavy',
+  'canvas-webgl-audio': 'canvas/webgl/audio/runtime-heavy',
+  'edge-cases': 'unknown',
+};
+
 export function discoverFixtures(root, options = {}) {
   const fixtureRoot = requiredDirectory(root || options.fixtureRoot || options.fixture_root, 'fixtureRoot');
   const entrypoint = options.entrypoint || 'index.html';
@@ -341,6 +351,11 @@ export function classifyFixture(input = {}) {
     return { fixture_class: explicit, product_class: explicit, signals: ['explicit_metadata'] };
   }
 
+  const pathClass = classifyFixturePath(input);
+  if (pathClass) {
+    return { fixture_class: pathClass, product_class: pathClass, signals: ['directory_taxonomy'] };
+  }
+
   const files = normalizeArray(input.files || input.fixture_files || input.fixtureFiles);
   const diagnostics = normalizeArray(input.diagnostics || input.findings || input.messages || input.runtime_target_gaps || input.runtimeTargetGaps);
   const text = [
@@ -389,6 +404,28 @@ export function classifyFixture(input = {}) {
   const [fixtureClass, score] = ranked[0] || ['unknown', 0];
   const normalized = score > 0 ? fixtureClass : 'unknown';
   return { fixture_class: normalized, product_class: normalized, signals: signals.slice(0, 8) };
+}
+
+function classifyFixturePath(input = {}) {
+  const directory = input.directory || input.path || input.fixture_path || input.fixturePath;
+  const root = input.root || input.fixture_root || input.fixtureRoot;
+  const segments = [];
+
+  if (directory && root) {
+    const relative = path.relative(path.resolve(root), path.resolve(directory));
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      segments.push(...relative.split(path.sep));
+    }
+  }
+
+  for (const segment of segments) {
+    const key = String(segment || '').trim().toLowerCase();
+    if (Object.hasOwn(FIXTURE_DIRECTORY_CLASSES, key)) {
+      return FIXTURE_DIRECTORY_CLASSES[key];
+    }
+  }
+
+  return '';
 }
 
 function findingsForFixtureResult(result, context = {}) {
@@ -447,7 +484,7 @@ function normalizeFixture(input) {
   const relative = path.relative(path.resolve(root), path.resolve(directory));
   const id = slug(input.id || input.slug || (relative && !relative.startsWith('..') ? relative : path.basename(directory)));
   const files = input.files || input.fixture_files || input.fixtureFiles || collectFixtureFiles(directory, { maxFiles: input.maxFiles || input.max_files || 1000 });
-  const taxonomy = classifyFixture({ ...input, id, directory, files });
+  const taxonomy = normalizeFixtureTaxonomy(input.taxonomy) || classifyFixture({ ...input, id, directory, root, files });
   return {
     id,
     label: input.label || input.name || id,
@@ -458,6 +495,24 @@ function normalizeFixture(input) {
     fixture_class: taxonomy.fixture_class,
     product_class: taxonomy.product_class,
     taxonomy,
+  };
+}
+
+function normalizeFixtureTaxonomy(taxonomy) {
+  if (!taxonomy || typeof taxonomy !== 'object') {
+    return null;
+  }
+  const fixtureClassValue = taxonomy.fixture_class || taxonomy.fixtureClass || taxonomy.product_class || taxonomy.productClass;
+  const productClassValue = taxonomy.product_class || taxonomy.productClass || taxonomy.fixture_class || taxonomy.fixtureClass;
+  if (!fixtureClassValue && !productClassValue) {
+    return null;
+  }
+  const fixtureClass = normalizeFixtureClass(fixtureClassValue);
+  const productClass = normalizeFixtureClass(productClassValue);
+  return {
+    fixture_class: fixtureClass || 'unknown',
+    product_class: productClass || fixtureClass || 'unknown',
+    signals: normalizeArray(taxonomy.signals),
   };
 }
 
