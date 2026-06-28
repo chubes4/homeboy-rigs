@@ -26,6 +26,18 @@ homeboy fuzz list --rig jetpack-api-route-inventory
 
 Use offloaded Lab runners for proof campaigns. Listing workloads confirms declarations only; P status requires persisted `homeboy fuzz run` artifacts, coverage gap reports, and non-local proof references.
 
+Generate Lab-only commands for stable Jetpack profiling proof runs:
+
+```sh
+node Automattic/jetpack/tools/stable-workload-lab-commands.mjs \
+  --runner LAB_RUNNER_ID \
+  --artifact-root ARTIFACT_ROOT \
+  --run-id-prefix jetpack-stable-YYYYMMDD \
+  --tracker-ref github:Automattic/jetpack#ISSUE_OR_PR
+```
+
+The generator emits one `homeboy fuzz run --lab-only` command per stable workload entry and compare commands for persisted refs, elapsed-time trends, and hotspot deltas. It does not execute workloads locally.
+
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;
 they do not change readiness levels or convert declarations into proof.
