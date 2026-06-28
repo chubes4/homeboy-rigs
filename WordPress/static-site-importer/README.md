@@ -118,6 +118,50 @@ The comparison reports signed count deltas by repair bucket, `group_key`, kind,
 fixture, candidate repo, and selector family. Positive deltas mean the candidate
 has more findings in that group; negative deltas mean fewer findings.
 
+## Fixture Manifests (class / tags / complexity)
+
+Each fixture directory carries a `fixture.json` manifest authored alongside the
+fixture (owned by the corpus repo, `blocks-engine/fixtures/websites`). The
+manifest is the **sole source of truth** for a fixture's class — there is no
+runtime classification heuristic and no directory-name fallback.
+
+```json
+{
+  "class": "marketing/static",
+  "tags": ["restaurant", "has-form", "multipage"],
+  "complexity": 1
+}
+```
+
+- `class` — **required**. Must be one of the canonical `FIXTURE_CLASSES` values
+  verbatim: `marketing/static`, `docs/blog`, `ecommerce/catalog`,
+  `app/dashboard`, `canvas/webgl/audio/runtime-heavy`, `unknown`.
+- `tags` — optional free-form string array, used for lane/tag querying.
+- `complexity` — optional integer `1`–`5` (values out of range are clamped).
+
+Class resolution order: an explicit class injected by the runner/tests → the
+manifest `class` → `unknown`. A missing manifest or an invalid `class` value does
+**not** crash the run: that single fixture resolves to `unknown` and a loud
+warning naming the fixture is written to stderr. `tags` and `complexity` are
+carried through onto each fixture, the per-fixture result, and the
+`result_summary`, so runs can be filtered/queried by lane (class) and tag.
+
+Run a single lane or tag subset (matrix-wide, runner, or bench):
+
+```bash
+# Operator runner
+node WordPress/static-site-importer/tools/run-fixture-matrix.mjs \
+  --static-site-importer <path> --blocks-engine <path> \
+  --class marketing/static --tag restaurant
+
+# Bench directly (also via SSI_FIXTURE_MATRIX_CLASS / SSI_FIXTURE_MATRIX_TAG)
+node WordPress/static-site-importer/bench/static-site-fixture-matrix.bench.mjs \
+  --fixture-root <root> --class marketing/static --tag restaurant
+```
+
+`--class` selects a single class lane; `--tag` keeps only fixtures whose manifest
+tags include the tag; both together intersect.
+
 ## Generic Invocation
 
 The workload composes these generic surfaces:

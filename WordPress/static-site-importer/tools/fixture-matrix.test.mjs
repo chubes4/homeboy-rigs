@@ -302,51 +302,103 @@ test('keeps native_conversion findings acceptable without a runtime-carried sign
   assert.equal(result.fixtures[0].status, 'passed');
 });
 
-test('classifies fixtures into generic product taxonomy from metadata and files', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-taxonomy-'));
+test('classifies fixtures from the per-fixture manifest as the sole source of truth', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-manifest-'));
   const shop = path.join(root, 'spring-shop');
   const shader = path.join(root, 'interactive-demo');
   mkdirSync(path.join(shop, 'products'), { recursive: true });
   mkdirSync(path.join(shader, 'assets'), { recursive: true });
-  writeFileSync(path.join(shop, 'index.html'), '<h1>Catalog</h1>');
+  // The HTML/file content deliberately does NOT match the declared class — the
+  // manifest wins regardless of what a heuristic would have guessed.
+  writeFileSync(path.join(shop, 'index.html'), '<h1>Just a hero</h1>');
   writeFileSync(path.join(shop, 'products', 'shoe.html'), '<h2>Shoe</h2>');
-  writeFileSync(path.join(shader, 'index.html'), '<canvas id="hero"></canvas>');
+  writeFileSync(path.join(shop, 'fixture.json'), JSON.stringify({ class: 'ecommerce/catalog', tags: ['Shop', 'has-cart'], complexity: 3 }));
+  writeFileSync(path.join(shader, 'index.html'), '<h1>Plain marketing copy</h1>');
   writeFileSync(path.join(shader, 'assets', 'shader.js'), 'document.querySelector("canvas");');
+  writeFileSync(path.join(shader, 'fixture.json'), JSON.stringify({ class: 'canvas/webgl/audio/runtime-heavy', complexity: 9 }));
 
   const matrix = createFixtureMatrix({ fixture_root: root });
+  const shopFixture = matrix.fixtures.find((fixture) => fixture.id === 'spring-shop');
+  const shaderFixture = matrix.fixtures.find((fixture) => fixture.id === 'interactive-demo');
 
-  assert.equal(classifyFixture({ product_class: 'docs' }).fixture_class, 'docs/blog');
-  assert.equal(matrix.fixtures.find((fixture) => fixture.id === 'spring-shop').fixture_class, 'ecommerce/catalog');
-  assert.equal(matrix.fixtures.find((fixture) => fixture.id === 'interactive-demo').fixture_class, 'canvas/webgl/audio/runtime-heavy');
+  // Manifest class wins over anything the heuristic would have inferred.
+  assert.equal(shopFixture.fixture_class, 'ecommerce/catalog');
+  assert.equal(shaderFixture.fixture_class, 'canvas/webgl/audio/runtime-heavy');
+  assert.deepEqual(shopFixture.taxonomy.signals, ['manifest']);
+
+  // Tags and complexity are carried through onto the normalized fixture.
+  assert.deepEqual(shopFixture.tags, ['Shop', 'has-cart']);
+  assert.equal(shopFixture.complexity, 3);
+  // Complexity is clamped into the documented 1-5 range.
+  assert.equal(shaderFixture.complexity, 5);
+  assert.deepEqual(shaderFixture.tags, []);
+
+  // An explicit class injected by tests/runner/result-merge still takes precedence.
+  assert.equal(classifyFixture({ fixture_class: 'docs/blog', directory: shop }).fixture_class, 'docs/blog');
 });
 
-test('classifies fixtures from directory taxonomy before heuristic fallback', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-directory-taxonomy-'));
-  const cases = [
-    ['marketing-static', 'spring-shop', '<h1>Product Catalog Checkout</h1>', 'marketing/static'],
-    ['docs-blog', 'admin-portal', '<h1>Dashboard Settings</h1>', 'docs/blog'],
-    ['ecommerce-catalog', 'launch-page', '<h1>Marketing Landing Hero</h1>', 'ecommerce/catalog'],
-    ['app-dashboard', 'news-guide', '<article>Blog documentation tutorial</article>', 'app/dashboard'],
-    ['runtime-heavy', 'plain-copy', '<h1>Simple static brochure</h1>', 'canvas/webgl/audio/runtime-heavy'],
-    ['canvas-webgl-audio', 'plain-copy', '<h1>Simple static brochure</h1>', 'canvas/webgl/audio/runtime-heavy'],
-    ['edge-cases', 'shop-catalog', '<h1>Product Catalog Checkout</h1>', 'unknown'],
-  ];
+test('falls back to unknown with a loud warning when the manifest is missing or invalid', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-manifest-fallback-'));
+  const missing = path.join(root, 'no-manifest');
+  const invalid = path.join(root, 'bad-class');
+  const broken = path.join(root, 'broken-json');
+  mkdirSync(missing, { recursive: true });
+  mkdirSync(invalid, { recursive: true });
+  mkdirSync(broken, { recursive: true });
+  writeFileSync(path.join(missing, 'index.html'), '<h1>Product Catalog Checkout Cart Shop</h1>');
+  writeFileSync(path.join(invalid, 'index.html'), '<h1>Docs</h1>');
+  writeFileSync(path.join(invalid, 'fixture.json'), JSON.stringify({ class: 'totally-made-up' }));
+  writeFileSync(path.join(broken, 'index.html'), '<h1>Docs</h1>');
+  writeFileSync(path.join(broken, 'fixture.json'), '{ not valid json');
 
-  for (const [directoryClass, fixtureName, html] of cases) {
-    const fixtureDirectory = path.join(root, directoryClass, fixtureName);
-    mkdirSync(fixtureDirectory, { recursive: true });
-    writeFileSync(path.join(fixtureDirectory, 'index.html'), html);
+  const warnings = [];
+  const originalWrite = process.stderr.write;
+  process.stderr.write = (chunk) => { warnings.push(String(chunk)); return true; };
+  let matrix;
+  try {
+    matrix = createFixtureMatrix({ fixture_root: root });
+  } finally {
+    process.stderr.write = originalWrite;
   }
-
-  const matrix = createFixtureMatrix({ fixture_root: root });
   const byId = new Map(matrix.fixtures.map((fixture) => [fixture.id, fixture]));
 
-  for (const [directoryClass, fixtureName, , fixtureClass] of cases) {
-    assert.equal(byId.get(`${directoryClass}-${fixtureName}`).fixture_class, fixtureClass);
-    assert.deepEqual(byId.get(`${directoryClass}-${fixtureName}`).taxonomy.signals, ['directory_taxonomy']);
+  // No heuristic guessing — every manifest-less/invalid fixture is unknown.
+  assert.equal(byId.get('no-manifest').fixture_class, 'unknown');
+  assert.deepEqual(byId.get('no-manifest').taxonomy.signals, ['manifest_missing']);
+  assert.equal(byId.get('bad-class').fixture_class, 'unknown');
+  assert.deepEqual(byId.get('bad-class').taxonomy.signals, ['manifest_invalid_class']);
+  assert.equal(byId.get('broken-json').fixture_class, 'unknown');
+
+  // A clear, loud warning naming each offending fixture was emitted.
+  const warningText = warnings.join('');
+  assert.match(warningText, /WARNING:.*no-manifest.*no fixture\.json/s);
+  assert.match(warningText, /WARNING:.*bad-class.*invalid class "totally-made-up"/s);
+  assert.match(warningText, /Failed to parse.*broken-json/s);
+});
+
+test('filters the matrix by manifest class and tag lane', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-filter-'));
+  const cases = [
+    ['landing', { class: 'marketing/static', tags: ['restaurant', 'has-form'] }],
+    ['brochure', { class: 'marketing/static', tags: ['agency'] }],
+    ['storefront', { class: 'ecommerce/catalog', tags: ['restaurant'] }],
+  ];
+  for (const [name, manifest] of cases) {
+    const dir = path.join(root, name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'index.html'), `<h1>${name}</h1>`);
+    writeFileSync(path.join(dir, 'fixture.json'), JSON.stringify(manifest));
   }
 
-  assert.equal(classifyFixture({ fixture_class: 'docs/blog', root, directory: path.join(root, 'marketing-static', 'manual') }).fixture_class, 'docs/blog');
+  const classLane = createFixtureMatrix({ fixture_root: root, class: 'marketing/static' });
+  assert.deepEqual(classLane.fixtures.map((fixture) => fixture.id).sort(), ['brochure', 'landing']);
+  assert.deepEqual(classLane.filter, { fixture_class: 'marketing/static' });
+
+  const tagLane = createFixtureMatrix({ fixture_root: root, tag: 'restaurant' });
+  assert.deepEqual(tagLane.fixtures.map((fixture) => fixture.id).sort(), ['landing', 'storefront']);
+
+  const combined = createFixtureMatrix({ fixture_root: root, class: 'marketing/static', tag: 'restaurant' });
+  assert.deepEqual(combined.fixtures.map((fixture) => fixture.id), ['landing']);
 });
 
 test('rolls fixture matrix summaries up by fixture class and repair bucket', () => {
@@ -356,7 +408,9 @@ test('rolls fixture matrix summaries up by fixture class and repair bucket', () 
   mkdirSync(shop, { recursive: true });
   mkdirSync(docs, { recursive: true });
   writeFileSync(path.join(shop, 'index.html'), '<h1>Shop</h1>');
+  writeFileSync(path.join(shop, 'fixture.json'), JSON.stringify({ class: 'ecommerce/catalog' }));
   writeFileSync(path.join(docs, 'index.html'), '<article>Docs</article>');
+  writeFileSync(path.join(docs, 'fixture.json'), JSON.stringify({ class: 'docs/blog' }));
   const matrix = createFixtureMatrix({ fixture_root: root, id: 'taxonomy-rollup-test' });
 
   const result = normalizeFixtureMatrixResult({
@@ -1368,7 +1422,9 @@ test('scores editor-quality metrics from generic block composition and rolls the
   mkdirSync(marketing, { recursive: true });
   mkdirSync(docs, { recursive: true });
   writeFileSync(path.join(marketing, 'index.html'), '<h1>Landing</h1>');
+  writeFileSync(path.join(marketing, 'fixture.json'), JSON.stringify({ class: 'marketing/static' }));
   writeFileSync(path.join(docs, 'index.html'), '<article>Docs</article>');
+  writeFileSync(path.join(docs, 'fixture.json'), JSON.stringify({ class: 'docs/blog' }));
   const matrix = createFixtureMatrix({ fixture_root: root, id: 'editor-quality-test' });
 
   const result = normalizeFixtureMatrixResult({

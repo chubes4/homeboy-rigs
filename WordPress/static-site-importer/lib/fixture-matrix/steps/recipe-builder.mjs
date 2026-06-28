@@ -59,6 +59,9 @@ export function buildFixtureArtifact(fixture, options = {}) {
       fixture_id: normalized.id,
       fixture_path: normalized.directory,
       fixture_entrypoint: normalized.entrypoint,
+      fixture_class: normalized.fixture_class,
+      fixture_tags: normalized.tags,
+      fixture_complexity: normalized.complexity,
     },
   };
 }
