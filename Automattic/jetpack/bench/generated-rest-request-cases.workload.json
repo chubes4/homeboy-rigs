@@ -3,50 +3,39 @@
   "source": "config",
   "rest_request_cases": [
     {
-      "id": "jetpack-site",
+      "id": "jetpack-namespace-root",
       "method": "GET",
-      "path": "/jetpack/v4/site",
+      "path": "/jetpack/v4",
       "capture-response": true,
-      "permission_class": "authenticated_local",
-      "persona": "administrator",
-      "auth_required": true,
+      "permission_class": "public_route_index",
+      "persona": "anonymous",
+      "auth_required": false,
       "mutating": false,
-      "expected_statuses": [200, 401, 403]
-    },
-    {
-      "id": "jetpack-modules",
-      "method": "GET",
-      "path": "/jetpack/v4/modules",
-      "capture-response": true,
-      "permission_class": "authenticated_local",
-      "persona": "administrator",
-      "auth_required": true,
-      "mutating": false,
-      "expected_statuses": [200, 401, 403]
-    },
-    {
-      "id": "jetpack-module-stats",
-      "method": "GET",
-      "path": "/jetpack/v4/modules/stats",
-      "capture-response": true,
-      "permission_class": "authenticated_local",
-      "persona": "administrator",
-      "auth_required": true,
-      "mutating": false,
-      "optional": true,
-      "skip_reason": "route_absent",
       "expected_statuses": [200, 401, 403, 404]
     },
     {
-      "id": "jetpack-settings",
+      "id": "jetpack-options-backup",
       "method": "GET",
-      "path": "/jetpack/v4/settings",
+      "path": "/jetpack/v4/options/backup",
       "capture-response": true,
-      "permission_class": "administrator_required",
-      "persona": "administrator",
-      "auth_required": true,
+      "permission_class": "site_token_or_boundary_denial",
+      "persona": "anonymous",
+      "auth_required": false,
       "mutating": false,
-      "expected_statuses": [200, 401, 403]
+      "params": { "name": "siteurl" },
+      "expected_statuses": [200, 400, 401, 403, 404]
+    },
+    {
+      "id": "jetpack-database-object-backup",
+      "method": "GET",
+      "path": "/jetpack/v4/database-object/backup",
+      "capture-response": true,
+      "permission_class": "site_token_or_boundary_denial",
+      "persona": "anonymous",
+      "auth_required": false,
+      "mutating": false,
+      "params": { "object_type": "woocommerce_attribute", "object_id": 1 },
+      "expected_statuses": [200, 400, 401, 403, 404]
     },
     {
       "id": "jetpack-connection",
@@ -111,6 +100,6 @@
     "skip_reason_codes": ["connected_required", "credential_unavailable", "route_absent", "wpcom_dependent"],
     "required_artifacts": ["rest_request_cases", "rest_skip_reasons"],
     "optional_artifacts": ["connected_site_response_samples", "wpcom_credentialed_response_samples"],
-    "permission_classifications": ["public_read_or_wpcom_dependent", "authenticated_local", "administrator_required", "connected_site_required", "wpcom_dependent"]
+    "permission_classifications": ["public_route_index", "public_read_or_wpcom_dependent", "site_token_or_boundary_denial", "connected_site_required", "wpcom_dependent"]
   }
 }
