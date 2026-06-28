@@ -36,6 +36,7 @@ const dbApiHotspotArtifactIo = readJson(packageRoot, 'manifests/db-api-hotspot-a
 const blockInventoryRenderingFuzz = readJson(packageRoot, 'manifests/block-inventory-rendering-fuzz.json');
 const adminActionInventory = readJson(packageRoot, 'manifests/admin-action-inventory.json');
 const targetInventory = readJson(packageRoot, 'manifests/target-inventory.json');
+const stableWorkloads = readJson(packageRoot, 'manifests/stable-workloads.json');
 const coverageGapReportWorkload = readJson(packageRoot, 'bench/coverage-gap-report.workload.json');
 const performanceHotspotsWorkload = readJson(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json');
 const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
@@ -146,6 +147,45 @@ function assertDeclaredOrExternalDiscoveryWorkload(workloadId, context) {
     declaredIds.has(workloadId) || externalDiscoveryWorkloadIds.has(workloadId),
     `${context} references unknown workload ${workloadId}`
   );
+}
+
+function assertStableWorkloadContracts(manifest) {
+  assert.equal(manifest.schema, 'homeboy-rigs/woocommerce-stable-workloads/v1', 'stable workloads schema drifted');
+  assert.equal(manifest.profile_id, 'woo-profiling-stabilization', 'stable workloads profile id drifted');
+  assert.equal(manifest.rig, 'rigs/woocommerce-performance/rig.json', 'stable workloads rig ref drifted');
+
+  const expectedIds = new Set([
+    'rest-db-query-profile',
+    'store-api-product-browse',
+    'cart-and-checkout',
+    'admin-orders',
+    'product-search-filtering',
+  ]);
+  const contracts = new Map((manifest.contracts || []).map((contract) => [contract.id, contract]));
+  assert.deepEqual(new Set(contracts.keys()), expectedIds, 'stable workload ids drifted');
+
+  for (const [contractId, contract] of contracts) {
+    assert.equal(contract.readiness, 'executable', `${contractId} stable workload must be executable`);
+    assert.ok(Array.isArray(contract.entry_workloads) && contract.entry_workloads.length > 0, `${contractId} requires entry workloads`);
+    for (const workloadId of contract.entry_workloads) {
+      assert.ok(declaredIds.has(workloadId), `${contractId} entry workload ${workloadId} must be declared in fuzz_workloads.wordpress`);
+    }
+    assert.ok(Array.isArray(contract.observed_surfaces) && contract.observed_surfaces.length > 0, `${contractId} requires observed surfaces`);
+
+    const observations = contract.expected_observations;
+    assert.ok(observations && typeof observations === 'object' && !Array.isArray(observations), `${contractId} requires expected observations`);
+    assert.ok(Array.isArray(observations.required_artifacts) && observations.required_artifacts.length > 0, `${contractId} requires artifact observations`);
+    assert.ok(Object.entries(observations).some(([, value]) => typeof value === 'number' && value > 0), `${contractId} requires at least one positive observation floor`);
+
+    const budgets = contract.budgets;
+    assert.ok(budgets && typeof budgets === 'object' && !Array.isArray(budgets), `${contractId} requires budgets`);
+    assert.ok(Object.entries(budgets).some(([, value]) => typeof value === 'number' && value >= 0), `${contractId} requires numeric budgets`);
+    assert.ok(Object.values(budgets).some((value) => value === 0), `${contractId} must include at least one zero-useful-work guardrail budget`);
+  }
+
+  assert.deepEqual(contracts.get('rest-db-query-profile').entry_workloads, ['generated-rest-request-cases', 'rest-db-query-profile'], 'REST DB profile stable workload entry drifted');
+  assert.deepEqual(contracts.get('cart-and-checkout').browser_scenarios, ['cart', 'checkout'], 'cart-and-checkout scenario contract drifted');
+  assert.deepEqual(contracts.get('admin-orders').browser_scenarios, ['orders_admin'], 'admin-orders scenario contract drifted');
 }
 
 function assertCampaignPostprocessOutput(workload, output, context) {
@@ -595,8 +635,10 @@ assertFuzzProofBundleRequirements(codeboxSuite.target?.metadata?.proof_bundle_re
 assert.equal(codeboxSuite.metadata?.public_result_contract, 'wp-codebox/fuzz-suite-result/v1', 'Codebox suite must declare the public fuzz-suite result contract');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.campaign_manifest, 'manifests/db-api-fuzz-campaign.json', 'DB/API profile must link the campaign declaration');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'DB/API profile must link the standalone gap report declaration');
+assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.stable_workload_contracts_manifest, 'manifests/stable-workloads.json', 'DB/API profile must link stable workload contracts');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API profile must identify the source full-surface gap report');
 assertProfileReadiness(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness, 'fuzz_profile_metadata.db-api-performance-fuzzer.readiness');
+assertStableWorkloadContracts(stableWorkloads);
 assert.equal(dbApiPerformanceFuzzerGapReport.schema, 'homeboy-rigs/wordpress-coverage-gap-report-workload/v1', 'DB/API gap report workload schema drifted');
 assert.equal(dbApiPerformanceFuzzerGapReport.id, 'woocommerce-db-api-performance-fuzzer-gap-report', 'DB/API gap report workload id drifted');
 assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuzzer', 'DB/API gap report workload must target the DB/API fuzzer profile');
@@ -755,6 +797,17 @@ assert.deepEqual(productBatchManifest.metadata?.payload_fixtures?.family_ids, ['
 assert.equal(productBatchManifest.metadata?.payload_fixtures?.delete?.level, 'declared', 'product batch import delete payload fixture must remain declared');
 assert.ok(productBatchManifest.route_families.includes('wc/v3/products/batch'), 'product batch import must list products batch route family');
 assert.ok(productBatchManifest.route_families.includes('wc/v3/products/<product_id>/variations/batch'), 'product batch import must list variations batch route family');
+
+const restDbQueryProfileManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-db-query-profile')?.manifest;
+assert.equal(restDbQueryProfileManifest.metadata?.product_budgets?.max_profiled_rest_cases, restDbQueryProfileManifest.case_budget, 'REST DB query profile case budget drifted');
+assert.equal(restDbQueryProfileManifest.metadata?.product_budgets?.max_slow_queries_per_case, 0, 'REST DB query profile must budget zero slow queries per case');
+assert.ok(restDbQueryProfileManifest.metadata?.observed_surfaces?.includes('wc/store/v1'), 'REST DB query profile must observe Store API routes');
+assert.ok(restDbQueryProfileManifest.metadata?.observed_surfaces?.includes('wc-admin'), 'REST DB query profile must observe Woo admin REST routes');
+assert.ok(restDbQueryProfileManifest.metadata?.query_attribution_expectations?.required_fields?.includes('callers'), 'REST DB query profile must require caller attribution');
+assert.equal(restDbQueryProfileManifest.cases?.[0]?.inputs?.query_attribution_required, true, 'REST DB query profile must require query attribution');
+assert.equal(restDbQueryProfileManifest.cases?.[0]?.inputs?.external_service_calls_allowed, false, 'REST DB query profile must not allow external service calls');
+assert.ok(restDbQueryProfileManifest.cases?.[0]?.artifacts?.[0]?.metadata?.contains?.includes('budget_comparison'), 'REST DB query profile artifact must include budget comparison');
+assert.ok(restDbQueryProfileManifest.artifacts?.expected?.[0]?.contains?.includes('query_attribution'), 'REST DB query profile expected artifact must include query attribution');
 
 assert.equal(restCrudRouteFamilyCatalog.schema, 'homeboy-rigs/woocommerce-rest-crud-route-family-catalog/v1', 'REST CRUD route-family catalog schema drifted');
 assert.equal(restCrudRouteFamilyCatalog.owner_profile, 'product-rest-crud-fuzzer', 'REST CRUD route-family catalog owner profile drifted');

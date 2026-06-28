@@ -201,6 +201,7 @@
       "description": "Focused WooCommerce DB/API performance fuzzer profile built only from declared REST inventory, generated REST cases, REST DB query profile, DB inventory, schema/query attribution, and performance hotspot summary workloads.",
       "campaign_manifest": "manifests/db-api-fuzz-campaign.json",
       "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
+      "stable_workload_contracts_manifest": "manifests/stable-workloads.json",
       "source_gap_report": "manifests/full-surface-coverage.json#gap_report",
       "required_primitives": [
         "wordpress.inventory-rest-routes",

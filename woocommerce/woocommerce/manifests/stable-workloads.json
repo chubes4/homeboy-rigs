@@ -1,0 +1,104 @@
+{
+  "schema": "homeboy-rigs/woocommerce-stable-workloads/v1",
+  "profile_id": "woo-profiling-stabilization",
+  "description": "Reviewer-friendly WooCommerce profiling workload names. WooCommerce owns route, admin, and scenario selection here; Homeboy only runs declared workload ids and collects artifacts.",
+  "rig": "rigs/woocommerce-performance/rig.json",
+  "contracts": [
+    {
+      "id": "rest-db-query-profile",
+      "readiness": "executable",
+      "entry_workloads": ["generated-rest-request-cases", "rest-db-query-profile"],
+      "observed_surfaces": ["wc/store/v1", "wc/v3", "wc-admin", "wc-analytics", "wordpress-database-queries"],
+      "expected_observations": {
+        "min_rest_request_cases": 8,
+        "min_profiled_rest_cases": 8,
+        "required_artifacts": ["rest_request_cases", "rest_db_query_profile"],
+        "required_artifact_fields": ["per_route_query_counts", "query_attribution", "budget_comparison"]
+      },
+      "budgets": {
+        "max_profiled_rest_cases": 80,
+        "max_queries_per_rest_case": 150,
+        "max_slow_queries_per_case": 0,
+        "slow_query_threshold_ms": 100,
+        "max_duration_seconds": 900
+      }
+    },
+    {
+      "id": "store-api-product-browse",
+      "readiness": "executable",
+      "entry_workloads": ["generated-rest-request-cases", "rest-db-query-profile", "rest-schema-query-attribution"],
+      "browser_scenarios": ["shop", "product"],
+      "observed_surfaces": ["wc/store/v1/products", "wc/store/v1/products/categories", "wc/store/v1/products/tags", "wc/store/v1/products/attributes", "wc/store/v1/products/reviews", "wc/store/v1/products/collection-data"],
+      "expected_observations": {
+        "min_rest_request_cases": 6,
+        "min_captured_responses": 6,
+        "min_profiled_rest_cases": 6,
+        "required_artifacts": ["rest_request_cases", "rest_db_query_profile", "rest_schema_query_attribution"],
+        "required_status_outcomes": ["public_read_success"]
+      },
+      "budgets": {
+        "max_queries_per_rest_case": 150,
+        "max_slow_queries_per_case": 0,
+        "slow_query_threshold_ms": 100,
+        "max_duration_seconds": 900
+      }
+    },
+    {
+      "id": "cart-and-checkout",
+      "readiness": "executable",
+      "entry_workloads": ["generated-rest-request-cases", "cart-session-overwrite-race", "checkout-concurrent-create-order", "checkout-shipping-cache"],
+      "browser_scenarios": ["cart", "checkout"],
+      "observed_surfaces": ["wc/store/v1/cart", "wc/store/v1/checkout", "woocommerce-ajax-checkout", "woocommerce-checkout-create-order", "woocommerce-cart-session"],
+      "expected_observations": {
+        "min_rest_request_cases": 2,
+        "min_checkout_iterations": 3,
+        "min_concurrent_checkout_requests": 2,
+        "required_artifacts": ["rest_request_cases", "raw_result"],
+        "required_status_outcomes": ["public_session_read_success"]
+      },
+      "budgets": {
+        "max_external_payment_requests": 0,
+        "max_duplicate_completed_orders": 0,
+        "max_duration_seconds": 900
+      }
+    },
+    {
+      "id": "admin-orders",
+      "readiness": "executable",
+      "entry_workloads": ["admin-page-coverage", "rest-permission-boundary-matrix"],
+      "browser_scenarios": ["orders_admin"],
+      "observed_surfaces": ["wp-admin/admin.php?page=wc-orders", "woocommerce-admin-pages", "wc/v3/orders"],
+      "expected_observations": {
+        "min_admin_targets": 1,
+        "min_admin_visits": 1,
+        "required_roles": ["administrator", "shop_manager"],
+        "required_artifacts": ["admin_page_coverage", "permission_boundary_matrix"],
+        "required_skip_reason_codes": ["permission_boundary", "unsafe_query_arg_delete", "unsafe_query_arg_trash"]
+      },
+      "budgets": {
+        "max_admin_pages": 80,
+        "max_destructive_actions_executed": 0,
+        "max_duration_seconds": 900
+      }
+    },
+    {
+      "id": "product-search-filtering",
+      "readiness": "executable",
+      "entry_workloads": ["generated-rest-request-cases", "layered-nav-count-cache", "layered-nav-catalog-crawl", "rest-schema-query-attribution"],
+      "browser_scenarios": ["shop", "product"],
+      "observed_surfaces": ["wc/store/v1/products", "wc/store/v1/products/collection-data", "woocommerce-layered-nav-widget", "woocommerce-product-archive"],
+      "expected_observations": {
+        "min_rest_request_cases": 2,
+        "min_crawled_facet_urls": 1,
+        "required_artifacts": ["rest_request_cases", "raw_result", "rest_schema_query_attribution"],
+        "required_hotspot_classes": ["facet-url-crawl", "transient-entry-cap-guardrail"]
+      },
+      "budgets": {
+        "max_facet_url_cases": 25,
+        "max_slow_queries_per_case": 0,
+        "slow_query_threshold_ms": 100,
+        "max_duration_seconds": 900
+      }
+    }
+  ]
+}
