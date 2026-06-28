@@ -91,6 +91,10 @@ export async function runFixtureMatrix(options) {
     fixture_root: fixtureRoot,
     entrypoint: options.entrypoint || 'index.html',
     maxDepth: options.maxDepth,
+    // Lane/tag selection: run "just the marketing/static lane" or only fixtures
+    // carrying a given manifest tag. Absent options leave the full matrix intact.
+    class: options.fixtureClass || options.class,
+    tag: options.tag,
   });
   const written = writeFixtureMatrixArtifacts({ outputDirectory, matrix });
   const recipe = buildFixtureMatrixRecipe({
@@ -546,6 +550,10 @@ function optionsFromEnv(env = process.env) {
     staticSiteImporterPlugin: benchEnv.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN || env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PLUGIN,
     entrypoint: benchEnv.SSI_FIXTURE_MATRIX_ENTRYPOINT || env.SSI_FIXTURE_MATRIX_ENTRYPOINT,
     maxDepth: benchEnv.SSI_FIXTURE_MATRIX_MAX_DEPTH || env.SSI_FIXTURE_MATRIX_MAX_DEPTH,
+    // Lane/tag selection from the manifest classification: run a single class lane
+    // and/or only fixtures carrying a given manifest tag.
+    fixtureClass: benchEnv.SSI_FIXTURE_MATRIX_CLASS || env.SSI_FIXTURE_MATRIX_CLASS,
+    tag: benchEnv.SSI_FIXTURE_MATRIX_TAG || env.SSI_FIXTURE_MATRIX_TAG,
     artifactRoot: benchEnv.SSI_FIXTURE_MATRIX_ARTIFACT_ROOT || env.SSI_FIXTURE_MATRIX_ARTIFACT_ROOT,
     blocksEnginePhpTransformerPath: benchEnv.SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH || env.SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH,
     wordpressVersion: benchEnv.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION || env.SSI_FIXTURE_MATRIX_WORDPRESS_VERSION,

@@ -74,7 +74,6 @@ export function normalizeDiagnosticFinding(diagnostic, result, index) {
     severity: raw.severity || (result.status === 'failed' ? 'error' : 'warning'),
     fixture_id: result.fixture_id || '',
     fixture_class: result.fixture_class || result.taxonomy?.fixture_class || 'unknown',
-    product_class: result.product_class || result.taxonomy?.product_class || result.fixture_class || 'unknown',
     path: sourcePath,
     source_path: sourcePath,
     selector,

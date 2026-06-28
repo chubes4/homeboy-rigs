@@ -132,17 +132,20 @@ function applyFixtureQualityGate(result, findings) {
 function attachFixtureTaxonomy(result, fixture) {
   const taxonomy = fixture.taxonomy || classifyFixture(fixture);
   const fixtureClass = normalizeFixtureClass(result.fixture_class) !== 'unknown' ? normalizeFixtureClass(result.fixture_class) : taxonomy.fixture_class;
-  const productClass = normalizeFixtureClass(result.product_class) !== 'unknown' ? normalizeFixtureClass(result.product_class) : taxonomy.product_class;
+  const tags = result.tags?.length ? result.tags : (fixture.tags || []);
+  const complexity = result.complexity ?? fixture.complexity ?? null;
   return {
     ...result,
     fixture_path: result.fixture_path || fixture.fixture_path,
     fixture_class: fixtureClass,
-    product_class: productClass,
+    tags,
+    complexity,
     taxonomy: {
       ...taxonomy,
       ...result.taxonomy,
       fixture_class: fixtureClass,
-      product_class: productClass,
+      tags,
+      complexity,
     },
   };
 }
@@ -157,8 +160,9 @@ export function normalizeFixtureResult(input) {
   return {
     fixture_id: input.fixture_id || input.fixtureId || input.id || '',
     fixture_path: input.fixture_path || input.fixturePath || input.path || '',
-    fixture_class: normalizeFixtureClass(input.fixture_class || input.fixtureClass || input.product_class || input.productClass || input.taxonomy?.fixture_class) || 'unknown',
-    product_class: normalizeFixtureClass(input.product_class || input.productClass || input.fixture_class || input.fixtureClass || input.taxonomy?.product_class) || 'unknown',
+    fixture_class: normalizeFixtureClass(input.fixture_class || input.fixtureClass || input.taxonomy?.fixture_class) || 'unknown',
+    tags: normalizeArray(input.tags ?? input.taxonomy?.tags).map((tag) => String(tag || '').trim()).filter(Boolean),
+    complexity: input.complexity ?? input.taxonomy?.complexity ?? null,
     taxonomy: input.taxonomy || {},
     status,
     success: status === 'passed',

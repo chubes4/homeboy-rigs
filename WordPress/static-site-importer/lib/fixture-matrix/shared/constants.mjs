@@ -159,6 +159,12 @@ export const RUNTIME_CARRIED_SIGNAL_KEYS = [
   'runtimeMapping',
 ];
 
+// Canonical fixture-class vocabulary. A per-fixture `fixture.json` manifest is the
+// SOLE source of truth for a fixture's class — see the manifest schema below. The
+// manifest's `class` MUST be one of these values verbatim; anything else (or a
+// missing manifest) resolves to `unknown` with a loud warning rather than a
+// guess. Keep this vocabulary stable: fixtures (owned by blocks-engine) author
+// manifests against exactly these strings.
 export const FIXTURE_CLASSES = [
   'marketing/static',
   'docs/blog',
@@ -168,35 +174,19 @@ export const FIXTURE_CLASSES = [
   'unknown',
 ];
 
-export const FIXTURE_CLASS_RULES = [
-  {
-    key: 'canvas/webgl/audio/runtime-heavy',
-    patterns: [/\b(canvas|webgl|shader|three\.js|threejs|babylon|p5\.js|audio|webaudio|oscillator|animation|runtime target|runtime_dependency)\b/i],
-  },
-  {
-    key: 'ecommerce/catalog',
-    patterns: [/\b(ecommerce|e-commerce|commerce|catalog|product|products|shop|store|cart|checkout|price|sku|woocommerce|add to cart)\b/i],
-  },
-  {
-    key: 'app/dashboard',
-    patterns: [/\b(app|dashboard|admin|account|login|settings|analytics|chart|table|kanban|calendar|portal|workspace)\b/i],
-  },
-  {
-    key: 'docs/blog',
-    patterns: [/\b(docs|documentation|guide|manual|reference|blog|post|article|news|changelog|tutorial|markdown)\b/i],
-  },
-  {
-    key: 'marketing/static',
-    patterns: [/\b(marketing|landing|homepage|hero|pricing|feature|features|about|contact|portfolio|agency|brochure|static|simple site)\b/i],
-  },
-];
-
-export const FIXTURE_DIRECTORY_CLASSES = {
-  'marketing-static': 'marketing/static',
-  'docs-blog': 'docs/blog',
-  'ecommerce-catalog': 'ecommerce/catalog',
-  'app-dashboard': 'app/dashboard',
-  'runtime-heavy': 'canvas/webgl/audio/runtime-heavy',
-  'canvas-webgl-audio': 'canvas/webgl/audio/runtime-heavy',
-  'edge-cases': 'unknown',
-};
+// Per-fixture manifest schema (`<fixture-dir>/fixture.json`):
+//
+//   {
+//     "class": "marketing/static",            // REQUIRED. One of FIXTURE_CLASSES, verbatim.
+//     "tags": ["restaurant", "has-form"],     // optional. Free-form string array for lane/tag querying.
+//     "complexity": 1                         // optional. Integer 1-5.
+//   }
+//
+// The manifest is authored in each fixture directory and owned by blocks-engine
+// (the corpus repo). The fixture matrix reads it at load time; class resolution
+// is manifest-only (no heuristic fallback). `tags` and `complexity` are carried
+// through onto each fixture, the per-fixture result, and the result summary so
+// runs can be filtered/queried by lane (class) and tag.
+export const FIXTURE_MANIFEST_FILENAME = 'fixture.json';
+export const FIXTURE_COMPLEXITY_MIN = 1;
+export const FIXTURE_COMPLEXITY_MAX = 5;
