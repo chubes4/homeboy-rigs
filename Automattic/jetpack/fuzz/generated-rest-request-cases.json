@@ -10,7 +10,7 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/bench/generated-rest-request-cases.workload.json",
+    "workload_path": "${package.root}/bench/generated-rest-request-cases.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
@@ -28,8 +28,8 @@
     }
   },
   "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
-  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/generated-rest-request-cases.workload.json", "entry": "generated-rest-request-cases" },
-  "cases": [{ "case_id": "generated-rest-request-cases:default", "surface_ids": ["jetpack-rest-routes"], "operations": ["generated-rest-case-plan", "request-case-execution"], "inputs": { "methods": ["GET"], "personas": ["anonymous", "administrator", "connected-site-placeholder"], "skip_reason_codes": ["connected_required", "credential_unavailable", "route_absent", "wpcom_dependent"], "real_wpcom_credentials_allowed": false, "mutating_methods_allowed": false }, "phases": { "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }], "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/generated-rest-request-cases.workload.json", "type=json"] }], "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_request_cases"] }, { "command": "wordpress.collect-workload-result", "args": ["artifact=rest_skip_reasons"] }] }, "artifacts": [{ "name": "rest_request_cases", "path": "generated-rest-request-cases/rest_request_cases.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }, { "name": "rest_skip_reasons", "path": "generated-rest-request-cases/rest_skip_reasons.json", "required": true, "metadata": { "semantic_key": "fuzz.skip_reasons" } }], "metadata": { "safety_class": "read_only" } }],
+  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/generated-rest-request-cases.php", "entry": "generated-rest-request-cases" },
+  "cases": [{ "case_id": "generated-rest-request-cases:default", "surface_ids": ["jetpack-rest-routes"], "operations": ["generated-rest-case-plan", "request-case-execution"], "inputs": { "methods": ["GET"], "personas": ["anonymous", "administrator", "connected-site-placeholder"], "skip_reason_codes": ["connected_required", "credential_unavailable", "route_absent", "wpcom_dependent"], "real_wpcom_credentials_allowed": false, "mutating_methods_allowed": false }, "artifacts": [{ "name": "rest_request_cases", "path": "generated-rest-request-cases/rest_request_cases.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }, { "name": "rest_skip_reasons", "path": "generated-rest-request-cases/rest_skip_reasons.json", "required": true, "metadata": { "semantic_key": "fuzz.skip_reasons" } }], "metadata": { "safety_class": "read_only" }, "intent": { "schema": "homeboy/fuzz-workload-intent/v1", "type": "wordpress-plugin-workload", "plugin": { "activation": "jetpack/jetpack.php" }, "execute": { "workload_ref": "default", "path": "${package.root}/bench/generated-rest-request-cases.php", "type": "php", "entry": "generated-rest-request-cases" }, "collect": [{ "artifact": "rest_request_cases" }, { "artifact": "rest_skip_reasons" }] } }],
   "limits": { "max_cases": 80, "max_duration_seconds": 600 },
   "coverage": { "surface_ids": ["jetpack-rest-routes"], "operations": ["generated-rest-case-plan", "request-case-execution"] },
   "artifacts": { "expected": [{ "name": "rest_request_cases", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true }, { "name": "rest_skip_reasons", "role": "skip_reason_report", "semantic_key": "fuzz.skip_reasons", "required": true }] }

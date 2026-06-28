@@ -5,6 +5,7 @@
     "jetpack": {
       "component_id": "jetpack",
       "default_ref": "origin/trunk",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__JETPACK_API_ROUTE_INVENTORY__JETPACK}",
       "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__JETPACK_API_ROUTE_INVENTORY__JETPACK",
       "checkout_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__JETPACK_API_ROUTE_INVENTORY__JETPACK}",
       "branch": "trunk",

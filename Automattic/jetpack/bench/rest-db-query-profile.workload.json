@@ -8,10 +8,9 @@
       "sampleLimit": 50,
       "queryLengthLimit": 500,
       "rest_request_cases": [
-        { "id": "jetpack-site", "method": "GET", "path": "/jetpack/v4/site", "permission_class": "authenticated_local" },
-        { "id": "jetpack-modules", "method": "GET", "path": "/jetpack/v4/modules", "permission_class": "authenticated_local" },
-        { "id": "jetpack-module-stats", "method": "GET", "path": "/jetpack/v4/modules/stats", "permission_class": "authenticated_local" },
-        { "id": "jetpack-settings", "method": "GET", "path": "/jetpack/v4/settings", "permission_class": "administrator_required" },
+        { "id": "jetpack-namespace-root", "method": "GET", "path": "/jetpack/v4", "permission_class": "public_route_index" },
+        { "id": "jetpack-options-backup", "method": "GET", "path": "/jetpack/v4/options/backup", "permission_class": "site_token_or_boundary_denial", "params": { "name": "siteurl" } },
+        { "id": "jetpack-database-object-backup", "method": "GET", "path": "/jetpack/v4/database-object/backup", "permission_class": "site_token_or_boundary_denial", "params": { "object_type": "woocommerce_attribute", "object_id": 1 } },
         { "id": "jetpack-connection", "method": "GET", "path": "/jetpack/v4/connection", "permission_class": "connected_site_required" },
         { "id": "wpcom-publicize-services", "method": "GET", "path": "/wpcom/v2/publicize/services", "permission_class": "public_read_or_wpcom_dependent" }
       ]
