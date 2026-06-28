@@ -17,6 +17,7 @@ import {
   buildFixtureMatrixRunPlan,
   CANONICAL_FIXTURE_COUNT,
   resolvePathFreshness,
+  summarizeBenchRun,
   summarizeRun,
 } from './run-fixture-matrix.mjs';
 import {
@@ -1039,6 +1040,90 @@ test('operator summary preserves matrix rollups for fanout agents', () => {
   assert.equal(summary.top_pattern_families[0].count, 312);
   assert.equal(summary.fixture_exemplars[0].fixture_id, 'shader-site');
   assert.equal(summary.diagnostic_blind_spots[0].kind, 'missing_source_context');
+});
+
+test('summarizeBenchRun emits the operator summary on a gate-FAIL instead of throwing', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-bench-gate-fail-'));
+  const outputFile = path.join(root, 'homeboy-bench.json');
+  writeFileSync(outputFile, JSON.stringify({
+    run_id: 'ssi-live-2',
+    result_summary: {
+      succeeded: 0,
+      failed: 2,
+      finding_count: 22,
+      groups: { runtime_target_gap: 18, dropped_images: 4 },
+    },
+    artifacts: { run: 'homeboy-runs:ssi-live-2', report: 'https://example.test/report.json' },
+  }));
+
+  const plan = {
+    mode: 'development-override',
+    run_id: 'planned-run',
+    fixture_count: 2,
+    output_file: outputFile,
+  };
+
+  // The bench exited non-zero (gate-FAIL) but wrote a valid result payload.
+  let result;
+  assert.doesNotThrow(() => {
+    result = summarizeBenchRun({ plan, benchStatus: 1, benchLabel: 'Run SSI fixture matrix bench' });
+  });
+
+  assert.equal(result.gateFailed, true);
+  assert.equal(result.summary.status, 'failed');
+  assert.equal(result.summary.run_id, 'ssi-live-2');
+  assert.equal(result.summary.passed_fixture_count, 0);
+  assert.equal(result.summary.failed_fixture_count, 2);
+  assert.equal(result.summary.finding_count, 22);
+  assert.deepEqual(result.summary.top_buckets[0], { key: 'runtime_target_gap', count: 18 });
+  assert.deepEqual(result.summary.artifact_urls, ['homeboy-runs:ssi-live-2', 'https://example.test/report.json']);
+});
+
+test('summarizeBenchRun reports a clean pass when the bench exits zero', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-bench-pass-'));
+  const outputFile = path.join(root, 'homeboy-bench.json');
+  writeFileSync(outputFile, JSON.stringify({
+    run_id: 'ssi-pass',
+    result_summary: { succeeded: 2, failed: 0, finding_count: 0 },
+  }));
+
+  const result = summarizeBenchRun({
+    plan: { mode: 'release-proof', run_id: 'planned-run', fixture_count: 2, output_file: outputFile },
+    benchStatus: 0,
+    benchLabel: 'Run SSI fixture matrix bench',
+  });
+
+  assert.equal(result.gateFailed, false);
+  assert.equal(result.summary.status, 'passed');
+  assert.equal(result.summary.passed_fixture_count, 2);
+  assert.equal(result.summary.failed_fixture_count, 0);
+});
+
+test('summarizeBenchRun still throws when a non-zero bench produced no parseable result', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-bench-crash-'));
+  const missingOutput = path.join(root, 'never-written.json');
+
+  // No output file at all -> genuine crash, keep throwing.
+  assert.throws(
+    () => summarizeBenchRun({
+      plan: { mode: 'development-override', run_id: 'planned-run', output_file: missingOutput },
+      benchStatus: 1,
+      benchLabel: 'Run SSI fixture matrix bench',
+    }),
+    /Run SSI fixture matrix bench failed with exit 1/,
+  );
+
+  // Output exists but is unparseable / carries no result payload -> still a crash.
+  const garbageOutput = path.join(root, 'garbage.json');
+  writeFileSync(garbageOutput, 'not json at all');
+  assert.throws(
+    () => summarizeBenchRun({
+      plan: { mode: 'development-override', run_id: 'planned-run', output_file: garbageOutput },
+      benchStatus: 1,
+      benchLabel: 'Run SSI fixture matrix bench',
+    }),
+    /failed with exit 1/,
+  );
 });
 
 test('mapWithConcurrency runs bounded N in parallel and preserves input ordering', async () => {
