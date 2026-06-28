@@ -28,8 +28,11 @@ import {
   buildFixtureMatrixRecipe,
   classifyFixture,
   classifyStaticSiteFinding,
+  collectBlockComposition,
   collectEditorValidationDiagnostics,
   collectFixtureMatrixRunResults,
+  computeFixtureEditorQuality,
+  parseSerializedBlockNames,
   collectVisualParityDiagnostics,
   createFixtureMatrix,
   editorBlockValidationStep,
@@ -1416,6 +1419,117 @@ test('scores editor-quality metrics from generic block composition and rolls the
   // Per-class rollup carries the same generic metric.
   assert.equal(result.summary.quality_budgets['docs/blog'].editor_quality.native_conversion_rate, 0.6);
   assert.equal(result.summary.classes['marketing/static'].editor_quality.native_conversion_rate, 0.8);
+});
+
+test('parseSerializedBlockNames extracts wp: block names and normalizes core blocks', () => {
+  const markup = [
+    '<!-- wp:heading -->\n<h2>Title</h2>\n<!-- /wp:heading -->',
+    '<!-- wp:paragraph -->\n<p>Body</p>\n<!-- /wp:paragraph -->',
+    '<!-- wp:jetpack/contact-form {"subject":"x"} -->...<!-- /wp:jetpack/contact-form -->',
+    '<!-- wp:spacer {"height":"20px"} /-->',
+    '<!-- wp:html -->\n<svg></svg>\n<!-- /wp:html -->',
+  ].join('\n');
+
+  assert.deepEqual(parseSerializedBlockNames(markup), [
+    'core/heading',
+    'core/paragraph',
+    'jetpack/contact-form',
+    'core/spacer',
+    'core/html',
+  ]);
+  // Closing comments and non-block content never count, and non-strings are safe.
+  assert.deepEqual(parseSerializedBlockNames('<p>no blocks here</p>'), []);
+  assert.deepEqual(parseSerializedBlockNames(null), []);
+});
+
+test('collectBlockComposition computes native rate from serialized post_content (7 native + 3 core/html => 0.7 / 0.3)', () => {
+  const native = [
+    '<!-- wp:heading -->\n<h2>H</h2>\n<!-- /wp:heading -->',
+    '<!-- wp:paragraph -->\n<p>A</p>\n<!-- /wp:paragraph -->',
+    '<!-- wp:paragraph -->\n<p>B</p>\n<!-- /wp:paragraph -->',
+    '<!-- wp:list -->\n<ul><li>x</li></ul>\n<!-- /wp:list -->',
+    '<!-- wp:image {"id":1} -->\n<figure></figure>\n<!-- /wp:image -->',
+    '<!-- wp:jetpack/contact-form -->...<!-- /wp:jetpack/contact-form -->',
+    '<!-- wp:woocommerce/product-collection -->...<!-- /wp:woocommerce/product-collection -->',
+  ];
+  const coreHtml = [
+    '<!-- wp:html -->\n<svg></svg>\n<!-- /wp:html -->',
+    '<!-- wp:html -->\n<canvas></canvas>\n<!-- /wp:html -->',
+    '<!-- wp:html -->\n<audio></audio>\n<!-- /wp:html -->',
+  ];
+  const composition = collectBlockComposition({ post_content: [...native, ...coreHtml].join('\n') });
+
+  assert.equal(composition.source, 'serialized_blocks');
+  assert.equal(composition.block_total, 10);
+  assert.equal(composition.native_block_count, 7);
+  assert.equal(composition.core_html_block_count, 3);
+
+  // The same composition drives the per-fixture editor-quality score.
+  const editorQuality = computeFixtureEditorQuality({ fixture_id: 'serialized', block_composition: composition }, []);
+  assert.equal(editorQuality.scored, true);
+  assert.equal(editorQuality.native_conversion_rate, 0.7);
+  assert.equal(editorQuality.core_html_fallback_ratio, 0.3);
+});
+
+test('collectBlockComposition derives the rate from SSI import-report block_documents on live runs', () => {
+  // Shape that real Lab/WP Codebox runs emit: SSI records each materialized page's
+  // total block_count plus its core/html + freeform fallback counts. No explicit
+  // block_type_counts map is present, which is why the metric used to stay unscored.
+  const payload = {
+    import_report: {
+      materialized_content: {
+        block_documents: [
+          { source_path: 'posts/page-home.post_content', block_count: 5, core_html_block_count: 1, freeform_block_count: 0 },
+          { source_path: 'posts/page-faq.post_content', block_count: 5, core_html_block_count: 2, freeform_block_count: 0 },
+        ],
+      },
+      // Generated-theme duplicates the materialized pages; must not be double counted.
+      generated_theme: {
+        block_documents: [
+          { source_path: 'posts/page-home.post_content', block_count: 5, core_html_block_count: 1, freeform_block_count: 0 },
+          { source_path: 'posts/page-faq.post_content', block_count: 5, core_html_block_count: 2, freeform_block_count: 0 },
+        ],
+      },
+    },
+  };
+  const composition = collectBlockComposition(payload);
+
+  assert.equal(composition.source, 'block_documents');
+  assert.equal(composition.block_total, 10);
+  assert.equal(composition.core_html_block_count, 3);
+  // native = total - core/html - freeform = 10 - 3 - 0 = 7.
+  assert.equal(composition.native_block_count, 7);
+});
+
+test('native_conversion_rate populates end-to-end from an import-report block_documents payload', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'native-rate-live-run-test' });
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'passed',
+        import_report: {
+          materialized_content: {
+            block_documents: [
+              // 10 total blocks, 3 of them core/html => 7 native => 0.7 native rate.
+              { source_path: 'posts/page-home.post_content', block_count: 10, core_html_block_count: 3, freeform_block_count: 0 },
+            ],
+          },
+        },
+      },
+    ],
+  });
+
+  const fixture = result.fixtures.find((row) => row.fixture_id === 'simple-site');
+  assert.equal(fixture.editor_quality.scored, true);
+  assert.equal(fixture.editor_quality.source, 'block_documents');
+  assert.equal(fixture.editor_quality.native_conversion_rate, 0.7);
+  assert.equal(fixture.editor_quality.core_html_fallback_ratio, 0.3);
+  // The aggregate now carries a real native rate instead of a 0/0 null.
+  assert.equal(result.summary.editor_quality.native_conversion_rate, 0.7);
+  assert.equal(result.summary.editor_quality.core_html_fallback_ratio, 0.3);
+  assert.equal(result.summary.editor_quality.scored_fixture_count, 1);
 });
 
 test('opt-in native-rate gate fails low-native fixtures while editor_invalid_count reuses #537 findings', () => {

@@ -47,7 +47,13 @@ export { collectFixtureMatrixRunResults } from './fixture-matrix/collectors/run-
 
 export { classifyStaticSiteFinding, normalizeLossClass } from './fixture-matrix/findings.mjs';
 
-export { collectBlockComposition } from './fixture-matrix/collectors/quality-metrics.mjs';
+export {
+  collectBlockComposition,
+  collectBlockCompositionFromBlockDocuments,
+  collectBlockCompositionFromSerializedBlocks,
+  computeFixtureEditorQuality,
+  parseSerializedBlockNames,
+} from './fixture-matrix/collectors/quality-metrics.mjs';
 
 export { collectEditorValidationDiagnostics } from './fixture-matrix/collectors/editor-validation.mjs';
 
