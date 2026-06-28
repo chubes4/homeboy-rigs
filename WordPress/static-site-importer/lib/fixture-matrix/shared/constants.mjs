@@ -11,14 +11,21 @@ export const DEFAULT_ENTRYPOINT = 'website/index.html';
 export const DEFAULT_IMPORTER_SLUG = 'static-site-importer';
 
 // Editor-side block validity (JS save-comparison) wiring. The imported post is
-// opened in a real block editor inside the same WP Codebox sandbox the matrix
-// already spins up, then probed for invalid-block warnings. This mirrors the
-// `wp.blocks.validateBlock` pass in
-// `Automattic/studio/bench/studio-agent-site-build.bench.mjs`, but reuses the
-// existing `wordpress.editor-canvas-probe` recipe command rather than rebuilding
-// a validator. The editor renders `.block-editor-warning` /
-// `is-invalid` for blocks whose stored markup no longer matches the block
-// type's `save()` output ("This block contains unexpected or invalid content").
+// validated with the real block editor's `wp.blocks.validateBlock` pass inside
+// the same WP Codebox sandbox the matrix already spins up, via the
+// `wordpress.editor-validate-blocks` command (wp-codebox #1597). That command
+// emits a per-block `{ name, isValid, issues }` result set (schema
+// `wp-codebox/editor-validate-blocks/v1`) plus `total_blocks`/`valid_blocks`/
+// `invalid_blocks` and `validation_method: 'wp.blocks.validateBlock'`, which is
+// the authoritative editor-validity signal for whether stored markup still
+// matches each block type's `save()` output. `collectEditorValidation` /
+// `collectEditorValidationDiagnostics` read that shape back out.
+//
+// The legacy `wordpress.editor-canvas-probe` selector shape
+// (`.block-editor-warning` / `is-invalid` DOM warnings) is still parsed for
+// backward compatibility with older artifacts, but it is no longer produced by
+// the recipe — the canvas probe opened an EMPTY `post-new.php` and never
+// validated imported content.
 export const EDITOR_BLOCK_INVALID_KIND = 'editor_block_invalid';
 export const EDITOR_INVALID_BLOCK_SELECTOR_GROUP = 'editor_block_invalid';
 export const EDITOR_INVALID_BLOCK_SELECTORS = [
@@ -26,6 +33,19 @@ export const EDITOR_INVALID_BLOCK_SELECTORS = [
   '.block-editor-block-list__block.is-invalid',
   '.wp-block[data-block].is-invalid',
 ];
+// The real `wp.blocks.validateBlock` editor-validation command and its output
+// schema/method/provider. The recipe invokes the command against imported
+// content; the collector keys off the schema/method to read the result set.
+export const EDITOR_VALIDATE_BLOCKS_COMMAND = 'wordpress.editor-validate-blocks';
+export const EDITOR_VALIDATE_BLOCKS_SCHEMA = 'wp-codebox/editor-validate-blocks/v1';
+export const EDITOR_VALIDATION_METHOD = 'wp.blocks.validateBlock';
+export const EDITOR_VALIDATION_PROVIDER = 'wordpress-block-editor';
+// When no explicit per-fixture content/post target is available, the command
+// opens the most recently imported post of this type so it validates REAL
+// imported content rather than an empty editor. SSI materializes pages.
+export const DEFAULT_EDITOR_VALIDATION_POST_TYPE = 'page';
+// Legacy empty-post canvas-probe URL. Retained only so callers that still pass
+// an explicit editor URL keep working; the recipe no longer defaults to it.
 export const DEFAULT_EDITOR_VALIDATION_URL = '/wp-admin/post-new.php';
 export const EDITOR_BLOCK_INVALID_DEFAULT_DETAIL = 'This block contains unexpected or invalid content';
 

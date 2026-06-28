@@ -30,6 +30,7 @@ import {
   classifyStaticSiteFinding,
   collectBlockComposition,
   collectEditorValidationDiagnostics,
+  collectEditorValidation,
   collectFixtureMatrixRunResults,
   computeFixtureEditorQuality,
   parseSerializedBlockNames,
@@ -37,6 +38,8 @@ import {
   createFixtureMatrix,
   editorBlockValidationStep,
   EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
+  EDITOR_VALIDATE_BLOCKS_COMMAND,
+  EDITOR_VALIDATION_METHOD,
   normalizeFixtureMatrixResult,
   normalizeLossClass,
   VISUAL_PARITY_MISMATCH_KIND,
@@ -1517,7 +1520,7 @@ test('compares finding packet deltas by repair dimensions', () => {
   assert.equal(selectorFamily('#hero .cta'), 'id:hero');
 });
 
-test('recipe runs an editor-canvas-probe editor-validation step after each import', () => {
+test('recipe runs a wp.blocks.validateBlock editor-validation step on imported content after each import', () => {
   const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-validation-recipe-test' });
   const recipe = buildFixtureMatrixRecipe({
     matrix,
@@ -1529,12 +1532,13 @@ test('recipe runs an editor-canvas-probe editor-validation step after each impor
   assert.equal(recipe.workflow.steps[1].command, 'wordpress.wp-cli');
   assert.match(recipe.workflow.steps[1].args[0], /static-site-importer validate-artifact/);
   const editorStep = recipe.workflow.steps[2];
-  assert.equal(editorStep.command, 'wordpress.editor-canvas-probe');
-  assert.ok(editorStep.args.some((arg) => arg.startsWith('url=')));
-  const selectorGroupsArg = editorStep.args.find((arg) => arg.startsWith('selector-groups-json='));
-  const selectorGroups = JSON.parse(selectorGroupsArg.slice('selector-groups-json='.length));
-  assert.equal(selectorGroups[0].name, EDITOR_INVALID_BLOCK_SELECTOR_GROUP);
-  assert.ok(selectorGroups[0].selectors.includes('.block-editor-warning'));
+  // The real validateBlock command, NOT the empty-post canvas probe.
+  assert.equal(editorStep.command, EDITOR_VALIDATE_BLOCKS_COMMAND);
+  assert.equal(editorStep.command, 'wordpress.editor-validate-blocks');
+  // No empty-post `post-new.php` URL: it validates imported content (the most
+  // recently imported post of the default type) rather than a blank editor.
+  assert.equal(editorStep.args.some((arg) => arg.includes('post-new.php')), false);
+  assert.ok(editorStep.args.includes('post-type=page'));
 
   const disabled = buildFixtureMatrixRecipe({
     matrix,
@@ -1542,13 +1546,32 @@ test('recipe runs an editor-canvas-probe editor-validation step after each impor
     staticSiteImporterPath: '/tmp/static-site-importer',
     editorValidation: false,
   });
-  assert.equal(disabled.workflow.steps.some((step) => step.command === 'wordpress.editor-canvas-probe'), false);
+  assert.equal(disabled.workflow.steps.some((step) => step.command === EDITOR_VALIDATE_BLOCKS_COMMAND), false);
 });
 
-test('editorBlockValidationStep composes the existing editor-canvas-probe command', () => {
-  const step = editorBlockValidationStep({ fixture: { id: 'shop', editor_url: '/wp-admin/post.php?post=42&action=edit' } });
-  assert.equal(step.command, 'wordpress.editor-canvas-probe');
-  assert.ok(step.args.includes('url=/wp-admin/post.php?post=42&action=edit'));
+test('editorBlockValidationStep invokes editor-validate-blocks against the most concrete imported target', () => {
+  // Defaults to opening the most recently imported post by type — real content.
+  const fallback = editorBlockValidationStep({ fixture: { id: 'simple' } });
+  assert.equal(fallback.command, 'wordpress.editor-validate-blocks');
+  assert.deepEqual(fallback.args, ['post-type=page']);
+
+  // An explicit editor URL (e.g. post.php?post=<id>&action=edit) is honored.
+  const byUrl = editorBlockValidationStep({ fixture: { id: 'shop', editor_url: '/wp-admin/post.php?post=42&action=edit' } });
+  assert.equal(byUrl.command, 'wordpress.editor-validate-blocks');
+  assert.ok(byUrl.args.includes('url=/wp-admin/post.php?post=42&action=edit'));
+
+  // An imported post id is preferred over a URL.
+  const byPostId = editorBlockValidationStep({ fixture: { id: 'shop', post_id: 99 } });
+  assert.ok(byPostId.args.includes('post-id=99'));
+
+  // Inline imported content wins over everything else, plus wait passthrough.
+  const byContent = editorBlockValidationStep({
+    content: '<!-- wp:paragraph --><p>Hi</p><!-- /wp:paragraph -->',
+    fixture: { id: 'shop', post_id: 99, editor_wait_selector: '.is-root-container' },
+  });
+  assert.ok(byContent.args.includes('content=<!-- wp:paragraph --><p>Hi</p><!-- /wp:paragraph -->'));
+  assert.ok(byContent.args.includes('wait-selector=.is-root-container'));
+  assert.equal(byContent.args.some((arg) => arg.startsWith('post-id=')), false);
 });
 
 test('editor-canvas-probe invalid-block warnings become gating editor_block_invalid findings', () => {
@@ -1675,6 +1698,103 @@ test('editor_block_invalid findings collected from fixture artifacts gate the ma
   assert.ok(finding, 'expected an editor_block_invalid finding from the canvas-probe artifact');
   assert.equal(finding.loss_acceptance, 'unacceptable');
   assert.equal(result.fixtures[0].status, 'failed');
+});
+
+const ALL_VALID_EDITOR_VALIDATE_BLOCKS = {
+  schema: 'wp-codebox/editor-validate-blocks/v1',
+  validation_method: 'wp.blocks.validateBlock',
+  validation_provider: 'wordpress-block-editor',
+  total_blocks: 3,
+  valid_blocks: 3,
+  invalid_blocks: 0,
+  results: [
+    { name: 'core/heading', isValid: true, issues: [] },
+    { name: 'core/paragraph', isValid: true, issues: [] },
+    { name: 'core/image', isValid: true, issues: [] },
+  ],
+};
+
+test('collectEditorValidation reads the editor-validate-blocks shape into headline metrics', () => {
+  const metrics = collectEditorValidation(ALL_VALID_EDITOR_VALIDATE_BLOCKS);
+  assert.equal(metrics.validation_method, 'wp.blocks.validateBlock');
+  assert.equal(metrics.validation_provider, 'wordpress-block-editor');
+  assert.equal(metrics.total_blocks, 3);
+  assert.equal(metrics.valid_blocks, 3);
+  assert.equal(metrics.invalid_blocks, 0);
+  assert.equal(collectEditorValidation({ unrelated: true }), null);
+});
+
+test('editor-validate-blocks all-valid output reports a 1.0 valid-block rate with zero invalid and no findings', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-editor-validate-valid-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-validate-valid-test' });
+  const fixtureDirectory = path.join(outputDirectory, 'simple-site');
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(
+    path.join(fixtureDirectory, 'editor-validate-blocks.json'),
+    JSON.stringify({ fixture_id: 'simple-site', success: true, ...ALL_VALID_EDITOR_VALIDATE_BLOCKS }),
+  );
+
+  const result = collectFixtureMatrixRunResults({ matrix, outputDirectory });
+  const fixture = result.fixtures[0];
+
+  assert.equal(fixture.editor_quality.editor_validated, true);
+  assert.equal(fixture.editor_quality.validation_method, EDITOR_VALIDATION_METHOD);
+  assert.equal(fixture.editor_quality.validation_method, 'wp.blocks.validateBlock');
+  assert.equal(fixture.editor_quality.editor_valid_block_rate, 1);
+  assert.equal(fixture.editor_quality.invalid_block_count, 0);
+  assert.equal(result.findings.some((finding) => finding.kind === 'editor_block_invalid'), false);
+
+  // Summary-level editor-quality surfaces the real validity, distinct from PHP.
+  assert.equal(result.summary.editor_quality.validation_method, 'wp.blocks.validateBlock');
+  assert.equal(result.summary.editor_quality.editor_valid_block_rate, 1);
+  assert.equal(result.summary.editor_quality.invalid_block_count, 0);
+  assert.equal(result.summary.editor_quality.editor_validated_fixture_count, 1);
+  assert.equal(fixture.status, 'passed');
+});
+
+test('editor-validate-blocks invalid block is counted and surfaced as a gating finding with name and reason', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-editor-validate-invalid-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'editor-validate-invalid-test' });
+  const fixtureDirectory = path.join(outputDirectory, 'simple-site');
+  mkdirSync(fixtureDirectory, { recursive: true });
+  writeFileSync(
+    path.join(fixtureDirectory, 'editor-validate-blocks.json'),
+    JSON.stringify({
+      fixture_id: 'simple-site',
+      success: false,
+      schema: 'wp-codebox/editor-validate-blocks/v1',
+      validation_method: 'wp.blocks.validateBlock',
+      validation_provider: 'wordpress-block-editor',
+      total_blocks: 3,
+      valid_blocks: 2,
+      invalid_blocks: 1,
+      results: [
+        { name: 'core/heading', isValid: true, issues: [] },
+        { name: 'core/columns', isValid: false, issues: ['Block validation failed for "core/columns": content mismatch'] },
+        { name: 'core/paragraph', isValid: true, issues: [] },
+      ],
+    }),
+  );
+
+  const result = collectFixtureMatrixRunResults({ matrix, outputDirectory });
+  const fixture = result.fixtures[0];
+
+  // Real editor-validity: 2/3 valid, one invalid.
+  assert.equal(fixture.editor_quality.validation_method, 'wp.blocks.validateBlock');
+  assert.equal(fixture.editor_quality.invalid_block_count, 1);
+  assert.equal(fixture.editor_quality.editor_valid_block_rate, 0.6667);
+  assert.equal(result.summary.editor_quality.invalid_block_count, 1);
+  assert.equal(result.summary.editor_quality.editor_valid_block_rate, 0.6667);
+
+  // The invalid block flows into a gating editor_block_invalid finding carrying
+  // the block name and the validateBlock issue reason.
+  const finding = result.findings.find((item) => item.kind === 'editor_block_invalid');
+  assert.ok(finding, 'expected an editor_block_invalid finding for the invalid block');
+  assert.equal(finding.observed_block_name, 'core/columns');
+  assert.match(finding.reason, /core\/columns/);
+  assert.match(finding.reason, /content mismatch/);
+  assert.equal(finding.loss_acceptance, 'unacceptable');
+  assert.equal(fixture.status, 'failed');
 });
 
 test('scores editor-quality metrics from generic block composition and rolls them up', () => {
