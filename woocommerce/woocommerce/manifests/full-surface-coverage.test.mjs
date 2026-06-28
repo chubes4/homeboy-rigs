@@ -26,6 +26,8 @@ const generatedRestCases = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/
 const codeboxFuzzSuiteWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/codebox-fuzz-suite-contract.json'), 'utf8'));
 const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/codebox-fuzz-suite-contract.json'), 'utf8'));
 const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
+const aggressiveIsolatedCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json'), 'utf8'));
+const aggressiveDestructiveWorkloads = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-destructive-workloads.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
 const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
@@ -217,4 +219,108 @@ test('DB/API campaign consumes the declared Codebox fixture contract without pro
   assert.equal(codeboxFuzzSuiteWorkload.metadata.fixture.suite_manifest, '${package.root}/manifests/codebox-fuzz-suite-contract.json');
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle, undefined);
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle_requirements.status, 'required_before_proven');
+});
+
+test('aggressive destructive Woo workloads declare isolation, rollback, dynamic IDs, and side-effect policy gates', () => {
+  assert.equal(
+    aggressiveIsolatedCampaign.fixture_sources.aggressive_destructive_workloads,
+    'manifests/aggressive-destructive-workloads.json'
+  );
+  assert.equal(aggressiveDestructiveWorkloads.execution_scope, 'offloaded_codebox_homeboy_hbex_isolated_sandbox');
+  assert.equal(aggressiveDestructiveWorkloads.local_execution_enabled, false);
+  assert.equal(aggressiveDestructiveWorkloads.destructive_full_coverage_proven, false);
+  assert.equal(aggressiveDestructiveWorkloads.readiness.proof_bundle_requirements.status, 'required_before_proven');
+  assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.scope, 'fixture_owned_only');
+  assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.placeholder_ids_allowed, false);
+  assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.foreign_ids_allowed, false);
+
+  const requiredWorkloadIds = new Set([
+    'product-variation-destructive-lifecycle',
+    'order-refund-destructive-lifecycle',
+    'coupon-customer-destructive-lifecycle',
+    'stock-inventory-destructive-lifecycle',
+    'cart-checkout-session-destructive-lifecycle',
+    'hpos-order-table-destructive-lifecycle',
+    'action-scheduler-destructive-lifecycle',
+  ]);
+  assert.deepEqual(new Set(aggressiveDestructiveWorkloads.workloads.map((workload) => workload.id)), requiredWorkloadIds);
+
+  const requiredArtifacts = new Set(aggressiveDestructiveWorkloads.required_artifacts_per_workload);
+  for (const artifact of [
+    'codebox_isolation_readiness',
+    'snapshot_restore_artifact',
+    'fixture_dynamic_id_manifest',
+    'rollback_plan',
+    'rollback_verification',
+    'side_effect_policy_evidence',
+    'destructive_case_ledger',
+  ]) {
+    assert.ok(requiredArtifacts.has(artifact), `global destructive workload artifact requirements must include ${artifact}`);
+  }
+
+  for (const workload of aggressiveDestructiveWorkloads.workloads) {
+    assert.ok(workload.fixture_family, `${workload.id} must bind to a fixture family`);
+    assert.ok(workload.fixture_dynamic_ids.length > 0, `${workload.id} must use fixture-owned dynamic IDs`);
+    assert.ok(workload.rollback_scope.length > 0, `${workload.id} must declare rollback scope`);
+    for (const artifact of requiredArtifacts) {
+      assert.ok(workload.required_artifacts.includes(artifact), `${workload.id} must require ${artifact}`);
+    }
+  }
+});
+
+test('aggressive destructive Woo workloads cover required destructive surface families', () => {
+  const workloadSurfaces = new Map(
+    aggressiveDestructiveWorkloads.workloads.map((workload) => [workload.id, new Set(workload.surfaces)])
+  );
+
+  assert.ok(workloadSurfaces.get('product-variation-destructive-lifecycle').has('variations'));
+  assert.ok(workloadSurfaces.get('order-refund-destructive-lifecycle').has('refunds'));
+  assert.ok(workloadSurfaces.get('coupon-customer-destructive-lifecycle').has('customers'));
+  assert.ok(workloadSurfaces.get('stock-inventory-destructive-lifecycle').has('inventory'));
+  assert.ok(workloadSurfaces.get('cart-checkout-session-destructive-lifecycle').has('sessions'));
+  assert.ok(workloadSurfaces.get('hpos-order-table-destructive-lifecycle').has('hpos'));
+  assert.ok(workloadSurfaces.get('action-scheduler-destructive-lifecycle').has('action_scheduler'));
+
+  const hposRollbackScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').rollback_scope
+  );
+  assert.ok(hposRollbackScope.has('wp_wc_orders'));
+  assert.ok(hposRollbackScope.has('wp_wc_order_addresses'));
+  assert.ok(hposRollbackScope.has('wp_wc_order_operational_data'));
+
+  const actionSchedulerRollbackScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').rollback_scope
+  );
+  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_actions'));
+  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_claims'));
+  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_logs'));
+});
+
+test('external side-effect policy blocks live effects and requires skip or isolated mock evidence', () => {
+  assert.equal(aggressiveDestructiveWorkloads.side_effect_policy.live_external_effects_allowed, false);
+  assert.equal(aggressiveDestructiveWorkloads.side_effect_policy.required_artifact, 'side_effect_policy_evidence');
+
+  const policies = new Map(
+    aggressiveDestructiveWorkloads.side_effect_policy.surfaces.map((surface) => [surface.id, surface])
+  );
+  for (const policyId of ['payment', 'tax', 'shipping', 'webhook', 'marketplace', 'credential_bearing_settings']) {
+    const policy = policies.get(policyId);
+    assert.ok(policy, `${policyId} side-effect policy must be declared`);
+    assert.ok(policy.blocked_live_effects.length > 0, `${policyId} policy must list blocked live effects`);
+    assert.ok(policy.allowed_evidence.includes('safe_skip_artifact'), `${policyId} policy must allow safe skip evidence`);
+  }
+
+  assert.ok(policies.get('payment').allowed_evidence.includes('isolated_mock_execution_artifact'));
+  assert.deepEqual(policies.get('marketplace').allowed_evidence, ['safe_skip_artifact']);
+  assert.deepEqual(policies.get('credential_bearing_settings').allowed_evidence, ['safe_skip_artifact']);
+
+  for (const workload of aggressiveDestructiveWorkloads.workloads) {
+    for (const policyId of workload.side_effect_surfaces) {
+      assert.ok(policies.has(policyId), `${workload.id} references unknown side-effect policy ${policyId}`);
+      assert.ok(
+        workload.required_artifacts.includes(aggressiveDestructiveWorkloads.side_effect_policy.required_artifact),
+        `${workload.id} must require side-effect evidence when referencing ${policyId}`
+      );
+    }
+  }
 });
