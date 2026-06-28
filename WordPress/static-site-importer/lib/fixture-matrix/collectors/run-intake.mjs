@@ -24,7 +24,7 @@ import {
 import { createFixtureMatrix } from '../fixtures.mjs';
 import { dedupeDiagnostics } from '../findings.mjs';
 import { collectQualityMetrics, collectBlockComposition } from './quality-metrics.mjs';
-import { collectEditorValidationDiagnostics } from './editor-validation.mjs';
+import { collectEditorValidationDiagnostics, collectEditorValidation } from './editor-validation.mjs';
 import {
   collectVisualParityDiagnostics,
   collectVisualParityArtifacts,
@@ -70,6 +70,10 @@ function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDi
     import_report: merged.import_report || merged.importReport || merged.report || null,
     quality_metrics: collectQualityMetrics(merged),
     block_composition: collectBlockComposition(merged),
+    // Real `wp.blocks.validateBlock` editor-validity from the
+    // `wordpress.editor-validate-blocks` command, distinct from the PHP
+    // round-trip's structural `invalid_block_counts`.
+    editor_validation: collectEditorValidation(merged),
     blocks_engine_diagnostics: collectBlocksEngineDiagnostics(merged),
     invalid_block_counts: collectInvalidBlockCounts(merged),
     missing_assets: collectMissingAssets(merged),
@@ -162,7 +166,7 @@ function hasPayloadData(value) {
 }
 
 function readFixturePayloadFiles(directory) {
-  return ['validation-result.json', 'result.json', 'import-report.json', 'quality.json', 'blocks-engine-diagnostics.json', 'editor-validation.json', 'editor-canvas-summary.json', 'visual-compare.json', 'visual-diff.json', 'visual-parity.json']
+  return ['validation-result.json', 'result.json', 'import-report.json', 'quality.json', 'blocks-engine-diagnostics.json', 'editor-validation.json', 'editor-validate-blocks.json', 'editor-canvas-summary.json', 'visual-compare.json', 'visual-diff.json', 'visual-parity.json']
     .map((fileName) => readJsonFileIfExists(path.join(directory, fileName)))
     .filter(Boolean);
 }

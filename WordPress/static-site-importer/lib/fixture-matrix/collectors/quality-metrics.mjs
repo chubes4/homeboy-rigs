@@ -11,11 +11,13 @@ import {
   NON_NATIVE_FALLBACK_BLOCK_NAMES,
   LOW_NATIVE_CONVERSION_KIND,
   EDITOR_BLOCK_INVALID_KIND,
+  EDITOR_VALIDATION_METHOD,
 } from '../shared/constants.mjs';
 import {
   objectValue,
   numberValue,
   firstNumber,
+  firstString,
   compactObject,
   qualityRatio,
 } from '../shared/utils.mjs';
@@ -335,13 +337,23 @@ function isNativeBlockName(name) {
 
 // Per-fixture editor-quality score. `native_conversion_rate` and
 // `core_html_fallback_ratio` come from the generic block composition;
-// `editor_invalid_count` reuses the #537 `editor_block_invalid` findings.
+// `editor_invalid_count` reuses the `editor_block_invalid` findings. When the
+// fixture carries a real `wp.blocks.validateBlock` result
+// (`result.editor_validation`, from the `wordpress.editor-validate-blocks`
+// command), the headline editor-validity is surfaced as `editor_valid_block_rate`
+// / `invalid_block_count` with the reported `validation_method` — distinct from
+// the PHP round-trip's structural counts.
 export function computeFixtureEditorQuality(result, findings) {
   const composition = objectValue(result.block_composition);
   const blockTotal = numberValue(composition.block_total);
   const editorInvalidCount = findings.filter((finding) => finding.fixture_id === result.fixture_id
     && (finding.loss_class === 'editor_block_invalid' || finding.kind === EDITOR_BLOCK_INVALID_KIND)).length;
   const scored = blockTotal > 0;
+  const editorValidation = objectValue(result.editor_validation);
+  const hasEditorValidation = Object.keys(editorValidation).length > 0;
+  const editorValidatedTotal = numberValue(editorValidation.total_blocks);
+  const editorValidBlocks = numberValue(editorValidation.valid_blocks);
+  const editorInvalidBlocks = numberValue(editorValidation.invalid_blocks);
   return compactObject({
     scored,
     source: result.block_composition ? (composition.source || 'unknown') : 'none',
@@ -351,6 +363,16 @@ export function computeFixtureEditorQuality(result, findings) {
     native_conversion_rate: scored ? qualityRatio(composition.native_block_count, blockTotal) : null,
     core_html_fallback_ratio: scored ? qualityRatio(composition.core_html_block_count, blockTotal) : null,
     editor_invalid_count: editorInvalidCount,
+    ...(hasEditorValidation
+      ? {
+        editor_validated: true,
+        validation_method: firstString([editorValidation.validation_method, EDITOR_VALIDATION_METHOD]),
+        editor_validated_block_total: editorValidatedTotal,
+        editor_valid_block_count: editorValidBlocks,
+        invalid_block_count: editorInvalidBlocks,
+        editor_valid_block_rate: editorValidatedTotal > 0 ? qualityRatio(editorValidBlocks, editorValidatedTotal) : null,
+      }
+      : {}),
   });
 }
 
@@ -367,13 +389,23 @@ export function aggregateEditorQuality(editorQualityList, nativeRateGate = { min
   let coreHtml = 0;
   let editorInvalid = 0;
   let scored = 0;
+  let editorValidatedTotal = 0;
+  let editorValidBlocks = 0;
+  let invalidBlockCount = 0;
+  let editorValidatedFixtures = 0;
   for (const editorQuality of editorQualityList) {
     blockTotal += numberValue(editorQuality.block_total);
     native += numberValue(editorQuality.native_block_count);
     coreHtml += numberValue(editorQuality.core_html_block_count);
     editorInvalid += numberValue(editorQuality.editor_invalid_count);
+    editorValidatedTotal += numberValue(editorQuality.editor_validated_block_total);
+    editorValidBlocks += numberValue(editorQuality.editor_valid_block_count);
+    invalidBlockCount += numberValue(editorQuality.invalid_block_count);
     if (editorQuality.scored) {
       scored += 1;
+    }
+    if (editorQuality.editor_validated) {
+      editorValidatedFixtures += 1;
     }
   }
   return {
@@ -384,6 +416,15 @@ export function aggregateEditorQuality(editorQualityList, nativeRateGate = { min
     editor_invalid_count: editorInvalid,
     native_conversion_rate: qualityRatio(native, blockTotal),
     core_html_fallback_ratio: qualityRatio(coreHtml, blockTotal),
+    // Real `wp.blocks.validateBlock` editor-validity headline, distinct from the
+    // PHP round-trip. `editor_valid_block_rate` is null until at least one
+    // fixture carries a validateBlock result.
+    validation_method: editorValidatedFixtures > 0 ? EDITOR_VALIDATION_METHOD : '',
+    editor_validated_fixture_count: editorValidatedFixtures,
+    editor_validated_block_total: editorValidatedTotal,
+    editor_valid_block_count: editorValidBlocks,
+    invalid_block_count: invalidBlockCount,
+    editor_valid_block_rate: editorValidatedTotal > 0 ? qualityRatio(editorValidBlocks, editorValidatedTotal) : null,
     native_rate_gate: {
       enabled: nativeRateGate.minNativeRate > 0,
       min_native_rate: nativeRateGate.minNativeRate || 0,
@@ -439,16 +480,24 @@ export function accumulateEditorQuality(target, editorQuality) {
   target.native_block_count += numberValue(source.native_block_count);
   target.core_html_block_count += numberValue(source.core_html_block_count);
   target.editor_invalid_count += numberValue(source.editor_invalid_count);
+  target.editor_validated_block_total += numberValue(source.editor_validated_block_total);
+  target.editor_valid_block_count += numberValue(source.editor_valid_block_count);
+  target.invalid_block_count += numberValue(source.invalid_block_count);
   if (source.scored) {
     target.scored_fixture_count += 1;
+  }
+  if (source.editor_validated) {
+    target.editor_validated_fixture_count += 1;
   }
 }
 
 export function finalizeEditorQuality(accumulator) {
   const blockTotal = numberValue(accumulator.block_total);
+  const editorValidatedTotal = numberValue(accumulator.editor_validated_block_total);
   return {
     ...accumulator,
     native_conversion_rate: qualityRatio(accumulator.native_block_count, blockTotal),
     core_html_fallback_ratio: qualityRatio(accumulator.core_html_block_count, blockTotal),
+    editor_valid_block_rate: editorValidatedTotal > 0 ? qualityRatio(accumulator.editor_valid_block_count, editorValidatedTotal) : null,
   };
 }

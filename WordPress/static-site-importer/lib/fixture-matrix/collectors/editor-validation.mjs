@@ -10,11 +10,17 @@ import {
   EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
   EDITOR_INVALID_BLOCK_SELECTORS,
   EDITOR_BLOCK_INVALID_DEFAULT_DETAIL,
+  EDITOR_VALIDATE_BLOCKS_SCHEMA,
+  EDITOR_VALIDATION_METHOD,
+  EDITOR_VALIDATION_PROVIDER,
 } from '../shared/constants.mjs';
 import {
   normalizeArray,
   numberValue,
+  firstNumber,
   firstString,
+  compactObject,
+  objectValue,
   diagnosticMessage,
 } from '../shared/utils.mjs';
 
@@ -51,12 +57,78 @@ export function collectEditorValidationDiagnostics(payload) {
 }
 
 function collectEditorValidatedBlocks(payload) {
-  return [
+  const blocks = [
     ...normalizeArray(payload.editor_blocks || payload.editorBlocks),
     ...normalizeArray(payload.editor_validation?.blocks || payload.editorValidation?.blocks),
     ...normalizeArray(payload.editor_validation?.results || payload.editorValidation?.results),
     ...normalizeArray(payload.editor_state?.blocks || payload.editorState?.blocks),
   ];
+  // `wordpress.editor-validate-blocks` (wp.blocks.validateBlock) emits the
+  // per-block `{ name, isValid, issues }` set at the payload top level.
+  if (isEditorValidateBlocksPayload(payload)) {
+    blocks.push(...normalizeArray(payload.results));
+  }
+  return blocks;
+}
+
+// Recognize a `wordpress.editor-validate-blocks` payload (the real
+// `wp.blocks.validateBlock` editor-validation result). Matches either the
+// payload itself or a nested `editor_validation`/`editorValidation` slot.
+export function isEditorValidateBlocksPayload(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  if (value.schema === EDITOR_VALIDATE_BLOCKS_SCHEMA) {
+    return true;
+  }
+  if (value.validation_method === EDITOR_VALIDATION_METHOD || value.validationMethod === EDITOR_VALIDATION_METHOD) {
+    return true;
+  }
+  const hasCounts = ['total_blocks', 'totalBlocks', 'valid_blocks', 'validBlocks', 'invalid_blocks', 'invalidBlocks']
+    .some((key) => Object.hasOwn(value, key));
+  return hasCounts && Array.isArray(value.results);
+}
+
+function editorValidatePayload(payload) {
+  for (const candidate of [payload, payload?.editor_validation, payload?.editorValidation]) {
+    if (isEditorValidateBlocksPayload(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+// Normalize a `wordpress.editor-validate-blocks` payload into the headline
+// editor-validity metrics — `total_blocks` / `valid_blocks` / `invalid_blocks`
+// plus the `validation_method`/`validation_provider`. Counts come from the
+// command's own totals when present, otherwise they are recomputed from the
+// per-block `results`. Returns null when no validateBlock evidence is present
+// (never fabricated). These feed `result.editor_validation`, which the
+// editor-quality collector turns into `editor_valid_block_rate` /
+// `invalid_block_count` distinct from the PHP round-trip.
+export function collectEditorValidation(payload) {
+  const source = editorValidatePayload(objectValue(payload));
+  if (!source) {
+    return null;
+  }
+  const results = normalizeArray(source.results).filter((entry) => entry && typeof entry === 'object');
+  const totalFromResults = results.length;
+  const invalidFromResults = results.filter((block) => isInvalidEditorBlock(block)).length;
+  const total = pickCount(source.total_blocks ?? source.totalBlocks, totalFromResults);
+  const invalid = pickCount(source.invalid_blocks ?? source.invalidBlocks, invalidFromResults);
+  const valid = pickCount(source.valid_blocks ?? source.validBlocks, Math.max(0, total - invalid));
+  return compactObject({
+    validation_method: firstString([source.validation_method, source.validationMethod, EDITOR_VALIDATION_METHOD]),
+    validation_provider: firstString([source.validation_provider, source.validationProvider, EDITOR_VALIDATION_PROVIDER]),
+    total_blocks: total,
+    valid_blocks: valid,
+    invalid_blocks: invalid,
+  });
+}
+
+function pickCount(value, fallback) {
+  const number = firstNumber([value]);
+  return Number.isFinite(number) ? number : numberValue(fallback);
 }
 
 function isInvalidEditorBlock(block) {

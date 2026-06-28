@@ -11,7 +11,6 @@ import {
   WEBSITE_ARTIFACT_SCHEMA,
   DEFAULT_ENTRYPOINT,
   DEFAULT_IMPORTER_SLUG,
-  DEFAULT_EDITOR_VALIDATION_URL,
 } from '../shared/constants.mjs';
 import {
   normalizeArray,
@@ -75,7 +74,16 @@ export function buildFixtureMatrixRecipe(input = {}) {
   const mounts = normalizeArray(input.mounts);
   const extraPlugins = [importer.extraPlugin, ...normalizeArray(input.extraPlugins || input.extra_plugins)];
   const editorValidationEnabled = input.editorValidation !== false && input.editor_validation !== false;
-  const editorValidationUrl = input.editorValidationUrl || input.editor_validation_url || DEFAULT_EDITOR_VALIDATION_URL;
+  // Real-content validation options forwarded to the editor-validate-blocks step.
+  // No empty-post default: when nothing concrete is provided, the step opens the
+  // most recently imported post (by post-type) so it validates imported content.
+  const editorValidationOptions = {
+    url: input.editorValidationUrl || input.editor_validation_url,
+    postType: input.editorValidationPostType || input.editor_validation_post_type,
+    target: input.editorValidationTarget || input.editor_validation_target,
+    waitSelector: input.editorValidationWaitSelector || input.editor_validation_wait_selector,
+    waitTimeout: input.editorValidationWaitTimeout || input.editor_validation_wait_timeout,
+  };
   const visualParityEnabled = input.visualParity !== false && input.visual_parity !== false;
   const visualParityRecipeOptions = normalizeVisualParityRecipeOptions(input);
 
@@ -107,7 +115,7 @@ export function buildFixtureMatrixRecipe(input = {}) {
               `command=static-site-importer validate-artifact --artifact=${shellToken(path.join(commandArtifactsDirectory, fixture.id, 'artifact.json'))} --slug=${shellToken(fixture.id)} --name=${shellToken(fixture.label)} --allow-missing-woocommerce --allow-failure`,
             ],
           },
-          ...(editorValidationEnabled ? [editorBlockValidationStep({ fixture, url: editorValidationUrl })] : []),
+          ...(editorValidationEnabled ? [editorBlockValidationStep({ fixture, ...editorValidationOptions })] : []),
           ...(visualParityEnabled ? [visualParityCompareStep({ fixture, ...visualParityRecipeOptions })] : []),
         ]),
       ],

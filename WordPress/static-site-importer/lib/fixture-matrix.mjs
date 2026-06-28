@@ -17,6 +17,11 @@ export {
   EDITOR_BLOCK_INVALID_KIND,
   EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
   EDITOR_INVALID_BLOCK_SELECTORS,
+  EDITOR_VALIDATE_BLOCKS_COMMAND,
+  EDITOR_VALIDATE_BLOCKS_SCHEMA,
+  EDITOR_VALIDATION_METHOD,
+  EDITOR_VALIDATION_PROVIDER,
+  DEFAULT_EDITOR_VALIDATION_POST_TYPE,
   VISUAL_PARITY_MISMATCH_KIND,
   LOW_NATIVE_CONVERSION_KIND,
 } from './fixture-matrix/shared/constants.mjs';
@@ -55,7 +60,11 @@ export {
   parseSerializedBlockNames,
 } from './fixture-matrix/collectors/quality-metrics.mjs';
 
-export { collectEditorValidationDiagnostics } from './fixture-matrix/collectors/editor-validation.mjs';
+export {
+  collectEditorValidationDiagnostics,
+  collectEditorValidation,
+  isEditorValidateBlocksPayload,
+} from './fixture-matrix/collectors/editor-validation.mjs';
 
 export {
   collectVisualParityDiagnostics,

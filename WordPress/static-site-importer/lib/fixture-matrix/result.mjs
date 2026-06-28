@@ -173,6 +173,10 @@ export function normalizeFixtureResult(input) {
     // markup is then discarded by never retaining `input` and by bounding the
     // report blobs below. See #554 / bounds.mjs.
     block_composition: input.block_composition || input.blockComposition || collectBlockComposition(input),
+    // Real `wp.blocks.validateBlock` editor-validity (total/valid/invalid blocks
+    // + validation_method), distinct from the PHP round-trip. Round-trips through
+    // re-normalization so editor-quality scoring can read it.
+    editor_validation: input.editor_validation || input.editorValidation || null,
     // Retained report blobs can carry raw serialized markup (e.g.
     // `import_report.materialized_content.block_documents[].post_content`). Bound
     // every retained string so the per-fixture result scales with #findings, not
@@ -455,7 +459,7 @@ function classRollup(key) {
     loss_classes: {},
     repair_buckets: {},
     candidate_repos: {},
-    editor_quality: { scored_fixture_count: 0, block_total: 0, native_block_count: 0, core_html_block_count: 0, editor_invalid_count: 0 },
+    editor_quality: { scored_fixture_count: 0, block_total: 0, native_block_count: 0, core_html_block_count: 0, editor_invalid_count: 0, editor_validated_fixture_count: 0, editor_validated_block_total: 0, editor_valid_block_count: 0, invalid_block_count: 0 },
   };
 }
 
