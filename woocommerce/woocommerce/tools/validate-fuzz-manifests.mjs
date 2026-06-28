@@ -684,7 +684,10 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(generatedAggressiveFirehoseCommandPlan.runnable_commands_enabled, true, 'aggressive firehose command plan must default to runnable offloaded output');
   assert.equal(generatedAggressiveFirehoseCommandPlan.plan_kind, 'runnable_offloaded_commands', 'aggressive firehose command plan must default to runnable offloaded commands');
   assert.equal(generatedAggressiveFirehoseCommandPlan.profile_id, campaign.profile_id, 'aggressive firehose command plan profile id drifted');
-  assert.ok(generatedAggressiveFirehoseCommandPlan.commands.length >= 3, 'aggressive firehose command plan must emit runnable commands by default');
+  const aggressiveProfileWorkloads = rig.fuzz_profiles?.[campaign.profile_id] || [];
+  assert.ok(aggressiveProfileWorkloads.length > 0, 'aggressive profile must declare workload ids');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.commands.length, aggressiveProfileWorkloads.length + 2, 'aggressive firehose command plan must emit one request command per workload plus validation/ref collection');
+  assert.deepEqual(generatedAggressiveFirehoseCommandPlan.workload_ids, aggressiveProfileWorkloads, 'aggressive firehose command plan workload ids drifted');
   assert.equal(generatedAggressiveFirehosePlanOnly.runnable_commands_enabled, false, '--plan-only must withhold runnable command arrays');
   assert.deepEqual(generatedAggressiveFirehosePlanOnly.commands, [], '--plan-only aggressive firehose command plan must withhold runnable commands');
   assert.match(generatedAggressiveFirehoseTextPlan, /Offloaded Homeboy\/HBEX command plan/, 'text command plan must advertise offloaded execution');
@@ -694,7 +697,10 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
 	const validationCommand = generatedPlanItems.find((entry) => entry.purpose === 'validate_disposable_rig')?.command_argv || [];
 	assert.deepEqual(validationCommand.slice(0, 3), ['homeboy', 'rig', 'check'], 'aggressive command plan must use Lab-portable rig check for validation');
 	assert.ok(!validationCommand.includes('up'), 'aggressive command plan must not emit local-only rig up');
-	const requestCommand = generatedPlanItems.find((entry) => entry.purpose === 'request_aggressive_isolated_firehose')?.command_argv || [];
+  const requestItems = generatedPlanItems.filter((entry) => entry.purpose?.startsWith('request_aggressive_isolated_firehose:'));
+  assert.equal(requestItems.length, aggressiveProfileWorkloads.length, 'aggressive command plan must include one request item per aggressive workload');
+  assert.deepEqual(new Set(requestItems.map((entry) => entry.command_argv?.[entry.command_argv.indexOf('--workload') + 1])), new Set(aggressiveProfileWorkloads), 'aggressive command plan request workloads drifted');
+	const requestCommand = requestItems[0]?.command_argv || [];
   for (const flag of [
     '--lab-only',
     '--allow-destructive',
@@ -717,6 +723,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     assert.ok(requestCommand.includes(flag), `aggressive command plan request must include ${flag}`);
   }
 	assert.equal(requestCommand[0], 'homeboy', 'aggressive command plan must use Homeboy');
+	assert.ok(requestCommand.includes('--workload'), 'aggressive command plan request must select a concrete Homeboy workload');
 	const extensionArgsIndex = requestCommand.indexOf('--');
 	assert.ok(extensionArgsIndex > 0, 'aggressive command plan must separate Homeboy flags from HBEX extension flags with --');
 	assert.ok(requestCommand.indexOf('--profile') > extensionArgsIndex, 'aggressive command plan profile flag must be passed as an HBEX extension arg');

@@ -6,50 +6,19 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const manifestPath = path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json');
+const rigPath = path.join(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const rig = JSON.parse(readFileSync(rigPath, 'utf8'));
 
 const options = parseArgs(process.argv.slice(2));
 const runIdPrefix = options.runIdPrefix || 'woo-firehose-$YYYYMMDD';
 const executionSupported = manifest.readiness?.execution_enabled === true;
 const runnableCommandsEnabled = executionSupported && !options.planOnly;
+const profileWorkloads = rig.fuzz_profiles?.[manifest.profile_id] || [];
 
-const baseRunCommand = [
-  'homeboy', 'fuzz', 'run',
-  '--lab-only',
-  '--rig', 'woocommerce-performance',
-  '--run-id', `${runIdPrefix}-request`,
-  '--tracker-ref', options.trackerRef,
-  '--allow-destructive',
-  '--isolation', 'isolated',
-];
-
-if (options.runner) {
-  baseRunCommand.push('--runner', options.runner);
+if (!Array.isArray(profileWorkloads) || profileWorkloads.length === 0) {
+  throw new Error(`Rig fuzz profile ${manifest.profile_id} must declare at least one workload`);
 }
-if (options.artifactRoot) {
-  baseRunCommand.push('--artifact-root', options.artifactRoot);
-}
-if (options.detachAfterHandoff) {
-  baseRunCommand.push('--detach-after-handoff');
-}
-
-baseRunCommand.push(
-  '--',
-  '--profile', manifest.profile_id,
-  '--fuzz-execution-request-artifact',
-  '--coverage-reconciliation',
-  '--wp-codebox-destructive-fuzz-suite-metadata',
-  '--rest-payload-families',
-  '--chaos-sequence-packs',
-  '--payload-size-depth-families',
-  '--relative-hotspot-taxonomy',
-  '--snapshot-restore',
-  '--hbex-aggressive-isolated-mode',
-  '--hbex-admin-generation',
-  '--hbex-database-generation',
-  '--hbex-browser-generation',
-  '--hbex-editor-generation',
-);
 
 const payload = {
   schema: 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1',
@@ -61,18 +30,19 @@ const payload = {
   runnable_commands_enabled: runnableCommandsEnabled,
   plan_kind: runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan',
   run_id_prefix: runIdPrefix,
+  workload_ids: profileWorkloads,
   blockers: executionSupported ? [] : [
     'manifest.readiness.execution_enabled must be true for offloaded execution',
   ],
-	plan_items: [
-		{
-			purpose: 'validate_disposable_rig',
-			command_argv: withOptionalLabArgs(['homeboy', 'rig', 'check', 'woocommerce-performance'], options),
-		},
+  plan_items: [
     {
-      purpose: 'request_aggressive_isolated_firehose',
-      command_argv: baseRunCommand,
+      purpose: 'validate_disposable_rig',
+      command_argv: withOptionalLabArgs(['homeboy', 'rig', 'check', 'woocommerce-performance'], options),
     },
+    ...profileWorkloads.map((workloadId, index) => ({
+      purpose: `request_aggressive_isolated_firehose:${workloadId}`,
+      command_argv: fuzzRunCommandForWorkload(workloadId, index, options),
+    })),
     {
       purpose: 'collect_reviewer_facing_artifact_refs',
       command_argv: withOptionalLabArgs([
@@ -182,6 +152,49 @@ function parseArgs(argv) {
   }
 
   return parsed;
+}
+
+function fuzzRunCommandForWorkload(workloadId, index, options) {
+  const command = [
+    'homeboy', 'fuzz', 'run',
+    '--lab-only',
+    '--rig', 'woocommerce-performance',
+    '--workload', workloadId,
+    '--run-id', `${runIdPrefix}-${String(index + 1).padStart(2, '0')}-${workloadId}`,
+    '--tracker-ref', options.trackerRef,
+    '--allow-destructive',
+    '--isolation', 'isolated',
+  ];
+
+  if (options.runner) {
+    command.push('--runner', options.runner);
+  }
+  if (options.artifactRoot) {
+    command.push('--artifact-root', options.artifactRoot);
+  }
+  if (options.detachAfterHandoff) {
+    command.push('--detach-after-handoff');
+  }
+
+  command.push(
+    '--',
+    '--profile', manifest.profile_id,
+    '--fuzz-execution-request-artifact',
+    '--coverage-reconciliation',
+    '--wp-codebox-destructive-fuzz-suite-metadata',
+    '--rest-payload-families',
+    '--chaos-sequence-packs',
+    '--payload-size-depth-families',
+    '--relative-hotspot-taxonomy',
+    '--snapshot-restore',
+    '--hbex-aggressive-isolated-mode',
+    '--hbex-admin-generation',
+    '--hbex-database-generation',
+    '--hbex-browser-generation',
+    '--hbex-editor-generation',
+  );
+
+  return command;
 }
 
 function withOptionalLabArgs(command, options) {
