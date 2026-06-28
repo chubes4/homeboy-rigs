@@ -3,6 +3,8 @@
   "profile_id": "woo-profiling-stabilization",
   "description": "Reviewer-friendly WooCommerce profiling workload names. WooCommerce owns route, admin, and scenario selection here; Homeboy only runs declared workload ids and collects artifacts.",
   "rig": "rigs/woocommerce-performance/rig.json",
+  "lab_command_generator": "tools/stable-workload-lab-commands.mjs",
+  "comparison_commands": ["homeboy runs refs", "homeboy runs compare", "homeboy runs hotspots"],
   "contracts": [
     {
       "id": "rest-db-query-profile",

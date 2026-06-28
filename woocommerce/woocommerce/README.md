@@ -229,6 +229,41 @@ produces reviewer-facing artifacts. Performance timing remains in
 runner has a `homeboy` binary that exposes the `fuzz` command; do not substitute
 `homeboy bench` for missing fuzz support.
 
+## Stable Lab Matrix
+
+`manifests/stable-workloads.json` names the stable Woo workload IDs used for
+longitudinal hotspot comparison. The IDs are Woo-owned contracts that expand to
+declared `fuzz_workloads.wordpress` entries; Homeboy core only runs those
+workload IDs, persists artifacts, and compares completed runs.
+
+Generate the Lab-only command plan without executing any workload:
+
+```bash
+node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
+  --runner LAB_RUNNER_ID \
+  --artifact-root ARTIFACT_ROOT \
+  --run-id-prefix woo-stable-YYYYMMDD \
+  --tracker-ref github:woocommerce/woocommerce#ISSUE_OR_PR
+```
+
+For a focused proof, pass one or more stable IDs:
+
+```bash
+node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
+  --stable-id rest-db-query-profile,store-api-product-browse \
+  --runner LAB_RUNNER_ID \
+  --artifact-root ARTIFACT_ROOT \
+  --run-id-prefix woo-stable-YYYYMMDD
+```
+
+The generated run commands use `homeboy fuzz run --lab-only --rig
+woocommerce-performance --workload <declared-workload>` with stable run IDs and
+`stable-workload:<id>` tracker refs. After the Lab runs complete, use the
+generated `homeboy runs refs`, `homeboy runs compare`, and `homeboy runs
+hotspots --baseline-run BASELINE_RUN_ID --candidate-run CANDIDATE_RUN_ID`
+commands to compare persisted evidence over time. Keep reviewer-facing proof in
+Homeboy run/artifact refs; local paths and local-only URLs are not proof.
+
 Each Woo fuzz manifest declares the WP Codebox fixture contract in metadata:
 `wp-codebox` runtime, disposable WordPress scope, WooCommerce component, and
 `woocommerce/woocommerce.php` activation. The validator rejects fixture metadata
