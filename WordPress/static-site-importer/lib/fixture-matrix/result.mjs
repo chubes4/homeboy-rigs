@@ -47,7 +47,7 @@ import {
   accumulateEditorQuality,
   finalizeEditorQuality,
 } from './collectors/quality-metrics.mjs';
-import { buildFixtureArtifact } from './steps/recipe-builder.mjs';
+import { buildFixtureArtifact, stageFixtureSource } from './steps/recipe-builder.mjs';
 
 export function normalizeFixtureMatrixResult(input = {}) {
   const matrix = input.matrix || createFixtureMatrix(input);
@@ -205,6 +205,9 @@ export function writeFixtureMatrixArtifacts(input = {}) {
     const fixtureDirectory = path.join(outputDirectory, fixture.id);
     fs.mkdirSync(fixtureDirectory, { recursive: true });
     writeJsonFile(path.join(fixtureDirectory, 'artifact.json'), buildFixtureArtifact(fixture, input));
+    // Stage the raw source site alongside artifact.json so the in-sandbox
+    // WordPress origin can serve it for the visual-parity `source-url`.
+    stageFixtureSource(fixture, fixtureDirectory, input);
   }
 
   writeJsonFile(path.join(outputDirectory, 'matrix.json'), matrix);

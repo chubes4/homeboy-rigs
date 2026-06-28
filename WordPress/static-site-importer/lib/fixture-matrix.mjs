@@ -35,6 +35,8 @@ export {
 export {
   buildFixtureArtifact,
   buildFixtureMatrixRecipe,
+  stageFixtureSource,
+  wordpressServedPath,
   normalizeStaticSiteImporterPlugin,
 } from './fixture-matrix/steps/recipe-builder.mjs';
 

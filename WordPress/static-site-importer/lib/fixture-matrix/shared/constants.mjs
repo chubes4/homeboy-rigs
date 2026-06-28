@@ -80,8 +80,29 @@ export const NON_NATIVE_FALLBACK_BLOCK_NAMES = new Set([CORE_HTML_BLOCK_NAME, 'c
 export const LOW_NATIVE_CONVERSION_KIND = 'native_conversion_rate_below_min';
 
 export const DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD = 0.1;
+// Candidate (imported WordPress output) URL. The per-fixture import step runs
+// with activate=true, which sets `show_on_front=page` + `page_on_front` to the
+// imported front page (see Static_Site_Importer_Theme_Generator::front_page_id).
+// Because the recipe interleaves [import, editor-validate, visual-compare] per
+// fixture, `/` resolves to THIS fixture's imported front page at the moment the
+// visual-compare runs — the real imported page, not an unrelated WP homepage. A
+// fixture can still override `candidate_url`/`candidate-url` to target a specific
+// imported permalink (e.g. `/?page_id=<id>` or a pretty permalink).
 export const DEFAULT_VISUAL_PARITY_CANDIDATE_URL = '/';
+// Base web path under which the fixture's ORIGINAL static source is staged and
+// served by the SAME in-sandbox WordPress origin the candidate uses. The matrix
+// copies each fixture's raw source files (index.html + css/js/images) into
+// `<artifacts>/<fixture-id>/<VISUAL_PARITY_SOURCE_SUBDIR>/...`, and that artifacts
+// directory is mounted into the sandbox at the WordPress uploads path below, so
+// the files are reachable at `<base>/<fixture-id>/<subdir>/index.html`. Serving
+// the source from the same origin (rather than a host 127.0.0.1 port, which the
+// in-sandbox browser cannot reach) is what lets `source-url` actually load
+// instead of hanging to the 120s capture timeout.
 export const DEFAULT_VISUAL_PARITY_SOURCE_BASE_URL = '/wp-content/uploads/static-site-importer-fixture-matrix';
+// Subdirectory (under each fixture's artifacts dir) holding the staged raw source
+// site. Kept separate from the per-fixture `artifact.json` import payload so the
+// served source tree mirrors the fixture's own relative asset paths exactly.
+export const VISUAL_PARITY_SOURCE_SUBDIR = 'source';
 export const DEFAULT_VISUAL_PARITY_VIEWPORT = { width: 1280, height: 1600 };
 export const DEFAULT_VISUAL_PARITY_WAIT_FOR = 'domcontentloaded';
 // A finding only gates when it carries an explicit opt-in gate signal; absent

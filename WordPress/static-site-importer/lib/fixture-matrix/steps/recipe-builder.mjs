@@ -11,6 +11,7 @@ import {
   WEBSITE_ARTIFACT_SCHEMA,
   DEFAULT_ENTRYPOINT,
   DEFAULT_IMPORTER_SLUG,
+  VISUAL_PARITY_SOURCE_SUBDIR,
 } from '../shared/constants.mjs';
 import {
   normalizeArray,
@@ -65,6 +66,30 @@ export function buildFixtureArtifact(fixture, options = {}) {
   };
 }
 
+// Stage a fixture's ORIGINAL static source (index.html + css/js/images) into the
+// matrix artifacts tree so the in-sandbox WordPress origin can serve it for the
+// visual-parity `source-url`. Files land at
+// `<fixtureDirectory>/<VISUAL_PARITY_SOURCE_SUBDIR>/<relative_path>`, preserving
+// each fixture's own relative asset layout so the served page resolves its CSS,
+// JS, and images exactly as the original did. The fixture's `artifact.json`
+// import payload is unchanged; this is a parallel, web-servable copy of the raw
+// source. Returns the list of staged relative paths. Without this, `source-url`
+// points at an unserved path and the visual-compare source capture hangs to the
+// 120s timeout (the #563 visual-parity gap).
+export function stageFixtureSource(fixture, fixtureDirectory, options = {}) {
+  const normalized = normalizeFixture(fixture);
+  const files = collectFixtureFiles(normalized.directory, options);
+  const sourceRoot = path.join(fixtureDirectory, VISUAL_PARITY_SOURCE_SUBDIR);
+  const staged = [];
+  for (const file of files) {
+    const destination = path.join(sourceRoot, file.relative_path);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.copyFileSync(file.absolute_path, destination);
+    staged.push(file.relative_path);
+  }
+  return staged;
+}
+
 export function buildFixtureMatrixRecipe(input = {}) {
   const matrix = input.matrix || createFixtureMatrix(input);
   const artifactsDirectory = input.artifactsDirectory || input.artifacts_directory || '/artifacts/static-site-importer-fixture-matrix';
@@ -85,7 +110,19 @@ export function buildFixtureMatrixRecipe(input = {}) {
     waitTimeout: input.editorValidationWaitTimeout || input.editor_validation_wait_timeout,
   };
   const visualParityEnabled = input.visualParity !== false && input.visual_parity !== false;
-  const visualParityRecipeOptions = normalizeVisualParityRecipeOptions(input);
+  // Keep the visual-parity `source-url` base aligned with where the staged source
+  // is actually served from. The staged source lives in the artifacts dir mounted
+  // into the sandbox at `playgroundArtifactsDirectory`; its WordPress-served web
+  // path is that target with the docroot (`/wordpress`) prefix stripped. When the
+  // operator hasn't pinned an explicit source base url, derive it from the mount
+  // target so a custom uploads path still resolves.
+  const derivedSourceBaseUrl = playgroundArtifactsDirectory
+    ? wordpressServedPath(playgroundArtifactsDirectory)
+    : '';
+  const visualParityRecipeOptions = normalizeVisualParityRecipeOptions({
+    ...(derivedSourceBaseUrl ? { sourceBaseUrl: derivedSourceBaseUrl } : {}),
+    ...input,
+  });
 
   if (playgroundArtifactsDirectory) {
     mounts.push({
@@ -124,6 +161,16 @@ export function buildFixtureMatrixRecipe(input = {}) {
       directory: artifactsDirectory,
     },
   };
+}
+
+// Convert an in-sandbox WordPress filesystem path into its web-served path by
+// stripping the docroot prefix. WP Codebox installs WordPress at `/wordpress`, so
+// `/wordpress/wp-content/uploads/foo` is served at `/wp-content/uploads/foo`. A
+// path already rooted at `/wp-content` (no `/wordpress` prefix) is returned as-is.
+export function wordpressServedPath(filesystemPath, docroot = '/wordpress') {
+  const normalized = `/${String(filesystemPath).replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '')}`;
+  const prefix = `${docroot.replace(/\/+$/, '')}/`;
+  return normalized.startsWith(prefix) ? `/${normalized.slice(prefix.length)}` : normalized;
 }
 
 export function normalizeStaticSiteImporterPlugin(input = {}) {
