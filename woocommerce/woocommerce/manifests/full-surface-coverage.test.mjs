@@ -5,7 +5,6 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   assertArtifactPostprocessWorkloadContract,
-  assertCanonicalFuzzEnvelopeRef,
   assertFullSurfaceCoverageManifest,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import {
@@ -24,8 +23,8 @@ const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-cove
 const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
 const browserRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
 const generatedRestCases = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/generated-rest-request-cases.json'), 'utf8'));
-const codeboxFuzzSuiteWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/codebox-fuzz-suite-smoke.json'), 'utf8'));
-const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/codebox-fuzz-suite-smoke.json'), 'utf8'));
+const codeboxFuzzSuiteWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/codebox-fuzz-suite-contract.json'), 'utf8'));
+const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/codebox-fuzz-suite-contract.json'), 'utf8'));
 const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
@@ -213,19 +212,9 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
   });
 });
 
-test('DB/API campaign consumes the Codebox fixture canonical fuzz envelope ref', () => {
-  const proofBundle = codeboxFuzzSuiteManifest.target.metadata.proof_bundle;
-
-  assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-smoke.json');
-  assert.equal(codeboxFuzzSuiteWorkload.metadata.fixture.suite_manifest, '${package.root}/manifests/codebox-fuzz-suite-smoke.json');
-  assertCanonicalFuzzEnvelopeRef(proofBundle, { file: 'codebox-fuzz-suite-smoke.json' });
-  assert.equal(
-    proofBundle.canonical_fuzz_envelope_ref,
-    'homeboy://run/wc-db-api-codebox-suite-20260626T0145Z/artifact/cfa06657-0b23-447d-bd04-c75a7597f266'
-  );
-  assert.equal(proofBundle.artifact_refs, undefined);
-  assert.equal(proofBundle.run_ids, undefined);
-  assert.equal(proofBundle.gap_reports, undefined);
-  assert.equal(proofBundle.fuzz_result_artifacts, undefined);
-  assert.match(proofBundle.placeholder_reason, /coverage gap and performance hotspot artifacts stay pending/);
+test('DB/API campaign consumes the declared Codebox fixture contract without proof refs', () => {
+  assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-contract.json');
+  assert.equal(codeboxFuzzSuiteWorkload.metadata.fixture.suite_manifest, '${package.root}/manifests/codebox-fuzz-suite-contract.json');
+  assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle, undefined);
+  assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle_requirements.status, 'required_before_proven');
 });

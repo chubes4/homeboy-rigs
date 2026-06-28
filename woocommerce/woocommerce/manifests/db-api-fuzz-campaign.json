@@ -3,7 +3,7 @@
   "id": "woocommerce-db-api-fuzz-campaign",
   "profile_id": "db-api-performance-fuzzer",
   "description": "WooCommerce DB/API fuzz campaign declaration tying public Codebox fuzz-suite execution to WordPress hotspot artifacts, Homeboy coverage, Homeboy hotspot summary, and gap-report outputs without claiming proof before reviewer-facing artifacts exist.",
-  "suite_manifest": "manifests/codebox-fuzz-suite-smoke.json",
+  "suite_manifest": "manifests/codebox-fuzz-suite-contract.json",
   "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
   "hotspot_artifact_io_manifest": "manifests/db-api-hotspot-artifact-io.json",
   "fixture_contracts": {
@@ -31,7 +31,7 @@
     "blocked_until": "HBEX consumes the opt-ins, Codebox executes rollback-safe mutations, and Homeboy records durable reviewer-facing artifact refs."
   },
   "workloads": [
-    "codebox-fuzz-suite-smoke",
+    "codebox-fuzz-suite-contract",
     "woocommerce-rest-route-inventory",
     "generated-rest-request-cases",
     "rest-db-query-profile",
@@ -89,7 +89,7 @@
         "ref_requirement": "reviewer-facing Homeboy artifact root from the approved offloaded campaign run set",
         "local_only_refs_allowed": false,
         "contains_workloads": [
-          "codebox-fuzz-suite-smoke",
+          "codebox-fuzz-suite-contract",
           "woocommerce-rest-route-inventory",
           "generated-rest-request-cases",
           "rest-db-query-profile",
@@ -162,7 +162,7 @@
     "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads use the product-local Woo helper to mirror the intended homeboy.artifact-postprocess contract against the offloaded ${artifacts.root}; their helper/action/input/output/parameters contracts are declared in postprocess.outputs and must be collected as reviewer-facing artifacts before proven readiness.",
     "commands": [
       "homeboy rig up woocommerce-performance",
-      "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
+      "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
       "homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
       "homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-db-api-generated-cases --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
       "homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-db-api-query-profile --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",

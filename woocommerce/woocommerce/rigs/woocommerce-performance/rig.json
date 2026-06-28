@@ -91,7 +91,7 @@
       { "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json" },
       { "path": "${package.root}/fuzz/options-transients-coverage.json" },
       { "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json" },
-      { "path": "${package.root}/fuzz/codebox-fuzz-suite-smoke.json" },
+      { "path": "${package.root}/fuzz/codebox-fuzz-suite-contract.json" },
       { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
       { "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json" },
       { "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json" }
@@ -109,7 +109,7 @@
   },
   "fuzz_profiles": {
     "smoke": [
-      "codebox-fuzz-suite-smoke",
+      "codebox-fuzz-suite-contract",
       "woocommerce-rest-route-inventory",
       "db-inventory",
       "admin-page-coverage"
@@ -150,7 +150,7 @@
       "action-scheduler-lookup-table-coverage",
       "options-transients-coverage",
       "rollback-safe-options-transients-mutations",
-      "codebox-fuzz-suite-smoke",
+      "codebox-fuzz-suite-contract",
       "frontend-rendering-request-coverage",
       "performance-hotspots-artifact-summary",
       "woocommerce-external-http-guardrail"
@@ -175,8 +175,19 @@
       "action-scheduler-lookup-table-coverage",
       "options-transients-coverage",
       "rollback-safe-options-transients-mutations",
-      "codebox-fuzz-suite-smoke",
+      "codebox-fuzz-suite-contract",
       "frontend-rendering-request-coverage",
+      "performance-hotspots-artifact-summary",
+      "woocommerce-external-http-guardrail"
+    ],
+    "aggressive-isolated-firehose": [
+      "codebox-fuzz-suite-contract",
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "rest-schema-query-attribution",
+      "coverage-gap-report",
       "performance-hotspots-artifact-summary",
       "woocommerce-external-http-guardrail"
     ]
@@ -185,16 +196,51 @@
     "full-surface": {
       "description": "WooCommerce full-surface fuzz inventory. Discovery manifests extend the executable fuzz workload list with declared REST route-family, block, admin action, and DB/API hotspot artifact contracts without claiming additional runner coverage.",
       "target_inventory_manifest": "manifests/target-inventory.json",
-        "discovery_manifests": {
-          "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
-          "rest_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
-          "blocks": "manifests/block-inventory-rendering-fuzz.json",
+      "discovery_manifests": {
+        "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
+        "rest_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
+        "product_chaos_sequence_packs": "manifests/product-chaos-sequence-packs.json",
+        "blocks": "manifests/block-inventory-rendering-fuzz.json",
         "admin_actions": "manifests/admin-action-inventory.json",
         "db_api_hotspots": "manifests/db-api-hotspot-artifact-io.json"
       },
       "readiness": {
         "level": "declared",
         "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios remain non-executable until upstream runner support emits reviewer-facing artifacts. Artifact-postprocess outputs can execute through the generic Homeboy contract but require reviewer-facing artifacts before proven readiness."
+      }
+    },
+    "aggressive-isolated-firehose": {
+      "description": "Runnable WooCommerce aggressive randomized destructive firehose profile for offloaded Codebox/Homeboy/HBEX isolated sandbox execution. This profile is not supported for local execution.",
+      "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
+      "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
+      "target_inventory_manifest": "manifests/target-inventory.json",
+      "sequence_pack_manifest": "manifests/product-chaos-sequence-packs.json",
+      "source_profile": "full-surface",
+      "homeboy_fuzz_profile": "aggressive-isolated-firehose",
+      "hbex_fuzz_profile": "aggressive-isolated-firehose",
+      "codebox_fuzz_profile": "woocommerce-aggressive-isolated-firehose",
+      "required_upstream_contracts": [
+        "homeboy/destructive-isolated-mode/v1",
+        "homeboy/fuzz-execution-request-artifact/v1",
+        "homeboy/fuzz-coverage-reconciliation/v1",
+        "wp-codebox/destructive-fuzz-suite-metadata/v1",
+        "wp-codebox/snapshot-restore-artifact/v1",
+        "wordpress.rest-payload-families/v1",
+        "homeboy/chaos-sequence-generator/v1",
+        "homeboy/fuzz-payload-size-depth-families/v1",
+        "homeboy/relative-hotspot-taxonomy/v1",
+        "homeboy-extensions/aggressive-isolated-mode/v1",
+        "homeboy-extensions/generate-admin-observations/v1",
+        "homeboy-extensions/generate-database-observations/v1",
+        "homeboy-extensions/generate-browser-observations/v1",
+        "homeboy-extensions/generate-editor-observations/v1"
+      ],
+      "readiness": {
+        "level": "executable",
+        "execution_enabled": true,
+        "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
+        "local_execution_enabled": false,
+        "coverage_contract": "The aggressive isolated firehose is executable through Homeboy Lab offload into WP Codebox/HBEX with --allow-destructive and --isolation isolated. It is not local execution and is not proven destructive full coverage until reviewer-facing Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist."
       }
     },
     "db-api-performance-fuzzer": {

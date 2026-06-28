@@ -1,0 +1,322 @@
+{
+  "schema": "homeboy-rigs/woocommerce-aggressive-isolated-fuzz-campaign/v1",
+  "id": "woocommerce-aggressive-isolated-fuzz-campaign",
+  "profile_id": "aggressive-isolated-firehose",
+  "description": "Runnable WooCommerce aggressive randomized firehose campaign wiring for offloaded Codebox/Homeboy/HBEX isolated destructive coverage. This references the full product surface taxonomy and fixture seeds while keeping local execution disabled.",
+  "target_inventory_manifest": "manifests/target-inventory.json",
+  "full_surface_manifest": "manifests/full-surface-coverage.json",
+  "product_surface_taxonomy_ref": "manifests/target-inventory.json#discovery_manifests/product_surface_taxonomy",
+  "fixture_sources": {
+    "route_family_catalog": "manifests/rest-crud-route-family-catalog.json",
+    "payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
+    "fixture_plan": "manifests/rest-crud-fixture-plan.json",
+    "rest_mutation_fixture_opt_ins": "manifests/rest-crud-fixture-opt-ins.json",
+    "product_chaos_sequence_packs": "manifests/product-chaos-sequence-packs.json",
+    "admin_actions": "manifests/admin-action-inventory.json",
+    "block_inventory_rendering": "manifests/block-inventory-rendering-fuzz.json"
+  },
+  "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
+  "required_upstream_capabilities": [
+    {
+      "id": "homeboy_destructive_isolated_mode",
+      "contract": "homeboy/destructive-isolated-mode/v1",
+      "artifact": "destructive_isolated_mode_artifact",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_fuzz_execution_request",
+      "contract": "homeboy/fuzz-execution-request-artifact/v1",
+      "artifact": "fuzz_execution_request",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_coverage_reconciliation",
+      "contract": "homeboy/fuzz-coverage-reconciliation/v1",
+      "artifact": "coverage_reconciliation",
+      "required_before_proven": true
+    },
+    {
+      "id": "wp_codebox_destructive_fuzz_suite_metadata",
+      "contract": "wp-codebox/destructive-fuzz-suite-metadata/v1",
+      "artifact": "destructive_fuzz_suite_metadata",
+      "required_before_execution": true
+    },
+    {
+      "id": "wp_codebox_snapshot_restore",
+      "contract": "wp-codebox/snapshot-restore-artifact/v1",
+      "artifact": "snapshot_restore_artifact",
+      "required_before_execution": true
+    },
+    {
+      "id": "wordpress_rest_payload_families",
+      "contract": "wordpress.rest-payload-families/v1",
+      "artifact": "rest_payload_family_coverage",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_chaos_sequence_generator",
+      "contract": "homeboy/chaos-sequence-generator/v1",
+      "artifact": "chaos_sequence_pack_resolution",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_payload_size_depth_families",
+      "contract": "homeboy/fuzz-payload-size-depth-families/v1",
+      "artifact": "payload_size_depth_family_coverage",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_relative_hotspot_taxonomy",
+      "contract": "homeboy/relative-hotspot-taxonomy/v1",
+      "artifact": "relative_hotspot_taxonomy",
+      "required_before_proven": true
+    },
+    {
+      "id": "hbex_aggressive_isolated_mode",
+      "contract": "homeboy-extensions/aggressive-isolated-mode/v1",
+      "artifact": "hbex_aggressive_isolated_mode_artifact",
+      "required_before_execution": true
+    },
+    {
+      "id": "hbex_admin_generation",
+      "contract": "homeboy-extensions/generate-admin-observations/v1",
+      "artifact": "admin_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "hbex_database_generation",
+      "contract": "homeboy-extensions/generate-database-observations/v1",
+      "artifact": "database_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "hbex_browser_generation",
+      "contract": "homeboy-extensions/generate-browser-observations/v1",
+      "artifact": "browser_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "hbex_editor_generation",
+      "contract": "homeboy-extensions/generate-editor-observations/v1",
+      "artifact": "editor_observations",
+      "required_before_proven": true
+    }
+  ],
+  "planned_artifact_expectations": [
+    {
+      "id": "fuzz_execution_request",
+      "schema": "homeboy/fuzz-execution-request-artifact/v1",
+      "semantic_key": "fuzz.execution_request",
+      "required_before_execution": true
+    },
+    {
+      "id": "coverage_reconciliation",
+      "schema": "homeboy/fuzz-coverage-reconciliation/v1",
+      "semantic_key": "fuzz.coverage_reconciliation",
+      "required_before_proven": true
+    },
+    {
+      "id": "rest_payload_family_coverage",
+      "schema": "wordpress.rest-payload-families/v1",
+      "semantic_key": "fuzz.payload_family_coverage",
+      "required_before_execution": true
+    },
+    {
+      "id": "snapshot_restore_artifact",
+      "schema": "wp-codebox/snapshot-restore-artifact/v1",
+      "semantic_key": "fuzz.reset",
+      "required_before_execution": true
+    },
+    {
+      "id": "chaos_sequence_pack_resolution",
+      "schema": "homeboy/chaos-sequence-generator/v1",
+      "semantic_key": "fuzz.chaos_sequence_packs",
+      "required_before_execution": true
+    },
+    {
+      "id": "payload_size_depth_family_coverage",
+      "schema": "homeboy/fuzz-payload-size-depth-families/v1",
+      "semantic_key": "fuzz.payload_size_depth_families",
+      "required_before_execution": true
+    },
+    {
+      "id": "relative_hotspot_taxonomy",
+      "schema": "homeboy/relative-hotspot-taxonomy/v1",
+      "semantic_key": "fuzz.relative_hotspot_taxonomy",
+      "required_before_proven": true
+    },
+    {
+      "id": "per_case_timing",
+      "schema": "homeboy/fuzz-per-case-timing/v1",
+      "semantic_key": "fuzz.case_timing",
+      "required_before_proven": true
+    },
+    {
+      "id": "database_observations",
+      "schema": "homeboy-extensions/generate-database-observations/v1",
+      "semantic_key": "wordpress.database_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "admin_observations",
+      "schema": "homeboy-extensions/generate-admin-observations/v1",
+      "semantic_key": "wordpress.admin_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "browser_observations",
+      "schema": "homeboy-extensions/generate-browser-observations/v1",
+      "semantic_key": "wordpress.browser_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "editor_observations",
+      "schema": "homeboy-extensions/generate-editor-observations/v1",
+      "semantic_key": "wordpress.editor_observations",
+      "required_before_proven": true
+    },
+    {
+      "id": "relative_hotspots",
+      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "semantic_key": "fuzz.relative_hotspots",
+      "required_before_proven": true
+    }
+  ],
+  "fixture_families": [
+    {
+      "id": "products",
+      "surface": "products",
+      "seed_shapes": ["simple product", "grouped product", "variable product parent", "attribute/term matrix", "SKU/title/slug collision guards"],
+      "planned_operations": ["create", "read", "update", "delete"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "variations",
+      "surface": "variations",
+      "seed_shapes": ["fixture-owned variable parent", "variation attribute matrix", "stock/status/price variants"],
+      "planned_operations": ["create", "read", "update", "delete"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "cart",
+      "surface": "cart",
+      "seed_shapes": ["anonymous cart", "logged-in customer cart", "coupon cart", "shipping package matrix"],
+      "planned_operations": ["add item", "update quantity", "apply coupon", "remove item", "session reset"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "checkout",
+      "surface": "checkout",
+      "seed_shapes": ["offline payment checkout", "shipping method matrix", "duplicate submit", "gateway-disabled boundary"],
+      "planned_operations": ["prepare checkout", "submit order", "retry", "cancel/reset"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "orders",
+      "surface": "orders",
+      "seed_shapes": ["fixture-owned order", "order note", "refund candidate", "status transition matrix"],
+      "planned_operations": ["create", "read", "update", "delete"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "coupons",
+      "surface": "coupons",
+      "seed_shapes": ["percent coupon", "fixed cart coupon", "usage limit", "product/category restriction"],
+      "planned_operations": ["create", "read", "update", "delete"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "customers",
+      "surface": "customers",
+      "seed_shapes": ["unique customer", "billing profile", "shipping profile", "order-linked customer"],
+      "planned_operations": ["create", "read", "update", "delete"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "settings",
+      "surface": "settings",
+      "seed_shapes": ["non-credential option", "tax/shipping setting skip", "payment credential skip", "webhook/marketplace skip"],
+      "planned_operations": ["inventory", "classify", "mutate safe setting", "reset"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "reports_admin_pages",
+      "surface": "reports_admin_pages",
+      "seed_shapes": ["administrator session", "shop_manager session", "analytics page", "orders/products admin filters"],
+      "planned_operations": ["visit", "filter", "paginate", "classify skipped action"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "store_api",
+      "surface": "store_api",
+      "seed_shapes": ["catalog browse", "cart route", "checkout route", "nonce/session boundary"],
+      "planned_operations": ["generated read", "cart mutation", "checkout mutation", "permission boundary"],
+      "readiness": "executable_in_isolated_sandbox"
+    },
+    {
+      "id": "rest_api",
+      "surface": "rest_api",
+      "seed_shapes": ["wc/v3 CRUD route", "wc-admin read route", "wc-analytics read route", "dynamic path parameter"],
+      "planned_operations": ["generated read", "generated create", "generated update", "generated delete"],
+      "readiness": "executable_in_isolated_sandbox"
+    }
+  ],
+  "planned_case_groups": {
+    "sequence": ["product-lifecycle", "variation-lifecycle", "cart-mutation", "checkout-attempts", "order-mutation", "coupon-customer-interactions", "settings-report-admin-pages", "store-rest-cross-surface"],
+    "route": ["wc/v3/products", "wc/v3/products/batch", "wc/v3/products/<product_id>/variations/batch", "wc/v3/orders", "wc/v3/coupons", "wc/v3/customers", "wc/store/v1/cart", "wc/store/v1/checkout"],
+    "action": ["add-to-cart", "apply-coupon", "place-order", "order-status-transition", "admin-menu-get", "wc-ajax-frontend-action"],
+    "query": ["catalog lookup", "cart/session lookup", "checkout totals", "order lookup", "analytics report", "coupon validation"],
+    "table": ["wp_posts", "wp_postmeta", "wp_wc_orders", "wp_wc_order_addresses", "wp_woocommerce_order_items", "wp_wc_product_meta_lookup", "wp_actionscheduler_actions"],
+    "page": ["shop", "product", "cart", "checkout", "orders admin", "products admin", "analytics admin", "settings admin"],
+    "block": ["woocommerce/product-collection", "woocommerce/cart", "woocommerce/checkout", "woocommerce/product-button", "woocommerce/product-price", "woocommerce/filter-wrapper"]
+  },
+  "relative_hotspot_labels": ["sequence", "route", "action", "query", "table", "page", "block"],
+  "readiness": {
+    "level": "executable",
+    "execution_enabled": true,
+    "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
+    "local_execution_enabled": false,
+    "destructive_full_coverage": false,
+    "coverage_contract": "Aggressive randomized destructive firehose coverage is executable only through offloaded Homeboy Lab routing into a WP Codebox isolated sandbox with --allow-destructive and --isolation isolated. Proven status still requires reviewer-facing Homeboy, WP Codebox, payload-family, snapshot-restore, and HBEX admin/database/browser/editor artifacts.",
+    "proof_bundle_requirements": {
+      "status": "required_before_proven",
+      "local_only_refs_allowed": false,
+      "placeholder_refs_allowed": false,
+      "required_refs": [
+        "reviewer-facing destructive isolated mode artifact ref",
+        "reviewer-facing fuzz execution request artifact ref",
+        "reviewer-facing coverage reconciliation artifact ref",
+        "reviewer-facing destructive fuzz-suite metadata artifact ref",
+        "reviewer-facing snapshot restore artifact ref",
+        "reviewer-facing REST payload family coverage artifact ref",
+        "reviewer-facing chaos sequence pack resolution artifact ref",
+        "reviewer-facing payload size/depth family coverage artifact ref",
+        "reviewer-facing relative hotspot taxonomy artifact ref",
+        "reviewer-facing HBEX aggressive isolated mode artifact ref",
+        "reviewer-facing admin observation artifact ref",
+        "reviewer-facing database observation artifact ref",
+        "reviewer-facing browser observation artifact ref",
+        "reviewer-facing editor observation artifact ref",
+        "reviewer-facing per-case timing artifact ref",
+        "reviewer-facing relative hotspots artifact ref"
+      ],
+      "required_artifacts": ["destructive_isolated_mode_artifact", "fuzz_execution_request", "coverage_reconciliation", "destructive_fuzz_suite_metadata", "snapshot_restore_artifact", "rest_payload_family_coverage", "chaos_sequence_pack_resolution", "payload_size_depth_family_coverage", "relative_hotspot_taxonomy", "hbex_aggressive_isolated_mode_artifact", "admin_observations", "database_observations", "browser_observations", "editor_observations", "per_case_timing", "relative_hotspots"]
+    },
+    "required_contracts": [
+      "homeboy/destructive-isolated-mode/v1",
+      "homeboy/fuzz-execution-request-artifact/v1",
+      "homeboy/fuzz-coverage-reconciliation/v1",
+      "wp-codebox/destructive-fuzz-suite-metadata/v1",
+      "wp-codebox/snapshot-restore-artifact/v1",
+      "wordpress.rest-payload-families/v1",
+      "homeboy/chaos-sequence-generator/v1",
+      "homeboy/fuzz-payload-size-depth-families/v1",
+      "homeboy/relative-hotspot-taxonomy/v1",
+      "homeboy-extensions/aggressive-isolated-mode/v1",
+      "homeboy-extensions/generate-admin-observations/v1",
+      "homeboy-extensions/generate-database-observations/v1",
+      "homeboy-extensions/generate-browser-observations/v1",
+      "homeboy-extensions/generate-editor-observations/v1"
+    ]
+  }
+}

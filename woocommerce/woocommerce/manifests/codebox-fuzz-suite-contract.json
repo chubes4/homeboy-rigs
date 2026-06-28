@@ -1,6 +1,6 @@
 {
   "schema": "wp-codebox/fuzz-suite/v1",
-  "id": "woocommerce-codebox-fuzz-suite-smoke",
+  "id": "woocommerce-codebox-fuzz-suite-contract",
   "version": "1.0.0",
   "target": {
     "kind": "rest-generated-contract",
@@ -35,7 +35,7 @@
         "id": "db-api-performance-fuzzer",
         "rig_profile": "rigs/woocommerce-performance/rig.json#fuzz_profiles.db-api-performance-fuzzer",
         "workload_ids": [
-          "codebox-fuzz-suite-smoke",
+          "codebox-fuzz-suite-contract",
           "woocommerce-rest-route-inventory",
           "generated-rest-request-cases",
           "rest-db-query-profile",
@@ -81,17 +81,13 @@
           "coverage_gap_report",
           "performance_hotspots_summary"
         ]
-      },
-      "proof_bundle": {
-        "canonical_fuzz_envelope_ref": "homeboy://run/wc-db-api-codebox-suite-20260626T0145Z/artifact/cfa06657-0b23-447d-bd04-c75a7597f266",
-        "placeholder_reason": "Canonical fuzz envelope is backed by offloaded Homeboy Lab run wc-db-api-codebox-suite-20260626T0145Z; coverage gap and performance hotspot artifacts stay pending until they have reviewer-facing refs."
       }
     }
   },
   "cases": [
     {
       "id": "woocommerce-generated-rest-db-readiness-contract",
-      "description": "Schema-level public Codebox fuzz-suite contract for generated WooCommerce REST route inventory, generated safe GET cases, and REST DB query attribution. This is not a hand-picked route smoke case.",
+      "description": "Schema-level public Codebox fuzz-suite contract for generated WooCommerce REST route inventory, generated safe GET cases, and REST DB query attribution. This is not a hand-picked route readiness proof.",
       "input": {
         "generated_from": {
           "route_inventory_artifact": "route_inventory",

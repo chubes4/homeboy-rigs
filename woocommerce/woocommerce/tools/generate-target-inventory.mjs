@@ -5,6 +5,10 @@ import {
   declaredFuzzIds,
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
+import {
+  wooProductSurfaceTaxonomy,
+  wooSurfaceReadinessStates,
+} from './woo-surface-taxonomy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -16,6 +20,7 @@ const restCrudPayloadFixtures = readJson(packageRoot, 'manifests/rest-crud-paylo
 const blockInventoryRenderingFuzz = readJson(packageRoot, 'manifests/block-inventory-rendering-fuzz.json');
 const adminActionInventory = readJson(packageRoot, 'manifests/admin-action-inventory.json');
 const dbApiHotspotArtifactIo = readJson(packageRoot, 'manifests/db-api-hotspot-artifact-io.json');
+const productChaosSequencePacks = readJson(packageRoot, 'manifests/product-chaos-sequence-packs.json');
 
 const declaredWorkloads = [...declaredFuzzIds(rig)].sort();
 
@@ -40,8 +45,15 @@ const inventory = {
     block_inventory_rendering_fuzz: 'manifests/block-inventory-rendering-fuzz.json',
     admin_action_inventory: 'manifests/admin-action-inventory.json',
     db_api_hotspot_artifact_io: 'manifests/db-api-hotspot-artifact-io.json',
+    product_chaos_sequence_packs: 'manifests/product-chaos-sequence-packs.json',
+    aggressive_isolated_fuzz_campaign: 'manifests/aggressive-isolated-fuzz-campaign.json',
   },
   discovery_manifests: {
+    product_surface_taxonomy: {
+      readiness_states: wooSurfaceReadinessStates,
+      provenance: 'product-level seasoning only; execution and proof remain owned by generic WP Codebox/Homeboy primitives and reviewer-facing artifacts',
+      surfaces: wooProductSurfaceTaxonomy,
+    },
     rest_route_families: {
       manifest: 'manifests/rest-crud-route-family-catalog.json',
       owner_profile: restCrudRouteFamilyCatalog.owner_profile,
@@ -80,6 +92,15 @@ const inventory = {
       owner_profile: dbApiHotspotArtifactIo.owner_profile,
       readiness: dbApiHotspotArtifactIo.readiness,
       postprocess_command: dbApiHotspotArtifactIo.postprocess_command,
+    },
+    product_chaos_sequence_packs: {
+      manifest: 'manifests/product-chaos-sequence-packs.json',
+      owner_profile: productChaosSequencePacks.owner_profile,
+      readiness: productChaosSequencePacks.readiness,
+      sequence_pack_ids: productChaosSequencePacks.sequence_packs.map((pack) => pack.id),
+      fixture_family_ids: productChaosSequencePacks.fixture_families.map((family) => family.id),
+      payload_size_depth_family_ids: productChaosSequencePacks.payload_size_depth_families.map((family) => family.id),
+      relative_hotspot_labels: productChaosSequencePacks.relative_hotspot_taxonomy.labels,
     },
   },
   inventory_primitives: {
