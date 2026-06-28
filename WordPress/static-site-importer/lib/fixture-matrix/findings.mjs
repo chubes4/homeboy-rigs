@@ -255,7 +255,7 @@ export function dedupeFindings(findings) {
   });
 }
 
-function normalizeLossClass(value) {
+export function normalizeLossClass(value) {
   const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   const aliases = {
     acceptable: 'native_conversion',
@@ -264,6 +264,11 @@ function normalizeLossClass(value) {
     editable: 'editable_approximation',
     editable_approximation: 'editable_approximation',
     preserved_runtime_island: 'preserved_runtime_island',
+    // The php-transformer emits the loss class as `runtime_island_preserved`
+    // (see blocks-engine php-transformer FallbackDiagnostic/HtmlTransformer). Alias
+    // it to the canonical `preserved_runtime_island` so the explicit-normalization
+    // path wins deterministically instead of relying on the wording regex below.
+    runtime_island_preserved: 'preserved_runtime_island',
     runtime_island: 'preserved_runtime_island',
     unsupported: 'unsupported_loss',
     unsupported_loss: 'unsupported_loss',
