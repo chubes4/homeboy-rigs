@@ -64,11 +64,11 @@ const payload = {
   blockers: executionSupported ? [] : [
     'manifest.readiness.execution_enabled must be true for offloaded execution',
   ],
-  plan_items: [
-    {
-      purpose: 'prepare_disposable_rig',
-      command_argv: withOptionalLabArgs(['homeboy', 'rig', 'up', 'woocommerce-performance'], options),
-    },
+	plan_items: [
+		{
+			purpose: 'validate_disposable_rig',
+			command_argv: withOptionalLabArgs(['homeboy', 'rig', 'check', 'woocommerce-performance'], options),
+		},
     {
       purpose: 'request_aggressive_isolated_firehose',
       command_argv: baseRunCommand,
