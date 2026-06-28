@@ -15,7 +15,6 @@ import {
 } from '../shared/constants.mjs';
 import {
   normalizeArray,
-  isTextPayloadType,
   isImagePath,
   requiredString,
   shellToken,
@@ -27,20 +26,26 @@ import { visualParityCompareStep, normalizeVisualParityRecipeOptions } from './v
 export function buildFixtureArtifact(fixture, options = {}) {
   const normalized = normalizeFixture(fixture);
   const files = collectFixtureFiles(normalized.directory, options);
+  // Encode EVERY file as `content_base64`, byte-for-byte matching the real
+  // product path. The SSI `import-theme` CLI (static-site-importer.php) reads
+  // each source file and emits `'content_base64' => base64_encode( $content )`
+  // unconditionally — there is no plain-`content` branch in the product. The
+  // matrix previously diverged here, base64-encoding only binary payloads and
+  // sending text (CSS/HTML/JS/JSON/SVG) as plain `content`. That divergence hid
+  // a catastrophic transformer bug: inline CSS was dropped only on the base64
+  // path, so a real import shipped an empty `style.css` (unstyled site) while
+  // the matrix's plain-content artifacts passed green. Mirroring the product's
+  // encoding exactly means the gate can never again exercise a payload shape the
+  // product does not actually produce.
   const artifactFiles = files.map((file) => {
     const payload = fs.readFileSync(file.absolute_path);
-    const artifactFile = {
+    return {
       path: `website/${file.relative_path}`,
       source_path: file.absolute_path,
       type: file.type,
       bytes: file.bytes,
+      content_base64: payload.toString('base64'),
     };
-    if (isTextPayloadType(file.type)) {
-      artifactFile.content = payload.toString('utf8');
-    } else {
-      artifactFile.content_base64 = payload.toString('base64');
-    }
-    return artifactFile;
   });
 
   return {
