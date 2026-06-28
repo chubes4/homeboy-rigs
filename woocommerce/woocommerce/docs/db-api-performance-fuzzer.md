@@ -57,7 +57,7 @@ The declared source contracts live in:
 - `manifests/rest-crud-fixture-opt-ins.json` with schema
   `wp-codebox/rest-mutation-fixture-opt-in/v1` for generated REST mutation
   opt-ins.
-- `manifests/codebox-fuzz-suite-smoke.json`.
+- `manifests/codebox-fuzz-suite-contract.json`.
 - `manifests/db-api-performance-fuzzer-gap-report.json`.
 - `bench/coverage-gap-report.workload.json`.
 - `bench/performance-hotspots-artifact-summary.workload.json`.
@@ -144,7 +144,7 @@ intent, but still not proof that any case executed.
 ```bash
 homeboy fuzz plan \
   --rig woocommerce-performance \
-  --workload codebox-fuzz-suite-smoke \
+  --workload codebox-fuzz-suite-contract \
   --run-id wc-db-api-codebox-suite-baseline \
   --request-id wc-db-api-codebox-suite-baseline \
   --strategy read-only \
@@ -184,7 +184,7 @@ specific baseline or candidate worktree.
 Baseline:
 
 ```bash
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
+homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload generated-rest-request-cases --run-id wc-db-api-generated-cases-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
@@ -197,7 +197,7 @@ homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseli
 Candidate:
 
 ```bash
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload codebox-fuzz-suite-smoke --run-id wc-db-api-codebox-suite-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
+homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload generated-rest-request-cases --run-id wc-db-api-generated-cases-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff

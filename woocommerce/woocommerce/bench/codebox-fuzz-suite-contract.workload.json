@@ -16,14 +16,14 @@
     {
       "command": "wp-codebox/run-fuzz-suite",
       "args": [
-        "suite=${package.root}/manifests/codebox-fuzz-suite-smoke.json"
+        "suite=${package.root}/manifests/codebox-fuzz-suite-contract.json"
       ]
     }
   ],
   "artifacts": [
     {
       "name": "codebox_fuzz_suite_result",
-      "path": "codebox-fuzz-suite-smoke/fuzz-suite-result.json",
+      "path": "codebox-fuzz-suite-contract/fuzz-suite-result.json",
       "kind": "json",
       "contentType": "application/json",
       "required": false,
@@ -36,9 +36,9 @@
   ],
   "metadata": {
     "runner": "wp-codebox",
-    "workload": "codebox-fuzz-suite-smoke",
+    "workload": "codebox-fuzz-suite-contract",
     "contract": "wp-codebox/wordpress-workload-run/v1",
-    "fuzz_suite": "${package.root}/manifests/codebox-fuzz-suite-smoke.json",
+    "fuzz_suite": "${package.root}/manifests/codebox-fuzz-suite-contract.json",
     "proof_status": "declared_contract"
   }
 }

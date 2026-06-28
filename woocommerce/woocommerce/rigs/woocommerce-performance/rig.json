@@ -91,7 +91,7 @@
       { "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json" },
       { "path": "${package.root}/fuzz/options-transients-coverage.json" },
       { "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json" },
-      { "path": "${package.root}/fuzz/codebox-fuzz-suite-smoke.json" },
+      { "path": "${package.root}/fuzz/codebox-fuzz-suite-contract.json" },
       { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
       { "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json" },
       { "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json" }
@@ -109,7 +109,7 @@
   },
   "fuzz_profiles": {
     "smoke": [
-      "codebox-fuzz-suite-smoke",
+      "codebox-fuzz-suite-contract",
       "woocommerce-rest-route-inventory",
       "db-inventory",
       "admin-page-coverage"
@@ -150,7 +150,7 @@
       "action-scheduler-lookup-table-coverage",
       "options-transients-coverage",
       "rollback-safe-options-transients-mutations",
-      "codebox-fuzz-suite-smoke",
+      "codebox-fuzz-suite-contract",
       "frontend-rendering-request-coverage",
       "performance-hotspots-artifact-summary",
       "woocommerce-external-http-guardrail"
@@ -175,7 +175,7 @@
       "action-scheduler-lookup-table-coverage",
       "options-transients-coverage",
       "rollback-safe-options-transients-mutations",
-      "codebox-fuzz-suite-smoke",
+      "codebox-fuzz-suite-contract",
       "frontend-rendering-request-coverage",
       "performance-hotspots-artifact-summary",
       "woocommerce-external-http-guardrail"
@@ -195,6 +195,31 @@
       "readiness": {
         "level": "declared",
         "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios remain non-executable until upstream runner support emits reviewer-facing artifacts. Artifact-postprocess outputs can execute through the generic Homeboy contract but require reviewer-facing artifacts before proven readiness."
+      }
+    },
+    "aggressive-isolated-firehose": {
+      "description": "Planned WooCommerce aggressive randomized destructive firehose profile. This profile is intentionally not present in fuzz_profiles until upstream destructive isolation, reset policy, generated payloads, and observation artifacts exist.",
+      "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
+      "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
+      "target_inventory_manifest": "manifests/target-inventory.json",
+      "source_profile": "full-surface",
+      "required_upstream_contracts": [
+        "homeboy/destructive-isolated-mode/v1",
+        "homeboy/fuzz-execution-request-artifact/v1",
+        "homeboy/fuzz-coverage-reconciliation/v1",
+        "wp-codebox/destructive-fuzz-suite-metadata/v1",
+        "wp-codebox/snapshot-restore-artifact/v1",
+        "wordpress.rest-payload-families/v1",
+        "homeboy-extensions/aggressive-isolated-mode/v1",
+        "homeboy-extensions/generate-admin-observations/v1",
+        "homeboy-extensions/generate-database-observations/v1",
+        "homeboy-extensions/generate-browser-observations/v1",
+        "homeboy-extensions/generate-editor-observations/v1"
+      ],
+      "readiness": {
+        "level": "declared",
+        "execution_enabled": false,
+        "coverage_contract": "The aggressive isolated firehose is wiring only. It must not be treated as executable destructive full coverage until upstream Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist as reviewer-facing refs."
       }
     },
     "db-api-performance-fuzzer": {
