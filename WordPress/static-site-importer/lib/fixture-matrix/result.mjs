@@ -23,6 +23,7 @@ import {
   writeJsonFile,
   artifactRef,
 } from './shared/utils.mjs';
+import { boundBlob } from './shared/bounds.mjs';
 import {
   createFixtureMatrix,
   classifyFixture,
@@ -167,19 +168,26 @@ export function normalizeFixtureResult(input) {
     status,
     success: status === 'passed',
     error: input.error || input.message || '',
-    ssi_validation: input.ssi_validation || input.ssiValidation || null,
-    import_report: input.import_report || input.importReport || null,
-    quality_metrics: input.quality_metrics || input.qualityMetrics || {},
+    // Block composition is computed from the FULL input (which may carry
+    // serialized `post_content`/block markup) into bounded COUNTS first; the raw
+    // markup is then discarded by never retaining `input` and by bounding the
+    // report blobs below. See #554 / bounds.mjs.
     block_composition: input.block_composition || input.blockComposition || collectBlockComposition(input),
-    blocks_engine_diagnostics: normalizeArray(input.blocks_engine_diagnostics || input.blocksEngineDiagnostics),
+    // Retained report blobs can carry raw serialized markup (e.g.
+    // `import_report.materialized_content.block_documents[].post_content`). Bound
+    // every retained string so the per-fixture result scales with #findings, not
+    // with raw content volume. Counts/metrics inside these blobs are untouched.
+    ssi_validation: boundBlob(input.ssi_validation || input.ssiValidation || null),
+    import_report: boundBlob(input.import_report || input.importReport || null),
+    quality_metrics: boundBlob(input.quality_metrics || input.qualityMetrics || {}),
+    blocks_engine_diagnostics: boundBlob(normalizeArray(input.blocks_engine_diagnostics || input.blocksEngineDiagnostics)),
     invalid_block_counts: input.invalid_block_counts || input.invalidBlockCounts || {},
-    missing_assets: normalizeArray(input.missing_assets || input.missingAssets),
-    runtime_target_gaps: normalizeArray(input.runtime_target_gaps || input.runtimeTargetGaps),
-    diagnostics: normalizeArray(input.diagnostics || input.findings || input.messages),
+    missing_assets: boundBlob(normalizeArray(input.missing_assets || input.missingAssets)),
+    runtime_target_gaps: boundBlob(normalizeArray(input.runtime_target_gaps || input.runtimeTargetGaps)),
+    diagnostics: boundBlob(normalizeArray(input.diagnostics || input.findings || input.messages)),
     artifact_refs: normalizeArray(input.artifact_refs || input.artifactRefs),
     artifacts: input.artifacts || {},
     visual_parity_artifacts: input.visual_parity_artifacts || input.visualParityArtifacts || null,
-    raw: input,
   };
 }
 

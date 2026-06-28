@@ -1760,3 +1760,96 @@ test('visual-compare dimension mismatch gates even with zero pixel metrics when 
   assert.equal(diagnostics.length, 1);
   assert.equal(diagnostics[0].dimension_mismatch, true);
 });
+
+// #554: at lane scale (~30+ fixtures) the aggregate result used to retain each
+// fixture's raw serialized `post_content`/block markup (via `raw: input` and the
+// #552 block-composition path) plus uncapped finding snippets, so JSON.stringify
+// of the assembled result exceeded V8's ~512MB per-string ceiling and threw
+// `Invalid string length`. The output must now be bounded by #fixtures/#findings,
+// not by raw content volume.
+test('bounds the assembled output regardless of per-fixture raw content volume (#554)', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-bounded-output-'));
+  const fixtureCount = 40;
+  // ~5MB serialized post_content + many large finding snippets per fixture, so
+  // the raw input dwarfs any safe serialized-output bound.
+  const hugePostContent = '<!-- wp:paragraph --><p>'.concat('x'.repeat(5 * 1024 * 1024), '</p><!-- /wp:paragraph -->');
+  const hugeSnippet = '<section>'.concat('y'.repeat(200 * 1024), '</section>');
+  let rawContentBytes = 0;
+
+  const results = [];
+  for (let index = 0; index < fixtureCount; index += 1) {
+    const id = `marketing-${String(index).padStart(3, '0')}`;
+    const directory = path.join(root, id);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(path.join(directory, 'index.html'), '<h1>Landing</h1>');
+    writeFileSync(path.join(directory, 'fixture.json'), JSON.stringify({ class: 'marketing/static' }));
+
+    // Many findings, each carrying a large source snippet / observed output.
+    const diagnostics = [];
+    for (let findingIndex = 0; findingIndex < 12; findingIndex += 1) {
+      diagnostics.push({
+        kind: 'runtime_dependency_missing_dom_target',
+        repair_bucket: 'runtime_target_gap',
+        candidate_repo: 'blocks-engine',
+        source_path: `website/page-${findingIndex}.html`,
+        selector: `#widget-${findingIndex}`,
+        source_html_preview: hugeSnippet,
+        emitted_block_preview: hugeSnippet,
+        message: `Runtime target missing for widget ${findingIndex}: ${hugeSnippet}`,
+      });
+      rawContentBytes += hugeSnippet.length * 2 + hugeSnippet.length;
+    }
+
+    results.push({
+      fixture_id: id,
+      status: 'failed',
+      // The #552 block-composition path: counts come from block_type_counts; the
+      // raw markup below must NOT survive into the assembled output.
+      block_type_counts: { 'core/paragraph': 7, 'core/html': 3 },
+      post_content: hugePostContent,
+      import_report: {
+        materialized_content: {
+          block_documents: [
+            { source_path: 'posts/page-home.post_content', block_count: 10, core_html_block_count: 3, freeform_block_count: 0, post_content: hugePostContent },
+          ],
+        },
+      },
+      diagnostics,
+    });
+    rawContentBytes += hugePostContent.length * 2;
+  }
+
+  const matrix = createFixtureMatrix({ fixture_root: root, id: 'bounded-output-scale-test' });
+  assert.equal(matrix.fixtures.length, fixtureCount);
+
+  const result = normalizeFixtureMatrixResult({ matrix, results });
+
+  // The assembled aggregate must serialize without throwing `Invalid string
+  // length`, and stay well under a safe bound regardless of raw content volume.
+  let serialized;
+  assert.doesNotThrow(() => { serialized = JSON.stringify(result); }, 'assembled result must JSON.stringify successfully');
+  const serializedBytes = Buffer.byteLength(serialized, 'utf8');
+  const FIFTY_MB = 50 * 1024 * 1024;
+  assert.ok(serializedBytes < FIFTY_MB, `serialized output ${serializedBytes} bytes must stay under ${FIFTY_MB} bytes`);
+  // The raw inputs are an order of magnitude larger than the bound: output size
+  // is decoupled from raw content volume, not merely "small for this fixture set".
+  assert.ok(rawContentBytes > 200 * 1024 * 1024, 'sanity: the raw inputs must dwarf the output bound');
+  assert.ok(serializedBytes * 10 < rawContentBytes, 'output must be bounded independently of raw content volume');
+
+  // Raw bulk is dropped: no `raw` blob is retained on fixtures or findings, and
+  // no full-length serialized body survives.
+  assert.ok(result.fixtures.every((fixture) => fixture.raw === undefined), 'fixture results must not retain raw input');
+  assert.ok(result.findings.every((finding) => finding.raw === undefined), 'findings must not retain the raw diagnostic');
+  assert.ok(result.findings.every((finding) => finding.source_snippet.length < hugeSnippet.length), 'finding snippets must be truncated');
+  const retainedPostContent = result.fixtures[0].import_report.materialized_content.block_documents[0].post_content;
+  assert.ok(retainedPostContent.length < hugePostContent.length, 'retained report markup must be truncated');
+
+  // Metrics survive the bounding intact: native rate, block counts, and finding
+  // counts are computed from the full input before raw bulk is dropped.
+  assert.equal(result.summary.editor_quality.block_total, fixtureCount * 10);
+  assert.equal(result.summary.editor_quality.native_block_count, fixtureCount * 7);
+  assert.equal(result.summary.editor_quality.core_html_block_count, fixtureCount * 3);
+  assert.equal(result.summary.editor_quality.native_conversion_rate, 0.7);
+  assert.equal(result.summary.fixture_count, fixtureCount);
+  assert.ok(result.summary.finding_count >= fixtureCount, 'every fixture must contribute findings');
+});

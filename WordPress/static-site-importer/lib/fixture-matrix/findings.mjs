@@ -21,6 +21,7 @@ import {
   objectValue,
   isTruthySignal,
 } from './shared/utils.mjs';
+import { truncateString } from './shared/bounds.mjs';
 
 export function classifyStaticSiteFinding(input = {}) {
   const haystack = [input.kind, input.type, input.code, input.category, input.repair_bucket, input.group_key, input.message, input.reason, input.detail]
@@ -79,9 +80,14 @@ export function normalizeDiagnosticFinding(diagnostic, result, index) {
     selector,
     selector_family: selectorFamily(selector),
     pattern_family: patternFamily({ ...raw, kind, group_key: group.group_key, repair_bucket: repairBucket, selector }),
-    reason: message,
-    source_snippet: raw.source_html_preview || raw.html_excerpt || rawSource.snippet || '',
-    observed_output: raw.emitted_block_preview || rawObserved.output || '',
+    // Bound the free-text payload fields: a source snippet / observed block
+    // output can carry an entire serialized `post_content` body, which at lane
+    // scale balloons the aggregate past V8's per-string limit (#554). Truncate
+    // to a sane cap so per-finding size is bounded; classification/metrics above
+    // are derived from the full diagnostic before truncation.
+    reason: truncateString(message),
+    source_snippet: truncateString(raw.source_html_preview || raw.html_excerpt || rawSource.snippet || ''),
+    observed_output: truncateString(raw.emitted_block_preview || rawObserved.output || ''),
     observed_block_name: raw.block_name || rawObserved.block_name || '',
     repair_mode: raw.repair_mode || group.repair_mode,
     candidate_repo: raw.candidate_repo || group.candidate_repo,
@@ -91,7 +97,10 @@ export function normalizeDiagnosticFinding(diagnostic, result, index) {
     actionability: countOnlyDiagnostic ? 'count_only' : 'actionable',
     actionable: !countOnlyDiagnostic,
     artifact_refs: normalizeArray(raw.artifact_refs),
-    raw,
+    // The full raw diagnostic is intentionally NOT retained on the finding: it
+    // duplicates the (already-bounded) classified fields and can carry raw
+    // serialized markup. All classification above is computed from `raw` before
+    // this point; downstream consumers read the bounded top-level fields.
   };
 }
 
