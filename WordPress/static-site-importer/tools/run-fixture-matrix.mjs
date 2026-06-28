@@ -43,12 +43,27 @@ async function main() {
 
   fs.mkdirSync(path.dirname(plan.output_file), { recursive: true });
 
-  for (const step of plan.steps) {
+  // Install/sync run first; a non-zero exit there is a genuine setup failure and
+  // should still abort via runCommand's throw.
+  const benchStep = plan.steps.at(-1);
+  for (const step of plan.steps.slice(0, -1)) {
     runCommand(step);
   }
 
-  const summary = summarizeRun(plan);
+  // The bench step exits non-zero on a gate-FAIL (one or more fixtures failed).
+  // That is an expected, summarizable outcome — not a fatal error — so capture
+  // its exit status instead of throwing. summarizeBenchRun only throws when the
+  // bench genuinely crashed (no parseable result payload written to --output).
+  const benchStatus = runStep(benchStep);
+  const { summary, gateFailed } = summarizeBenchRun({
+    plan,
+    benchStatus,
+    benchLabel: benchStep.label,
+  });
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  if (gateFailed) {
+    process.exitCode = 1;
+  }
 }
 
 export function buildFixtureMatrixRunPlan(input) {
@@ -421,26 +436,64 @@ function withCommonRouting(args, options) {
 }
 
 function runCommand(step) {
-  process.stderr.write(`\n# ${step.label}\n${shellCommand(step)}\n`);
-  const result = spawnSync(step.command, step.args, { stdio: 'inherit' });
-  if (result.status !== 0) {
-    throw new Error(`${step.label} failed with exit ${result.status}`);
+  const status = runStep(step);
+  if (status !== 0) {
+    throw new Error(`${step.label} failed with exit ${status}`);
   }
 }
 
-export function summarizeRun(plan) {
+// Run a step and return its exit status without throwing, so callers can decide
+// whether a non-zero exit is fatal (setup) or an expected outcome (bench gate).
+function runStep(step) {
+  process.stderr.write(`\n# ${step.label}\n${shellCommand(step)}\n`);
+  const result = spawnSync(step.command, step.args, { stdio: 'inherit' });
+  return result.status;
+}
+
+// A bench gate-FAIL exits non-zero but still writes a parseable result payload
+// to --output. Distinguish that (summarizable) from a genuine crash (no output
+// or unparseable) so the operator always gets the summary on a failing run.
+// On crash, preserve the historical throw/error behavior.
+export function summarizeBenchRun({ plan, benchStatus, benchLabel = 'bench step' }) {
+  if (benchStatus !== 0 && !benchProducedResult(plan.output_file)) {
+    throw new Error(`${benchLabel} failed with exit ${benchStatus}`);
+  }
+  const gateFailed = benchStatus !== 0;
+  return {
+    gateFailed,
+    summary: summarizeRun(plan, { status: gateFailed ? 'failed' : 'passed' }),
+  };
+}
+
+// The bench RAN if --output exists, parses, and carries a result payload
+// (a `result_summary` somewhere in the tree). That presence is the signal the
+// gate evaluated a real run rather than the process crashing before writing
+// results.
+function benchProducedResult(outputFile) {
+  const output = readJson(outputFile);
+  if (!output || typeof output !== 'object') {
+    return false;
+  }
+  return findFirstKey(output, 'result_summary') !== undefined;
+}
+
+export function summarizeRun(plan, { status } = {}) {
   const output = readJson(plan.output_file);
   const resultSummary = findFirstKey(output, 'result_summary') || {};
   const artifacts = findFirstKey(output, 'artifacts') || findFirstKey(output, 'artifact_refs') || {};
+  const failedFixtureCount = Number(resultSummary.failed || 0);
   return {
     schema: 'homeboy-rigs/static-site-importer-fixture-matrix-operator-summary/v1',
+    // Explicit gate outcome; falls back to the failed count when not provided
+    // so the field is always present on success and failure alike.
+    status: status || (failedFixtureCount > 0 ? 'failed' : 'passed'),
     mode: plan.mode,
     run_id: findFirstKey(output, 'run_id') || plan.run_id,
     code_freshness: plan.code_freshness || null,
     transformer_commit: plan.transformer_commit || resolveTransformerCommit(plan.code_freshness),
     fixture_count: Number(findFirstKey(output, 'fixture_count') || plan.fixture_count || 0),
     passed_fixture_count: Number(resultSummary.succeeded || resultSummary.passed || 0),
-    failed_fixture_count: Number(resultSummary.failed || 0),
+    failed_fixture_count: failedFixtureCount,
     finding_count: Number(resultSummary.finding_count || 0),
     top_buckets: topObjectCounts(resultSummary.buckets || resultSummary.groups || {}),
     top_kinds: topObjectCounts(resultSummary.kinds || {}),
