@@ -10,13 +10,8 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
 const options = parseArgs(process.argv.slice(2));
 const runIdPrefix = options.runIdPrefix || 'woo-firehose-$YYYYMMDD';
-const executionSupported = manifest.readiness?.execution_enabled === true
-  && Array.isArray(manifest.required_upstream_capabilities)
-  && manifest.required_upstream_capabilities.every((capability) => capability.status === 'supported');
-
-if (options.runnable && !executionSupported) {
-  throw new Error('Refusing to emit runnable firehose commands: aggressive-isolated-firehose is declared-only until upstream capability refs are marked supported and execution_enabled is true.');
-}
+const executionSupported = manifest.readiness?.execution_enabled === true;
+const runnableCommandsEnabled = executionSupported && !options.planOnly;
 
 const baseRunCommand = [
   'homeboy', 'fuzz', 'run',
@@ -25,7 +20,8 @@ const baseRunCommand = [
   '--profile', manifest.profile_id,
   '--run-id', `${runIdPrefix}-request`,
   '--tracker-ref', options.trackerRef,
-  '--destructive-isolated-mode',
+  '--allow-destructive',
+  '--isolation', 'isolated',
   '--fuzz-execution-request-artifact',
   '--coverage-reconciliation',
   '--wp-codebox-destructive-fuzz-suite-metadata',
@@ -58,13 +54,11 @@ const payload = {
   profile_id: manifest.profile_id,
   local_execution: false,
   execution_enabled: executionSupported,
-  runnable_commands_enabled: options.runnable,
-  plan_kind: options.runnable ? 'runnable_offloaded_commands' : 'declared_non_executable_plan',
+  runnable_commands_enabled: runnableCommandsEnabled,
+  plan_kind: runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan',
   run_id_prefix: runIdPrefix,
   blockers: executionSupported ? [] : [
-    'manifest.readiness.execution_enabled must be true',
-    'required_upstream_capabilities must all declare status: supported',
-    'reviewer-facing upstream capability refs must exist before command execution',
+    'manifest.readiness.execution_enabled must be true for offloaded execution',
   ],
   plan_items: [
     {
@@ -101,7 +95,7 @@ const payload = {
   ],
 };
 
-if (options.runnable) {
+if (runnableCommandsEnabled) {
   payload.commands = payload.plan_items.map((item) => ({
     purpose: item.purpose,
     command: item.command_argv,
@@ -114,14 +108,14 @@ if (options.json) {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 } else {
   process.stdout.write(`# ${payload.schema}\n`);
-  process.stdout.write(`# Non-executable plan artifact. Use --json for structured plan_items. Runnable commands require --runnable and supported upstream refs.\n`);
-  if (options.runnable) {
+  process.stdout.write(`# Offloaded Homeboy/HBEX command plan. Local execution is not supported; commands include --lab-only and isolated destructive flags.\n`);
+  if (runnableCommandsEnabled) {
     for (const item of payload.commands) {
       process.stdout.write(`# ${item.purpose}\n${shellJoin(item.command)}\n`);
     }
   } else {
     for (const item of payload.plan_items) {
-      process.stdout.write(`# ${item.purpose}: declared only, command withheld (${item.command_argv[0]} ${item.command_argv[1]} ...)\n`);
+      process.stdout.write(`# ${item.purpose}: offloaded command withheld by --plan-only (${item.command_argv[0]} ${item.command_argv[1]} ...)\n`);
     }
   }
 }
@@ -131,7 +125,7 @@ function parseArgs(argv) {
     artifactRoot: '',
     detachAfterHandoff: false,
     json: false,
-    runnable: false,
+    planOnly: false,
     runner: '',
     runIdPrefix: '',
     trackerRef: '$WC_TRACKER_REF',
@@ -161,8 +155,11 @@ function parseArgs(argv) {
       case '--runner':
         parsed.runner = readValue(arg);
         break;
+      case '--plan-only':
+        parsed.planOnly = true;
+        break;
       case '--runnable':
-        parsed.runnable = true;
+        parsed.planOnly = false;
         break;
       case '--run-id-prefix':
         parsed.runIdPrefix = readValue(arg);
@@ -214,6 +211,7 @@ function printHelp() {
   process.stdout.write(`  --run-id-prefix <id>      Firehose run id prefix. Defaults to the stable placeholder woo-firehose-$YYYYMMDD.\n`);
   process.stdout.write(`  --tracker-ref <kind:id>   Tracker ref for reviewer-facing evidence. Default: $WC_TRACKER_REF.\n`);
   process.stdout.write(`  --detach-after-handoff    Return after the Lab daemon accepts the run.\n`);
-  process.stdout.write(`  --runnable                Emit runnable command arrays only when upstream capability refs are supported and execution is enabled.\n`);
+  process.stdout.write(`  --plan-only               Emit structured plan_items but withhold runnable command arrays.\n`);
+  process.stdout.write(`  --runnable                Emit runnable offloaded command arrays. This is the default when execution is enabled.\n`);
   process.stdout.write(`  --json                    Emit structured JSON instead of shell commands.\n`);
 }

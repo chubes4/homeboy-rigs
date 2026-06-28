@@ -179,6 +179,17 @@
       "frontend-rendering-request-coverage",
       "performance-hotspots-artifact-summary",
       "woocommerce-external-http-guardrail"
+    ],
+    "aggressive-isolated-firehose": [
+      "codebox-fuzz-suite-contract",
+      "woocommerce-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "rest-schema-query-attribution",
+      "coverage-gap-report",
+      "performance-hotspots-artifact-summary",
+      "woocommerce-external-http-guardrail"
     ]
   },
   "fuzz_profile_metadata": {
@@ -199,12 +210,15 @@
       }
     },
     "aggressive-isolated-firehose": {
-      "description": "Planned WooCommerce aggressive randomized destructive firehose profile. This profile is intentionally not present in fuzz_profiles until upstream destructive isolation, reset policy, generated payloads, and observation artifacts exist.",
+      "description": "Runnable WooCommerce aggressive randomized destructive firehose profile for offloaded Codebox/Homeboy/HBEX isolated sandbox execution. This profile is not supported for local execution.",
       "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
       "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
       "target_inventory_manifest": "manifests/target-inventory.json",
       "sequence_pack_manifest": "manifests/product-chaos-sequence-packs.json",
       "source_profile": "full-surface",
+      "homeboy_fuzz_profile": "aggressive-isolated-firehose",
+      "hbex_fuzz_profile": "aggressive-isolated-firehose",
+      "codebox_fuzz_profile": "woocommerce-aggressive-isolated-firehose",
       "required_upstream_contracts": [
         "homeboy/destructive-isolated-mode/v1",
         "homeboy/fuzz-execution-request-artifact/v1",
@@ -222,9 +236,11 @@
         "homeboy-extensions/generate-editor-observations/v1"
       ],
       "readiness": {
-        "level": "declared",
-        "execution_enabled": false,
-        "coverage_contract": "The aggressive isolated firehose is wiring only. It must not be treated as executable destructive full coverage until upstream Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist as reviewer-facing refs."
+        "level": "executable",
+        "execution_enabled": true,
+        "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
+        "local_execution_enabled": false,
+        "coverage_contract": "The aggressive isolated firehose is executable through Homeboy Lab offload into WP Codebox/HBEX with --allow-destructive and --isolation isolated. It is not local execution and is not proven destructive full coverage until reviewer-facing Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist."
       }
     },
     "db-api-performance-fuzzer": {

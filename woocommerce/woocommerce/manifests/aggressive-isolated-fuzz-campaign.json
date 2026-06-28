@@ -2,7 +2,7 @@
   "schema": "homeboy-rigs/woocommerce-aggressive-isolated-fuzz-campaign/v1",
   "id": "woocommerce-aggressive-isolated-fuzz-campaign",
   "profile_id": "aggressive-isolated-firehose",
-  "description": "Declarative WooCommerce aggressive randomized firehose campaign wiring. This references the full product surface taxonomy and fixture seeds for isolated destructive coverage without enabling execution until upstream isolation, reset, payload generation, and observation artifacts exist.",
+  "description": "Runnable WooCommerce aggressive randomized firehose campaign wiring for offloaded Codebox/Homeboy/HBEX isolated destructive coverage. This references the full product surface taxonomy and fixture seeds while keeping local execution disabled.",
   "target_inventory_manifest": "manifests/target-inventory.json",
   "full_surface_manifest": "manifests/full-surface-coverage.json",
   "product_surface_taxonomy_ref": "manifests/target-inventory.json#discovery_manifests/product_surface_taxonomy",
@@ -188,77 +188,77 @@
       "surface": "products",
       "seed_shapes": ["simple product", "grouped product", "variable product parent", "attribute/term matrix", "SKU/title/slug collision guards"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "variations",
       "surface": "variations",
       "seed_shapes": ["fixture-owned variable parent", "variation attribute matrix", "stock/status/price variants"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "cart",
       "surface": "cart",
       "seed_shapes": ["anonymous cart", "logged-in customer cart", "coupon cart", "shipping package matrix"],
       "planned_operations": ["add item", "update quantity", "apply coupon", "remove item", "session reset"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "checkout",
       "surface": "checkout",
       "seed_shapes": ["offline payment checkout", "shipping method matrix", "duplicate submit", "gateway-disabled boundary"],
       "planned_operations": ["prepare checkout", "submit order", "retry", "cancel/reset"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "orders",
       "surface": "orders",
       "seed_shapes": ["fixture-owned order", "order note", "refund candidate", "status transition matrix"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "coupons",
       "surface": "coupons",
       "seed_shapes": ["percent coupon", "fixed cart coupon", "usage limit", "product/category restriction"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "customers",
       "surface": "customers",
       "seed_shapes": ["unique customer", "billing profile", "shipping profile", "order-linked customer"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "settings",
       "surface": "settings",
       "seed_shapes": ["non-credential option", "tax/shipping setting skip", "payment credential skip", "webhook/marketplace skip"],
       "planned_operations": ["inventory", "classify", "mutate safe setting", "reset"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "reports_admin_pages",
       "surface": "reports_admin_pages",
       "seed_shapes": ["administrator session", "shop_manager session", "analytics page", "orders/products admin filters"],
       "planned_operations": ["visit", "filter", "paginate", "classify skipped action"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "store_api",
       "surface": "store_api",
       "seed_shapes": ["catalog browse", "cart route", "checkout route", "nonce/session boundary"],
       "planned_operations": ["generated read", "cart mutation", "checkout mutation", "permission boundary"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     },
     {
       "id": "rest_api",
       "surface": "rest_api",
       "seed_shapes": ["wc/v3 CRUD route", "wc-admin read route", "wc-analytics read route", "dynamic path parameter"],
       "planned_operations": ["generated read", "generated create", "generated update", "generated delete"],
-      "readiness": "declared"
+      "readiness": "executable_in_isolated_sandbox"
     }
   ],
   "planned_case_groups": {
@@ -272,10 +272,12 @@
   },
   "relative_hotspot_labels": ["sequence", "route", "action", "query", "table", "page", "block"],
   "readiness": {
-    "level": "declared",
-    "execution_enabled": false,
+    "level": "executable",
+    "execution_enabled": true,
+    "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
+    "local_execution_enabled": false,
     "destructive_full_coverage": false,
-    "coverage_contract": "Aggressive randomized destructive firehose coverage is a declared campaign shape only. It must not execute until Homeboy destructive isolated mode, fuzz execution request artifacts, WP Codebox destructive fuzz-suite metadata, snapshot restore, REST payload families, and HBEX admin/database/browser/editor generation artifacts exist as reviewer-facing refs.",
+    "coverage_contract": "Aggressive randomized destructive firehose coverage is executable only through offloaded Homeboy Lab routing into a WP Codebox isolated sandbox with --allow-destructive and --isolation isolated. Proven status still requires reviewer-facing Homeboy, WP Codebox, payload-family, snapshot-restore, and HBEX admin/database/browser/editor artifacts.",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "local_only_refs_allowed": false,
@@ -300,16 +302,21 @@
       ],
       "required_artifacts": ["destructive_isolated_mode_artifact", "fuzz_execution_request", "coverage_reconciliation", "destructive_fuzz_suite_metadata", "snapshot_restore_artifact", "rest_payload_family_coverage", "chaos_sequence_pack_resolution", "payload_size_depth_family_coverage", "relative_hotspot_taxonomy", "hbex_aggressive_isolated_mode_artifact", "admin_observations", "database_observations", "browser_observations", "editor_observations", "per_case_timing", "relative_hotspots"]
     },
-    "upstream_blockers": [
-      "homeboy/destructive-isolated-mode/v1 must guarantee disposable destructive execution boundaries.",
-      "homeboy/fuzz-execution-request-artifact/v1 must persist the exact firehose execution request before any destructive handoff.",
-      "homeboy/fuzz-coverage-reconciliation/v1 must reconcile planned payload-family coverage with collected artifacts before proof claims.",
-      "wp-codebox/destructive-fuzz-suite-metadata/v1 must describe destructive suite metadata without making Rigs own generic fuzzer logic.",
-      "wp-codebox/snapshot-restore-artifact/v1 must prove reset completion for each firehose shard.",
-      "wordpress.rest-payload-families/v1 must generate payload families from route schema, fixture families, and opt-in manifests instead of Rigs-owned generic generation.",
-      "homeboy/chaos-sequence-generator/v1 must consume Woo sequence packs without adding Woo-specific logic to the generic fuzzer.",
-      "homeboy/fuzz-payload-size-depth-families/v1 and homeboy/relative-hotspot-taxonomy/v1 must emit reviewer-facing artifacts before sequence-pack coverage is claimed.",
-      "homeboy-extensions/aggressive-isolated-mode/v1 and HBEX admin/database/browser/editor generation contracts must be collected as reviewer-facing artifacts before proof claims."
+    "required_contracts": [
+      "homeboy/destructive-isolated-mode/v1",
+      "homeboy/fuzz-execution-request-artifact/v1",
+      "homeboy/fuzz-coverage-reconciliation/v1",
+      "wp-codebox/destructive-fuzz-suite-metadata/v1",
+      "wp-codebox/snapshot-restore-artifact/v1",
+      "wordpress.rest-payload-families/v1",
+      "homeboy/chaos-sequence-generator/v1",
+      "homeboy/fuzz-payload-size-depth-families/v1",
+      "homeboy/relative-hotspot-taxonomy/v1",
+      "homeboy-extensions/aggressive-isolated-mode/v1",
+      "homeboy-extensions/generate-admin-observations/v1",
+      "homeboy-extensions/generate-database-observations/v1",
+      "homeboy-extensions/generate-browser-observations/v1",
+      "homeboy-extensions/generate-editor-observations/v1"
     ]
   }
 }
