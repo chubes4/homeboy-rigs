@@ -6,7 +6,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const RIG_ID = 'static-site-importer-fixture-matrix';
-export const CANONICAL_FIXTURE_COUNT = 71;
+// Expected top-level fixture directory count in the canonical corpus
+// (`blocks-engine/fixtures/websites`). This is an intentional drift guard, not a
+// derived value: the corpus lives in a different repo, so deriving the canonical
+// number from whatever happens to be on disk would make the check tautological
+// (always "matches") and defeat its purpose. Bump this deliberately when the
+// corpus grows/shrinks. Source of truth:
+//   git -C blocks-engine ls-tree -d --name-only origin/trunk:fixtures/websites | wc -l
+// Last verified against origin/trunk @ 8ad42fd = 72 directories.
+export const CANONICAL_FIXTURE_COUNT = 72;
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -53,6 +61,7 @@ export function buildFixtureMatrixRunPlan(input) {
       ? { SSI_FIXTURE_MATRIX_BLOCKS_ENGINE_PHP_TRANSFORMER_PATH: options.blocksEnginePhpTransformerPath }
       : {}),
     ...(options.batchSize ? { SSI_FIXTURE_MATRIX_BATCH_SIZE: String(options.batchSize) } : {}),
+    ...(options.concurrency ? { SSI_FIXTURE_MATRIX_CONCURRENCY: String(options.concurrency) } : {}),
     ...(options.wordpressVersion ? { SSI_FIXTURE_MATRIX_WORDPRESS_VERSION: options.wordpressVersion } : {}),
     ...(options.wpCodeboxBin ? { SSI_FIXTURE_MATRIX_WP_CODEBOX_BIN: options.wpCodeboxBin } : {}),
     ...(options.visualParity === false ? { SSI_FIXTURE_MATRIX_VISUAL_PARITY: '0' } : {}),
@@ -62,7 +71,11 @@ export function buildFixtureMatrixRunPlan(input) {
   };
   const fixtureCount = countTopLevelFixtureDirectories(options.fixtureRoot);
   const codeFreshness = buildCodeFreshness(options, options.gitRunner || defaultGitRunner);
-  const warnings = [...buildWarnings(options), ...buildFreshnessWarnings(codeFreshness, options)];
+  const warnings = [
+    ...buildWarnings(options),
+    ...buildCanonicalDriftWarnings(fixtureCount, options.fixtureRoot),
+    ...buildFreshnessWarnings(codeFreshness, options),
+  ];
 
   return {
     schema: 'homeboy-rigs/static-site-importer-fixture-matrix-operator-run/v1',
@@ -165,6 +178,20 @@ function buildWarnings(options) {
       message: '--allow-dirty-lab-workspace permits reusing or overwriting a dirty Lab workspace.',
     }] : []),
   ];
+}
+
+// Surface corpus pin drift instead of letting `fixture_count_matches_canonical`
+// be a silently-ignored boolean. A discovered count below the pin means fixtures
+// went missing (or the wrong root was passed); above the pin means the corpus
+// grew and CANONICAL_FIXTURE_COUNT needs an intentional bump.
+function buildCanonicalDriftWarnings(fixtureCount, fixtureRoot) {
+  if (fixtureCount === CANONICAL_FIXTURE_COUNT) {
+    return [];
+  }
+  return [{
+    code: 'canonical_fixture_count_drift',
+    message: `Discovered ${fixtureCount} top-level fixture director${fixtureCount === 1 ? 'y' : 'ies'} in ${fixtureRoot}, but CANONICAL_FIXTURE_COUNT is ${CANONICAL_FIXTURE_COUNT}. ${fixtureCount > CANONICAL_FIXTURE_COUNT ? 'The corpus grew; bump CANONICAL_FIXTURE_COUNT after confirming the new fixtures are intended.' : 'Fixtures are missing or the wrong fixture root was passed; restore the corpus or correct --fixture-root.'}`,
+  }];
 }
 
 export const CODE_FRESHNESS_SCHEMA = 'homeboy-rigs/static-site-importer-fixture-matrix-code-freshness/v1';
@@ -549,7 +576,7 @@ function sanitizePathSegment(value) {
 }
 
 function printHelp() {
-  process.stdout.write(`Usage: node WordPress/static-site-importer/tools/run-fixture-matrix.mjs --runner <id> --static-site-importer <path> --blocks-engine <path> [options] [-- <bench args>...]\n\nRuns the canonical Static Site Importer fixture matrix through Homeboy/Lab/WP Codebox.\n\nOptions:\n  --static-site-importer <path>       Static Site Importer checkout/plugin path. Required.\n  --blocks-engine <path>              Blocks Engine checkout. Defaults fixture root and PHP transformer override.\n  --fixture-root <path>               Fixture corpus. Defaults to <blocks-engine>/fixtures/websites.\n  --blocks-engine-php-transformer-path <path>\n                                      Override transformer package/repo path. Defaults to --blocks-engine.\n  --runner <id>                       Homeboy Lab runner, for example homeboy-lab.\n  --mode <development-override|release-proof>\n                                      Labels output; default is development-override when transformer override is used.\n  --run-id <id>                       Stable proof label. Defaults to ssi-matrix-<mode>-<timestamp>.\n  --shared-state <dir>                Shared Homeboy bench state directory.\n  --artifact-root <dir>               Homeboy artifact root.\n  --output <file>                     Structured Homeboy bench output file.\n  --batch-size <n>                    SSI fixture matrix WP Codebox batch size.\n  --wordpress-version <version>       WP Codebox WordPress version.\n  --wp-codebox-bin <path>             WP Codebox CLI path.\n  --allow-stale-override              Proceed even when an override checkout is behind/diverged vs upstream.\n  --no-visual-parity                  Skip the wordpress.visual-compare render/diff step.\n  --visual-parity-gate                Make pixel mismatch over the threshold a HARD gate. Default: capture-only.\n  --pixel-threshold <ratio>           Max mismatch ratio (mismatch_pixels/total_pixels) before gating. Default 0.1.\n  --min-native-rate <ratio>           Opt-in: fail fixtures whose native_conversion_rate is below this ratio (0-1, or a percentage like 80). Default: off (metrics only).\n  --lab-only                          Require Lab routing.\n  --allow-local-fallback              Allow selected Lab runner local fallback.\n  --allow-dirty-lab-workspace         Allow runner workspace overwrite.\n  --detach-after-handoff              Return after remote runner accepts the job.\n  --skip-install                      Skip homeboy rig install --reinstall.\n  --skip-sync                         Skip homeboy rig sync.\n  --dry-run                           Print the composed plan without running it.\n\nAny args after -- are passed through to the lower-level bench runner.\n`);
+  process.stdout.write(`Usage: node WordPress/static-site-importer/tools/run-fixture-matrix.mjs --runner <id> --static-site-importer <path> --blocks-engine <path> [options] [-- <bench args>...]\n\nRuns the canonical Static Site Importer fixture matrix through Homeboy/Lab/WP Codebox.\n\nOptions:\n  --static-site-importer <path>       Static Site Importer checkout/plugin path. Required.\n  --blocks-engine <path>              Blocks Engine checkout. Defaults fixture root and PHP transformer override.\n  --fixture-root <path>               Fixture corpus. Defaults to <blocks-engine>/fixtures/websites.\n  --blocks-engine-php-transformer-path <path>\n                                      Override transformer package/repo path. Defaults to --blocks-engine.\n  --runner <id>                       Homeboy Lab runner, for example homeboy-lab.\n  --mode <development-override|release-proof>\n                                      Labels output; default is development-override when transformer override is used.\n  --run-id <id>                       Stable proof label. Defaults to ssi-matrix-<mode>-<timestamp>.\n  --shared-state <dir>                Shared Homeboy bench state directory.\n  --artifact-root <dir>               Homeboy artifact root.\n  --output <file>                     Structured Homeboy bench output file.\n  --batch-size <n>                    SSI fixture matrix WP Codebox batch size.\n  --concurrency <n>                   Parallel WP Codebox sandbox batches. Defaults to 4, hard-capped at 16.\n  --wordpress-version <version>       WP Codebox WordPress version.\n  --wp-codebox-bin <path>             WP Codebox CLI path.\n  --allow-stale-override              Proceed even when an override checkout is behind/diverged vs upstream.\n  --no-visual-parity                  Skip the wordpress.visual-compare render/diff step.\n  --visual-parity-gate                Make pixel mismatch over the threshold a HARD gate. Default: capture-only.\n  --pixel-threshold <ratio>           Max mismatch ratio (mismatch_pixels/total_pixels) before gating. Default 0.1.\n  --min-native-rate <ratio>           Opt-in: fail fixtures whose native_conversion_rate is below this ratio (0-1, or a percentage like 80). Default: off (metrics only).\n  --lab-only                          Require Lab routing.\n  --allow-local-fallback              Allow selected Lab runner local fallback.\n  --allow-dirty-lab-workspace         Allow runner workspace overwrite.\n  --detach-after-handoff              Return after remote runner accepts the job.\n  --skip-install                      Skip homeboy rig install --reinstall.\n  --skip-sync                         Skip homeboy rig sync.\n  --dry-run                           Print the composed plan without running it.\n\nAny args after -- are passed through to the lower-level bench runner.\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
