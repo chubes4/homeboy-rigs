@@ -1563,10 +1563,12 @@ test('recipe runs a wp.blocks.validateBlock editor-validation step on imported c
   // The real validateBlock command, NOT the empty-post canvas probe.
   assert.equal(editorStep.command, EDITOR_VALIDATE_BLOCKS_COMMAND);
   assert.equal(editorStep.command, 'wordpress.editor-validate-blocks');
-  // No empty-post `post-new.php` URL: it validates imported content (the most
-  // recently imported post of the default type) rather than a blank editor.
+  // No empty-post `post-new.php` URL and no bare `post-type` (which wp-codebox
+  // resolves to an empty post-new editor): it targets the imported static front
+  // page so it validates real imported content rather than a blank editor.
   assert.equal(editorStep.args.some((arg) => arg.includes('post-new.php')), false);
-  assert.ok(editorStep.args.includes('post-type=page'));
+  assert.equal(editorStep.args.some((arg) => arg.startsWith('post-type=')), false);
+  assert.ok(editorStep.args.includes('target=front-page'));
 
   const disabled = buildFixtureMatrixRecipe({
     matrix,
@@ -1578,10 +1580,11 @@ test('recipe runs a wp.blocks.validateBlock editor-validation step on imported c
 });
 
 test('editorBlockValidationStep invokes editor-validate-blocks against the most concrete imported target', () => {
-  // Defaults to opening the most recently imported post by type — real content.
+  // Defaults to the imported static front page (resolved at runtime from
+  // page_on_front by wp-codebox) — real imported content, not an empty editor.
   const fallback = editorBlockValidationStep({ fixture: { id: 'simple' } });
   assert.equal(fallback.command, 'wordpress.editor-validate-blocks');
-  assert.deepEqual(fallback.args, ['post-type=page']);
+  assert.deepEqual(fallback.args, ['target=front-page']);
 
   // An explicit editor URL (e.g. post.php?post=<id>&action=edit) is honored.
   const byUrl = editorBlockValidationStep({ fixture: { id: 'shop', editor_url: '/wp-admin/post.php?post=42&action=edit' } });
@@ -1778,6 +1781,68 @@ test('editor-validate-blocks all-valid output reports a 1.0 valid-block rate wit
   assert.equal(result.summary.editor_quality.invalid_block_count, 0);
   assert.equal(result.summary.editor_quality.editor_validated_fixture_count, 1);
   assert.equal(fixture.status, 'passed');
+});
+
+test('editor-validate-blocks result from a codebox execution is associated to the fixture via the import step slug', () => {
+  // Real shape: the per-fixture wp-codebox executions run in order
+  // ([..., validate-artifact, editor-validate-blocks]). The editor step carries
+  // NO fixture id of its own and emits its result as JSON on `result.stdout`,
+  // so the collector must derive the fixture from the import step's --slug and
+  // thread it forward to the editor execution. This is the wiring that makes a
+  // `target=front-page` run report real imported-block counts.
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-editor-validate-codebox-'));
+  const matrix = createFixtureMatrix({
+    fixture_root: fixtureRoot,
+    id: 'editor-validate-codebox-test',
+    fixtures: [{ id: 'simple-site', fixture_path: path.join(fixtureRoot, 'simple-site'), directory: path.join(fixtureRoot, 'simple-site') }],
+  });
+  const codeboxOutput = {
+    success: true,
+    schema: 'wp-codebox/recipe-run-result/v1',
+    executions: [
+      {
+        command: 'wordpress.wp-cli',
+        args: ['command=static-site-importer validate-artifact --artifact=/wordpress/wp-content/uploads/x/simple-site/artifact.json --slug=simple-site --name=Simple --allow-missing-woocommerce --allow-failure'],
+        result: { schema: 'wp-codebox/runtime-command-result/v1', status: 'ok', stdout: JSON.stringify({ success: true, fixture_id: 'simple-site', import_report: { theme_slug: 'simple-site' } }) },
+      },
+      {
+        command: 'wordpress.editor-validate-blocks',
+        args: ['target=front-page'],
+        result: {
+          schema: 'wp-codebox/runtime-command-result/v1',
+          status: 'ok',
+          stdout: JSON.stringify({
+            schema: 'wp-codebox/editor-validate-blocks/v1',
+            validation_method: 'wp.blocks.validateBlock',
+            validation_provider: 'wordpress-block-editor',
+            total_blocks: 5,
+            valid_blocks: 4,
+            invalid_blocks: 1,
+            results: [
+              { name: 'core/navigation', isValid: false, issues: ['Block validation failed for "core/navigation"'] },
+              { name: 'core/heading', isValid: true, issues: [] },
+              { name: 'core/paragraph', isValid: true, issues: [] },
+              { name: 'core/image', isValid: true, issues: [] },
+              { name: 'core/spacer', isValid: true, issues: [] },
+            ],
+          }),
+        },
+      },
+    ],
+  };
+
+  const result = collectFixtureMatrixRunResults({ matrix, outputDirectory, codeboxOutput });
+  const fixture = result.fixtures[0];
+
+  // The real validateBlock counts are surfaced on the fixture, not lost.
+  assert.equal(fixture.editor_validation.total_blocks, 5);
+  assert.equal(fixture.editor_validation.valid_blocks, 4);
+  assert.equal(fixture.editor_validation.invalid_blocks, 1);
+  assert.equal(fixture.editor_quality.validation_method, 'wp.blocks.validateBlock');
+  // The one invalid block becomes a gating editor_block_invalid finding.
+  const finding = result.findings.find((item) => item.kind === 'editor_block_invalid');
+  assert.ok(finding, 'expected an editor_block_invalid finding from the codebox editor-validate result');
+  assert.equal(finding.loss_acceptance, 'unacceptable');
 });
 
 test('editor-validate-blocks invalid block is counted and surfaced as a gating finding with name and reason', () => {

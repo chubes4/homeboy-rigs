@@ -155,7 +155,23 @@ function visitRuntimePayloads(value, inheritedFixtureId, payloads, seen) {
       payloads.push({ fixture_id: fixtureId, ...parsed });
     }
   }
-  for (const child of Array.isArray(value) ? value : Object.values(value)) {
+  if (Array.isArray(value)) {
+    // Recipe steps run in per-fixture order ([import, editor-validate, ...]);
+    // the import step carries the fixture slug while the editor step does not.
+    // Thread the last-seen fixture id forward across sibling executions so the
+    // editor result inherits the fixture it validated. (`new Set()` per element
+    // is unnecessary; `seen` already guards re-entry.)
+    let carried = inheritedFixtureId;
+    for (const child of value) {
+      const childFixtureId = (child && typeof child === 'object') ? (fixtureIdentity(child) || carried) : carried;
+      visitRuntimePayloads(child, childFixtureId, payloads, seen);
+      if (childFixtureId) {
+        carried = childFixtureId;
+      }
+    }
+    return;
+  }
+  for (const child of Object.values(value)) {
     visitRuntimePayloads(child, fixtureId, payloads, seen);
   }
 }
@@ -182,7 +198,35 @@ function fixtureIdentity(payload) {
     || payload?.request?.importArgs?.slug
     || payload?.metadata?.fixture_id
     || payload?.metadata?.fixtureId
+    || fixtureIdFromExecutionArgs(payload)
     || '';
+}
+
+// Derive the fixture slug from a wp-codebox execution's args. The import step is
+// `wordpress.wp-cli command=static-site-importer validate-artifact --slug=<id>
+// --artifact=.../<id>/artifact.json`, so its slug is the only place the fixture
+// id appears on the (otherwise id-less) per-fixture executions. The
+// editor-validate-blocks step that follows carries no id of its own; surfacing
+// the slug here lets `visitRuntimePayloads` thread it forward to that step.
+function fixtureIdFromExecutionArgs(payload) {
+  const args = payload?.args;
+  if (!Array.isArray(args)) {
+    return '';
+  }
+  for (const arg of args) {
+    if (typeof arg !== 'string') {
+      continue;
+    }
+    const slug = arg.match(/--slug=([^\s]+)/);
+    if (slug) {
+      return slug[1];
+    }
+    const artifact = arg.match(/--artifact=\S*\/([^/\s]+)\/artifact\.json/);
+    if (artifact) {
+      return artifact[1];
+    }
+  }
+  return '';
 }
 
 function collectInvalidBlockCounts(payload) {

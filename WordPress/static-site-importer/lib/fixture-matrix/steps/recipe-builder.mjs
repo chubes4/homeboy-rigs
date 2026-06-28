@@ -75,8 +75,9 @@ export function buildFixtureMatrixRecipe(input = {}) {
   const extraPlugins = [importer.extraPlugin, ...normalizeArray(input.extraPlugins || input.extra_plugins)];
   const editorValidationEnabled = input.editorValidation !== false && input.editor_validation !== false;
   // Real-content validation options forwarded to the editor-validate-blocks step.
-  // No empty-post default: when nothing concrete is provided, the step opens the
-  // most recently imported post (by post-type) so it validates imported content.
+  // No empty-post default: when nothing concrete is provided, the step targets
+  // `front-page`, which wp-codebox resolves to the imported static front page
+  // (`page_on_front`) at runtime so it validates real imported content.
   const editorValidationOptions = {
     url: input.editorValidationUrl || input.editor_validation_url,
     postType: input.editorValidationPostType || input.editor_validation_post_type,

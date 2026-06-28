@@ -40,9 +40,17 @@ export const EDITOR_VALIDATE_BLOCKS_COMMAND = 'wordpress.editor-validate-blocks'
 export const EDITOR_VALIDATE_BLOCKS_SCHEMA = 'wp-codebox/editor-validate-blocks/v1';
 export const EDITOR_VALIDATION_METHOD = 'wp.blocks.validateBlock';
 export const EDITOR_VALIDATION_PROVIDER = 'wordpress-block-editor';
-// When no explicit per-fixture content/post target is available, the command
-// opens the most recently imported post of this type so it validates REAL
-// imported content rather than an empty editor. SSI materializes pages.
+// Default editor-validation target when a fixture carries no explicit
+// content/post target. `front-page` resolves, inside the WP Codebox sandbox at
+// runtime, to the site's static front page (`page_on_front`) — which SSI's
+// import points at the imported home page — and opens
+// `post.php?post=<id>&action=edit` so the command validates the REAL imported
+// front page's blocks. (A bare `post-type` resolved to an EMPTY
+// `post-new.php?post_type=<type>` editor, reporting `total_blocks: 0` and
+// proving nothing about imported markup — see wp-codebox `editorOpenTargetFromArgs`.)
+export const DEFAULT_EDITOR_VALIDATION_TARGET = 'front-page';
+// Retained for callers that still forward an explicit editor post type; the
+// default target no longer keys off it.
 export const DEFAULT_EDITOR_VALIDATION_POST_TYPE = 'page';
 // Legacy empty-post canvas-probe URL. Retained only so callers that still pass
 // an explicit editor URL keep working; the recipe no longer defaults to it.
