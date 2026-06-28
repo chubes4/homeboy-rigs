@@ -18,7 +18,45 @@
     "wordpress_runner": "wp-codebox",
     "workload_path": "${package.root}/bench/rest-db-query-profile.workload.json",
     "expected_artifact_role": "fuzz_report",
-    "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "REST DB query profile coverage is executable as a read_only fuzz workload for rest-query-profile, query-shape-attribution. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
+    "expected_artifact_semantic_key": "fuzz.report",
+    "product_budgets": {
+      "max_profiled_rest_cases": 80,
+      "max_queries_per_rest_case": 150,
+      "max_slow_queries_per_case": 0,
+      "slow_query_threshold_ms": 100
+    },
+    "observed_surfaces": [
+      "wc/store/v1",
+      "wc/v3",
+      "wc-admin",
+      "wc-analytics",
+      "wordpress-database-queries"
+    ],
+    "hotspot_classes": [
+      "route-query-count",
+      "duplicate-db-query",
+      "slow-db-query",
+      "lookup-table-read",
+      "option-read",
+      "permission-check-query"
+    ],
+    "query_attribution_expectations": {
+      "group_by": [
+        "rest_route",
+        "http_method",
+        "status_class",
+        "table_family",
+        "hotspot_class"
+      ],
+      "required_fields": [
+        "query_count",
+        "duplicate_query_count",
+        "slow_query_count",
+        "tables",
+        "callers"
+      ]
+    },
+    "readiness": { "level": "executable", "coverage_contract": "REST DB query profile coverage is executable as a read_only fuzz workload for rest-query-profile, query-shape-attribution. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
@@ -48,13 +86,32 @@
         "rest-query-profile",
         "query-shape-attribution"
       ],
+      "inputs": {
+        "profiled_namespaces": [
+          "wc/store/v1",
+          "wc/v3",
+          "wc-admin",
+          "wc-analytics"
+        ],
+        "budget_keys": [
+          "max_queries_per_rest_case",
+          "max_slow_queries_per_case"
+        ],
+        "query_attribution_required": true,
+        "external_service_calls_allowed": false
+      },
       "artifacts": [
         {
           "name": "rest_db_query_profile",
           "path": "rest-db-query-profile/rest_db_query_profile.json",
           "required": true,
           "metadata": {
-            "semantic_key": "fuzz.report"
+            "semantic_key": "fuzz.report",
+            "contains": [
+              "per_route_query_counts",
+              "query_attribution",
+              "budget_comparison"
+            ]
           }
         }
       ],
@@ -101,7 +158,12 @@
         "name": "rest_db_query_profile",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": true
+        "required": true,
+        "contains": [
+          "per_route_query_counts",
+          "query_attribution",
+          "budget_comparison"
+        ]
       }
     ]
   }
