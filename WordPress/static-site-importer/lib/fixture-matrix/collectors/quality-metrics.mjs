@@ -30,12 +30,20 @@ export function collectQualityMetrics(payload) {
 }
 
 // Surface the transformer's generic block-composition breakdown from whatever
-// import-artifact slot carries it (a `block_type_counts` / `detectBlockTypes`
-// map, or the nested conversion-report copy SSI preserves). Returns a normalized
+// import-artifact slot carries it. Returns a normalized
 // `{ block_total, native_block_count, core_html_block_count, block_type_counts,
 // source }` shape, or null when no block-composition data is present (never
-// fabricated). When an explicit per-block-type breakdown is unavailable but
-// total/fallback counts are, it derives the composition from those counts.
+// fabricated). Sources are tried most-precise first:
+//   1. an explicit per-block-type breakdown (`block_type_counts` /
+//      `detectBlockTypes` map, or the nested native conversion-report copy);
+//   2. serialized block markup — the materialized `post_content` carries
+//      Gutenberg block comments (`<!-- wp:namespace/name ... -->`) that name each
+//      emitted block, so we parse those names directly;
+//   3. SSI's per-document analysis (`materialized_content` /
+//      `generated_theme` `block_documents[]`), which carries each document's total
+//      `block_count` plus its `core_html_block_count`/`freeform_block_count` —
+//      this is what real Lab/WP Codebox runs emit;
+//   4. the import report's aggregate quality counts.
 export function collectBlockComposition(payload) {
   const breakdown = collectBlockTypeBreakdown(payload);
   if (breakdown && breakdown.total > 0) {
@@ -47,7 +55,9 @@ export function collectBlockComposition(payload) {
       source: 'block_type_breakdown',
     };
   }
-  return blockCompositionFromQualityCounts(payload);
+  return collectBlockCompositionFromSerializedBlocks(payload)
+    || collectBlockCompositionFromBlockDocuments(payload)
+    || blockCompositionFromQualityCounts(payload);
 }
 
 function collectBlockTypeBreakdown(payload) {
@@ -134,6 +144,145 @@ function summarizeBlockTypeCounts(counts) {
     }
   }
   return { total, native, core_html: coreHtml, counts };
+}
+
+// Parse the block composition directly out of serialized Gutenberg block markup
+// (the materialized `post_content`). Every emitted block opens with a
+// `<!-- wp:namespace/name ... -->` comment — core blocks omit the namespace
+// (`<!-- wp:heading -->` is `core/heading`). Closing comments (`<!-- /wp:... -->`)
+// are skipped by the `\s+wp:` anchor, so each block is counted once. Returns the
+// normalized composition shape, or null when no serialized markup is present.
+export function collectBlockCompositionFromSerializedBlocks(payload) {
+  const counts = {};
+  let found = false;
+  for (const markup of serializedBlockSources(payload)) {
+    for (const name of parseSerializedBlockNames(markup)) {
+      counts[name] = (counts[name] || 0) + 1;
+      found = true;
+    }
+  }
+  if (!found) {
+    return null;
+  }
+  const summary = summarizeBlockTypeCounts(counts);
+  if (summary.total <= 0) {
+    return null;
+  }
+  return {
+    block_total: summary.total,
+    native_block_count: summary.native,
+    core_html_block_count: summary.core_html,
+    block_type_counts: summary.counts,
+    source: 'serialized_blocks',
+  };
+}
+
+// Extract the `wp:` block names from a single serialized-blocks string. Core
+// blocks (no namespace) are normalized to their `core/` form so they classify
+// against NATIVE_BLOCK_NAMESPACES consistently with explicit breakdowns.
+export function parseSerializedBlockNames(markup) {
+  if (typeof markup !== 'string' || !markup.includes('<!--')) {
+    return [];
+  }
+  const names = [];
+  const pattern = /<!--\s+wp:([a-z][a-z0-9-]*(?:\/[a-z][a-z0-9-]*)?)/g;
+  let match = pattern.exec(markup);
+  while (match) {
+    const name = normalizeBlockName(match[1]);
+    names.push(name.includes('/') ? name : `core/${name}`);
+    match = pattern.exec(markup);
+  }
+  return names;
+}
+
+// Collect every slot that may carry serialized block markup. SSI does not yet
+// persist raw `post_content` in its report, so this is opportunistic and
+// future-proof: it reads the obvious top-level/quality/import-report string slots
+// plus any per-document markup carried on a `block_documents[]` entry.
+function serializedBlockSources(payload) {
+  const object = objectValue(payload);
+  const quality = collectQualityMetrics(object);
+  const importReport = objectValue(object.import_report || object.importReport || object.report);
+  const strings = [
+    object.post_content,
+    object.postContent,
+    object.serialized_blocks,
+    object.serializedBlocks,
+    object.block_markup,
+    object.blockMarkup,
+    object.rendered_blocks,
+    object.renderedBlocks,
+    quality.post_content,
+    quality.serialized_blocks,
+    importReport.post_content,
+    importReport.serialized_blocks,
+  ];
+  for (const document of blockDocumentEntries(object)) {
+    strings.push(
+      document.post_content,
+      document.block_markup,
+      document.serialized_blocks,
+      document.serialized,
+      document.markup,
+    );
+  }
+  return strings.filter((value) => typeof value === 'string' && value.trim() !== '');
+}
+
+// Derive the composition from SSI's per-document block analysis. Each
+// `block_documents[]` entry records the materialized document's total
+// `block_count` plus the non-native `core_html_block_count`/`freeform_block_count`
+// fallbacks; native is the remainder. The materialized post-content documents are
+// preferred over the generated-theme documents (and never summed together, since
+// SSI records each materialized page in both arrays). Returns null when no
+// per-document totals are present.
+export function collectBlockCompositionFromBlockDocuments(payload) {
+  const documents = blockDocumentEntries(payload);
+  if (documents.length === 0) {
+    return null;
+  }
+  let total = 0;
+  let coreHtml = 0;
+  let freeform = 0;
+  for (const document of documents) {
+    total += numberValue(document.block_count ?? document.blockCount);
+    coreHtml += numberValue(document.core_html_block_count ?? document.coreHtmlBlockCount);
+    freeform += numberValue(document.freeform_block_count ?? document.freeformBlockCount);
+  }
+  if (total <= 0) {
+    return null;
+  }
+  return {
+    block_total: total,
+    native_block_count: Math.max(0, total - coreHtml - freeform),
+    core_html_block_count: coreHtml,
+    block_type_counts: null,
+    source: 'block_documents',
+  };
+}
+
+// The materialized post-content documents are the production-quality signal; fall
+// back to the generated-theme template documents only when no materialized pages
+// were recorded. The two arrays overlap (SSI pushes each materialized page into
+// both), so exactly one is chosen to avoid double counting.
+function blockDocumentEntries(payload) {
+  const object = objectValue(payload);
+  const importReport = objectValue(object.import_report || object.importReport || object.report);
+  const materialized = objectValue(importReport.materialized_content || importReport.materializedContent || object.materialized_content || object.materializedContent);
+  const generatedTheme = objectValue(importReport.generated_theme || importReport.generatedTheme || object.generated_theme || object.generatedTheme);
+  const materializedDocuments = blockDocumentList(materialized.block_documents || materialized.blockDocuments);
+  if (materializedDocuments.length > 0) {
+    return materializedDocuments;
+  }
+  const generatedDocuments = blockDocumentList(generatedTheme.block_documents || generatedTheme.blockDocuments);
+  if (generatedDocuments.length > 0) {
+    return generatedDocuments;
+  }
+  return blockDocumentList(object.block_documents || object.blockDocuments);
+}
+
+function blockDocumentList(value) {
+  return Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object') : [];
 }
 
 // Best-effort fallback when no per-block-type breakdown exists but SSI's quality
