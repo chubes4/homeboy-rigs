@@ -24,15 +24,24 @@
   },
   "discovery_manifests": {
     "product_surface_taxonomy": {
-      "readiness_levels": [
-        "declared",
-        "blocked",
-        "executable"
+      "readiness_states": [
+        "read_only_executable",
+        "isolated_mutation_executable",
+        "synthetic_mutation_executable",
+        "declared_mutation",
+        "blocked_delete",
+        "blocked_sensitive_mutation"
       ],
       "provenance": "product-level seasoning only; execution and proof remain owned by generic WP Codebox/Homeboy primitives and reviewer-facing artifacts",
       "surfaces": {
         "products": {
-          "readiness": "executable",
+          "readiness": "isolated_mutation_executable",
+          "operation_readiness": {
+            "create": "isolated_mutation_executable",
+            "read": "read_only_executable",
+            "update": "isolated_mutation_executable",
+            "delete": "blocked_delete"
+          },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
             "products-collection",
@@ -44,12 +53,21 @@
             "woocommerce-rest-route-inventory",
             "generated-rest-request-cases"
           ],
+          "blocked_by": [
+            "wp-codebox/delete-boundary-artifact/v1"
+          ],
           "notes": [
-            "Product create/update has a Woo-owned executable workload; delete remains blocked by the route-family delete-boundary contract."
+            "Product create/update has a Woo-owned isolated mutation workload; delete remains blocked by the route-family delete-boundary contract."
           ]
         },
         "variations": {
-          "readiness": "executable",
+          "readiness": "isolated_mutation_executable",
+          "operation_readiness": {
+            "create": "isolated_mutation_executable",
+            "read": "read_only_executable",
+            "update": "isolated_mutation_executable",
+            "delete": "blocked_delete"
+          },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
             "product-variations-batch"
@@ -60,12 +78,19 @@
             "woocommerce-rest-route-inventory",
             "generated-rest-request-cases"
           ],
+          "blocked_by": [
+            "wp-codebox/delete-boundary-artifact/v1"
+          ],
           "notes": [
             "Variation create/update is covered through the product batch import workload; destructive delete needs generic delete-boundary artifacts before execution."
           ]
         },
         "cart": {
-          "readiness": "executable",
+          "readiness": "synthetic_mutation_executable",
+          "operation_readiness": {
+            "read": "read_only_executable",
+            "session_mutation": "synthetic_mutation_executable"
+          },
           "owner_profile": "full-surface",
           "workflows": [
             "browser cart scenario",
@@ -80,7 +105,11 @@
           ]
         },
         "checkout": {
-          "readiness": "executable",
+          "readiness": "synthetic_mutation_executable",
+          "operation_readiness": {
+            "read": "read_only_executable",
+            "checkout_attempt": "synthetic_mutation_executable"
+          },
           "owner_profile": "full-surface",
           "workflows": [
             "synthetic checkout",
@@ -98,7 +127,13 @@
           ]
         },
         "orders": {
-          "readiness": "declared",
+          "readiness": "declared_mutation",
+          "operation_readiness": {
+            "create": "declared_mutation",
+            "read": "read_only_executable",
+            "update": "declared_mutation",
+            "delete": "blocked_delete"
+          },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
             "orders-collection",
@@ -123,7 +158,13 @@
           ]
         },
         "coupons": {
-          "readiness": "declared",
+          "readiness": "declared_mutation",
+          "operation_readiness": {
+            "create": "declared_mutation",
+            "read": "read_only_executable",
+            "update": "declared_mutation",
+            "delete": "blocked_delete"
+          },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
             "coupons-collection"
@@ -146,7 +187,13 @@
           ]
         },
         "customers": {
-          "readiness": "declared",
+          "readiness": "declared_mutation",
+          "operation_readiness": {
+            "create": "declared_mutation",
+            "read": "read_only_executable",
+            "update": "declared_mutation",
+            "delete": "blocked_delete"
+          },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
             "customers-collection"
@@ -169,7 +216,11 @@
           ]
         },
         "settings": {
-          "readiness": "blocked",
+          "readiness": "blocked_sensitive_mutation",
+          "operation_readiness": {
+            "inventory": "read_only_executable",
+            "mutation": "blocked_sensitive_mutation"
+          },
           "owner_profile": "full-surface",
           "workflows": [
             "options/transients inventory",
@@ -190,7 +241,11 @@
           ]
         },
         "reports_admin_pages": {
-          "readiness": "executable",
+          "readiness": "read_only_executable",
+          "operation_readiness": {
+            "read": "read_only_executable",
+            "mutation": "blocked_sensitive_mutation"
+          },
           "owner_profile": "full-surface",
           "workflows": [
             "safe admin GET enumeration",
@@ -200,12 +255,21 @@
             "admin-page-coverage",
             "frontend-rendering-request-coverage"
           ],
+          "blocked_by": [
+            "wp-codebox/mutation-isolation-artifact/v1",
+            "homeboy/wordpress-rest-mutation-rollback-contract/v1"
+          ],
           "notes": [
             "Admin/report coverage is GET-only and records skipped destructive actions."
           ]
         },
         "store_api": {
-          "readiness": "executable",
+          "readiness": "read_only_executable",
+          "operation_readiness": {
+            "read": "read_only_executable",
+            "cart_mutation": "synthetic_mutation_executable",
+            "checkout_mutation": "synthetic_mutation_executable"
+          },
           "owner_profile": "db-api-performance-fuzzer",
           "namespaces": [
             "wc/store/v1",
@@ -222,7 +286,13 @@
           ]
         },
         "rest_api": {
-          "readiness": "executable",
+          "readiness": "read_only_executable",
+          "operation_readiness": {
+            "read": "read_only_executable",
+            "create": "declared_mutation",
+            "update": "declared_mutation",
+            "delete": "blocked_delete"
+          },
           "owner_profile": "db-api-performance-fuzzer",
           "namespaces": [
             "wc/v1",
@@ -237,6 +307,10 @@
             "rest-permission-boundary-matrix",
             "rest-namespace-generated-cases",
             "rest-schema-query-attribution"
+          ],
+          "blocked_by": [
+            "wordpress.rollback-safe-rest-mutation",
+            "wp-codebox/delete-boundary-artifact/v1"
           ],
           "notes": [
             "REST API full-namespace mutation remains constrained by per-family readiness and generic rollback/delete-boundary primitives."

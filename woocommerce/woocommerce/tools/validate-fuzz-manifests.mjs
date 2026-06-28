@@ -21,6 +21,13 @@ import {
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import { assertWooRequiredFuzzProofContracts } from './fuzz-proof-contracts.mjs';
+import {
+  wooProductSurfaceIds,
+  wooProductSurfaceTaxonomy,
+  wooRelativeHotspotLabels,
+  wooSequencePackSurfaceIds,
+  wooSurfaceReadinessStates,
+} from './woo-surface-taxonomy.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -238,10 +245,17 @@ function assertNoProofPlaceholders(value, context = 'value') {
   }
 
   if (value && typeof value === 'object') {
+    assert.equal(value.proof_placeholder, undefined, `${context} must use artifact_expected_after_run or declared_contract instead of proof_placeholder`);
     for (const [key, entry] of Object.entries(value)) {
       assertNoProofPlaceholders(entry, `${context}.${key}`);
     }
   }
+}
+
+function assertDeclaredExpectedArtifactMarker(artifact, context) {
+  assert.equal(artifact?.required, false, `${context} declared artifact must remain optional until captured`);
+  assert.equal(artifact?.artifact_expected_after_run, true, `${context} must honestly mark artifact_expected_after_run`);
+  assert.equal(artifact?.proof_placeholder, undefined, `${context} must not use proof_placeholder`);
 }
 
 function assertNoHardThresholdClaims(value, context = 'value') {
@@ -470,6 +484,27 @@ const generatedAggressiveFirehoseCommandPlan = JSON.parse(execFileSync(process.e
   '--tracker-ref',
   'issue:validator',
 ], { encoding: 'utf8' }));
+const generatedAggressiveFirehoseTextPlan = execFileSync(process.execPath, [
+  path.join(packageRoot, 'tools/aggressive-firehose-command-plan.mjs'),
+  '--run-id-prefix',
+  'woo-firehose-validator',
+  '--tracker-ref',
+  'issue:validator',
+], { encoding: 'utf8' });
+let runnableCommandPlanError = '';
+try {
+  execFileSync(process.execPath, [
+    path.join(packageRoot, 'tools/aggressive-firehose-command-plan.mjs'),
+    '--json',
+    '--runnable',
+    '--run-id-prefix',
+    'woo-firehose-validator',
+    '--tracker-ref',
+    'issue:validator',
+  ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+} catch (error) {
+  runnableCommandPlanError = error.stderr?.toString() || error.message;
+}
 
 assert.deepEqual(targetInventory, generatedTargetInventory, 'WooCommerce target inventory artifact must match the generator output');
 assert.deepEqual(restCrudFixturePlan, generatedRestCrudFixturePlan, 'WooCommerce REST CRUD fixture-plan artifact must match the generator output');
@@ -492,34 +527,26 @@ assert.deepEqual(targetInventory.source_manifests, {
   product_chaos_sequence_packs: 'manifests/product-chaos-sequence-packs.json',
   aggressive_isolated_fuzz_campaign: 'manifests/aggressive-isolated-fuzz-campaign.json',
 }, 'target inventory source manifests drifted');
-assert.deepEqual(targetInventory.discovery_manifests?.product_surface_taxonomy?.readiness_levels, ['declared', 'blocked', 'executable'], 'product surface taxonomy readiness levels drifted');
+assert.deepEqual(targetInventory.discovery_manifests?.product_surface_taxonomy?.readiness_states, wooSurfaceReadinessStates, 'product surface taxonomy readiness states drifted');
 assert.match(targetInventory.discovery_manifests?.product_surface_taxonomy?.provenance || '', /product-level seasoning only/, 'product surface taxonomy must document product-level seasoning boundary');
 
-const requiredProductTaxonomySurfaces = new Set([
-  'products',
-  'variations',
-  'cart',
-  'checkout',
-  'orders',
-  'coupons',
-  'customers',
-  'settings',
-  'reports_admin_pages',
-  'store_api',
-  'rest_api',
-]);
 const productSurfaceTaxonomy = targetInventory.discovery_manifests?.product_surface_taxonomy?.surfaces || {};
-assert.deepEqual(new Set(Object.keys(productSurfaceTaxonomy)), requiredProductTaxonomySurfaces, 'product surface taxonomy must cover Woo aggressive campaign surfaces');
+assert.deepEqual(productSurfaceTaxonomy, wooProductSurfaceTaxonomy, 'target inventory product surface taxonomy must come from the canonical Woo taxonomy module');
+assert.deepEqual(new Set(Object.keys(productSurfaceTaxonomy)), new Set(wooProductSurfaceIds), 'product surface taxonomy must cover Woo aggressive campaign surfaces');
 
 for (const [surface, contract] of Object.entries(productSurfaceTaxonomy)) {
-  assert.ok(['declared', 'blocked', 'executable'].includes(contract.readiness), `${surface} readiness must be declared, blocked, or executable`);
+  assert.ok(wooSurfaceReadinessStates.includes(contract.readiness), `${surface} readiness must be an operation-scoped readiness state`);
+  assert.ok(contract.operation_readiness && typeof contract.operation_readiness === 'object' && !Array.isArray(contract.operation_readiness), `${surface} requires operation_readiness`);
+  for (const [operation, readiness] of Object.entries(contract.operation_readiness)) {
+    assert.ok(wooSurfaceReadinessStates.includes(readiness), `${surface}.${operation} readiness must be operation-scoped`);
+  }
   assert.equal(typeof contract.owner_profile, 'string', `${surface} requires owner_profile`);
   assert.ok(Array.isArray(contract.workloads) && contract.workloads.length > 0, `${surface} requires owning workloads`);
   assert.ok(Array.isArray(contract.notes) && contract.notes.length > 0, `${surface} requires reviewer-readable notes`);
   for (const workloadId of contract.workloads) {
     assert.ok(declaredIds.has(workloadId), `${surface} taxonomy workload ${workloadId} must be declared in fuzz_workloads.wordpress`);
   }
-  if (contract.readiness !== 'executable') {
+  if (Object.values(contract.operation_readiness).some((readiness) => readiness.startsWith('declared_') || readiness.startsWith('blocked_'))) {
     assert.ok(Array.isArray(contract.blocked_by) && contract.blocked_by.length > 0, `${surface} non-executable taxonomy rows must point at upstream blockers`);
     assert.ok(contract.blocked_by.some((blocker) => /wordpress\.|wp-codebox\//.test(blocker)), `${surface} blockers must point at generic upstream primitives`);
   }
@@ -651,10 +678,16 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(generatedAggressiveFirehoseCommandPlan.schema, 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1', 'aggressive firehose command-plan schema drifted');
   assert.equal(generatedAggressiveFirehoseCommandPlan.local_execution, false, 'aggressive firehose command plan must not claim local execution');
   assert.equal(generatedAggressiveFirehoseCommandPlan.execution_enabled, false, 'aggressive firehose command plan must reflect declared-only execution');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.runnable_commands_enabled, false, 'aggressive firehose command plan must default to non-runnable output');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.plan_kind, 'declared_non_executable_plan', 'aggressive firehose command plan must default to declared non-executable artifact');
   assert.equal(generatedAggressiveFirehoseCommandPlan.profile_id, campaign.profile_id, 'aggressive firehose command plan profile id drifted');
-  const generatedCommands = generatedAggressiveFirehoseCommandPlan.commands || [];
-  assert.ok(generatedCommands.length >= 3, 'aggressive firehose command plan must include prepare, request, and ref collection commands');
-  const requestCommand = generatedCommands.find((entry) => entry.purpose === 'request_aggressive_isolated_firehose')?.command || [];
+  assert.deepEqual(generatedAggressiveFirehoseCommandPlan.commands, [], 'declared-only aggressive firehose command plan must withhold runnable commands');
+  assert.match(generatedAggressiveFirehoseTextPlan, /Non-executable plan artifact/, 'text command plan must advertise non-executable output');
+  assert.doesNotMatch(generatedAggressiveFirehoseTextPlan, /^homeboy /m, 'default text command plan must not print runnable-looking homeboy commands');
+  assert.match(runnableCommandPlanError, /Refusing to emit runnable firehose commands/, '--runnable must refuse declared-only aggressive firehose profiles');
+  const generatedPlanItems = generatedAggressiveFirehoseCommandPlan.plan_items || [];
+  assert.ok(generatedPlanItems.length >= 3, 'aggressive firehose command plan must include prepare, request, and ref collection plan items');
+  const requestCommand = generatedPlanItems.find((entry) => entry.purpose === 'request_aggressive_isolated_firehose')?.command_argv || [];
   for (const flag of [
     '--lab-only',
     '--destructive-isolated-mode',
@@ -687,22 +720,16 @@ function assertProductChaosSequencePackContract(manifest) {
   assert.equal(manifest.target_inventory_manifest, 'manifests/target-inventory.json', 'product chaos sequence pack target inventory ref drifted');
   assertDeclaredOnlyNoProof(manifest, 'product-chaos-sequence-packs');
 
-  const expectedSequenceIds = new Set([
-    'product-lifecycle',
-    'variation-lifecycle',
-    'cart-mutation',
-    'checkout-attempts',
-    'order-mutation',
-    'coupon-customer-interactions',
-    'settings-report-admin-pages',
-    'store-rest-cross-surface',
-  ]);
-  const expectedSurfaces = new Set(['products', 'variations', 'cart', 'checkout', 'orders', 'coupons', 'reports_admin_pages', 'store_api']);
-  assert.deepEqual(new Set((manifest.sequence_packs || []).map((pack) => pack.id)), expectedSequenceIds, 'product chaos sequence pack ids drifted');
-  assert.deepEqual(new Set((manifest.sequence_packs || []).map((pack) => pack.surface)), expectedSurfaces, 'product chaos sequence pack surfaces drifted');
+  const sequencePacks = manifest.sequence_packs || [];
+  const sequencePackIds = new Set(sequencePacks.map((pack) => pack.id));
+  assert.equal(sequencePackIds.size, sequencePacks.length, 'product chaos sequence pack ids must be unique');
+  assert.deepEqual(new Set(sequencePacks.map((pack) => pack.surface)), new Set(wooSequencePackSurfaceIds), 'product chaos sequence pack surfaces must come from the canonical Woo taxonomy');
+  for (const pack of sequencePacks) {
+    assert.ok(wooProductSurfaceIds.includes(pack.surface), `${pack.id} sequence pack surface must exist in the canonical Woo taxonomy`);
+  }
 
   const taxonomyLabels = new Set(manifest.relative_hotspot_taxonomy?.labels || []);
-  assert.deepEqual(taxonomyLabels, new Set(['sequence', 'action', 'query', 'table', 'route', 'page']), 'product chaos relative hotspot taxonomy labels drifted');
+  assert.deepEqual(taxonomyLabels, new Set(wooRelativeHotspotLabels), 'product chaos relative hotspot taxonomy labels drifted');
   for (const label of taxonomyLabels) {
     assert.ok(Array.isArray(manifest.relative_hotspot_taxonomy[label]) && manifest.relative_hotspot_taxonomy[label].length > 0, `relative hotspot taxonomy ${label} requires labels`);
   }
@@ -736,7 +763,7 @@ function assertProductChaosSequencePackContract(manifest) {
     assert.deepEqual(new Set(Object.keys(pack.hotspot_labels || {})), taxonomyLabels, `${pack.id} hotspot labels must match taxonomy labels`);
   }
 
-  assert.deepEqual(targetInventory.discovery_manifests?.product_chaos_sequence_packs?.sequence_pack_ids, [...expectedSequenceIds], 'target inventory sequence pack ids drifted');
+  assert.deepEqual(targetInventory.discovery_manifests?.product_chaos_sequence_packs?.sequence_pack_ids, sequencePacks.map((pack) => pack.id), 'target inventory sequence pack ids must mirror the sequence pack manifest');
   assert.deepEqual(new Set(targetInventory.discovery_manifests?.product_chaos_sequence_packs?.relative_hotspot_labels || []), taxonomyLabels, 'target inventory relative hotspot labels drifted');
   assert.equal(rig.fuzz_profile_metadata?.['aggressive-isolated-firehose']?.sequence_pack_manifest, 'manifests/product-chaos-sequence-packs.json', 'aggressive profile metadata sequence pack ref drifted');
 }
@@ -875,8 +902,7 @@ assert.deepEqual(codeboxContractManifest.metadata?.public_codebox_contracts, [
   'wp-codebox/wordpress-workload-run/v1',
   'wp-codebox/fuzz-suite-result/v1',
 ]);
-assert.equal(codeboxContractManifest.artifacts.expected[0]?.required, false, 'codebox contract proof artifact is optional until captured');
-assert.equal(codeboxContractManifest.artifacts.expected[0]?.proof_placeholder, true, 'codebox contract expected artifact must be marked as a placeholder');
+assertDeclaredExpectedArtifactMarker(codeboxContractManifest.artifacts.expected[0], 'codebox contract expected artifact');
 
 const codeboxWorkloadRun = readJson(packageRoot, 'bench/codebox-fuzz-suite-contract.workload.json');
 assert.equal(codeboxWorkloadRun.schema, 'wp-codebox/wordpress-workload-run/v1');
@@ -885,6 +911,7 @@ assert.ok(codeboxWorkloadRun.before.some((step) => step.command === 'wordpress.e
 assert.ok(codeboxWorkloadRun.steps.some((step) => step.command === 'wp-codebox/run-fuzz-suite'), 'codebox workload must route through public run-fuzz-suite ability');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.schema, 'wp-codebox/fuzz-suite-result/v1');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.required, false, 'codebox workload proof artifact must remain optional until captured');
+assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.artifact_expected_after_run, true, 'codebox workload artifact metadata must mark artifact_expected_after_run');
 assert.equal(codeboxWorkloadRun.metadata?.proof_status, 'declared_contract');
 assertNoProofPlaceholders(codeboxWorkloadRun, 'codebox-fuzz-suite-contract workload');
 

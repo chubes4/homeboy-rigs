@@ -30,7 +30,7 @@
       "metadata": {
         "schema": "wp-codebox/fuzz-suite-result/v1",
         "semantic_key": "fuzz.suite_result",
-        "proof_placeholder": true
+        "artifact_expected_after_run": true
       }
     }
   ],

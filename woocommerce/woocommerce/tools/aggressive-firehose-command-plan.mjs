@@ -10,6 +10,13 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
 const options = parseArgs(process.argv.slice(2));
 const runIdPrefix = options.runIdPrefix || 'woo-firehose-$YYYYMMDD';
+const executionSupported = manifest.readiness?.execution_enabled === true
+  && Array.isArray(manifest.required_upstream_capabilities)
+  && manifest.required_upstream_capabilities.every((capability) => capability.status === 'supported');
+
+if (options.runnable && !executionSupported) {
+  throw new Error('Refusing to emit runnable firehose commands: aggressive-isolated-firehose is declared-only until upstream capability refs are marked supported and execution_enabled is true.');
+}
 
 const baseRunCommand = [
   'homeboy', 'fuzz', 'run',
@@ -50,20 +57,27 @@ const payload = {
   rig_id: 'woocommerce-performance',
   profile_id: manifest.profile_id,
   local_execution: false,
-  execution_enabled: manifest.readiness?.execution_enabled === true,
+  execution_enabled: executionSupported,
+  runnable_commands_enabled: options.runnable,
+  plan_kind: options.runnable ? 'runnable_offloaded_commands' : 'declared_non_executable_plan',
   run_id_prefix: runIdPrefix,
-  commands: [
+  blockers: executionSupported ? [] : [
+    'manifest.readiness.execution_enabled must be true',
+    'required_upstream_capabilities must all declare status: supported',
+    'reviewer-facing upstream capability refs must exist before command execution',
+  ],
+  plan_items: [
     {
       purpose: 'prepare_disposable_rig',
-      command: withOptionalLabArgs(['homeboy', 'rig', 'up', 'woocommerce-performance'], options),
+      command_argv: withOptionalLabArgs(['homeboy', 'rig', 'up', 'woocommerce-performance'], options),
     },
     {
       purpose: 'request_aggressive_isolated_firehose',
-      command: baseRunCommand,
+      command_argv: baseRunCommand,
     },
     {
       purpose: 'collect_reviewer_facing_artifact_refs',
-      command: withOptionalLabArgs([
+      command_argv: withOptionalLabArgs([
         'homeboy', 'runs', 'refs',
         '--rig', 'woocommerce-performance',
         '--kind', 'fuzz',
@@ -87,13 +101,28 @@ const payload = {
   ],
 };
 
+if (options.runnable) {
+  payload.commands = payload.plan_items.map((item) => ({
+    purpose: item.purpose,
+    command: item.command_argv,
+  }));
+} else {
+  payload.commands = [];
+}
+
 if (options.json) {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 } else {
   process.stdout.write(`# ${payload.schema}\n`);
-  process.stdout.write(`# This generator prints the intended offloaded command sequence only. It never runs fuzz locally.\n`);
-  for (const item of payload.commands) {
-    process.stdout.write(`# ${item.purpose}\n${shellJoin(item.command)}\n`);
+  process.stdout.write(`# Non-executable plan artifact. Use --json for structured plan_items. Runnable commands require --runnable and supported upstream refs.\n`);
+  if (options.runnable) {
+    for (const item of payload.commands) {
+      process.stdout.write(`# ${item.purpose}\n${shellJoin(item.command)}\n`);
+    }
+  } else {
+    for (const item of payload.plan_items) {
+      process.stdout.write(`# ${item.purpose}: declared only, command withheld (${item.command_argv[0]} ${item.command_argv[1]} ...)\n`);
+    }
   }
 }
 
@@ -102,6 +131,7 @@ function parseArgs(argv) {
     artifactRoot: '',
     detachAfterHandoff: false,
     json: false,
+    runnable: false,
     runner: '',
     runIdPrefix: '',
     trackerRef: '$WC_TRACKER_REF',
@@ -130,6 +160,9 @@ function parseArgs(argv) {
         break;
       case '--runner':
         parsed.runner = readValue(arg);
+        break;
+      case '--runnable':
+        parsed.runnable = true;
         break;
       case '--run-id-prefix':
         parsed.runIdPrefix = readValue(arg);
@@ -181,5 +214,6 @@ function printHelp() {
   process.stdout.write(`  --run-id-prefix <id>      Firehose run id prefix. Defaults to the stable placeholder woo-firehose-$YYYYMMDD.\n`);
   process.stdout.write(`  --tracker-ref <kind:id>   Tracker ref for reviewer-facing evidence. Default: $WC_TRACKER_REF.\n`);
   process.stdout.write(`  --detach-after-handoff    Return after the Lab daemon accepts the run.\n`);
+  process.stdout.write(`  --runnable                Emit runnable command arrays only when upstream capability refs are supported and execution is enabled.\n`);
   process.stdout.write(`  --json                    Emit structured JSON instead of shell commands.\n`);
 }
