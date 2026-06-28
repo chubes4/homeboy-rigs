@@ -21,6 +21,7 @@ const apiRig = readJson(packageRoot, 'rigs/jetpack-api-route-inventory/rig.json'
 const browserRig = readJson(packageRoot, 'rigs/jetpack-browser-coverage/rig.json');
 const fullSurfaceCoverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const restRouteCoverage = readJson(packageRoot, 'manifests/rest-route-coverage.json');
+const stableWorkloads = readJson(packageRoot, 'manifests/stable-workloads.json');
 const generatedRestCases = readJson(packageRoot, 'bench/generated-rest-request-cases.workload.json');
 const dbInventory = readJson(packageRoot, 'bench/db-inventory.workload.json');
 const fuzzManifests = collectFuzzManifests(packageRoot);
@@ -52,10 +53,20 @@ const expectedBrowserScenarios = new Set([
   'public_page_modules',
 ]);
 
+const expectedStableWorkloadIds = new Set([
+  'admin-and-public-coverage',
+  'db-and-module-inventory',
+  'external-http-guardrail',
+  'rest-db-query-profile',
+]);
+
 assertFullSurfaceCoverageManifest(fullSurfaceCoverage, { file: 'Jetpack full-surface coverage' });
 assert.equal(fuzzManifests.length, expectedFuzzIds.size, 'expected one Jetpack fuzz manifest per declared API fuzz workload');
 assert.equal(apiRig.bench_workloads, undefined, 'Jetpack fuzz coverage must not use bench_workloads as a fallback');
 assert.equal(apiRig.bench_profiles, undefined, 'Jetpack fuzz coverage must not use bench_profiles as a fallback');
+assert.equal(stableWorkloads.schema, 'homeboy-rigs/jetpack-stable-workloads/v1', 'Jetpack stable workload schema drifted');
+assert.equal(stableWorkloads.rig, 'rigs/jetpack-api-route-inventory/rig.json', 'Jetpack stable workloads must target API inventory rig');
+assert.equal(stableWorkloads.lab_command_generator, 'tools/stable-workload-lab-commands.mjs', 'Jetpack stable workload generator drifted');
 
 const declaredIds = declaredFuzzIds(apiRig);
 const benchWorkloadIds = declaredBenchWorkloadIds(apiRig);
@@ -71,6 +82,7 @@ assert.deepEqual(declaredIds, expectedFuzzIds, 'rig fuzz_workloads.wordpress ids
 assert.deepEqual(profileFuzzIds, expectedFuzzIds, 'Jetpack full-surface fuzz workload mapping drifted');
 assert.deepEqual(new Set(profile.browser_requests), expectedBrowserScenarios, 'Jetpack full-surface browser scenarios drifted');
 assert.deepEqual(new Set(browserRig.trace_profiles['full-surface']), new Set(['jetpack-browser-coverage']), 'Jetpack browser full-surface trace profile drifted');
+assertJetpackStableWorkloads(stableWorkloads, expectedStableWorkloadIds, expectedFuzzIds);
 
 for (const scenario of expectedBrowserScenarios) {
   assert.ok(
@@ -343,6 +355,23 @@ function assertArtifactContains(manifest, artifactName, expectedFields) {
   for (const field of expectedFields) {
     assert.ok(caseArtifact.metadata?.contains?.includes(field), `${manifest.id} case artifact ${artifactName} must contain ${field}`);
     assert.ok(expectedArtifact.contains?.includes(field), `${manifest.id} expected artifact ${artifactName} must contain ${field}`);
+  }
+}
+
+function assertJetpackStableWorkloads(manifest, expectedIds, expectedFuzzIds) {
+  assert.deepEqual(new Set(manifest.contracts.map((contract) => contract.id)), expectedIds, 'Jetpack stable workload ids drifted');
+  assert.ok(Array.isArray(manifest.comparison_surfaces) && manifest.comparison_surfaces.includes('fuzz-hotspots'), 'Jetpack stable workloads must compare fuzz hotspots');
+
+  for (const contract of manifest.contracts) {
+    assert.equal(contract.readiness, 'executable', `${contract.id} must be executable`);
+    assert.ok(Array.isArray(contract.entry_workloads) && contract.entry_workloads.length > 0, `${contract.id} must declare entry workloads`);
+    assert.ok(Array.isArray(contract.observed_surfaces) && contract.observed_surfaces.length > 0, `${contract.id} must declare observed surfaces`);
+    assert.ok(contract.expected_observations?.required_artifacts?.length > 0, `${contract.id} must require artifacts`);
+    assert.ok(contract.budgets?.max_duration_seconds > 0, `${contract.id} must declare max duration budget`);
+
+    for (const workloadId of contract.entry_workloads) {
+      assert.ok(expectedFuzzIds.has(workloadId), `${contract.id} entry workload ${workloadId} must be a declared Jetpack fuzz workload`);
+    }
   }
 }
 
