@@ -102,6 +102,7 @@ export function buildFixtureMatrixRunPlan(input) {
     mode: options.mode,
     rig: RIG_ID,
     runner: options.runner,
+    local: Boolean(options.local),
     run_id: options.runId,
     static_site_importer: options.staticSiteImporter,
     blocks_engine: options.blocksEngine,
@@ -185,9 +186,13 @@ function defaultTempRoot(namespace) {
 
 function buildWarnings(options) {
   return [
-    ...(!options.runner && !options.labOnly ? [{
-      code: 'local_runner_default',
-      message: 'No --runner/--lab-only routing was provided; the plan will use the local Homeboy runner.',
+    ...(!options.runner && !options.labOnly && !options.local ? [{
+      code: 'lab_auto_offload_risk',
+      message: 'No --runner/--lab-only/--local routing was provided. `homeboy bench` auto-offloads to a connected default Lab runner, where local --shared-state/--artifact-root paths will fail. Pass --local to force local (hot) execution against local checkouts and a local WP Codebox, or --runner/--lab-only to route to a runner with the paths present.',
+    }] : []),
+    ...(options.local ? [{
+      code: 'forced_local_execution',
+      message: '--local forces hot local execution (--force-hot --allow-local-hot); the bench will not offload to a Lab runner even if one is connected.',
     }] : []),
     ...(options.allowLocalFallback ? [{
       code: 'local_fallback_allowed',
@@ -422,6 +427,18 @@ function buildSteps(options, settings) {
 
 function withCommonRouting(args, options) {
   const routed = [...args];
+  // Force local (hot) execution. `homeboy bench` auto-offloads to a default Lab
+  // runner whenever one is connected, even with no --runner flag. The offload
+  // translates component/checkout paths into the remote workspace but passes
+  // --shared-state / --artifact-root through verbatim, so a local absolute path
+  // (e.g. /private/tmp/... or /Users/...) fails on the Linux runner with
+  // "Permission denied" / "No such file". --force-hot --allow-local-hot together
+  // keep the run on this machine so the local checkouts, fixture root, and
+  // shared-state/artifact-root paths all resolve. This is the only way to run
+  // the matrix against local-only paths and a local WP Codebox.
+  if (options.local) {
+    routed.push('--force-hot', '--allow-local-hot');
+  }
   if (options.runner) {
     routed.push('--runner', options.runner);
   }
@@ -529,7 +546,7 @@ function parseArgs(args) {
     if (arg.startsWith('--')) {
       const [rawKey, rawValue] = arg.slice(2).split('=');
       const key = camelCase(rawKey);
-      const booleanKeys = new Set(['dryRun', 'skipInstall', 'skipSync', 'labOnly', 'allowLocalFallback', 'detachAfterHandoff', 'allowDirtyLabWorkspace', 'allowStaleOverride', 'visualParityGate']);
+      const booleanKeys = new Set(['dryRun', 'skipInstall', 'skipSync', 'labOnly', 'local', 'allowLocalFallback', 'detachAfterHandoff', 'allowDirtyLabWorkspace', 'allowStaleOverride', 'visualParityGate']);
       if (booleanKeys.has(key)) {
         options[key] = true;
         continue;
@@ -634,7 +651,7 @@ function sanitizePathSegment(value) {
 }
 
 function printHelp() {
-  process.stdout.write(`Usage: node WordPress/static-site-importer/tools/run-fixture-matrix.mjs --runner <id> --static-site-importer <path> --blocks-engine <path> [options] [-- <bench args>...]\n\nRuns the canonical Static Site Importer fixture matrix through Homeboy/Lab/WP Codebox.\n\nOptions:\n  --static-site-importer <path>       Static Site Importer checkout/plugin path. Required.\n  --blocks-engine <path>              Blocks Engine checkout. Defaults fixture root and PHP transformer override.\n  --fixture-root <path>               Fixture corpus. Defaults to <blocks-engine>/fixtures/websites.\n  --blocks-engine-php-transformer-path <path>\n                                      Override transformer package/repo path. Defaults to --blocks-engine.\n  --runner <id>                       Homeboy Lab runner, for example homeboy-lab.\n  --mode <development-override|release-proof>\n                                      Labels output; default is development-override when transformer override is used.\n  --run-id <id>                       Stable proof label. Defaults to ssi-matrix-<mode>-<timestamp>.\n  --shared-state <dir>                Shared Homeboy bench state directory.\n  --artifact-root <dir>               Homeboy artifact root.\n  --output <file>                     Structured Homeboy bench output file.\n  --batch-size <n>                    SSI fixture matrix WP Codebox batch size.\n  --concurrency <n>                   Parallel WP Codebox sandbox batches. Defaults to 4, hard-capped at 16.\n  --wordpress-version <version>       WP Codebox WordPress version.\n  --wp-codebox-bin <path>             WP Codebox CLI path.\n  --allow-stale-override              Proceed even when an override checkout is behind/diverged vs upstream.\n  --no-visual-parity                  Skip the wordpress.visual-compare render/diff step.\n  --visual-parity-gate                Make pixel mismatch over the threshold a HARD gate. Default: capture-only.\n  --pixel-threshold <ratio>           Max mismatch ratio (mismatch_pixels/total_pixels) before gating. Default 0.1.\n  --min-native-rate <ratio>           Opt-in: fail fixtures whose native_conversion_rate is below this ratio (0-1, or a percentage like 80). Default: off (metrics only).\n  --class <fixture-class>             Run only the given manifest class lane (e.g. marketing/static). Default: all classes.\n  --tag <tag>                         Run only fixtures whose manifest tags include this tag. Default: all fixtures.\n  --lab-only                          Require Lab routing.\n  --allow-local-fallback              Allow selected Lab runner local fallback.\n  --allow-dirty-lab-workspace         Allow runner workspace overwrite.\n  --detach-after-handoff              Return after remote runner accepts the job.\n  --skip-install                      Skip homeboy rig install --reinstall.\n  --skip-sync                         Skip homeboy rig sync.\n  --dry-run                           Print the composed plan without running it.\n\nAny args after -- are passed through to the lower-level bench runner.\n`);
+  process.stdout.write(`Usage: node WordPress/static-site-importer/tools/run-fixture-matrix.mjs --runner <id> --static-site-importer <path> --blocks-engine <path> [options] [-- <bench args>...]\n\nRuns the canonical Static Site Importer fixture matrix through Homeboy/Lab/WP Codebox.\n\nOptions:\n  --static-site-importer <path>       Static Site Importer checkout/plugin path. Required.\n  --blocks-engine <path>              Blocks Engine checkout. Defaults fixture root and PHP transformer override.\n  --fixture-root <path>               Fixture corpus. Defaults to <blocks-engine>/fixtures/websites.\n  --blocks-engine-php-transformer-path <path>\n                                      Override transformer package/repo path. Defaults to --blocks-engine.\n  --runner <id>                       Homeboy Lab runner, for example homeboy-lab.\n  --local                             Force hot local execution (--force-hot --allow-local-hot). Use this to run against local checkouts, a local fixture root, and a local WP Codebox; without it, homeboy bench auto-offloads to a connected default Lab runner where local --shared-state/--artifact-root paths fail.\n  --mode <development-override|release-proof>\n                                      Labels output; default is development-override when transformer override is used.\n  --run-id <id>                       Stable proof label. Defaults to ssi-matrix-<mode>-<timestamp>.\n  --shared-state <dir>                Shared Homeboy bench state directory.\n  --artifact-root <dir>               Homeboy artifact root.\n  --output <file>                     Structured Homeboy bench output file.\n  --batch-size <n>                    SSI fixture matrix WP Codebox batch size.\n  --concurrency <n>                   Parallel WP Codebox sandbox batches. Defaults to 4, hard-capped at 16.\n  --wordpress-version <version>       WP Codebox WordPress version.\n  --wp-codebox-bin <path>             WP Codebox CLI path.\n  --allow-stale-override              Proceed even when an override checkout is behind/diverged vs upstream.\n  --no-visual-parity                  Skip the wordpress.visual-compare render/diff step.\n  --visual-parity-gate                Make pixel mismatch over the threshold a HARD gate. Default: capture-only.\n  --pixel-threshold <ratio>           Max mismatch ratio (mismatch_pixels/total_pixels) before gating. Default 0.1.\n  --min-native-rate <ratio>           Opt-in: fail fixtures whose native_conversion_rate is below this ratio (0-1, or a percentage like 80). Default: off (metrics only).\n  --class <fixture-class>             Run only the given manifest class lane (e.g. marketing/static). Default: all classes.\n  --tag <tag>                         Run only fixtures whose manifest tags include this tag. Default: all fixtures.\n  --lab-only                          Require Lab routing.\n  --allow-local-fallback              Allow selected Lab runner local fallback.\n  --allow-dirty-lab-workspace         Allow runner workspace overwrite.\n  --detach-after-handoff              Return after remote runner accepts the job.\n  --skip-install                      Skip homeboy rig install --reinstall.\n  --skip-sync                         Skip homeboy rig sync.\n  --dry-run                           Print the composed plan without running it.\n\nAny args after -- are passed through to the lower-level bench runner.\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
