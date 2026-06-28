@@ -842,7 +842,11 @@ module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
     });
     const failure = summary.runtime.child_command_failures[0];
 
-    assert.equal(runtimeError.message, 'recipe-run failed');
+    // #560: the child's real stderr (+ stdout tail) is folded into the thrown
+    // error message so the cause propagates instead of a bare command line.
+    assert.match(runtimeError.message, /^recipe-run failed/);
+    assert.match(runtimeError.message, /stderr:\nstderr line 1\nstderr line 2/);
+    assert.match(runtimeError.message, /stdout \(tail\):\nstdout line 1\nstdout line 2/);
     assert.equal(summary.runtime.exit_code, 17);
     assert.equal(failure.schema, 'homeboy/child-command-failure/v1');
     assert.equal(failure.exit_status, 17);
@@ -868,7 +872,8 @@ module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
     await assert.rejects(
       () => runFixtureMatrixBench(),
       (error) => {
-        assert.equal(error.message, 'recipe-run failed');
+        assert.match(error.message, /^recipe-run failed/);
+        assert.match(error.message, /stderr:\nstderr line 1\nstderr line 2/);
         assert.equal(error.child_command_failures[0].exit_status, 17);
         assert.equal(error.child_command_failures[0].artifact_refs.artifacts_directory, process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY);
         return true;
