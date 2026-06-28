@@ -185,10 +185,11 @@
     "full-surface": {
       "description": "WooCommerce full-surface fuzz inventory. Discovery manifests extend the executable fuzz workload list with declared REST route-family, block, admin action, and DB/API hotspot artifact contracts without claiming additional runner coverage.",
       "target_inventory_manifest": "manifests/target-inventory.json",
-        "discovery_manifests": {
-          "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
-          "rest_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
-          "blocks": "manifests/block-inventory-rendering-fuzz.json",
+      "discovery_manifests": {
+        "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
+        "rest_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
+        "product_chaos_sequence_packs": "manifests/product-chaos-sequence-packs.json",
+        "blocks": "manifests/block-inventory-rendering-fuzz.json",
         "admin_actions": "manifests/admin-action-inventory.json",
         "db_api_hotspots": "manifests/db-api-hotspot-artifact-io.json"
       },
@@ -202,6 +203,7 @@
       "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
       "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
       "target_inventory_manifest": "manifests/target-inventory.json",
+      "sequence_pack_manifest": "manifests/product-chaos-sequence-packs.json",
       "source_profile": "full-surface",
       "required_upstream_contracts": [
         "homeboy/destructive-isolated-mode/v1",
@@ -210,6 +212,9 @@
         "wp-codebox/destructive-fuzz-suite-metadata/v1",
         "wp-codebox/snapshot-restore-artifact/v1",
         "wordpress.rest-payload-families/v1",
+        "homeboy/chaos-sequence-generator/v1",
+        "homeboy/fuzz-payload-size-depth-families/v1",
+        "homeboy/relative-hotspot-taxonomy/v1",
         "homeboy-extensions/aggressive-isolated-mode/v1",
         "homeboy-extensions/generate-admin-observations/v1",
         "homeboy-extensions/generate-database-observations/v1",

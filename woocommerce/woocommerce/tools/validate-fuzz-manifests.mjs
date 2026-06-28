@@ -36,6 +36,7 @@ const dbApiHotspotArtifactIo = readJson(packageRoot, 'manifests/db-api-hotspot-a
 const aggressiveIsolatedFuzzCampaign = readJson(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json');
 const blockInventoryRenderingFuzz = readJson(packageRoot, 'manifests/block-inventory-rendering-fuzz.json');
 const adminActionInventory = readJson(packageRoot, 'manifests/admin-action-inventory.json');
+const productChaosSequencePacks = readJson(packageRoot, 'manifests/product-chaos-sequence-packs.json');
 const targetInventory = readJson(packageRoot, 'manifests/target-inventory.json');
 const stableWorkloads = readJson(packageRoot, 'manifests/stable-workloads.json');
 const coverageGapReportWorkload = readJson(packageRoot, 'bench/coverage-gap-report.workload.json');
@@ -241,6 +242,38 @@ function assertNoProofPlaceholders(value, context = 'value') {
       assertNoProofPlaceholders(entry, `${context}.${key}`);
     }
   }
+}
+
+function assertNoHardThresholdClaims(value, context = 'value') {
+  if (typeof value === 'string') {
+    assert.ok(!/\b(p\d+|percentile|threshold|maximum|minimum|max|min|must be (?:under|over|below|above)|no more than|at least)\b/i.test(value), `${context} must not declare hard thresholds`);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => assertNoHardThresholdClaims(entry, `${context}[${index}]`));
+    return;
+  }
+
+  if (value && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      assertNoHardThresholdClaims(entry, `${context}.${key}`);
+    }
+  }
+}
+
+function assertDeclaredOnlyNoProof(container, context) {
+  assert.equal(container.status, 'declared_contract', `${context} status must stay declared_contract`);
+  assert.equal(container.execution_enabled, false, `${context} must not enable execution`);
+  assert.equal(container.runner_behavior, 'none', `${context} must not implement runner behavior`);
+  assert.equal(container.readiness?.level, 'declared', `${context} readiness must stay declared`);
+  assert.equal(container.readiness?.execution_enabled, false, `${context} readiness must not enable execution`);
+  assert.equal(container.readiness?.proof_status, 'declared_contract', `${context} proof status must stay declared`);
+  assert.equal(container.readiness?.proof_bundle, undefined, `${context} declared readiness must not carry proof refs`);
+  assertFuzzProofBundleRequirements(container.readiness?.proof_bundle_requirements, { file: `${context} readiness` });
+  assertNoLocalOnlyRefs(container, context);
+  assertNoProofPlaceholders(container, context);
+  assertNoHardThresholdClaims(container, context);
 }
 
 function assertExecutableReadinessNeedsProofRequirements(readiness, context) {
@@ -456,6 +489,7 @@ assert.deepEqual(targetInventory.source_manifests, {
   block_inventory_rendering_fuzz: 'manifests/block-inventory-rendering-fuzz.json',
   admin_action_inventory: 'manifests/admin-action-inventory.json',
   db_api_hotspot_artifact_io: 'manifests/db-api-hotspot-artifact-io.json',
+  product_chaos_sequence_packs: 'manifests/product-chaos-sequence-packs.json',
   aggressive_isolated_fuzz_campaign: 'manifests/aggressive-isolated-fuzz-campaign.json',
 }, 'target inventory source manifests drifted');
 assert.deepEqual(targetInventory.discovery_manifests?.product_surface_taxonomy?.readiness_levels, ['declared', 'blocked', 'executable'], 'product surface taxonomy readiness levels drifted');
@@ -498,6 +532,7 @@ assert.ok(productSurfaceTaxonomy.reports_admin_pages.workloads.includes('admin-p
 assert.deepEqual(rig.fuzz_profile_metadata?.['full-surface']?.discovery_manifests, {
   rest_route_families: 'manifests/rest-crud-route-family-catalog.json',
   rest_payload_fixtures: 'manifests/rest-crud-payload-fixtures.json',
+  product_chaos_sequence_packs: 'manifests/product-chaos-sequence-packs.json',
   blocks: 'manifests/block-inventory-rendering-fuzz.json',
   admin_actions: 'manifests/admin-action-inventory.json',
   db_api_hotspots: 'manifests/db-api-hotspot-artifact-io.json',
@@ -525,6 +560,9 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     'wp-codebox/destructive-fuzz-suite-metadata/v1',
     'wp-codebox/snapshot-restore-artifact/v1',
     'wordpress.rest-payload-families/v1',
+    'homeboy/chaos-sequence-generator/v1',
+    'homeboy/fuzz-payload-size-depth-families/v1',
+    'homeboy/relative-hotspot-taxonomy/v1',
     'homeboy-extensions/aggressive-isolated-mode/v1',
     'homeboy-extensions/generate-admin-observations/v1',
     'homeboy-extensions/generate-database-observations/v1',
@@ -541,6 +579,9 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     'wp_codebox_destructive_fuzz_suite_metadata',
     'wp_codebox_snapshot_restore',
     'wordpress_rest_payload_families',
+    'homeboy_chaos_sequence_generator',
+    'homeboy_payload_size_depth_families',
+    'homeboy_relative_hotspot_taxonomy',
     'hbex_aggressive_isolated_mode',
     'hbex_admin_generation',
     'hbex_database_generation',
@@ -558,6 +599,9 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     'coverage_reconciliation',
     'rest_payload_family_coverage',
     'snapshot_restore_artifact',
+    'chaos_sequence_pack_resolution',
+    'payload_size_depth_family_coverage',
+    'relative_hotspot_taxonomy',
     'per_case_timing',
     'database_observations',
     'admin_observations',
@@ -580,7 +624,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     assert.ok(Array.isArray(family.planned_operations) && family.planned_operations.length > 0, `${family.id} requires planned operations`);
   }
 
-  assert.deepEqual(new Set(Object.keys(campaign.planned_case_groups || {})), new Set(['route', 'action', 'query', 'table', 'page', 'block']), 'aggressive planned case groups drifted');
+  assert.deepEqual(new Set(Object.keys(campaign.planned_case_groups || {})), new Set(['sequence', 'route', 'action', 'query', 'table', 'page', 'block']), 'aggressive planned case groups drifted');
   for (const [group, labels] of Object.entries(campaign.planned_case_groups || {})) {
     assert.ok(Array.isArray(labels) && labels.length > 0, `aggressive case group ${group} requires labels`);
   }
@@ -618,6 +662,9 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     '--coverage-reconciliation',
     '--wp-codebox-destructive-fuzz-suite-metadata',
     '--rest-payload-families',
+    '--chaos-sequence-packs',
+    '--payload-size-depth-families',
+    '--relative-hotspot-taxonomy',
     '--snapshot-restore',
     '--hbex-aggressive-isolated-mode',
     '--hbex-admin-generation',
@@ -633,7 +680,69 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assertNoProofPlaceholders(campaign, 'aggressive-isolated-fuzz-campaign');
 }
 
+function assertProductChaosSequencePackContract(manifest) {
+  assert.equal(manifest.schema, 'homeboy-rigs/woocommerce-product-chaos-sequence-packs/v1', 'product chaos sequence pack schema drifted');
+  assert.equal(manifest.id, 'woocommerce-product-chaos-sequence-packs', 'product chaos sequence pack id drifted');
+  assert.equal(manifest.owner_profile, 'aggressive-isolated-firehose', 'product chaos sequence pack owner profile drifted');
+  assert.equal(manifest.target_inventory_manifest, 'manifests/target-inventory.json', 'product chaos sequence pack target inventory ref drifted');
+  assertDeclaredOnlyNoProof(manifest, 'product-chaos-sequence-packs');
+
+  const expectedSequenceIds = new Set([
+    'product-lifecycle',
+    'variation-lifecycle',
+    'cart-mutation',
+    'checkout-attempts',
+    'order-mutation',
+    'coupon-customer-interactions',
+    'settings-report-admin-pages',
+    'store-rest-cross-surface',
+  ]);
+  const expectedSurfaces = new Set(['products', 'variations', 'cart', 'checkout', 'orders', 'coupons', 'reports_admin_pages', 'store_api']);
+  assert.deepEqual(new Set((manifest.sequence_packs || []).map((pack) => pack.id)), expectedSequenceIds, 'product chaos sequence pack ids drifted');
+  assert.deepEqual(new Set((manifest.sequence_packs || []).map((pack) => pack.surface)), expectedSurfaces, 'product chaos sequence pack surfaces drifted');
+
+  const taxonomyLabels = new Set(manifest.relative_hotspot_taxonomy?.labels || []);
+  assert.deepEqual(taxonomyLabels, new Set(['sequence', 'action', 'query', 'table', 'route', 'page']), 'product chaos relative hotspot taxonomy labels drifted');
+  for (const label of taxonomyLabels) {
+    assert.ok(Array.isArray(manifest.relative_hotspot_taxonomy[label]) && manifest.relative_hotspot_taxonomy[label].length > 0, `relative hotspot taxonomy ${label} requires labels`);
+  }
+
+  const payloadFamilies = new Map((manifest.payload_size_depth_families || []).map((family) => [family.id, family]));
+  assert.deepEqual(new Set(payloadFamilies.keys()), new Set(['catalog-payload-shapes', 'commerce-session-shapes', 'business-object-shapes', 'admin-settings-shapes']), 'payload size/depth family ids drifted');
+  for (const [familyId, family] of payloadFamilies) {
+    assert.equal(family.readiness, 'declared', `${familyId} payload family must stay declared`);
+    assert.ok(Array.isArray(family.applies_to) && family.applies_to.length > 0, `${familyId} requires applies_to surfaces`);
+    assert.ok(Array.isArray(family.size_labels) && family.size_labels.length > 0, `${familyId} requires size labels`);
+    assert.ok(Array.isArray(family.depth_labels) && family.depth_labels.length > 0, `${familyId} requires depth labels`);
+    assert.ok(Array.isArray(family.seed_shapes) && family.seed_shapes.length > 0, `${familyId} requires Woo fixture seed shapes`);
+  }
+
+  const fixtureFamilies = new Map((manifest.fixture_families || []).map((family) => [family.id, family]));
+  assert.deepEqual(new Set(fixtureFamilies.keys()), new Set(['catalog-products-and-variations', 'cart-checkout-store-api', 'orders-coupons-customers', 'settings-reports-admin', 'cross-surface-api-state']), 'product chaos fixture family ids drifted');
+  for (const [familyId, family] of fixtureFamilies) {
+    assert.equal(family.readiness, 'declared', `${familyId} fixture family must stay declared`);
+    assert.ok(Array.isArray(family.surfaces) && family.surfaces.length > 0, `${familyId} requires surfaces`);
+    assert.ok(Array.isArray(family.seed_refs) && family.seed_refs.length > 0, `${familyId} requires seed refs`);
+    for (const seedRef of family.seed_refs) {
+      const payloadFamilyId = seedRef.replace('payload_size_depth_families/', '');
+      assert.ok(payloadFamilies.has(payloadFamilyId), `${familyId} seed ref ${seedRef} must point at a declared payload size/depth family`);
+    }
+  }
+
+  for (const pack of manifest.sequence_packs || []) {
+    assert.equal(pack.readiness, 'declared', `${pack.id} sequence pack must stay declared`);
+    assert.ok(fixtureFamilies.has(pack.fixture_family), `${pack.id} sequence pack fixture family drifted`);
+    assert.ok(Array.isArray(pack.steps) && pack.steps.length > 0, `${pack.id} sequence pack requires ordered steps`);
+    assert.deepEqual(new Set(Object.keys(pack.hotspot_labels || {})), taxonomyLabels, `${pack.id} hotspot labels must match taxonomy labels`);
+  }
+
+  assert.deepEqual(targetInventory.discovery_manifests?.product_chaos_sequence_packs?.sequence_pack_ids, [...expectedSequenceIds], 'target inventory sequence pack ids drifted');
+  assert.deepEqual(new Set(targetInventory.discovery_manifests?.product_chaos_sequence_packs?.relative_hotspot_labels || []), taxonomyLabels, 'target inventory relative hotspot labels drifted');
+  assert.equal(rig.fuzz_profile_metadata?.['aggressive-isolated-firehose']?.sequence_pack_manifest, 'manifests/product-chaos-sequence-packs.json', 'aggressive profile metadata sequence pack ref drifted');
+}
+
 assertAggressiveIsolatedCampaignContract(aggressiveIsolatedFuzzCampaign);
+assertProductChaosSequencePackContract(productChaosSequencePacks);
 
 const requiredTargetSurfaces = new Set([
   'rest_routes',

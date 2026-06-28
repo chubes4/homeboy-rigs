@@ -19,6 +19,7 @@
     "block_inventory_rendering_fuzz": "manifests/block-inventory-rendering-fuzz.json",
     "admin_action_inventory": "manifests/admin-action-inventory.json",
     "db_api_hotspot_artifact_io": "manifests/db-api-hotspot-artifact-io.json",
+    "product_chaos_sequence_packs": "manifests/product-chaos-sequence-packs.json",
     "aggressive_isolated_fuzz_campaign": "manifests/aggressive-isolated-fuzz-campaign.json"
   },
   "discovery_manifests": {
@@ -356,6 +357,74 @@
         }
       },
       "postprocess_command": "homeboy.artifact-postprocess"
+    },
+    "product_chaos_sequence_packs": {
+      "manifest": "manifests/product-chaos-sequence-packs.json",
+      "owner_profile": "aggressive-isolated-firehose",
+      "readiness": {
+        "level": "declared",
+        "execution_enabled": false,
+        "proof_status": "declared_contract",
+        "coverage_contract": "WooCommerce sequence packs are product-domain declarations for future offloaded chaos generation. They require generic sequence-pack ingestion, payload size/depth expansion, destructive isolation, snapshot restore, and reviewer-facing artifact refs before execution or proof claims.",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "local_only_refs_allowed": false,
+          "placeholder_refs_allowed": false,
+          "required_refs": [
+            "reviewer-facing chaos sequence pack resolution artifact ref",
+            "reviewer-facing payload size/depth family coverage artifact ref",
+            "reviewer-facing relative hotspot taxonomy artifact ref",
+            "reviewer-facing fuzz execution request artifact ref",
+            "reviewer-facing coverage reconciliation artifact ref",
+            "reviewer-facing snapshot restore artifact ref"
+          ],
+          "required_artifacts": [
+            "chaos_sequence_pack_resolution",
+            "payload_size_depth_family_coverage",
+            "relative_hotspot_taxonomy",
+            "fuzz_execution_request",
+            "coverage_reconciliation",
+            "snapshot_restore_artifact"
+          ]
+        },
+        "upstream_blockers": [
+          "homeboy/chaos-sequence-generator/v1 must consume product sequence packs without WooCommerce-specific logic in the generic fuzzer.",
+          "homeboy/fuzz-payload-size-depth-families/v1 must expand declared payload families into bounded fuzz inputs and emit reviewer-facing coverage artifacts.",
+          "homeboy/relative-hotspot-taxonomy/v1 must attach sequence/action/query/table/route/page labels to collected artifacts before hotspot claims.",
+          "WP Codebox snapshot restore and destructive fuzz-suite metadata artifacts must exist before stateful mutations are executable."
+        ]
+      },
+      "sequence_pack_ids": [
+        "product-lifecycle",
+        "variation-lifecycle",
+        "cart-mutation",
+        "checkout-attempts",
+        "order-mutation",
+        "coupon-customer-interactions",
+        "settings-report-admin-pages",
+        "store-rest-cross-surface"
+      ],
+      "fixture_family_ids": [
+        "catalog-products-and-variations",
+        "cart-checkout-store-api",
+        "orders-coupons-customers",
+        "settings-reports-admin",
+        "cross-surface-api-state"
+      ],
+      "payload_size_depth_family_ids": [
+        "catalog-payload-shapes",
+        "commerce-session-shapes",
+        "business-object-shapes",
+        "admin-settings-shapes"
+      ],
+      "relative_hotspot_labels": [
+        "sequence",
+        "action",
+        "query",
+        "table",
+        "route",
+        "page"
+      ]
     }
   },
   "inventory_primitives": {

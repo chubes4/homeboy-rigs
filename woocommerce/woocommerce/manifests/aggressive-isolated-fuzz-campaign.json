@@ -11,6 +11,7 @@
     "payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
     "fixture_plan": "manifests/rest-crud-fixture-plan.json",
     "rest_mutation_fixture_opt_ins": "manifests/rest-crud-fixture-opt-ins.json",
+    "product_chaos_sequence_packs": "manifests/product-chaos-sequence-packs.json",
     "admin_actions": "manifests/admin-action-inventory.json",
     "block_inventory_rendering": "manifests/block-inventory-rendering-fuzz.json"
   },
@@ -51,6 +52,24 @@
       "contract": "wordpress.rest-payload-families/v1",
       "artifact": "rest_payload_family_coverage",
       "required_before_execution": true
+    },
+    {
+      "id": "homeboy_chaos_sequence_generator",
+      "contract": "homeboy/chaos-sequence-generator/v1",
+      "artifact": "chaos_sequence_pack_resolution",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_payload_size_depth_families",
+      "contract": "homeboy/fuzz-payload-size-depth-families/v1",
+      "artifact": "payload_size_depth_family_coverage",
+      "required_before_execution": true
+    },
+    {
+      "id": "homeboy_relative_hotspot_taxonomy",
+      "contract": "homeboy/relative-hotspot-taxonomy/v1",
+      "artifact": "relative_hotspot_taxonomy",
+      "required_before_proven": true
     },
     {
       "id": "hbex_aggressive_isolated_mode",
@@ -107,6 +126,24 @@
       "schema": "wp-codebox/snapshot-restore-artifact/v1",
       "semantic_key": "fuzz.reset",
       "required_before_execution": true
+    },
+    {
+      "id": "chaos_sequence_pack_resolution",
+      "schema": "homeboy/chaos-sequence-generator/v1",
+      "semantic_key": "fuzz.chaos_sequence_packs",
+      "required_before_execution": true
+    },
+    {
+      "id": "payload_size_depth_family_coverage",
+      "schema": "homeboy/fuzz-payload-size-depth-families/v1",
+      "semantic_key": "fuzz.payload_size_depth_families",
+      "required_before_execution": true
+    },
+    {
+      "id": "relative_hotspot_taxonomy",
+      "schema": "homeboy/relative-hotspot-taxonomy/v1",
+      "semantic_key": "fuzz.relative_hotspot_taxonomy",
+      "required_before_proven": true
     },
     {
       "id": "per_case_timing",
@@ -225,6 +262,7 @@
     }
   ],
   "planned_case_groups": {
+    "sequence": ["product-lifecycle", "variation-lifecycle", "cart-mutation", "checkout-attempts", "order-mutation", "coupon-customer-interactions", "settings-report-admin-pages", "store-rest-cross-surface"],
     "route": ["wc/v3/products", "wc/v3/products/batch", "wc/v3/products/<product_id>/variations/batch", "wc/v3/orders", "wc/v3/coupons", "wc/v3/customers", "wc/store/v1/cart", "wc/store/v1/checkout"],
     "action": ["add-to-cart", "apply-coupon", "place-order", "order-status-transition", "admin-menu-get", "wc-ajax-frontend-action"],
     "query": ["catalog lookup", "cart/session lookup", "checkout totals", "order lookup", "analytics report", "coupon validation"],
@@ -232,7 +270,7 @@
     "page": ["shop", "product", "cart", "checkout", "orders admin", "products admin", "analytics admin", "settings admin"],
     "block": ["woocommerce/product-collection", "woocommerce/cart", "woocommerce/checkout", "woocommerce/product-button", "woocommerce/product-price", "woocommerce/filter-wrapper"]
   },
-  "relative_hotspot_labels": ["route", "action", "query", "table", "page", "block"],
+  "relative_hotspot_labels": ["sequence", "route", "action", "query", "table", "page", "block"],
   "readiness": {
     "level": "declared",
     "execution_enabled": false,
@@ -249,6 +287,9 @@
         "reviewer-facing destructive fuzz-suite metadata artifact ref",
         "reviewer-facing snapshot restore artifact ref",
         "reviewer-facing REST payload family coverage artifact ref",
+        "reviewer-facing chaos sequence pack resolution artifact ref",
+        "reviewer-facing payload size/depth family coverage artifact ref",
+        "reviewer-facing relative hotspot taxonomy artifact ref",
         "reviewer-facing HBEX aggressive isolated mode artifact ref",
         "reviewer-facing admin observation artifact ref",
         "reviewer-facing database observation artifact ref",
@@ -257,7 +298,7 @@
         "reviewer-facing per-case timing artifact ref",
         "reviewer-facing relative hotspots artifact ref"
       ],
-      "required_artifacts": ["destructive_isolated_mode_artifact", "fuzz_execution_request", "coverage_reconciliation", "destructive_fuzz_suite_metadata", "snapshot_restore_artifact", "rest_payload_family_coverage", "hbex_aggressive_isolated_mode_artifact", "admin_observations", "database_observations", "browser_observations", "editor_observations", "per_case_timing", "relative_hotspots"]
+      "required_artifacts": ["destructive_isolated_mode_artifact", "fuzz_execution_request", "coverage_reconciliation", "destructive_fuzz_suite_metadata", "snapshot_restore_artifact", "rest_payload_family_coverage", "chaos_sequence_pack_resolution", "payload_size_depth_family_coverage", "relative_hotspot_taxonomy", "hbex_aggressive_isolated_mode_artifact", "admin_observations", "database_observations", "browser_observations", "editor_observations", "per_case_timing", "relative_hotspots"]
     },
     "upstream_blockers": [
       "homeboy/destructive-isolated-mode/v1 must guarantee disposable destructive execution boundaries.",
@@ -266,6 +307,8 @@
       "wp-codebox/destructive-fuzz-suite-metadata/v1 must describe destructive suite metadata without making Rigs own generic fuzzer logic.",
       "wp-codebox/snapshot-restore-artifact/v1 must prove reset completion for each firehose shard.",
       "wordpress.rest-payload-families/v1 must generate payload families from route schema, fixture families, and opt-in manifests instead of Rigs-owned generic generation.",
+      "homeboy/chaos-sequence-generator/v1 must consume Woo sequence packs without adding Woo-specific logic to the generic fuzzer.",
+      "homeboy/fuzz-payload-size-depth-families/v1 and homeboy/relative-hotspot-taxonomy/v1 must emit reviewer-facing artifacts before sequence-pack coverage is claimed.",
       "homeboy-extensions/aggressive-isolated-mode/v1 and HBEX admin/database/browser/editor generation contracts must be collected as reviewer-facing artifacts before proof claims."
     ]
   }
