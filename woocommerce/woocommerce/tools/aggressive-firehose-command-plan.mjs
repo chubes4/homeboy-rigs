@@ -17,11 +17,25 @@ const baseRunCommand = [
   'homeboy', 'fuzz', 'run',
   '--lab-only',
   '--rig', 'woocommerce-performance',
-  '--profile', manifest.profile_id,
   '--run-id', `${runIdPrefix}-request`,
   '--tracker-ref', options.trackerRef,
   '--allow-destructive',
   '--isolation', 'isolated',
+];
+
+if (options.runner) {
+  baseRunCommand.push('--runner', options.runner);
+}
+if (options.artifactRoot) {
+  baseRunCommand.push('--artifact-root', options.artifactRoot);
+}
+if (options.detachAfterHandoff) {
+  baseRunCommand.push('--detach-after-handoff');
+}
+
+baseRunCommand.push(
+  '--',
+  '--profile', manifest.profile_id,
   '--fuzz-execution-request-artifact',
   '--coverage-reconciliation',
   '--wp-codebox-destructive-fuzz-suite-metadata',
@@ -35,17 +49,7 @@ const baseRunCommand = [
   '--hbex-database-generation',
   '--hbex-browser-generation',
   '--hbex-editor-generation',
-];
-
-if (options.runner) {
-  baseRunCommand.push('--runner', options.runner);
-}
-if (options.artifactRoot) {
-  baseRunCommand.push('--artifact-root', options.artifactRoot);
-}
-if (options.detachAfterHandoff) {
-  baseRunCommand.push('--detach-after-handoff');
-}
+);
 
 const payload = {
   schema: 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1',
