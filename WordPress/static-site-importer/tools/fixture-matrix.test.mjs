@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -42,8 +42,10 @@ import {
   EDITOR_VALIDATION_METHOD,
   normalizeFixtureMatrixResult,
   normalizeLossClass,
+  stageFixtureSource,
   VISUAL_PARITY_MISMATCH_KIND,
   visualParityCompareStep,
+  wordpressServedPath,
   writeFixtureMatrixArtifacts,
 } from '../lib/fixture-matrix.mjs';
 import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs';
@@ -2128,6 +2130,63 @@ test('visualParityCompareStep composes the existing wordpress.visual-compare com
   assert.ok(step.args.includes('threshold=0.2'));
   assert.ok(step.args.includes('source-label=shop-source'));
   assert.ok(step.args.includes('candidate-label=shop-candidate'));
+});
+
+test('default visual-parity source-url targets the staged source/ subdir on the served uploads path', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-source-url-test' });
+  const recipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    playgroundArtifactsDirectory: '/wordpress/wp-content/uploads/static-site-importer-fixture-matrix',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+  });
+
+  // [activate, validate(simple-site), editor-validation(simple-site), visual-compare(simple-site)]
+  const visualStep = recipe.workflow.steps[3];
+  const sourceArg = visualStep.args.find((arg) => arg.startsWith('source-url='));
+  assert.equal(
+    sourceArg,
+    'source-url=/wp-content/uploads/static-site-importer-fixture-matrix/simple-site/source/index.html',
+  );
+  // Candidate defaults to the imported front page served at `/`.
+  assert.ok(visualStep.args.includes('candidate-url=/'));
+});
+
+test('stageFixtureSource copies the raw fixture source into the served source/ subdir', () => {
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-visual-parity-stage-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-stage-test' });
+  writeFixtureMatrixArtifacts({ outputDirectory, matrix });
+
+  const sourceDir = path.join(outputDirectory, 'simple-site', 'source');
+  // The fixture's own files (index.html + style.css) are served from source/,
+  // preserving their relative layout so assets resolve.
+  assert.ok(existsSync(path.join(sourceDir, 'index.html')), 'staged source index.html should exist');
+  assert.ok(existsSync(path.join(sourceDir, 'style.css')), 'staged source style.css should exist');
+  assert.equal(
+    readFileSync(path.join(sourceDir, 'index.html'), 'utf8'),
+    readFileSync(path.join(fixtureRoot, 'simple-site', 'index.html'), 'utf8'),
+  );
+  // The import payload (artifact.json) is still written alongside, unchanged.
+  assert.ok(existsSync(path.join(outputDirectory, 'simple-site', 'artifact.json')), 'artifact.json should still be written');
+});
+
+test('stageFixtureSource direct call returns staged relative paths', () => {
+  const fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-visual-parity-stage-direct-'));
+  const staged = stageFixtureSource(
+    { id: 'simple-site', directory: path.join(fixtureRoot, 'simple-site') },
+    fixtureDirectory,
+  );
+  assert.ok(staged.includes('index.html'));
+  assert.ok(existsSync(path.join(fixtureDirectory, 'source', 'index.html')));
+});
+
+test('wordpressServedPath strips the /wordpress docroot prefix', () => {
+  assert.equal(
+    wordpressServedPath('/wordpress/wp-content/uploads/foo'),
+    '/wp-content/uploads/foo',
+  );
+  // Already-served paths are returned normalized but unchanged in meaning.
+  assert.equal(wordpressServedPath('/wp-content/uploads/foo'), '/wp-content/uploads/foo');
 });
 
 test('(a) visual-compare mismatch at/under threshold produces no finding', () => {

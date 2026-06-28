@@ -256,19 +256,35 @@ threshold is configurable via `--pixel-threshold` /
 the per-pixel `threshold=` arg so a higher value loosens the gate monotonically).
 Set `--no-visual-parity` / `visualParity: false` to omit the step entirely.
 
-Live caveat (verified by a real local recipe-run): the `wordpress.visual-compare`
-step renders and pixel-diffs locally in WP Codebox, but the source/candidate URLs
-are not yet wired to the imported output. The step composes
-`source-url=/wp-content/uploads/static-site-importer-fixture-matrix/<id>/index.html`
-and `candidate-url=/` by default. The fixture source HTML is never staged into a
-servable path, so the source capture hangs until the 120s browser timeout and the
-comparison returns `stage: capture-failed` with no mismatch metrics; the candidate
-URL is the homepage, not the imported page. The wiring and the
-finding-parsing/threshold/gating logic are fully unit-tested in
-`tools/fixture-matrix.test.mjs`. The remaining live-run enablement is: (1) stage
-each fixture's source under a servable path (e.g. mount it into
-`wp-content/uploads/...`) and point `source-url` at it, and (2) resolve
-`candidate-url` to the imported post's permalink.
+Source/candidate wiring (verified by real local recipe-runs): the
+`wordpress.visual-compare` step renders and pixel-diffs locally in WP Codebox
+against the real two pages. `writeFixtureMatrixArtifacts` stages each fixture's
+ORIGINAL static source (index.html + css/js/images) into
+`<artifacts>/<id>/source/...`, and that artifacts directory is mounted into the
+sandbox at the WordPress uploads path, so the source is served by the same
+in-sandbox WordPress origin as the candidate. The step composes
+`source-url=/wp-content/uploads/static-site-importer-fixture-matrix/<id>/source/index.html`
+(served, HTTP 200) and `candidate-url=/`. Because each fixture's import step runs
+with `activate=true` — which sets `show_on_front=page` + `page_on_front` to the
+imported front page — and the recipe interleaves `[import, visual-compare]` per
+fixture, `/` resolves to THIS fixture's imported front page at capture time, the
+real imported WordPress output. A fixture can override `source_url`/`candidate_url`
+to target a specific staged page or imported permalink. The wiring,
+source-staging, finding-parsing, threshold, and gating logic are unit-tested in
+`tools/fixture-matrix.test.mjs`.
+
+Sandbox egress note: a captured page that references external resources (Google
+Fonts, CDNs) would otherwise hang an egress-free sandbox until the 120s browser
+timeout. `wordpress.visual-compare` aborts cross-origin requests during capture by
+default (`block-external-requests`, wp-codebox) so both source and candidate
+render deterministically (offline, system-font fallback) and the comparison
+completes fast. Real measured ratios (15-saas, 38-medical-clinic, default
+viewport): the imported candidate currently diverges sharply from the source
+(0.94 and 0.44 mismatch ratios with dimension drift) — dominated by oversized
+inline SVG icons that lose CSS sizing and a frontend theme stylesheet that is not
+applied to the rendered page. The gate is capture-only by default
+(`--visual-parity-gate` to enforce); at any reasonable `--pixel-threshold` these
+imports are nowhere near the 1:1 project gate.
 
 ## Running the matrix locally
 

@@ -9,6 +9,7 @@ import {
   DEFAULT_VISUAL_PARITY_SOURCE_BASE_URL,
   DEFAULT_VISUAL_PARITY_VIEWPORT,
   DEFAULT_VISUAL_PARITY_WAIT_FOR,
+  VISUAL_PARITY_SOURCE_SUBDIR,
 } from '../shared/constants.mjs';
 import { objectValue, finiteNumber } from '../shared/utils.mjs';
 
@@ -19,18 +20,31 @@ import { objectValue, finiteNumber } from '../shared/utils.mjs';
 // separate sandbox. It renders the fixture's static source vs the imported
 // WordPress candidate and writes `source.png`/`candidate.png`/`diff.png` plus
 // the `mismatch_pixels`/`total_pixels` comparison that
-// `collectVisualParityDiagnostics` reads back out. Source/candidate URLs are
-// generic and configurable (with per-fixture overrides) — the exact servable
-// source URL is the remaining live-run wiring, mirroring how the #537 editor
-// step uses a configurable URL rather than resolving each imported post.
+// `collectVisualParityDiagnostics` reads back out.
+//
+// SOURCE URL: the raw fixture source is staged into the matrix artifacts tree at
+// `<fixture-id>/<VISUAL_PARITY_SOURCE_SUBDIR>/...` (see `stageFixtureSource`),
+// and that tree is mounted into the sandbox at the WordPress uploads path, so the
+// default `source-url` resolves to `<base>/<fixture-id>/source/<entry>` served by
+// the SAME in-sandbox WordPress origin as the candidate. The previous default
+// pointed at an unstaged path, so source capture hung to the 120s timeout.
+//
+// CANDIDATE URL: defaults to `/`, which (because each fixture's import step runs
+// with activate=true → `page_on_front` set, and the recipe interleaves import →
+// visual-compare per fixture) resolves to THIS fixture's imported front page at
+// capture time — the real imported WordPress output. Both URLs accept per-fixture
+// overrides (`source_url`/`candidate_url` on the fixture, or `sourceUrl`/
+// `candidateUrl` on the step input) to target a specific staged page or imported
+// permalink.
 export function visualParityCompareStep(input = {}) {
   const fixture = input.fixture || {};
   const options = normalizeVisualParityRecipeOptions(input);
+  const sourceEntry = `${VISUAL_PARITY_SOURCE_SUBDIR}/${String(options.sourceEntry).replace(/^\/+/, '')}`;
   const sourceUrl = input.sourceUrl
     || input.source_url
     || fixture.source_url
     || fixture.sourceUrl
-    || `${options.sourceBaseUrl.replace(/\/+$/, '')}/${fixture.id || 'fixture'}/${String(options.sourceEntry).replace(/^\/+/, '')}`;
+    || `${options.sourceBaseUrl.replace(/\/+$/, '')}/${fixture.id || 'fixture'}/${sourceEntry}`;
   const candidateUrl = input.candidateUrl
     || input.candidate_url
     || fixture.candidate_url
