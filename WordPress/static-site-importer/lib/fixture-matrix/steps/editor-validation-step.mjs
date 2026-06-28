@@ -15,8 +15,20 @@
 //   3. the imported `post-id`;
 //   4. an explicit editor `url` (e.g. `post.php?post=<id>&action=edit`);
 //   5. an explicit `target`;
-//   6. otherwise `post-type` so the command opens the most recently imported
-//      post of that type — validating real imported content, not an empty post.
+//   6. otherwise bare `post-type`.
+//
+// LIVE-WIRING GAP (verified against wp-codebox editor-actions.ts
+// `editorOpenTargetFromArgs`): a bare `post-type` with no concrete target does
+// NOT open the most recently imported post. wp-codebox resolves it to
+// `kind: post-new` → an EMPTY `post-new.php?post_type=<type>` editor, so the
+// validation runs against zero blocks (`total_blocks: 0`) and proves nothing
+// about imported markup. To assert real imported-output block validity, a
+// fixture must carry one of (1)-(4) — most robustly the imported `post-id` (or
+// an inline `content` snapshot of the imported post_content). Surfacing the
+// imported post id out of the in-sandbox `validate-artifact` import step, then
+// threading it into this step, is the remaining enablement for a true
+// imported-content block-validity gate.
+//
 // `wait-selector`/`wait-timeout` are forwarded when provided. The per-block
 // `{ name, isValid, issues }` results are read back out by
 // `collectEditorValidationDiagnostics` / `collectEditorValidation`.
