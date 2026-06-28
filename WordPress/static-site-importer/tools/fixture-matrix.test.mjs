@@ -35,6 +35,7 @@ import {
   computeFixtureEditorQuality,
   parseSerializedBlockNames,
   collectVisualParityDiagnostics,
+  buildFixtureArtifact,
   createFixtureMatrix,
   editorBlockValidationStep,
   EDITOR_INVALID_BLOCK_SELECTOR_GROUP,
@@ -63,9 +64,38 @@ test('discovers SSI fixtures and writes Blocks Engine site artifacts', () => {
   assert.equal(matrix.count, 1);
   assert.equal(matrix.fixtures[0].id, 'simple-site');
   assert.equal(artifact.schema, 'blocks-engine/php-transformer/site-artifact/v1');
-  assert.ok(artifact.files.some((file) => file.path === 'website/index.html' && file.content.includes('Simple SSI Fixture')));
+  // Files are base64-encoded exactly like the product's `import-theme` CLI, so
+  // hydrate via `content_base64` to read the payload.
+  const indexFile = artifact.files.find((file) => file.path === 'website/index.html');
+  assert.ok(indexFile);
+  assert.ok(Buffer.from(indexFile.content_base64, 'base64').toString('utf8').includes('Simple SSI Fixture'));
   assert.ok(artifact.files.some((file) => file.path === 'website/style.css'));
   assert.equal(written.result.summary.not_run, 1);
+});
+
+test('matrix artifacts use the product base64 encoding for EVERY payload, including text', () => {
+  // Guards the smoke-test-theater regression: the matrix must build artifacts
+  // with the SAME `content_base64` encoding the real SSI `import-theme` CLI
+  // emits (static-site-importer.php base64-encodes every file unconditionally).
+  // A plain-`content` text payload here means the gate is exercising a path the
+  // product never produces — exactly how an empty-style.css bug stayed green.
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'base64-contract' });
+  const artifact = buildFixtureArtifact(matrix.fixtures[0]);
+
+  assert.ok(artifact.files.length >= 2);
+  for (const file of artifact.files) {
+    // Every file carries base64 content and NO plain `content` field, matching
+    // the product contract byte-for-byte.
+    assert.equal(typeof file.content_base64, 'string', `${file.path} must be base64-encoded`);
+    assert.equal(file.content, undefined, `${file.path} must not use a plain content field`);
+  }
+
+  // The text CSS payload (the exact class that hid the dropped-inline-CSS bug)
+  // round-trips through base64 to its real bytes.
+  const cssFile = artifact.files.find((file) => file.path === 'website/style.css');
+  assert.ok(cssFile);
+  assert.equal(cssFile.type, 'text/css');
+  assert.ok(Buffer.from(cssFile.content_base64, 'base64').toString('utf8').includes('.site-shell'));
 });
 
 test('builds a generic WP Codebox recipe with SSI-owned plugin defaults', () => {
