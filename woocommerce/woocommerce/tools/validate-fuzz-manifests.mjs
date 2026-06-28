@@ -690,8 +690,11 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.match(generatedAggressiveFirehoseTextPlan, /Offloaded Homeboy\/HBEX command plan/, 'text command plan must advertise offloaded execution');
   assert.match(generatedAggressiveFirehoseTextPlan, /^homeboy /m, 'default text command plan must print runnable homeboy commands');
   const generatedPlanItems = generatedAggressiveFirehoseCommandPlan.plan_items || [];
-  assert.ok(generatedPlanItems.length >= 3, 'aggressive firehose command plan must include prepare, request, and ref collection plan items');
-  const requestCommand = generatedPlanItems.find((entry) => entry.purpose === 'request_aggressive_isolated_firehose')?.command_argv || [];
+	assert.ok(generatedPlanItems.length >= 3, 'aggressive firehose command plan must include validation, request, and ref collection plan items');
+	const validationCommand = generatedPlanItems.find((entry) => entry.purpose === 'validate_disposable_rig')?.command_argv || [];
+	assert.deepEqual(validationCommand.slice(0, 3), ['homeboy', 'rig', 'check'], 'aggressive command plan must use Lab-portable rig check for validation');
+	assert.ok(!validationCommand.includes('up'), 'aggressive command plan must not emit local-only rig up');
+	const requestCommand = generatedPlanItems.find((entry) => entry.purpose === 'request_aggressive_isolated_firehose')?.command_argv || [];
   for (const flag of [
     '--lab-only',
     '--allow-destructive',
