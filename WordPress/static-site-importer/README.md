@@ -172,8 +172,9 @@ The workload composes these generic surfaces:
   execution when `--run` is explicitly provided.
 - WP Codebox `workspace-recipe/v1` steps using generic `wordpress.wp-cli`
   commands.
-- WP Codebox `wordpress.editor-canvas-probe` command for the editor-side block
-  validity step (see below).
+- WP Codebox `wordpress.editor-validate-blocks` command (#1597) for the
+  editor-side block validity step (see below). Requires a wp-codebox build that
+  includes #1597; older builds reject the recipe at schema validation.
 - WP Codebox `wordpress.visual-compare` command for the pixel visual-parity step
   (see below).
 
@@ -189,13 +190,22 @@ JS save-comparison validation, which is what surfaces the "This block contains
 unexpected or invalid content" warning users actually see.
 
 After each fixture's import step, `buildFixtureMatrixRecipe` appends a
-`wordpress.editor-canvas-probe` step that opens the imported post in the real
-block editor canvas (same WP Codebox sandbox) and probes the
-`editor_block_invalid` selector group (`.block-editor-warning`,
-`.block-editor-block-list__block.is-invalid`). This reuses the existing
-wp-codebox editor command and mirrors the `wp.blocks.validateBlock` pass in
-`Automattic/studio/bench/studio-agent-site-build.bench.mjs` rather than
-rebuilding a validator.
+`wordpress.editor-validate-blocks` step (#1597) that runs the editor's real
+`wp.blocks.validateBlock` pass (same WP Codebox sandbox) and emits per-block
+`{ name, isValid, issues }` results plus `total_blocks`/`valid_blocks`/
+`invalid_blocks`. This reuses the existing wp-codebox editor-validation command
+rather than rebuilding a validator.
+
+Live-wiring gap (verified by a real local recipe-run): the matrix currently
+passes only a bare `post-type=<type>` target. wp-codebox's
+`editorOpenTargetFromArgs` resolves a bare `post-type` to an EMPTY
+`post-new.php?post_type=<type>` editor, so the pass validates `total_blocks: 0`
+and proves nothing about the imported markup. To assert real imported-output
+block validity the step must receive a concrete target — most robustly the
+imported `post-id` surfaced out of the in-sandbox `validate-artifact` step (or
+an inline `content` snapshot of the imported post_content). See
+`lib/fixture-matrix/steps/editor-validation-step.mjs` for the target priority
+order and the remaining enablement.
 
 `collectEditorValidationDiagnostics` reads the probe's `selectorSummary`
 (invalid-warning matches) — and, when present, per-block `isValid`/`validateBlock`
@@ -205,14 +215,13 @@ Blocks Engine feature/visual-parity bucket (`candidate_repo: blocks-engine`,
 `editor_block_invalid` loss class, so the honest gate fails the fixture. Valid
 blocks emit nothing. Set `editorValidation: false` to omit the step.
 
-Live caveat: a full editor-validation pass requires a healthy Lab runner (the
-runner currently has a controller/daemon version drift). The wiring and the
-finding-parsing/gating logic are unit-tested in
-`tools/fixture-matrix.test.mjs`. For per-block name/clientId fidelity equal to
-the studio bench, wp-codebox's `editor-actions`/`inspectState` would need to
-emit `getBlocks()` `isValid` (or run `wp.blocks.validateBlock`); the probe path
-used here detects invalid blocks via the warning DOM without any wp-codebox
-change, which `collectEditorValidationDiagnostics` already consumes.
+Live caveat: the `editor-validate-blocks` step runs locally in WP Codebox today
+(see "Running the matrix locally" below) — a real local recipe-run executed the
+step and returned `validation_method: wp.blocks.validateBlock`,
+`blockTypesRegistered: 109`. The wiring and the finding-parsing/gating logic are
+unit-tested in `tools/fixture-matrix.test.mjs`. The remaining enablement for a
+true imported-content assertion is targeting the imported post rather than a
+blank editor (gap documented above).
 
 ## Pixel Visual Parity Gate
 
@@ -247,13 +256,55 @@ threshold is configurable via `--pixel-threshold` /
 the per-pixel `threshold=` arg so a higher value loosens the gate monotonically).
 Set `--no-visual-parity` / `visualParity: false` to omit the step entirely.
 
-Live caveat: a full visual-parity render requires a healthy Lab runner (the
-runner currently has a controller/daemon version drift). The wiring and the
-finding-parsing/threshold/gating logic are unit-tested in
-`tools/fixture-matrix.test.mjs`. Wiring the exact servable source URL per fixture
-is the remaining live-run enablement; the step uses generic, configurable
-source/candidate URLs with per-fixture overrides today, mirroring how the editor
-step uses a configurable URL rather than resolving each imported post.
+Live caveat (verified by a real local recipe-run): the `wordpress.visual-compare`
+step renders and pixel-diffs locally in WP Codebox, but the source/candidate URLs
+are not yet wired to the imported output. The step composes
+`source-url=/wp-content/uploads/static-site-importer-fixture-matrix/<id>/index.html`
+and `candidate-url=/` by default. The fixture source HTML is never staged into a
+servable path, so the source capture hangs until the 120s browser timeout and the
+comparison returns `stage: capture-failed` with no mismatch metrics; the candidate
+URL is the homepage, not the imported page. The wiring and the
+finding-parsing/threshold/gating logic are fully unit-tested in
+`tools/fixture-matrix.test.mjs`. The remaining live-run enablement is: (1) stage
+each fixture's source under a servable path (e.g. mount it into
+`wp-content/uploads/...`) and point `source-url` at it, and (2) resolve
+`candidate-url` to the imported post's permalink.
+
+## Running the matrix locally
+
+`homeboy bench` auto-offloads to a connected default Lab runner whenever one is
+configured — even with no `--runner` flag. The offload translates
+component/checkout paths into the remote workspace but forwards
+`--shared-state`/`--artifact-root` verbatim, so local-only paths fail on the
+runner (`Permission denied`). To run the matrix on this machine against local
+checkouts, a local fixture root, and a local WP Codebox, pass `--local` to
+`tools/run-fixture-matrix.mjs` (it injects `--force-hot --allow-local-hot` into
+every routed Homeboy step):
+
+```
+node WordPress/static-site-importer/tools/run-fixture-matrix.mjs \
+  --local \
+  --static-site-importer <ssi-checkout> \
+  --blocks-engine <blocks-engine-checkout> \
+  --fixture-root <dir-of-fixture-subdirs> \
+  --wp-codebox-bin <wp-codebox>/packages/cli/dist/index.js
+```
+
+Notes:
+- The `editor-validate-blocks` step (#1597) requires a wp-codebox build that
+  includes #1597. The build homeboy materializes at
+  `~/.cache/homeboy/wp-codebox/source` can lag upstream `main`; if it predates
+  #1597 the recipe is rejected at schema validation
+  (`steps[N].command must be equal to one of the allowed values`). Point
+  `--wp-codebox-bin` at a current-`main` build to unblock it.
+- The rig `check` pipeline asserts the SSI checkout exists
+  (`<ssi>/static-site-importer.php`). If the checkout/worktree was removed (e.g.
+  by workspace hygiene), the bench fails with `rig.pipeline_failed` on the
+  `check` step — recreate the checkout before running.
+- Fixture roots must contain real fixture subdirectories. Symlinked fixture dirs
+  are skipped by discovery (`Dirent.isDirectory()` is false for symlinks), so the
+  matrix silently finds zero fixtures and the gate falsely "passes" with
+  `fixture_count: 0`. Copy fixtures in rather than symlinking.
 
 ## Editor-Quality Metrics
 

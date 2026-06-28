@@ -1061,7 +1061,7 @@ test('fixture matrix dry-run plan surfaces local fallback and dirty workspace wa
   // The single-fixture temp corpus drifts from the canonical pin, so the plan
   // surfaces a non-silent drift warning alongside the routing warnings.
   assert.deepEqual(plan.warnings.map((warning) => warning.code), [
-    'local_runner_default',
+    'lab_auto_offload_risk',
     'local_fallback_allowed',
     'dirty_lab_workspace_allowed',
     'canonical_fixture_count_drift',
@@ -1071,6 +1071,34 @@ test('fixture matrix dry-run plan surfaces local fallback and dirty workspace wa
     plan.warnings.find((warning) => warning.code === 'canonical_fixture_count_drift').message,
     /CANONICAL_FIXTURE_COUNT is \d+/,
   );
+});
+
+test('--local forces hot local execution and suppresses the auto-offload-risk warning', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-local-plan-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const fixtureRoot = path.join(root, 'fixtures');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(fixtureRoot, 'fixture-a'), { recursive: true });
+
+  const plan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    fixtureRoot,
+    local: true,
+    skipInstall: true,
+    skipSync: true,
+  });
+
+  // The auto-offload risk warning is gone; the forced-local note replaces it.
+  const codes = plan.warnings.map((warning) => warning.code);
+  assert.ok(!codes.includes('lab_auto_offload_risk'));
+  assert.ok(codes.includes('forced_local_execution'));
+  assert.equal(plan.local, true);
+
+  // The bench step carries --force-hot --allow-local-hot so homeboy bench stays
+  // local instead of offloading local-only paths to a connected Lab runner.
+  const benchStep = plan.steps.at(-1);
+  assert.ok(benchStep.args.includes('--force-hot'));
+  assert.ok(benchStep.args.includes('--allow-local-hot'));
 });
 
 test('operator summary preserves matrix rollups for fanout agents', () => {
