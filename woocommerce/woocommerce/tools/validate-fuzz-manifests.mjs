@@ -713,8 +713,12 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   ]) {
     assert.ok(requestCommand.includes(flag), `aggressive command plan request must include ${flag}`);
   }
-  assert.equal(requestCommand[0], 'homeboy', 'aggressive command plan must use Homeboy');
-  assert.ok(!requestCommand.includes('--execute-local'), 'aggressive command plan must not include local execution');
+	assert.equal(requestCommand[0], 'homeboy', 'aggressive command plan must use Homeboy');
+	const extensionArgsIndex = requestCommand.indexOf('--');
+	assert.ok(extensionArgsIndex > 0, 'aggressive command plan must separate Homeboy flags from HBEX extension flags with --');
+	assert.ok(requestCommand.indexOf('--profile') > extensionArgsIndex, 'aggressive command plan profile flag must be passed as an HBEX extension arg');
+	assert.ok(requestCommand.indexOf('--runner') < extensionArgsIndex || !requestCommand.includes('--runner'), 'aggressive command plan runner flag must stay on the Homeboy side of --');
+	assert.ok(!requestCommand.includes('--execute-local'), 'aggressive command plan must not include local execution');
   assert.ok(!requestCommand.includes('--allow-local-fallback'), 'aggressive command plan must not allow local fallback');
   assertNoLocalOnlyRefs(campaign, 'aggressive-isolated-fuzz-campaign');
   assertNoProofPlaceholders(campaign, 'aggressive-isolated-fuzz-campaign');
