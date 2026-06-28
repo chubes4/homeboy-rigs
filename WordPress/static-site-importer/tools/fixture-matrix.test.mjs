@@ -1228,6 +1228,263 @@ test('boundedConcurrency clamps to the hard cap and falls back on invalid input'
   assert.equal(boundedConcurrency('-3', 4, 16), 4);
 });
 
+// A configurable fake WP Codebox recipe runner, injected through the production
+// `HOMEBOY_WP_CODEBOX_RECIPE_HELPER` seam, so these tests exercise the real
+// `runFixtureMatrix` batch-execution path (provision -> collect -> aggregate)
+// without ever spinning a sandbox. Behavior is driven live from env vars so a
+// single helper module can serve every scenario:
+//   - SSI_TEST_RECIPE_STATS_FILE  : where to persist peak concurrent in-flight.
+//   - SSI_TEST_RECIPE_ORDER       : 'forward' | 'reverse' batch completion order.
+//   - SSI_TEST_RECIPE_BATCH_COUNT : total batches (for reverse-order delays).
+//   - SSI_TEST_RECIPE_UNIT_MS     : per-batch delay unit so batches overlap.
+//   - SSI_TEST_RECIPE_THROW_BATCH : batch number that throws (isolation test).
+// Module-level peak tracking is fresh per test because each test writes its own
+// uniquely-pathed helper file (Node caches require() by resolved path).
+function writeConcurrencyRecipeHelper(filePath) {
+  writeFileSync(filePath, `
+const fs = require('node:fs');
+
+let inFlight = 0;
+let peakInFlight = 0;
+
+function recordPeak() {
+  const file = process.env.SSI_TEST_RECIPE_STATS_FILE;
+  if (!file) return;
+  try {
+    fs.writeFileSync(file, JSON.stringify({ peak_in_flight: peakInFlight }));
+  } catch {}
+}
+
+function batchNumberFromOutput(outputFile) {
+  const tail = String(outputFile || '').split('batch-')[1];
+  const parsed = parseInt(tail, 10);
+  return Number.isInteger(parsed) ? parsed : 0;
+}
+
+// The recipe references each fixture via "--slug=<id>" tokens in the wp-cli
+// command args (no top-level fixture_id key), so derive the batch's fixtures by
+// scanning for those slug tokens. Slugs are simple, space-delimited, unquoted
+// values, so a plain split is enough and dodges template-literal escaping.
+function fixtureIdsFromRecipe(recipeFile) {
+  const ids = new Set();
+  try {
+    const text = fs.readFileSync(recipeFile, 'utf8');
+    const segments = text.split('--slug=');
+    for (let index = 1; index < segments.length; index += 1) {
+      const slug = segments[index].split(' ')[0].trim();
+      if (slug) {
+        ids.add(slug);
+      }
+    }
+  } catch {}
+  return [...ids];
+}
+
+function wpCodeboxBin() { return '/tmp/wp-codebox'; }
+function wpCodeboxCommand(bin) { return { command: bin, args: [] }; }
+
+async function runWpCodeboxRecipe(options = {}) {
+  const batchNumber = batchNumberFromOutput(options.outputFile);
+  inFlight += 1;
+  peakInFlight = Math.max(peakInFlight, inFlight);
+  recordPeak();
+
+  const unit = Number(process.env.SSI_TEST_RECIPE_UNIT_MS || '15');
+  const total = Number(process.env.SSI_TEST_RECIPE_BATCH_COUNT || '0');
+  const order = process.env.SSI_TEST_RECIPE_ORDER || 'forward';
+  // Reverse completion: the earliest batch waits longest so it finishes last.
+  const delay = order === 'reverse'
+    ? (total - batchNumber + 1) * unit
+    : batchNumber * unit;
+  await new Promise((resolve) => setTimeout(resolve, Math.max(1, delay)));
+
+  inFlight -= 1;
+
+  const throwBatch = Number(process.env.SSI_TEST_RECIPE_THROW_BATCH || '0');
+  if (throwBatch && throwBatch === batchNumber) {
+    const error = new Error('recipe-run failed for batch ' + batchNumber);
+    error.code = 19;
+    error.stdout = '';
+    error.stderr = 'boom';
+    throw error;
+  }
+
+  const fixtureIds = fixtureIdsFromRecipe(options.recipeFile);
+  return {
+    exitCode: 0,
+    outputFile: options.outputFile,
+    json: { results: fixtureIds.map((id) => ({ fixture_id: id, status: 'succeeded' })) },
+  };
+}
+
+module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
+`, 'utf8');
+}
+
+// Stand up a workspace with N single-fixture batches and a configured fake
+// recipe runner; returns the env keys touched so the caller can restore them.
+function setupConcurrencyWorkspace(prefix, fixtureCount) {
+  const root = mkdtempSync(path.join(tmpdir(), prefix));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const fixtureRoot = path.join(root, 'fixtures');
+  const outputDirectory = path.join(root, 'artifacts');
+  const helperPath = path.join(root, 'wp-codebox-recipe-helper.cjs');
+  const statsFile = path.join(root, 'recipe-stats.json');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  for (let index = 1; index <= fixtureCount; index += 1) {
+    const fixtureDir = path.join(fixtureRoot, `fixture-${String(index).padStart(2, '0')}`);
+    mkdirSync(fixtureDir, { recursive: true });
+    writeFileSync(path.join(fixtureDir, 'index.html'), `<h1>Fixture ${index}</h1>`);
+  }
+  writeConcurrencyRecipeHelper(helperPath);
+  return { root, staticSiteImporter, fixtureRoot, outputDirectory, helperPath, statsFile };
+}
+
+const CONCURRENCY_ENV_KEYS = [
+  'HOMEBOY_WP_CODEBOX_RECIPE_HELPER',
+  'SSI_TEST_RECIPE_STATS_FILE',
+  'SSI_TEST_RECIPE_ORDER',
+  'SSI_TEST_RECIPE_BATCH_COUNT',
+  'SSI_TEST_RECIPE_UNIT_MS',
+  'SSI_TEST_RECIPE_THROW_BATCH',
+];
+
+function snapshotConcurrencyEnv() {
+  return Object.fromEntries(CONCURRENCY_ENV_KEYS.map((key) => [key, process.env[key]]));
+}
+
+function restoreConcurrencyEnv(snapshot) {
+  for (const key of CONCURRENCY_ENV_KEYS) {
+    restoreEnv(key, snapshot[key]);
+  }
+}
+
+test('runFixtureMatrix caps WP Codebox batches in flight at the configured concurrency', async () => {
+  const snapshot = snapshotConcurrencyEnv();
+  const workspace = setupConcurrencyWorkspace('ssi-concurrency-inflight-', 6);
+  process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = workspace.helperPath;
+  process.env.SSI_TEST_RECIPE_STATS_FILE = workspace.statsFile;
+  process.env.SSI_TEST_RECIPE_UNIT_MS = '20';
+
+  try {
+    const { summary, runtimeError } = await runFixtureMatrix({
+      id: 'inflight-matrix',
+      fixtureRoot: workspace.fixtureRoot,
+      outputDirectory: workspace.outputDirectory,
+      staticSiteImporterPath: workspace.staticSiteImporter,
+      run: true,
+      batchSize: 1,
+      concurrency: 2,
+      visualParity: false,
+    });
+
+    assert.equal(runtimeError, null);
+    // 6 single-fixture batches all executed.
+    assert.equal(summary.runtime.batches.length, 6);
+    assert.equal(summary.runtime.concurrency, 2);
+
+    const stats = JSON.parse(readFileSync(workspace.statsFile, 'utf8'));
+    // At most N (=2) sandboxes were ever live at once, and the pool genuinely
+    // reached the cap (proves real parallelism, not accidental serialization).
+    assert.ok(stats.peak_in_flight <= 2, `peak ${stats.peak_in_flight} exceeded concurrency 2`);
+    assert.equal(stats.peak_in_flight, 2);
+  } finally {
+    restoreConcurrencyEnv(snapshot);
+  }
+});
+
+test('runFixtureMatrix aggregates batch results order-independently of completion order', async () => {
+  const snapshot = snapshotConcurrencyEnv();
+  const workspace = setupConcurrencyWorkspace('ssi-concurrency-order-', 4);
+  process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = workspace.helperPath;
+  process.env.SSI_TEST_RECIPE_BATCH_COUNT = '4';
+  process.env.SSI_TEST_RECIPE_UNIT_MS = '10';
+
+  const runMatrix = async (order) => {
+    process.env.SSI_TEST_RECIPE_ORDER = order;
+    const { summary, runtimeError } = await runFixtureMatrix({
+      id: 'order-matrix',
+      fixtureRoot: workspace.fixtureRoot,
+      outputDirectory: path.join(workspace.root, `artifacts-${order}`),
+      staticSiteImporterPath: workspace.staticSiteImporter,
+      run: true,
+      batchSize: 1,
+      concurrency: 4,
+      visualParity: false,
+    });
+    assert.equal(runtimeError, null);
+    return summary;
+  };
+
+  try {
+    const forward = await runMatrix('forward');
+    const reverse = await runMatrix('reverse');
+
+    // Same fixtures, same metrics regardless of which sandbox finished first.
+    const metrics = (summary) => ({
+      fixture_count: summary.fixture_count,
+      succeeded: summary.result_summary.succeeded,
+      failed: summary.result_summary.failed,
+      not_run: summary.result_summary.not_run,
+      finding_count: summary.result_summary.finding_count,
+    });
+    assert.deepEqual(metrics(reverse), metrics(forward));
+    assert.equal(metrics(forward).succeeded, 4);
+
+    // Batch summaries and fixture identities stay in deterministic matrix order
+    // even though reverse completion finishes batch 4 before batch 1.
+    const batchOrder = (summary) => summary.runtime.batches.map((batch) => batch.batch);
+    const fixtureOrder = (summary) => summary.runtime.batches.flatMap((batch) => batch.fixture_ids);
+    assert.deepEqual(batchOrder(forward), [1, 2, 3, 4]);
+    assert.deepEqual(batchOrder(reverse), [1, 2, 3, 4]);
+    assert.deepEqual(fixtureOrder(reverse), fixtureOrder(forward));
+  } finally {
+    restoreConcurrencyEnv(snapshot);
+  }
+});
+
+test('runFixtureMatrix isolates a throwing batch so sibling batches still complete', async () => {
+  const snapshot = snapshotConcurrencyEnv();
+  const workspace = setupConcurrencyWorkspace('ssi-concurrency-isolation-', 4);
+  process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = workspace.helperPath;
+  process.env.SSI_TEST_RECIPE_BATCH_COUNT = '4';
+  process.env.SSI_TEST_RECIPE_UNIT_MS = '5';
+  process.env.SSI_TEST_RECIPE_THROW_BATCH = '2';
+
+  try {
+    const { summary, runtimeError } = await runFixtureMatrix({
+      id: 'isolation-matrix',
+      fixtureRoot: workspace.fixtureRoot,
+      outputDirectory: workspace.outputDirectory,
+      staticSiteImporterPath: workspace.staticSiteImporter,
+      run: true,
+      batchSize: 1,
+      concurrency: 4,
+      visualParity: false,
+    });
+
+    // The throwing batch surfaces as the runtime error + exit code, but the run
+    // still produced a full summary rather than rejecting.
+    assert.ok(runtimeError);
+    assert.match(runtimeError.message, /batch 2/);
+    assert.equal(summary.runtime.exit_code, 19);
+
+    // Exactly the one failing batch is recorded as a child-command failure.
+    const failures = summary.runtime.child_command_failures;
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].batch_id, 'batch-002');
+    assert.equal(failures[0].exit_status, 19);
+
+    // All four batches still ran; the three non-throwing siblings succeeded,
+    // proving one batch's failure did not sink the others.
+    assert.equal(summary.runtime.batches.length, 4);
+    assert.equal(summary.result_summary.succeeded, 3);
+    assert.equal(summary.result_summary.failed, 1);
+  } finally {
+    restoreConcurrencyEnv(snapshot);
+  }
+});
+
 test('compares finding packet deltas by repair dimensions', () => {
   const summary = compareFindingPackets({
     base_label: 'main',
