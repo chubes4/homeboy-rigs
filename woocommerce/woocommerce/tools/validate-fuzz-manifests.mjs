@@ -632,9 +632,13 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     'database_observations',
     'admin_observations',
     'browser_observations',
-    'editor_observations',
-    'relative_hotspots',
-  ]);
+		'editor_observations',
+		'relative_hotspots',
+		'side_effect_policy_evidence',
+		'fixture_dynamic_id_manifest',
+		'rollback_verification',
+		'destructive_case_ledger',
+	]);
   assert.deepEqual(new Set((campaign.planned_artifact_expectations || []).map((artifact) => artifact.id)), expectedPlannedArtifacts, 'aggressive planned artifact expectations drifted');
   for (const artifact of campaign.planned_artifact_expectations || []) {
     assert.equal(typeof artifact.schema, 'string', `aggressive planned artifact ${artifact.id} requires schema`);
@@ -663,10 +667,14 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(campaign.readiness?.proof_bundle, undefined, 'aggressive executable campaign must not carry proof refs before reviewer-facing artifacts exist');
   assertFuzzProofBundleRequirements(campaign.readiness?.proof_bundle_requirements, { file: 'aggressive-isolated-fuzz-campaign readiness' });
   assert.deepEqual(new Set(campaign.readiness?.proof_bundle_requirements?.required_artifacts || []), new Set([
-    ...(campaign.required_upstream_capabilities || []).map((capability) => capability.artifact),
-    'per_case_timing',
-    'relative_hotspots',
-  ]), 'aggressive proof artifacts must match upstream and planned capability artifacts');
+		...(campaign.required_upstream_capabilities || []).map((capability) => capability.artifact),
+		'per_case_timing',
+		'relative_hotspots',
+		'fixture_dynamic_id_manifest',
+		'rollback_verification',
+		'side_effect_policy_evidence',
+		'destructive_case_ledger',
+	]), 'aggressive proof artifacts must match upstream and planned capability artifacts');
   assert.equal(campaign.readiness?.upstream_blockers, undefined, 'aggressive campaign must not carry terminal upstream blockers');
   assert.deepEqual(new Set(campaign.readiness?.required_contracts || []), requiredContracts, 'aggressive campaign readiness required contracts drifted');
 
