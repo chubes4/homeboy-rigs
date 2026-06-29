@@ -35,6 +35,10 @@ import {
   computeFixtureEditorQuality,
   parseSerializedBlockNames,
   collectVisualParityDiagnostics,
+  liveWpParityCaptureStep,
+  liveWpParityEnabled,
+  runLiveWpParity,
+  normalizeLiveWpParityReport,
   buildFixtureArtifact,
   createFixtureMatrix,
   editorBlockValidationStep,
@@ -2573,4 +2577,116 @@ test('bounds the assembled output regardless of per-fixture raw content volume (
   assert.equal(result.summary.editor_quality.native_conversion_rate, 0.7);
   assert.equal(result.summary.fixture_count, fixtureCount);
   assert.ok(result.summary.finding_count >= fixtureCount, 'every fixture must contribute findings');
+});
+
+test('live-WP parity capture step is opt-in and off by default', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'live-wp-default' });
+
+  const off = buildFixtureMatrixRecipe({ matrix, staticSiteImporterPath: '/tmp/ssi' });
+  assert.equal(
+    off.workflow.steps.some((step) => step.command === 'wordpress.capture-html'),
+    false,
+    'capture-html is not emitted unless live-WP parity is explicitly enabled',
+  );
+  assert.equal(liveWpParityEnabled({}), false);
+  assert.equal(liveWpParityEnabled({ live_wp_parity: true }), true);
+});
+
+test('live-WP parity capture step renders DOM HTML deterministically with external requests blocked', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'live-wp-on' });
+  const recipe = buildFixtureMatrixRecipe({ matrix, staticSiteImporterPath: '/tmp/ssi', liveWpParity: true });
+
+  const captureSteps = recipe.workflow.steps.filter((step) => step.command === 'wordpress.capture-html');
+  assert.ok(captureSteps.length >= 1, 'one capture-html step per fixture when enabled');
+  const args = captureSteps[0].args;
+  assert.ok(args.includes('capture=html'), 'captures DOM HTML, not a screenshot');
+  assert.ok(args.includes('network-policy=block'), 'blocks external requests for determinism');
+  assert.ok(args.some((arg) => arg.startsWith('url=')), 'targets the imported candidate URL');
+  assert.ok(args.every((arg) => !arg.includes('screenshot')), 'never requests a screenshot');
+
+  // Same inputs -> identical step (the recipe builder is pure).
+  const repeat = buildFixtureMatrixRecipe({ matrix, staticSiteImporterPath: '/tmp/ssi', liveWpParity: true });
+  assert.deepEqual(
+    repeat.workflow.steps.filter((step) => step.command === 'wordpress.capture-html'),
+    captureSteps,
+  );
+
+  // The standalone step builder honors a per-fixture candidate override.
+  const overridden = liveWpParityCaptureStep({ fixture: { id: 'x', candidate_url: '/about/' } });
+  assert.ok(overridden.args.includes('url=/about/'));
+});
+
+test('runLiveWpParity feeds the captured snapshot to the blocks-engine CLI and surfaces live-WP vs proxy', () => {
+  const cliReport = {
+    schema: 'blocks-engine/php-transformer/live-wp-parity-report/v1',
+    source: 'index.html',
+    candidate: 'snapshot.html',
+    live_wp: {
+      status: 'fail',
+      parity: { score: 0.91, property_parity: 0.97, coverage: 0.94 },
+      summary: { source_total: 100, matched_total: 94, finding_total: 6 },
+      matches: [
+        {
+          source_selector: 'a.cta',
+          target_selector: 'a.cta.wp-element-button',
+          style_deltas: [{ property: 'background-color', source: '#ff0000', target: '' }],
+        },
+      ],
+    },
+    comparison: { live_wp_score: 0.91, proxy_score: 0.7328, delta: 0.1772 },
+  };
+
+  const calls = [];
+  const exec = (command, args) => {
+    calls.push({ command, args });
+    return { status: 0, stdout: JSON.stringify(cliReport), stderr: '' };
+  };
+
+  const result = runLiveWpParity({
+    sourceHtmlPath: '/fixtures/15-saas/index.html',
+    candidateHtmlPath: '/artifacts/15-saas/files/browser/snapshot.html',
+    blocksEnginePhpTransformerPath: '/repo/php-transformer',
+    exec,
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, 'php');
+  assert.ok(calls[0].args[0].endsWith(path.join('tools', 'live-wp-parity', 'run.php')));
+  assert.ok(calls[0].args.includes('--with-proxy'));
+  assert.ok(calls[0].args.includes('--json'));
+  assert.ok(calls[0].args.includes('/artifacts/15-saas/files/browser/snapshot.html'));
+
+  assert.equal(result.schema, 'static-site-importer/live-wp-parity-result/v1');
+  assert.equal(result.score, 0.91);
+  assert.equal(result.finding_total, 6);
+  assert.equal(result.comparison.proxy_score, 0.7328);
+  assert.equal(result.comparison.delta, 0.1772);
+  assert.equal(result.property_diffs.length, 1);
+  assert.equal(result.property_diffs[0].property, 'background-color');
+  assert.equal(result.property_diffs[0].source_selector, 'a.cta');
+});
+
+test('runLiveWpParity surfaces a CLI failure rather than a bogus parity result', () => {
+  const exec = () => ({ status: 2, stdout: '', stderr: 'Candidate file not found: snapshot.html' });
+  assert.throws(
+    () => runLiveWpParity({
+      sourceHtmlPath: '/s.html',
+      candidateHtmlPath: '/c.html',
+      blocksEnginePhpTransformerPath: '/repo/php-transformer',
+      exec,
+    }),
+    /live-wp-parity CLI failed/,
+  );
+});
+
+test('normalizeLiveWpParityReport bounds the per-property diff list', () => {
+  const matches = [{
+    source_selector: 's',
+    target_selector: 't',
+    style_deltas: Array.from({ length: 40 }, (_, i) => ({ property: `p${i}`, source: 'a', target: 'b' })),
+  }];
+  const normalized = normalizeLiveWpParityReport({ live_wp: { matches, parity: { score: 0.5 } } }, { diffLimit: 10 });
+  assert.equal(normalized.property_diffs.length, 10);
+  assert.equal(normalized.score, 0.5);
+  assert.equal(normalized.comparison, undefined, 'no comparison block when the CLI omits --with-proxy');
 });

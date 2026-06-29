@@ -45,6 +45,12 @@ export { editorBlockValidationStep } from './fixture-matrix/steps/editor-validat
 export { visualParityCompareStep } from './fixture-matrix/steps/visual-parity-step.mjs';
 
 export {
+  liveWpParityCaptureStep,
+  liveWpParityEnabled,
+  normalizeLiveWpParityRecipeOptions,
+} from './fixture-matrix/steps/live-wp-parity-step.mjs';
+
+export {
   normalizeFixtureMatrixResult,
   writeFixtureMatrixArtifacts,
   writeFixtureMatrixResultArtifacts,
@@ -72,3 +78,8 @@ export {
   collectVisualParityDiagnostics,
   normalizeVisualParityGateOptions,
 } from './fixture-matrix/collectors/visual-parity.mjs';
+
+export {
+  runLiveWpParity,
+  normalizeLiveWpParityReport,
+} from './fixture-matrix/collectors/live-wp-parity.mjs';
