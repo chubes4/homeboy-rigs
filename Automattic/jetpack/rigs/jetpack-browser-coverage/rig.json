@@ -49,11 +49,6 @@
         "file": "${components.jetpack.path}/jetpack.php",
         "component": "jetpack",
         "component_path_contains": "jetpack"
-      },
-      {
-        "kind": "command",
-        "label": "WP Codebox CLI exists",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       }
     ],
     "down": []

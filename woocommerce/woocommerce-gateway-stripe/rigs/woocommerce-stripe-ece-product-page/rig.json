@@ -234,11 +234,6 @@
         "component": "woocommerce",
         "component_path_contains": "plugins/woocommerce",
         "remediation": "Set components.woocommerce.path to a packaged WooCommerce plugin directory before running this rig."
-      },
-      {
-        "kind": "command",
-        "label": "WP Codebox CLI available",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       }
     ],
     "up": [],

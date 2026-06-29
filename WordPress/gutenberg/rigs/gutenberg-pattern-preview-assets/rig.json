@@ -60,11 +60,6 @@
         "component": "gutenberg",
         "component_path_contains": "gutenberg",
         "remediation": "Pass homeboy trace --path /path/to/gutenberg or update components.gutenberg.path before running gutenberg-pattern-preview-assets."
-      },
-      {
-        "kind": "command",
-        "label": "WP Codebox CLI exists",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       }
     ],
     "down": []

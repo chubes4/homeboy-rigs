@@ -48,11 +48,6 @@
         "file": "${components.gutenberg.path}/gutenberg.php",
         "component": "gutenberg",
         "component_path_contains": "gutenberg"
-      },
-      {
-        "kind": "command",
-        "label": "WP Codebox CLI exists",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       }
     ],
     "down": []
