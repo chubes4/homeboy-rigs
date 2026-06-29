@@ -22,6 +22,7 @@ import {
 import { createFixtureMatrix, normalizeFixture, collectFixtureFiles } from '../fixtures.mjs';
 import { editorBlockValidationStep } from './editor-validation-step.mjs';
 import { visualParityCompareStep, normalizeVisualParityRecipeOptions } from './visual-parity-step.mjs';
+import { liveWpParityCaptureStep, liveWpParityEnabled } from './live-wp-parity-step.mjs';
 
 export function buildFixtureArtifact(fixture, options = {}) {
   const normalized = normalizeFixture(fixture);
@@ -129,6 +130,12 @@ export function buildFixtureMatrixRecipe(input = {}) {
     ...(derivedSourceBaseUrl ? { sourceBaseUrl: derivedSourceBaseUrl } : {}),
     ...input,
   });
+  // Optional live-WP parity capture: off by default so the render-free static gate
+  // stays the primary, always-on signal. When enabled, append a deterministic
+  // `wordpress.capture-html` step (DOM HTML, external requests blocked, no
+  // screenshot) per fixture; the captured snapshot.html is fed host-side to the
+  // blocks-engine live-wp-parity runner (see collectors/live-wp-parity.mjs).
+  const liveWpParityCaptureEnabled = liveWpParityEnabled(input);
 
   if (playgroundArtifactsDirectory) {
     mounts.push({
@@ -160,6 +167,7 @@ export function buildFixtureMatrixRecipe(input = {}) {
           },
           ...(editorValidationEnabled ? [editorBlockValidationStep({ fixture, ...editorValidationOptions })] : []),
           ...(visualParityEnabled ? [visualParityCompareStep({ fixture, ...visualParityRecipeOptions })] : []),
+          ...(liveWpParityCaptureEnabled ? [liveWpParityCaptureStep({ fixture, ...input })] : []),
         ]),
       ],
     },
