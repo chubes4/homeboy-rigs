@@ -69,7 +69,7 @@
         },
         "delete": {
           "level": "executable",
-          "safety_class": "destructive_isolated_mutation"
+          "safety_class": "isolated_mutation"
         }
       },
       "mutation": {

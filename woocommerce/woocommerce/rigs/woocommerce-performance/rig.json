@@ -382,7 +382,7 @@
           },
           "delete": {
             "level": "executable",
-            "safety_class": "destructive_isolated_mutation"
+            "safety_class": "isolated_mutation"
           }
         },
         "mutation": {
@@ -474,14 +474,15 @@
           "delete": {
             "level": "executable",
             "primitive": "wp-codebox/delete-boundary-artifact/v1",
-            "safety_class": "destructive_isolated_mutation"
+            "safety_class": "isolated_mutation"
           }
         },
         "mutation": {
           "primitive": "wordpress.rollback-safe-rest-mutation",
           "safety_boundary": "Executable product create/update/delete cases run only inside disposable WP Codebox fixtures and must emit mutation/readback and delete-boundary details before any proof claim.",
           "rollback_artifacts": [
-            "raw_result"
+            "raw_result",
+            "delete_boundary_artifact"
           ],
           "rollback_artifact_schemas": [
             "wp-codebox/mutation-isolation-artifact/v1",
