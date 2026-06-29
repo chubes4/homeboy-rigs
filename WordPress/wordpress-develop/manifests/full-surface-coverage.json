@@ -2,23 +2,30 @@
   "schema": "homeboy-rigs/wordpress-full-surface-coverage/v1",
   "property": "WordPress/wordpress-develop",
   "description": "Coverage targets for WordPress Core fuzzing across API, database, admin, runtime registration, content, media, users, and performance surfaces.",
-  "requires_primitives": [
-    "wordpress-rest-route-matrix",
-    "wordpress-rest-request-cases",
-    "wordpress-rest-permission-boundary-matrix",
-    "wordpress-rest-db-query-profiler",
-    "wordpress-db-inventory",
-    "wordpress-db-schema-inventory",
-    "wordpress-query-attribution",
-    "wordpress-admin-page-coverage",
-    "wordpress-frontend-rendering-request-coverage",
-    "wordpress-hook-inventory",
-    "wordpress-cron-inventory",
-    "wordpress-option-inventory",
-    "wordpress-content-registration-inventory",
-    "wordpress-media-user-permission-coverage",
-    "wordpress-performance-observation"
-  ],
+  "execution_claim_policy": "product_manifest_only_no_runner_support_claim",
+  "product_surface_matrix": {
+    "taxonomy": ["rest_api", "database", "admin", "frontend_rendering", "hooks_cron_options", "content_registration", "media_users", "performance_surfaces"],
+    "fixture_shapes": {
+      "content": "posts, pages, attachments, comments, menus, taxonomies, revisions, and rewrite rules",
+      "users": "administrator, editor, author, contributor, subscriber, and REST permission-boundary roles",
+      "admin": "Core wp-admin menu and submenu targets with destructive or installer actions classified as skipped",
+      "runtime_state": "registered hooks, cron events, options, transients, postmeta, taxonomies, post types, and rewrite state",
+      "api": "Core REST route inventory and safe request-case declarations"
+    },
+    "side_effect_policies": {
+      "read": "route, admin, frontend, database, hook, cron, option, media, and user inventories are product declarations until proof artifacts exist",
+      "create_update": "content, media, user, option, and rewrite mutations are blocked without upstream rollback-safe fixture primitives",
+      "delete": "destructive fixture paths are blocked without upstream deletion rollback artifacts",
+      "external_http": "Core external HTTP observations are classification-only in this manifest"
+    },
+    "action_family_labels": ["rest_api", "database", "admin", "frontend", "hooks", "cron", "options", "content", "media", "users", "rewrite", "performance"],
+    "blocked_upstream_contract_refs": [
+      "upstream:wordpress-fuzz-runner#durable-proof-bundle",
+      "upstream:wordpress-fuzz-runner#rollback-artifact-manifest",
+      "upstream:wordpress-core-fixtures#safe-content-media-user-crud"
+    ],
+    "relative_hotspot_labels": ["rest", "admin", "frontend", "editor", "cron", "media", "options", "database"]
+  },
   "coverage_map": {
     "rest": {
       "surface_type": "rest",
