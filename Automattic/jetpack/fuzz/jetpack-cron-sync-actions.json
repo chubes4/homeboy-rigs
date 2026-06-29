@@ -35,6 +35,12 @@
       "mutation": {
         "safety_boundary": "Runs in isolated WP Codebox fixtures through the upstream disposable destructive contract with remote dispatch disabled and external HTTP guarded.",
         "rollback_required": false,
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["cron_sync_actions", "cron_sync_disposable_mutation_rows", "queue_option_before_after_rows"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
         "rollback_artifacts": [],
         "disposable_contract_artifacts": ["cron_sync_actions", "cron_sync_disposable_mutation_rows", "queue_option_before_after_rows"]
       }

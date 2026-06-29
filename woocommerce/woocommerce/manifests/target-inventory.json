@@ -312,28 +312,25 @@
       "manifest": "manifests/rest-crud-payload-fixtures.json",
       "owner_profile": "product-rest-crud-fuzzer",
       "readiness": {
-        "level": "declared",
-        "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits mutation isolation, delete-boundary, and reviewer-facing evidence artifacts.",
+        "level": "executable",
+        "execution_enabled": true,
+        "local_execution_enabled": false,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "coverage_contract": "Payload fixtures are Woo-owned inputs to contract-backed isolated execution through WP Codebox fixture plans, REST mutation opt-ins, Homeboy isolation proof, HBEX workload operation mapping, mutation-isolation artifacts, and delete-boundary artifacts. Proven status still requires reviewer-facing run artifacts.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
             "reviewer-facing generic REST mutation runner run id",
             "reviewer-facing mutation isolation artifact ref",
             "reviewer-facing mutation isolation contract artifact ref",
-            "reviewer-facing delete-boundary artifact ref before delete is executable"
+            "reviewer-facing delete-boundary artifact ref for proven delete execution"
           ],
           "required_artifacts": [
             "mutation_isolation_artifact",
             "rest_mutation_rollback_contract",
             "delete_boundary_artifact"
           ]
-        },
-        "upstream_blockers": [
-          "Generic REST mutation runner must consume wp-codebox/fuzz-fixture-plan/v1 and wp-codebox/rest-mutation-fixture-opt-in/v1 artifacts generated from these Woo declarations.",
-          "Generic REST mutation runner must emit mutation isolation artifacts for create/update before any declarative fixture family becomes executable.",
-          "Generic REST mutation runner must emit delete-boundary mutation artifacts before delete fixtures become executable.",
-          "Homeboy/WP Codebox must collect reviewer-facing artifact refs before this manifest can be promoted beyond declared readiness."
-        ]
+        }
       },
       "family_ids": [
         "products",
@@ -421,7 +418,12 @@
             "reviewer-facing relative hotspot taxonomy artifact ref",
             "reviewer-facing fuzz execution request artifact ref",
             "reviewer-facing coverage reconciliation artifact ref",
-            "reviewer-facing snapshot restore artifact ref"
+            "reviewer-facing disposable sandbox boundary artifact ref",
+            "reviewer-facing mutation isolation artifact ref",
+            "reviewer-facing delete boundary artifact ref",
+            "reviewer-facing destructive case ledger artifact ref",
+            "reviewer-facing sandbox teardown/discard evidence artifact ref",
+            "reviewer-facing fuzz artifact bundle ref"
           ],
           "required_artifacts": [
             "chaos_sequence_pack_resolution",
@@ -429,7 +431,12 @@
             "relative_hotspot_taxonomy",
             "fuzz_execution_request",
             "coverage_reconciliation",
-            "snapshot_restore_artifact"
+            "disposable_sandbox_boundary",
+            "mutation_isolation_artifact",
+            "delete_boundary_artifact",
+            "destructive_case_ledger",
+            "sandbox_teardown_evidence",
+            "artifact_bundle_ref"
           ]
         },
         "required_contracts": [

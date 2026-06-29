@@ -154,9 +154,14 @@ function assertFuzzCrudReadiness(crud, { file } = {}) {
 
 function assertFuzzMutationReadiness(mutation, { file } = {}) {
   if (typeof mutation?.safety_boundary !== 'string' || mutation.safety_boundary.trim() === '') {
-    throw new Error(`${file} metadata.readiness.mutation.safety_boundary must describe rollback/isolation boundaries`);
+    throw new Error(`${file} metadata.readiness.mutation.safety_boundary must describe disposable sandbox boundaries`);
   }
-  assertStringArray(mutation.rollback_artifacts, `${file} metadata.readiness.mutation.rollback_artifacts`, { allowEmpty: true });
+  assertStringArray(mutation.disposable_sandbox_boundary_artifacts, `${file} metadata.readiness.mutation.disposable_sandbox_boundary_artifacts`);
+  assertStringArray(mutation.mutation_isolation_artifacts, `${file} metadata.readiness.mutation.mutation_isolation_artifacts`);
+  assertStringArray(mutation.delete_boundary_artifacts, `${file} metadata.readiness.mutation.delete_boundary_artifacts`, { allowEmpty: true });
+  assertStringArray(mutation.destructive_case_ledgers, `${file} metadata.readiness.mutation.destructive_case_ledgers`, { allowEmpty: true });
+  assertStringArray(mutation.teardown_discard_evidence, `${file} metadata.readiness.mutation.teardown_discard_evidence`);
+  assertStringArray(mutation.artifact_bundle_refs, `${file} metadata.readiness.mutation.artifact_bundle_refs`);
 }
 
 function assertFuzzProofBundleRequirements(requirements, { file } = {}) {

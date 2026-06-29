@@ -29,6 +29,7 @@ const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manife
 const aggressiveIsolatedCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json'), 'utf8'));
 const aggressiveDestructiveWorkloads = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-destructive-workloads.json'), 'utf8'));
 const restCrudFixturePlan = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-fixture-plan.json'), 'utf8'));
+const restCrudPayloadFixtures = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-payload-fixtures.json'), 'utf8'));
 const targetInventory = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/target-inventory.json'), 'utf8'));
 const productChaosSequencePacks = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/product-chaos-sequence-packs.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
@@ -224,11 +225,21 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
   });
 });
 
-test('DB/API campaign consumes the declared Codebox fixture contract without proof refs', () => {
+test('DB/API campaign consumes executable Codebox fixture contracts without proof refs', () => {
   assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-contract.json');
   assert.equal(codeboxFuzzSuiteWorkload.metadata.fixture.suite_manifest, '${package.root}/manifests/codebox-fuzz-suite-contract.json');
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle, undefined);
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle_requirements.status, 'required_before_proven');
+  assert.equal(codeboxFuzzSuiteManifest.target.metadata.profile.fixture_contracts.readiness_level, 'executable');
+  assert.equal(codeboxFuzzSuiteManifest.target.metadata.profile.fixture_contracts.execution_enabled, true);
+  assert.equal(codeboxFuzzSuiteWorkload.metadata.readiness.level, 'executable');
+  assert.equal(codeboxFuzzSuiteWorkload.metadata.readiness.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].fixture_contracts.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['product-rest-crud-fuzzer'].fixture_contracts.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].readiness.crud.create.level, 'executable');
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].readiness.crud.update.level, 'executable');
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].readiness.crud.delete.level, 'executable');
+  assert.equal(performanceRig.fuzz_profile_metadata['product-rest-crud-fuzzer'].readiness.crud.delete.level, 'executable');
 });
 
 test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and side-effect policy gates', () => {
@@ -263,11 +274,14 @@ test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and s
 
   const requiredArtifacts = new Set(aggressiveDestructiveWorkloads.required_artifacts_per_workload);
   for (const artifact of [
-    'codebox_isolation_readiness',
-    'snapshot_restore_artifact',
+    'disposable_sandbox_boundary',
+    'mutation_isolation_artifact',
+    'delete_boundary_artifact',
     'fixture_dynamic_id_manifest',
     'side_effect_policy_evidence',
     'destructive_case_ledger',
+    'sandbox_teardown_evidence',
+    'artifact_bundle_ref',
   ]) {
     assert.ok(requiredArtifacts.has(artifact), `global destructive workload artifact requirements must include ${artifact}`);
   }
@@ -285,6 +299,10 @@ test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and s
 test('REST CRUD fixture plan advertises executable state only through explicit upstream contracts', () => {
   assert.equal(restCrudFixturePlan.metadata.execution_enabled, true);
   assert.equal(restCrudFixturePlan.metadata.readiness_level, 'executable');
+  assert.equal(restCrudPayloadFixtures.status, 'contract_backed_executable');
+  assert.equal(restCrudPayloadFixtures.readiness.level, 'executable');
+  assert.equal(restCrudPayloadFixtures.readiness.execution_enabled, true);
+  assert.equal(restCrudPayloadFixtures.readiness.upstream_blockers, undefined);
   assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('homeboy/isolation-proof/v1'));
   assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
 
@@ -307,6 +325,15 @@ test('REST CRUD fixture plan advertises executable state only through explicit u
     assert.ok(state, `${operation.id} must declare ${operation.metadata.operation} readiness`);
     assert.ok(genericExecutableReadinessStates.has(state), `${operation.id} must map to contract-backed executable target inventory state`);
   }
+
+  for (const family of restCrudPayloadFixtures.families) {
+    assert.deepEqual(family.executable_operations, ['create', 'update', 'delete']);
+    assert.equal(family.blocked_operations, undefined, `${family.id} must not fake blocked operations for available contracts`);
+  }
+
+  assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.level, 'executable');
+  assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.execution_enabled, true);
+  assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.upstream_blockers, undefined);
 
   assert.equal(productChaosSequencePacks.execution_enabled, true);
   assert.equal(productChaosSequencePacks.readiness.execution_enabled, true);

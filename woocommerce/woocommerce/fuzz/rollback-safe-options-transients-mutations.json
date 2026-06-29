@@ -23,7 +23,7 @@
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "executable",
-      "coverage_contract": "WP Codebox can execute rollback-safe WooCommerce option/transient mutations and emit rollback, transient-growth, and skipped-sensitive-option artifacts before any proof claim.",
+      "coverage_contract": "WP Codebox can execute disposable WooCommerce option/transient mutations and emit mutation isolation, transient-growth, skipped-sensitive-option, teardown, and artifact bundle refs before any proof claim.",
       "crud": {
         "create": {
           "level": "executable",
@@ -37,15 +37,20 @@
           "safety_class": "isolated_mutation"
         },
         "delete": {
-          "level": "declared",
-          "upstream_blocker": "Rollback-safe delete fixture primitives are required before delete cases can execute."
+          "level": "executable",
+          "via": "delete_boundary_artifact",
+          "safety_class": "isolated_mutation"
         }
       },
       "mutation": {
         "safety_boundary": "Option and transient mutations are bounded to disposable WP Codebox fixtures and sensitive options are skipped by contract.",
-        "rollback_artifacts": [
-          "rollback_safe_options_transients_mutations"
-        ]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["rollback_safe_options_transients_mutations"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

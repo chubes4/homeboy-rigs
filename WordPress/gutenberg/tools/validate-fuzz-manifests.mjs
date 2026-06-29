@@ -30,6 +30,7 @@ const restRouteCoverage = readJson(packageRoot, 'manifests/rest-route-coverage.j
 const restCases = readJson(packageRoot, 'bench/generated-rest-request-cases.workload.json');
 const dbInventory = readJson(packageRoot, 'bench/db-inventory.workload.json');
 const restQueryProfile = readJson(packageRoot, 'bench/rest-db-query-profile.workload.json');
+const destructiveSequencePacks = readJson(packageRoot, 'manifests/destructive-sequence-packs.json');
 
 const requiredSurfaces = new Set([
   'gutenberg-rest-routes',
@@ -162,6 +163,53 @@ for (const artifact of ['rest_namespace_permission_matrix', 'rest_db_query_profi
   const proofArtifact = apiDbLabCell.proof_artifacts.find((entry) => entry.name === artifact);
   assert.ok(proofArtifact, `API/DB Lab cell missing proof artifact ${artifact}`);
   assert.ok(proofArtifact.required_sections.length > 0, `API/DB Lab cell proof artifact ${artifact} requires sections`);
+}
+
+const requiredDestructiveContracts = new Set([
+  'wp-codebox/wordpress-fuzz-runtime-contract/v1',
+  'homeboy/isolation-proof/v1',
+  'homeboy/fuzz-action-model/v1',
+  'homeboy/fuzz-exploration-policy/v1',
+  'homeboy/wordpress-surface-family-contracts/v1',
+  'homeboy/wordpress-fuzz-runtime-workload-operation/v1',
+  'wp-codebox/fuzz-artifact-bundle/v1',
+  'wp-codebox/sandbox-isolation-proof/v1',
+  'wp-codebox/delete-boundary-artifact/v1',
+  'wp-codebox/mutation-isolation-artifact/v1',
+  'homeboy-extensions/generate-database-observations/v1',
+  'homeboy-extensions/generate-admin-observations/v1',
+  'homeboy-extensions/generate-browser-observations/v1',
+  'homeboy-extensions/generate-editor-observations/v1',
+]);
+
+assert.equal(destructiveSequencePacks.schema, 'homeboy-rigs/gutenberg-destructive-sequence-packs/v1', 'Gutenberg destructive sequence pack schema drifted');
+assert.equal(destructiveSequencePacks.id, 'gutenberg-destructive-sequence-packs', 'Gutenberg destructive sequence pack id drifted');
+assert.equal(destructiveSequencePacks.status, 'contract_backed_executable', 'Gutenberg destructive sequence pack status drifted');
+assert.equal(destructiveSequencePacks.execution_enabled, true, 'Gutenberg destructive sequence packs must be executable');
+assert.equal(destructiveSequencePacks.local_execution_enabled, false, 'Gutenberg destructive sequence packs must not enable local execution');
+assert.equal(destructiveSequencePacks.readiness?.level, 'executable', 'Gutenberg destructive sequence pack readiness drifted');
+assert.equal(destructiveSequencePacks.readiness?.proof_bundle, undefined, 'Gutenberg destructive sequence packs must not claim proof refs before artifacts exist');
+assert.deepEqual(new Set(destructiveSequencePacks.required_upstream_contracts || []), requiredDestructiveContracts, 'Gutenberg destructive sequence upstream contracts drifted');
+assert.deepEqual(new Set(destructiveSequencePacks.readiness?.contract_ids || []), requiredDestructiveContracts, 'Gutenberg destructive sequence readiness contract ids drifted');
+
+const gutenbergFamilies = new Map((destructiveSequencePacks.surface_families || []).map((family) => [family.id, family]));
+assert.deepEqual(new Set(gutenbergFamilies.keys()), new Set(['templates', 'patterns', 'reusable-block-entities', 'navigation', 'editor-state', 'block-insert-edit-save-delete']), 'Gutenberg destructive sequence surface families drifted');
+for (const [familyId, family] of gutenbergFamilies) {
+  assert.equal(family.readiness, 'destructive_isolated_executable', `${familyId} must be executable`);
+  assert.ok(family.operations.includes('delete'), `${familyId} must include delete operations`);
+}
+
+const gutenbergSequences = new Map((destructiveSequencePacks.sequence_packs || []).map((pack) => [pack.id, pack]));
+assert.deepEqual(new Set(gutenbergSequences.keys()), new Set(['template-lifecycle', 'pattern-lifecycle', 'reusable-block-lifecycle', 'navigation-lifecycle', 'editor-state-lifecycle', 'block-insert-edit-save-delete']), 'Gutenberg destructive sequence pack ids drifted');
+assert.deepEqual(new Set(destructiveSequencePacks.relative_hotspot_taxonomy?.labels || []), new Set(['sequence', 'action', 'route', 'table', 'editor_state']), 'Gutenberg destructive hotspot taxonomy labels drifted');
+for (const [sequenceId, sequence] of gutenbergSequences) {
+  assert.equal(sequence.readiness, 'destructive_isolated_executable', `${sequenceId} must be executable`);
+  assert.ok(gutenbergFamilies.has(sequence.surface_family), `${sequenceId} references unknown surface family`);
+  assert.ok(sequence.steps.some((step) => step.includes('delete')), `${sequenceId} must include a delete path`);
+  assert.ok(sequence.required_contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'), `${sequenceId} must wire Homeboy workload operation contract`);
+  assert.ok(sequence.required_contract_ids.includes('wp-codebox/mutation-isolation-artifact/v1'), `${sequenceId} must wire Codebox mutation-isolation artifacts`);
+  assert.ok(sequence.required_contract_ids.includes('wp-codebox/delete-boundary-artifact/v1'), `${sequenceId} must wire Codebox delete-boundary artifacts`);
+  assert.ok(sequence.required_contract_ids.includes('homeboy-extensions/generate-editor-observations/v1'), `${sequenceId} must wire HBEX editor observation artifacts`);
 }
 
 console.log(`validated ${fuzzManifests.length} Gutenberg fuzz manifests; no fuzz IDs are present in bench_workloads or bench_profiles`);

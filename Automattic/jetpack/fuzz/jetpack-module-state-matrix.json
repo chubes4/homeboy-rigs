@@ -55,6 +55,12 @@
       "mutation": {
         "safety_boundary": "Executes local module state writes only in a disposable WP Codebox WordPress runtime through the upstream destructive contract. Connection-dependent remote effects are classified as provisioning-blocked.",
         "rollback_required": false,
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["module_state_disposable_mutation_contract", "module_option_before_after_rows"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
         "rollback_artifacts": [],
         "disposable_contract_artifacts": [
           "module_state_disposable_mutation_contract",
