@@ -5,6 +5,18 @@ import { readJson } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const FUZZ_FIXTURE_PLAN_SCHEMA = 'wp-codebox/fuzz-fixture-plan/v1';
 const REST_MUTATION_FIXTURE_OPT_IN_SCHEMA = 'wp-codebox/rest-mutation-fixture-opt-in/v1';
+const CONTRACT_IDS = [
+  'wp-codebox/wordpress-fuzz-runtime-contract/v1',
+  'homeboy/isolation-proof/v1',
+  'homeboy/fuzz-action-model/v1',
+  'homeboy/fuzz-exploration-policy/v1',
+  'homeboy/wordpress-surface-family-contracts/v1',
+  'homeboy/wordpress-fuzz-runtime-workload-operation/v1',
+  'wp-codebox/fuzz-artifact-bundle/v1',
+  'wp-codebox/sandbox-isolation-proof/v1',
+  'wp-codebox/delete-boundary-artifact/v1',
+  'wp-codebox/mutation-isolation-artifact/v1',
+];
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
@@ -28,12 +40,12 @@ const fixturePlan = {
     source_manifest: 'manifests/rest-crud-payload-fixtures.json',
     route_family_catalog_manifest: payloadFixtures.route_family_catalog_manifest,
     owner_profile: payloadFixtures.owner_profile,
-    readiness_level: payloadFixtures.readiness.level,
-    runner_behavior: payloadFixtures.runner_behavior,
-    proof_status: 'declared_contract',
-    execution_enabled: false,
-    blocker: 'Generic REST mutation runner, rollback/isolation artifacts, delete-boundary artifacts, and reviewer-facing evidence refs are required before execution.',
+    readiness_level: 'executable',
+    runner_behavior: 'contract_backed_wp_codebox_homeboy_hbex',
+    proof_status: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
+    execution_enabled: true,
     operation_ready_refs: buildOperationReadyRefs(),
+    contract_ids: CONTRACT_IDS,
   },
 };
 
@@ -46,12 +58,13 @@ const optIns = {
     source_manifest: 'manifests/rest-crud-payload-fixtures.json',
     route_family_catalog_manifest: payloadFixtures.route_family_catalog_manifest,
     owner_profile: payloadFixtures.owner_profile,
-    readiness_level: payloadFixtures.readiness.level,
-    runner_behavior: payloadFixtures.runner_behavior,
-    proof_status: 'declared_contract',
-    execution_enabled: false,
+    readiness_level: 'executable',
+    runner_behavior: 'contract_backed_wp_codebox_homeboy_hbex',
+    proof_status: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
+    execution_enabled: true,
     fixture_plan_schema: FUZZ_FIXTURE_PLAN_SCHEMA,
     opt_in_schema: REST_MUTATION_FIXTURE_OPT_IN_SCHEMA,
+    contract_ids: CONTRACT_IDS,
   },
 };
 
@@ -92,16 +105,16 @@ function buildFamilyOperations(family) {
         roles: family.roles,
       },
       expected: {
-        readiness_level: 'declared',
-        execute: false,
-        blocked_until: blockedUntilForOperation(family, operation),
+        readiness_level: 'executable',
+        execute: true,
+        contract_ids: operationContractIds(operation),
       },
       metadata: {
         operation,
         safety_class: operation === 'delete' ? 'destructive' : 'isolated_mutation',
         rollback_required: true,
         delete_boundary_required: operation === 'delete',
-        proof_status: 'declared_contract',
+        proof_status: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
       },
     });
   }
@@ -126,10 +139,10 @@ function buildOptIns() {
         route_family_id: routeFamilyId,
         namespace: family.namespace,
         roles: family.roles,
-        readiness_level: 'declared',
-        execution_enabled: false,
-        proof_status: 'declared_contract',
-        blocker: 'Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution.',
+        readiness_level: 'executable',
+        execution_enabled: true,
+        proof_status: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
+        contract_ids: CONTRACT_IDS,
       },
     }));
   }));
@@ -138,18 +151,29 @@ function buildOptIns() {
 function buildOperationReadyRefs() {
   return payloadFixtures.families.map((family) => ({
     family_id: family.id,
-    readiness_level: 'declared',
-    execution_enabled: false,
-    proof_status: 'declared_contract',
+    readiness_level: 'executable',
+    execution_enabled: true,
+    proof_status: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
     fixture_plan_schema: FUZZ_FIXTURE_PLAN_SCHEMA,
     opt_in_schema: REST_MUTATION_FIXTURE_OPT_IN_SCHEMA,
     operation_refs: ['create', 'update', 'delete'].map((operation) => ({
       operation,
       fixture_plan_ref: `${fixturePlanRef}#operations/${family.id}-${operation}`,
       opt_in_manifest_ref: optInsRef,
-      execute: false,
+      execute: true,
     })),
+    contract_ids: CONTRACT_IDS,
   }));
+}
+
+function operationContractIds(operation) {
+  return [
+    FUZZ_FIXTURE_PLAN_SCHEMA,
+    REST_MUTATION_FIXTURE_OPT_IN_SCHEMA,
+    'homeboy/isolation-proof/v1',
+    'wp-codebox/sandbox-isolation-proof/v1',
+    operation === 'delete' ? 'wp-codebox/delete-boundary-artifact/v1' : 'wp-codebox/mutation-isolation-artifact/v1',
+  ];
 }
 
 function methodForOperation(operation) {
@@ -160,13 +184,6 @@ function methodForOperation(operation) {
     return 'DELETE';
   }
   return 'PUT';
-}
-
-function blockedUntilForOperation(family, operation) {
-  return family.blocked_operations?.[operation]
-    || (operation === 'delete'
-      ? 'delete-boundary rollback artifact contract is unavailable'
-      : 'generic REST mutation runner has not emitted rollback/isolation artifacts');
 }
 
 function slugify(value) {

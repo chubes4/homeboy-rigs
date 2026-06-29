@@ -40,6 +40,7 @@ const runtimePrepScript = readFileSync(path.join(packageRoot, 'tools/prepare-run
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
 const genericExecutableReadinessStates = new Set([
+  'targeted_workload_executable',
   'isolated_mutation_executable',
   'destructive_isolated_executable',
   'sensitive_isolated_executable',
@@ -238,8 +239,12 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   assert.equal(aggressiveDestructiveWorkloads.execution_scope, 'offloaded_codebox_homeboy_hbex_isolated_sandbox');
   assert.equal(aggressiveDestructiveWorkloads.local_execution_enabled, false);
   assert.equal(aggressiveDestructiveWorkloads.destructive_full_coverage_proven, false);
-  assert.equal(aggressiveDestructiveWorkloads.readiness.level, 'declared');
-  assert.equal(aggressiveDestructiveWorkloads.readiness.execution_enabled, false);
+  assert.equal(aggressiveDestructiveWorkloads.readiness.level, 'executable');
+  assert.equal(aggressiveDestructiveWorkloads.readiness.execution_enabled, true);
+  assert.deepEqual(aggressiveDestructiveWorkloads.readiness.missing_upstream_contracts, []);
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/isolation-proof/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'));
   assert.equal(aggressiveDestructiveWorkloads.readiness.proof_bundle_requirements.status, 'required_before_proven');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.scope, 'fixture_owned_only');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.placeholder_ids_allowed, false);
@@ -279,10 +284,11 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   }
 });
 
-test('disabled REST CRUD fixture plan cannot advertise generic destructive execution', () => {
-  const disabledOperations = restCrudFixturePlan.operations.filter((operation) => operation.expected?.execute === false);
-  assert.ok(disabledOperations.length > 0, 'expected disabled fixture-plan mutation operations');
-  assert.equal(restCrudFixturePlan.metadata.execution_enabled, false);
+test('REST CRUD fixture plan advertises executable state only through explicit upstream contracts', () => {
+  assert.equal(restCrudFixturePlan.metadata.execution_enabled, true);
+  assert.equal(restCrudFixturePlan.metadata.readiness_level, 'executable');
+  assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('homeboy/isolation-proof/v1'));
+  assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
 
   const surfaces = targetInventory.discovery_manifests.product_surface_taxonomy.surfaces;
   const surfaceByResourceKind = new Map([
@@ -292,34 +298,29 @@ test('disabled REST CRUD fixture plan cannot advertise generic destructive execu
     ['coupon', 'coupons'],
   ]);
 
-  for (const operation of disabledOperations) {
+  for (const operation of restCrudFixturePlan.operations) {
+    assert.equal(operation.expected.execute, true, `${operation.id} must be contract-backed executable`);
+    assert.equal(operation.expected.readiness_level, 'executable', `${operation.id} readiness drifted`);
+    assert.ok(operation.expected.contract_ids.includes('homeboy/isolation-proof/v1'), `${operation.id} must wire Homeboy isolation proof`);
+    assert.ok(operation.expected.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'), `${operation.id} must wire WP Codebox sandbox isolation proof`);
     const surfaceId = surfaceByResourceKind.get(operation.resource.kind);
     assert.ok(surfaceId, `${operation.id} must map to a target inventory surface`);
     const state = surfaces[surfaceId].operation_readiness[operation.metadata.operation];
     assert.ok(state, `${operation.id} must declare ${operation.metadata.operation} readiness`);
-    assert.ok(
-      !genericExecutableReadinessStates.has(state),
-      `${operation.id} has execute:false but target inventory declares ${state}`
-    );
+    assert.ok(genericExecutableReadinessStates.has(state), `${operation.id} must map to contract-backed executable target inventory state`);
   }
 
-  assert.equal(productChaosSequencePacks.execution_enabled, false);
-  assert.equal(productChaosSequencePacks.readiness.execution_enabled, false);
-  assert.equal(aggressiveIsolatedCampaign.readiness.execution_enabled, false);
-  assert.equal(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose'].readiness.execution_enabled, false);
-  assert.equal(targetInventory.discovery_manifests.product_chaos_sequence_packs.readiness.execution_enabled, false);
+  assert.equal(productChaosSequencePacks.execution_enabled, true);
+  assert.equal(productChaosSequencePacks.readiness.execution_enabled, true);
+  assert.equal(aggressiveIsolatedCampaign.readiness.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose'].readiness.execution_enabled, true);
+  assert.equal(targetInventory.discovery_manifests.product_chaos_sequence_packs.readiness.execution_enabled, true);
 
   for (const family of aggressiveIsolatedCampaign.fixture_families) {
-    assert.ok(
-      !genericExecutableReadinessStates.has(family.readiness),
-      `${family.id} fixture family must not claim generic execution while fixture plan is disabled`
-    );
+    assert.ok(genericExecutableReadinessStates.has(family.readiness), `${family.id} fixture family must wire executable upstream contracts`);
   }
   for (const sequencePack of productChaosSequencePacks.sequence_packs) {
-    assert.ok(
-      !genericExecutableReadinessStates.has(sequencePack.readiness),
-      `${sequencePack.id} sequence pack must not claim generic execution while fixture plan is disabled`
-    );
+    assert.ok(genericExecutableReadinessStates.has(sequencePack.readiness), `${sequencePack.id} sequence pack must wire executable upstream contracts`);
   }
 });
 

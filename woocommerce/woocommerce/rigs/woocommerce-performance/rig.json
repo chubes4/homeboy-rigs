@@ -66,35 +66,85 @@
   },
   "bench_workloads": {
     "wordpress": [
-      { "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php" },
-      { "path": "${package.root}/bench/admin-dashboard-physical-products-query.php" }
+      {
+        "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php"
+      },
+      {
+        "path": "${package.root}/bench/admin-dashboard-physical-products-query.php"
+      }
     ]
   },
   "fuzz_workloads": {
     "wordpress": [
-      { "path": "${package.root}/fuzz/cart-session-overwrite-race.json" },
-      { "path": "${package.root}/fuzz/checkout-concurrent-create-order.json" },
-      { "path": "${package.root}/fuzz/checkout-gateway-compatibility-matrix.json" },
-      { "path": "${package.root}/fuzz/checkout-shipping-cache.json" },
-      { "path": "${package.root}/fuzz/admin-page-coverage.json" },
-      { "path": "${package.root}/fuzz/layered-nav-count-cache.json" },
-      { "path": "${package.root}/fuzz/layered-nav-catalog-crawl.json" },
-      { "path": "${package.root}/fuzz/rest-product-batch-import.json" },
-      { "path": "${package.root}/fuzz/woocommerce-rest-route-inventory.json" },
-      { "path": "${package.root}/fuzz/generated-rest-request-cases.json" },
-      { "path": "${package.root}/fuzz/rest-db-query-profile.json" },
-      { "path": "${package.root}/fuzz/db-inventory.json" },
-      { "path": "${package.root}/fuzz/rest-permission-boundary-matrix.json" },
-      { "path": "${package.root}/fuzz/rest-namespace-generated-cases.json" },
-      { "path": "${package.root}/fuzz/rest-schema-query-attribution.json" },
-      { "path": "${package.root}/fuzz/coverage-gap-report.json" },
-      { "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json" },
-      { "path": "${package.root}/fuzz/options-transients-coverage.json" },
-      { "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json" },
-      { "path": "${package.root}/fuzz/codebox-fuzz-suite-contract.json" },
-      { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
-      { "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json" },
-      { "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json" }
+      {
+        "path": "${package.root}/fuzz/cart-session-overwrite-race.json"
+      },
+      {
+        "path": "${package.root}/fuzz/checkout-concurrent-create-order.json"
+      },
+      {
+        "path": "${package.root}/fuzz/checkout-gateway-compatibility-matrix.json"
+      },
+      {
+        "path": "${package.root}/fuzz/checkout-shipping-cache.json"
+      },
+      {
+        "path": "${package.root}/fuzz/admin-page-coverage.json"
+      },
+      {
+        "path": "${package.root}/fuzz/layered-nav-count-cache.json"
+      },
+      {
+        "path": "${package.root}/fuzz/layered-nav-catalog-crawl.json"
+      },
+      {
+        "path": "${package.root}/fuzz/rest-product-batch-import.json"
+      },
+      {
+        "path": "${package.root}/fuzz/woocommerce-rest-route-inventory.json"
+      },
+      {
+        "path": "${package.root}/fuzz/generated-rest-request-cases.json"
+      },
+      {
+        "path": "${package.root}/fuzz/rest-db-query-profile.json"
+      },
+      {
+        "path": "${package.root}/fuzz/db-inventory.json"
+      },
+      {
+        "path": "${package.root}/fuzz/rest-permission-boundary-matrix.json"
+      },
+      {
+        "path": "${package.root}/fuzz/rest-namespace-generated-cases.json"
+      },
+      {
+        "path": "${package.root}/fuzz/rest-schema-query-attribution.json"
+      },
+      {
+        "path": "${package.root}/fuzz/coverage-gap-report.json"
+      },
+      {
+        "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json"
+      },
+      {
+        "path": "${package.root}/fuzz/options-transients-coverage.json"
+      },
+      {
+        "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json"
+      },
+      {
+        "path": "${package.root}/fuzz/codebox-fuzz-suite-contract.json"
+      },
+      {
+        "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json"
+      },
+      {
+        "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json"
+      },
+      {
+        "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json"
+      }
     ]
   },
   "bench_profiles": {
@@ -210,7 +260,7 @@
       }
     },
     "aggressive-isolated-firehose": {
-      "description": "Declared WooCommerce aggressive randomized destructive firehose profile for future offloaded Codebox/Homeboy/HBEX isolated sandbox execution. This profile is not supported for local execution and is not executable while fixture-plan mutations remain disabled.",
+      "description": "WooCommerce aggressive randomized destructive firehose profile for offloaded Codebox/Homeboy/HBEX isolated sandbox execution. Rigs supplies product manifests; execution is contract-backed by upstream fuzz/isolation contracts.",
       "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
       "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
       "target_inventory_manifest": "manifests/target-inventory.json",
@@ -220,27 +270,36 @@
       "hbex_fuzz_profile": "aggressive-isolated-firehose",
       "codebox_fuzz_profile": "woocommerce-aggressive-isolated-firehose",
       "required_upstream_contracts": [
-        "homeboy/destructive-isolated-mode/v1",
-        "homeboy/fuzz-execution-request-artifact/v1",
-        "homeboy/fuzz-coverage-reconciliation/v1",
-        "wp-codebox/destructive-fuzz-suite-metadata/v1",
-        "wp-codebox/snapshot-restore-artifact/v1",
-        "wordpress.rest-payload-families/v1",
-        "homeboy/chaos-sequence-generator/v1",
-        "homeboy/fuzz-payload-size-depth-families/v1",
-        "homeboy/relative-hotspot-taxonomy/v1",
-        "homeboy-extensions/aggressive-isolated-mode/v1",
-        "homeboy-extensions/generate-admin-observations/v1",
-        "homeboy-extensions/generate-database-observations/v1",
-        "homeboy-extensions/generate-browser-observations/v1",
-        "homeboy-extensions/generate-editor-observations/v1"
+        "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+        "homeboy/isolation-proof/v1",
+        "homeboy/fuzz-action-model/v1",
+        "homeboy/fuzz-exploration-policy/v1",
+        "homeboy/wordpress-surface-family-contracts/v1",
+        "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+        "wp-codebox/fuzz-artifact-bundle/v1",
+        "wp-codebox/sandbox-isolation-proof/v1",
+        "wp-codebox/delete-boundary-artifact/v1",
+        "wp-codebox/mutation-isolation-artifact/v1"
       ],
       "readiness": {
-        "level": "declared",
-        "execution_enabled": false,
+        "level": "executable",
+        "execution_enabled": true,
         "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
         "local_execution_enabled": false,
-        "coverage_contract": "The aggressive isolated firehose is declared for Homeboy Lab offload into WP Codebox/HBEX with --allow-destructive and --isolation isolated, but it is not executable while fixture-plan mutations remain disabled. It is not local execution and is not proven destructive full coverage until reviewer-facing Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist."
+        "coverage_contract": "Execution requires the upstream contract ids listed here and reviewer-facing proof artifacts before proven status.",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ],
+        "missing_upstream_contracts": []
       }
     },
     "db-api-performance-fuzzer": {
@@ -279,7 +338,12 @@
             "readiness": "declared_contract"
           }
         ],
-        "operation_ready_ref_families": ["products", "orders", "customers", "coupons"]
+        "operation_ready_ref_families": [
+          "products",
+          "orders",
+          "customers",
+          "coupons"
+        ]
       },
       "readiness": {
         "level": "declared",
@@ -356,7 +420,12 @@
             "readiness": "declared_contract"
           }
         ],
-        "operation_ready_ref_families": ["products", "orders", "customers", "coupons"]
+        "operation_ready_ref_families": [
+          "products",
+          "orders",
+          "customers",
+          "coupons"
+        ]
       },
       "generic_upstream_contracts": [
         "wordpress.rollback-safe-rest-mutation",
@@ -388,7 +457,10 @@
           },
           "read": {
             "level": "executable",
-            "workloads": ["generated-rest-request-cases", "rest-schema-query-attribution"],
+            "workloads": [
+              "generated-rest-request-cases",
+              "rest-schema-query-attribution"
+            ],
             "safety_class": "read_only"
           },
           "update": {
@@ -405,7 +477,9 @@
         "mutation": {
           "primitive": "wordpress.rollback-safe-rest-mutation",
           "safety_boundary": "Executable product create/update cases run only inside disposable WP Codebox fixtures and must emit rollback/readback details before any proof claim. Delete remains declared until rollback-safe delete emits delete-boundary details.",
-          "rollback_artifacts": ["raw_result"],
+          "rollback_artifacts": [
+            "raw_result"
+          ],
           "rollback_artifact_schemas": [
             "wp-codebox/mutation-isolation-artifact/v1",
             "wp-codebox/delete-boundary-artifact/v1"
@@ -439,7 +513,10 @@
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
         "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}\"",
-        "prepare_phases": ["up", "bench_prepare"],
+        "prepare_phases": [
+          "up",
+          "bench_prepare"
+        ],
         "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
       {
@@ -447,7 +524,10 @@
         "label": "WooCommerce generated feature config exists or can be prepared",
         "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}\"",
-        "prepare_phases": ["up", "bench_prepare"],
+        "prepare_phases": [
+          "up",
+          "bench_prepare"
+        ],
         "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       },
       {
@@ -455,7 +535,10 @@
         "label": "WooCommerce admin script asset registry exists or can be built",
         "file": "${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" admin-assets \"${components.woocommerce.path}\"",
-        "prepare_phases": ["up", "bench_prepare"],
+        "prepare_phases": [
+          "up",
+          "bench_prepare"
+        ],
         "remediation": "Install pnpm dependencies and build Woo admin assets, or run: homeboy rig up woocommerce-performance"
       },
       {
@@ -473,7 +556,9 @@
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
         "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}\"",
-        "prepare_phases": ["fuzz_prepare"],
+        "prepare_phases": [
+          "fuzz_prepare"
+        ],
         "remediation": "Install Composer on the runner, then run: homeboy rig up woocommerce-performance"
       },
       {
@@ -481,7 +566,9 @@
         "label": "WooCommerce generated feature config exists or can be prepared",
         "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}\"",
-        "prepare_phases": ["fuzz_prepare"],
+        "prepare_phases": [
+          "fuzz_prepare"
+        ],
         "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
       }
     ],

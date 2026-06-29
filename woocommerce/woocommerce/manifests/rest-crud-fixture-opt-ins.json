@@ -3,29 +3,496 @@
   "id": "woocommerce-rest-mutation-fixture-opt-ins",
   "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
   "optIns": [
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "products-collection-wc-v3-products-rest-mutation-fixture-opt-in", "route": "/wc/v3/products", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "products", "route_family_id": "products-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "products-batch-wc-v3-products-batch-rest-mutation-fixture-opt-in", "route": "/wc/v3/products/batch", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "products", "route_family_id": "products-batch", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "product-variations-batch-wc-v3-products-product-id-variations-batch-rest-mutation-fixture-opt-in", "route": "/wc/v3/products/<product_id>/variations/batch", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "products", "route_family_id": "product-variations-batch", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "product-attributes-and-terms-wc-v3-products-attributes-rest-mutation-fixture-opt-in", "route": "/wc/v3/products/attributes", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "products", "route_family_id": "product-attributes-and-terms", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "product-attributes-and-terms-wc-v3-products-attributes-attribute-id-terms-rest-mutation-fixture-opt-in", "route": "/wc/v3/products/attributes/<attribute_id>/terms", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "products", "route_family_id": "product-attributes-and-terms", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "orders-collection-wc-v3-orders-rest-mutation-fixture-opt-in", "route": "/wc/v3/orders", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "orders", "route_family_id": "orders-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "orders-collection-wc-v3-orders-order-id-rest-mutation-fixture-opt-in", "route": "/wc/v3/orders/<order_id>", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "orders", "route_family_id": "orders-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "orders-notes-wc-v3-orders-order-id-notes-rest-mutation-fixture-opt-in", "route": "/wc/v3/orders/<order_id>/notes", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "orders", "route_family_id": "orders-notes", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "orders-refunds-wc-v3-orders-order-id-refunds-rest-mutation-fixture-opt-in", "route": "/wc/v3/orders/<order_id>/refunds", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "orders", "route_family_id": "orders-refunds", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "customers-collection-wc-v3-customers-rest-mutation-fixture-opt-in", "route": "/wc/v3/customers", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "customers", "route_family_id": "customers-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "customers-collection-wc-v3-customers-customer-id-rest-mutation-fixture-opt-in", "route": "/wc/v3/customers/<customer_id>", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "customers", "route_family_id": "customers-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "coupons-collection-wc-v3-coupons-rest-mutation-fixture-opt-in", "route": "/wc/v3/coupons", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "coupons", "route_family_id": "coupons-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } },
-    { "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1", "id": "coupons-collection-wc-v3-coupons-coupon-id-rest-mutation-fixture-opt-in", "route": "/wc/v3/coupons/<coupon_id>", "methods": ["POST", "PUT", "PATCH", "DELETE"], "fixturePlanRef": "manifests/rest-crud-fixture-plan.json", "metadata": { "fixture_family": "coupons", "route_family_id": "coupons-collection", "namespace": "wc/v3", "roles": ["administrator", "shop_manager"], "readiness_level": "declared", "execution_enabled": false, "proof_status": "declared_contract", "blocker": "Runner readiness plus rollback/isolation artifacts are required before create/update execution; delete-boundary artifacts are additionally required before delete execution." } }
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "products-collection-wc-v3-products-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/products",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "products",
+        "route_family_id": "products-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "products-batch-wc-v3-products-batch-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/products/batch",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "products",
+        "route_family_id": "products-batch",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "product-variations-batch-wc-v3-products-product-id-variations-batch-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/products/<product_id>/variations/batch",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "products",
+        "route_family_id": "product-variations-batch",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "product-attributes-and-terms-wc-v3-products-attributes-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/products/attributes",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "products",
+        "route_family_id": "product-attributes-and-terms",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "product-attributes-and-terms-wc-v3-products-attributes-attribute-id-terms-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/products/attributes/<attribute_id>/terms",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "products",
+        "route_family_id": "product-attributes-and-terms",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "orders-collection-wc-v3-orders-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/orders",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "orders",
+        "route_family_id": "orders-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "orders-collection-wc-v3-orders-order-id-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/orders/<order_id>",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "orders",
+        "route_family_id": "orders-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "orders-notes-wc-v3-orders-order-id-notes-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/orders/<order_id>/notes",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "orders",
+        "route_family_id": "orders-notes",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "orders-refunds-wc-v3-orders-order-id-refunds-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/orders/<order_id>/refunds",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "orders",
+        "route_family_id": "orders-refunds",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "customers-collection-wc-v3-customers-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/customers",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "customers",
+        "route_family_id": "customers-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "customers-collection-wc-v3-customers-customer-id-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/customers/<customer_id>",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "customers",
+        "route_family_id": "customers-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "coupons-collection-wc-v3-coupons-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/coupons",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "coupons",
+        "route_family_id": "coupons-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    },
+    {
+      "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+      "id": "coupons-collection-wc-v3-coupons-coupon-id-rest-mutation-fixture-opt-in",
+      "route": "/wc/v3/coupons/<coupon_id>",
+      "methods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ],
+      "fixturePlanRef": "manifests/rest-crud-fixture-plan.json",
+      "metadata": {
+        "fixture_family": "coupons",
+        "route_family_id": "coupons-collection",
+        "namespace": "wc/v3",
+        "roles": [
+          "administrator",
+          "shop_manager"
+        ],
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
+        ]
+      }
+    }
   ],
   "metadata": {
     "source_manifest": "manifests/rest-crud-payload-fixtures.json",
     "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
     "owner_profile": "product-rest-crud-fuzzer",
-    "readiness_level": "declared",
-    "runner_behavior": "none",
-    "proof_status": "declared_contract",
-    "execution_enabled": false,
+    "readiness_level": "executable",
+    "runner_behavior": "contract_backed_wp_codebox_homeboy_hbex",
+    "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+    "execution_enabled": true,
     "fixture_plan_schema": "wp-codebox/fuzz-fixture-plan/v1",
-    "opt_in_schema": "wp-codebox/rest-mutation-fixture-opt-in/v1"
+    "opt_in_schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+    "contract_ids": [
+      "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+      "homeboy/isolation-proof/v1",
+      "homeboy/fuzz-action-model/v1",
+      "homeboy/fuzz-exploration-policy/v1",
+      "homeboy/wordpress-surface-family-contracts/v1",
+      "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+      "wp-codebox/fuzz-artifact-bundle/v1",
+      "wp-codebox/sandbox-isolation-proof/v1",
+      "wp-codebox/delete-boundary-artifact/v1",
+      "wp-codebox/mutation-isolation-artifact/v1"
+    ]
   }
 }

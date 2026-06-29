@@ -168,6 +168,7 @@ function fuzzRunCommandForWorkload(workloadId, index, options) {
     '--tracker-ref', options.trackerRef,
     '--allow-destructive',
     '--isolation', 'isolated',
+    '--isolation-proof', '${artifact.root}/isolation-proof.json',
   ];
 
   if (options.runner) {
