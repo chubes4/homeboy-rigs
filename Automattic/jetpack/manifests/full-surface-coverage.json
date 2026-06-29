@@ -2,20 +2,30 @@
   "schema": "homeboy-rigs/wordpress-full-surface-coverage/v1",
   "property": "Automattic/jetpack",
   "description": "Coverage targets for Jetpack across REST API, database schema, server requests, and browser requests.",
-  "requires_primitives": [
-    "wordpress-rest-route-matrix",
-    "wordpress-rest-request-cases",
-    "wordpress-rest-db-query-profiler",
-    "wordpress-db-inventory",
-    "wordpress-external-http-guardrail",
-    "browser-request-coverage",
-    "wordpress-authenticated-admin-page-coverage",
-    "wordpress-plugin-option-matrix",
-    "wordpress-plugin-module-state-matrix",
-    "wordpress-plugin-module-option-table-inventory",
-    "wordpress-plugin-sync-queue-coverage",
-    "wordpress-plugin-cron-sync-actions"
-  ],
+  "execution_claim_policy": "product_manifest_only_no_runner_support_claim",
+  "product_surface_matrix": {
+    "taxonomy": ["rest_api", "database", "server_requests", "browser_requests", "authenticated_admin_pages", "options", "modules", "sync", "connection_fixtures", "public_frontend", "performance_observation"],
+    "fixture_shapes": {
+      "connection": "connected and disconnected site states with token placeholders and WP.com-dependent skips",
+      "modules": "module activation, dependency, option, custom-table, and settings state declarations",
+      "sync": "local sync queue, cron event, action serialization, and queue option state",
+      "frontend": "public post and page module fixtures with connected/disconnected expectations",
+      "admin": "Jetpack dashboard, connection, module, settings, hash-route, and wp-admin navigation targets"
+    },
+    "side_effect_policies": {
+      "read": "route, DB, admin, browser, public frontend, module inventory, and guardrail rows are declaration-only until proof artifacts exist",
+      "create_update": "module, option, sync, cron, and connection fixture mutations are blocked without upstream rollback-safe plugin-state primitives",
+      "delete": "remote connected-state deletion is blocked pending upstream Jetpack sandbox primitives",
+      "external_http": "WordPress.com, sync, connection, and module HTTP calls require explicit sandbox primitives or blocked-request artifacts"
+    },
+    "action_family_labels": ["connection", "modules", "sync", "cron", "options", "rest_api", "database", "admin", "public_frontend", "external_http", "performance"],
+    "blocked_upstream_contract_refs": [
+      "upstream:wordpress-fuzz-runner#durable-proof-bundle",
+      "upstream:wordpress-fuzz-runner#rollback-artifact-manifest",
+      "upstream:jetpack-sandbox#safe-wpcom-connected-state-primitives"
+    ],
+    "relative_hotspot_labels": ["connection", "sync", "modules", "admin", "rest", "public_frontend", "external_http", "database"]
+  },
   "coverage_map": {
     "rest": {
       "surface_type": "rest",
