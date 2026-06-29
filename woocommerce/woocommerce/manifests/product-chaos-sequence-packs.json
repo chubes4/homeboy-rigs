@@ -2,7 +2,7 @@
   "schema": "homeboy-rigs/woocommerce-product-chaos-sequence-packs/v1",
   "id": "woocommerce-product-chaos-sequence-packs",
   "description": "WooCommerce product-domain chaos sequence packs for the offloaded aggressive isolated firehose. These packs provide Woo fixture seasoning, payload size/depth families, and relative hotspot labels consumed by the generic Homeboy/HBEX/Codebox stack.",
-  "status": "executable_contract",
+  "status": "contract_backed_executable",
   "execution_enabled": true,
   "runner_behavior": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
   "owner_profile": "aggressive-isolated-firehose",
@@ -14,21 +14,23 @@
     "rest_mutation_fixture_opt_ins": "manifests/rest-crud-fixture-opt-ins.json"
   },
   "generic_upstream_contracts": [
-    "homeboy/chaos-sequence-pack/v1",
-    "homeboy/chaos-sequence-generator/v1",
-    "homeboy/fuzz-payload-size-depth-families/v1",
-    "homeboy/relative-hotspot-taxonomy/v1",
-    "homeboy/fuzz-execution-request-artifact/v1",
-    "homeboy/fuzz-coverage-reconciliation/v1",
-    "wp-codebox/snapshot-restore-artifact/v1",
-    "wp-codebox/destructive-fuzz-suite-metadata/v1"
+    "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+    "homeboy/isolation-proof/v1",
+    "homeboy/fuzz-action-model/v1",
+    "homeboy/fuzz-exploration-policy/v1",
+    "homeboy/wordpress-surface-family-contracts/v1",
+    "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+    "wp-codebox/fuzz-artifact-bundle/v1",
+    "wp-codebox/sandbox-isolation-proof/v1",
+    "wp-codebox/delete-boundary-artifact/v1",
+    "wp-codebox/mutation-isolation-artifact/v1"
   ],
   "readiness": {
     "level": "executable",
     "execution_enabled": true,
     "local_execution_enabled": false,
-    "proof_status": "requires_reviewer_facing_artifacts",
-    "coverage_contract": "WooCommerce sequence packs are executable only through the offloaded aggressive isolated firehose, using generic sequence-pack ingestion, payload size/depth expansion, destructive isolation, snapshot restore, and reviewer-facing artifact refs before proof claims.",
+    "proof_status": "requires_reviewer_facing_artifacts_before_proven",
+    "coverage_contract": "WooCommerce sequence packs are executable inputs to the offloaded aggressive isolated firehose through explicit Homeboy/HBEX/WP Codebox contracts; proven status still requires reviewer-facing artifacts.",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "local_only_refs_allowed": false,
@@ -51,82 +53,199 @@
       ]
     },
     "required_contracts": [
-      "homeboy/chaos-sequence-generator/v1",
-      "homeboy/fuzz-payload-size-depth-families/v1",
-      "homeboy/relative-hotspot-taxonomy/v1",
-      "wp-codebox/snapshot-restore-artifact/v1",
-      "wp-codebox/destructive-fuzz-suite-metadata/v1"
+      "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+      "homeboy/isolation-proof/v1",
+      "homeboy/fuzz-action-model/v1",
+      "homeboy/fuzz-exploration-policy/v1",
+      "homeboy/wordpress-surface-family-contracts/v1",
+      "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+      "wp-codebox/fuzz-artifact-bundle/v1",
+      "wp-codebox/sandbox-isolation-proof/v1",
+      "wp-codebox/delete-boundary-artifact/v1",
+      "wp-codebox/mutation-isolation-artifact/v1"
     ]
   },
   "payload_size_depth_families": [
     {
       "id": "catalog-payload-shapes",
-      "applies_to": ["products", "variations", "rest_api"],
-      "size_labels": ["single", "batch", "matrix"],
-      "depth_labels": ["flat", "attributes", "variations", "images-and-taxonomies"],
-      "seed_shapes": ["simple product", "variable parent", "variation matrix", "attribute/term expansion", "SKU/title/slug collision guards"],
-      "readiness": "executable_in_isolated_sandbox"
+      "applies_to": [
+        "products",
+        "variations",
+        "rest_api"
+      ],
+      "size_labels": [
+        "single",
+        "batch",
+        "matrix"
+      ],
+      "depth_labels": [
+        "flat",
+        "attributes",
+        "variations",
+        "images-and-taxonomies"
+      ],
+      "seed_shapes": [
+        "simple product",
+        "variable parent",
+        "variation matrix",
+        "attribute/term expansion",
+        "SKU/title/slug collision guards"
+      ],
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "commerce-session-shapes",
-      "applies_to": ["cart", "checkout", "store_api"],
-      "size_labels": ["empty", "single-line", "multi-line", "coupon-and-shipping"],
-      "depth_labels": ["anonymous session", "customer session", "shipping package", "checkout attempt"],
-      "seed_shapes": ["anonymous cart", "logged-in customer cart", "coupon cart", "shipping package matrix", "offline payment checkout"],
-      "readiness": "executable_in_isolated_sandbox"
+      "applies_to": [
+        "cart",
+        "checkout",
+        "store_api"
+      ],
+      "size_labels": [
+        "empty",
+        "single-line",
+        "multi-line",
+        "coupon-and-shipping"
+      ],
+      "depth_labels": [
+        "anonymous session",
+        "customer session",
+        "shipping package",
+        "checkout attempt"
+      ],
+      "seed_shapes": [
+        "anonymous cart",
+        "logged-in customer cart",
+        "coupon cart",
+        "shipping package matrix",
+        "offline payment checkout"
+      ],
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "business-object-shapes",
-      "applies_to": ["orders", "coupons", "customers"],
-      "size_labels": ["single object", "linked objects", "history-bearing object"],
-      "depth_labels": ["metadata", "addresses", "line items", "notes and refunds", "usage limits"],
-      "seed_shapes": ["fixture-owned order", "order note", "refund candidate", "unique customer", "percent coupon", "product/category restriction"],
-      "readiness": "executable_in_isolated_sandbox"
+      "applies_to": [
+        "orders",
+        "coupons",
+        "customers"
+      ],
+      "size_labels": [
+        "single object",
+        "linked objects",
+        "history-bearing object"
+      ],
+      "depth_labels": [
+        "metadata",
+        "addresses",
+        "line items",
+        "notes and refunds",
+        "usage limits"
+      ],
+      "seed_shapes": [
+        "fixture-owned order",
+        "order note",
+        "refund candidate",
+        "unique customer",
+        "percent coupon",
+        "product/category restriction"
+      ],
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "admin-settings-shapes",
-      "applies_to": ["settings", "reports_admin_pages"],
-      "size_labels": ["single page", "filtered page", "paginated page", "safe option group"],
-      "depth_labels": ["GET-only admin", "report filters", "non-credential option", "sensitive skip classification"],
-      "seed_shapes": ["administrator session", "shop_manager session", "analytics page", "orders/products admin filters", "payment credential skip"],
-      "readiness": "executable_in_isolated_sandbox"
+      "applies_to": [
+        "settings",
+        "reports_admin_pages"
+      ],
+      "size_labels": [
+        "single page",
+        "filtered page",
+        "paginated page",
+        "safe option group"
+      ],
+      "depth_labels": [
+        "GET-only admin",
+        "report filters",
+        "non-credential option",
+        "sensitive skip classification"
+      ],
+      "seed_shapes": [
+        "administrator session",
+        "shop_manager session",
+        "analytics page",
+        "orders/products admin filters",
+        "payment credential skip"
+      ],
+      "readiness": "destructive_isolated_executable"
     }
   ],
   "fixture_families": [
     {
       "id": "catalog-products-and-variations",
-      "surfaces": ["products", "variations"],
-      "seed_refs": ["payload_size_depth_families/catalog-payload-shapes"],
+      "surfaces": [
+        "products",
+        "variations"
+      ],
+      "seed_refs": [
+        "payload_size_depth_families/catalog-payload-shapes"
+      ],
       "fixture_scope": "fixture-owned products, attributes, terms, and variations",
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "cart-checkout-store-api",
-      "surfaces": ["cart", "checkout", "store_api"],
-      "seed_refs": ["payload_size_depth_families/commerce-session-shapes"],
+      "surfaces": [
+        "cart",
+        "checkout",
+        "store_api"
+      ],
+      "seed_refs": [
+        "payload_size_depth_families/commerce-session-shapes"
+      ],
       "fixture_scope": "disposable customer/session/cart/checkout state with offline payment only",
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "orders-coupons-customers",
-      "surfaces": ["orders", "coupons", "customers"],
-      "seed_refs": ["payload_size_depth_families/business-object-shapes"],
-      "fixture_scope": "linked fixture-owned business objects with destructive reset-gated rollback requirements",
-      "readiness": "executable_in_isolated_sandbox"
+      "surfaces": [
+        "orders",
+        "coupons",
+        "customers"
+      ],
+      "seed_refs": [
+        "payload_size_depth_families/business-object-shapes"
+      ],
+      "fixture_scope": "linked fixture-owned business objects with destructive reset-gated disposable mutation requirements",
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "settings-reports-admin",
-      "surfaces": ["settings", "reports_admin_pages"],
-      "seed_refs": ["payload_size_depth_families/admin-settings-shapes"],
+      "surfaces": [
+        "settings",
+        "reports_admin_pages"
+      ],
+      "seed_refs": [
+        "payload_size_depth_families/admin-settings-shapes"
+      ],
       "fixture_scope": "safe admin GETs and non-credential setting classifications only",
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "cross-surface-api-state",
-      "surfaces": ["store_api", "rest_api", "products", "cart", "checkout", "orders"],
-      "seed_refs": ["payload_size_depth_families/catalog-payload-shapes", "payload_size_depth_families/commerce-session-shapes", "payload_size_depth_families/business-object-shapes"],
+      "surfaces": [
+        "store_api",
+        "rest_api",
+        "products",
+        "cart",
+        "checkout",
+        "orders"
+      ],
+      "seed_refs": [
+        "payload_size_depth_families/catalog-payload-shapes",
+        "payload_size_depth_families/commerce-session-shapes",
+        "payload_size_depth_families/business-object-shapes"
+      ],
       "fixture_scope": "cross-surface Store API and REST API state transitions tied to fixture-owned objects",
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "destructive_isolated_executable"
     }
   ],
   "sequence_packs": [
@@ -134,74 +253,403 @@
       "id": "product-lifecycle",
       "surface": "products",
       "fixture_family": "catalog-products-and-variations",
-      "steps": ["seed attributes and categories", "create product", "read Store API catalog", "update price/stock/visibility", "read REST and frontend product", "delete inside reset-gated isolated sandbox"],
-      "hotspot_labels": { "sequence": "product-lifecycle", "action": ["product-create", "product-update", "product-delete-isolated"], "route": ["wc/v3/products", "wc/v3/products/batch"], "query": ["catalog lookup", "product meta lookup"], "table": ["wp_posts", "wp_postmeta", "wp_wc_product_meta_lookup"], "page": ["product", "products admin"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "seed attributes and categories",
+        "create product",
+        "read Store API catalog",
+        "update price/stock/visibility",
+        "read REST and frontend product",
+        "delete inside reset-gated isolated sandbox"
+      ],
+      "hotspot_labels": {
+        "sequence": "product-lifecycle",
+        "action": [
+          "product-create",
+          "product-update",
+          "product-delete-isolated"
+        ],
+        "route": [
+          "wc/v3/products",
+          "wc/v3/products/batch"
+        ],
+        "query": [
+          "catalog lookup",
+          "product meta lookup"
+        ],
+        "table": [
+          "wp_posts",
+          "wp_postmeta",
+          "wp_wc_product_meta_lookup"
+        ],
+        "page": [
+          "product",
+          "products admin"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "variation-lifecycle",
       "surface": "variations",
       "fixture_family": "catalog-products-and-variations",
-      "steps": ["seed variable parent", "create variation matrix", "read Store API product", "update variation price/stock/attributes", "read frontend variation state", "delete inside reset-gated isolated sandbox"],
-      "hotspot_labels": { "sequence": "variation-lifecycle", "action": ["variation-create", "variation-update", "variation-delete-isolated"], "route": ["wc/v3/products/<product_id>/variations", "wc/v3/products/<product_id>/variations/batch"], "query": ["variation lookup", "attribute term lookup"], "table": ["wp_posts", "wp_postmeta", "wp_wc_product_meta_lookup"], "page": ["product", "products admin"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "seed variable parent",
+        "create variation matrix",
+        "read Store API product",
+        "update variation price/stock/attributes",
+        "read frontend variation state",
+        "delete inside reset-gated isolated sandbox"
+      ],
+      "hotspot_labels": {
+        "sequence": "variation-lifecycle",
+        "action": [
+          "variation-create",
+          "variation-update",
+          "variation-delete-isolated"
+        ],
+        "route": [
+          "wc/v3/products/<product_id>/variations",
+          "wc/v3/products/<product_id>/variations/batch"
+        ],
+        "query": [
+          "variation lookup",
+          "attribute term lookup"
+        ],
+        "table": [
+          "wp_posts",
+          "wp_postmeta",
+          "wp_wc_product_meta_lookup"
+        ],
+        "page": [
+          "product",
+          "products admin"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "cart-mutation",
       "surface": "cart",
       "fixture_family": "cart-checkout-store-api",
-      "steps": ["seed purchasable product", "create anonymous cart", "add item", "update quantity", "apply coupon", "remove item", "reset session"],
-      "hotspot_labels": { "sequence": "cart-mutation", "action": ["add-to-cart", "update-cart", "apply-coupon", "remove-cart-item"], "route": ["wc/store/v1/cart", "wc/store/v1/cart/items", "wc/store/v1/cart/apply-coupon"], "query": ["cart/session lookup", "coupon validation", "shipping totals"], "table": ["wp_posts", "wp_postmeta", "wp_woocommerce_sessions"], "page": ["cart"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "seed purchasable product",
+        "create anonymous cart",
+        "add item",
+        "update quantity",
+        "apply coupon",
+        "remove item",
+        "reset session"
+      ],
+      "hotspot_labels": {
+        "sequence": "cart-mutation",
+        "action": [
+          "add-to-cart",
+          "update-cart",
+          "apply-coupon",
+          "remove-cart-item"
+        ],
+        "route": [
+          "wc/store/v1/cart",
+          "wc/store/v1/cart/items",
+          "wc/store/v1/cart/apply-coupon"
+        ],
+        "query": [
+          "cart/session lookup",
+          "coupon validation",
+          "shipping totals"
+        ],
+        "table": [
+          "wp_posts",
+          "wp_postmeta",
+          "wp_woocommerce_sessions"
+        ],
+        "page": [
+          "cart"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "checkout-attempts",
       "surface": "checkout",
       "fixture_family": "cart-checkout-store-api",
-      "steps": ["seed cart", "choose shipping", "prepare checkout", "submit offline payment", "retry duplicate submit boundary", "record order ref", "restore snapshot"],
-      "hotspot_labels": { "sequence": "checkout-attempts", "action": ["place-order", "calculate-totals", "shipping-rate-selection", "duplicate-submit-boundary"], "route": ["wc/store/v1/checkout", "wc/store/v1/cart"], "query": ["checkout totals", "order insert", "shipping rate lookup"], "table": ["wp_wc_orders", "wp_wc_order_addresses", "wp_woocommerce_order_items", "wp_actionscheduler_actions"], "page": ["checkout"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "seed cart",
+        "choose shipping",
+        "prepare checkout",
+        "submit offline payment",
+        "retry duplicate submit boundary",
+        "record order ref",
+        "restore snapshot"
+      ],
+      "hotspot_labels": {
+        "sequence": "checkout-attempts",
+        "action": [
+          "place-order",
+          "calculate-totals",
+          "shipping-rate-selection",
+          "duplicate-submit-boundary"
+        ],
+        "route": [
+          "wc/store/v1/checkout",
+          "wc/store/v1/cart"
+        ],
+        "query": [
+          "checkout totals",
+          "order insert",
+          "shipping rate lookup"
+        ],
+        "table": [
+          "wp_wc_orders",
+          "wp_wc_order_addresses",
+          "wp_woocommerce_order_items",
+          "wp_actionscheduler_actions"
+        ],
+        "page": [
+          "checkout"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "order-mutation",
       "surface": "orders",
       "fixture_family": "orders-coupons-customers",
-      "steps": ["seed customer/product/coupon", "create fixture-owned order", "add note", "transition status", "attempt refund candidate", "delete inside reset-gated isolated sandbox"],
-      "hotspot_labels": { "sequence": "order-mutation", "action": ["order-create", "order-note", "order-status-transition", "refund-candidate"], "route": ["wc/v3/orders", "wc/v3/orders/<order_id>/notes", "wc/v3/orders/<order_id>/refunds"], "query": ["order lookup", "order stats invalidation"], "table": ["wp_wc_orders", "wp_wc_order_addresses", "wp_woocommerce_order_items", "wp_actionscheduler_actions"], "page": ["orders admin"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "seed customer/product/coupon",
+        "create fixture-owned order",
+        "add note",
+        "transition status",
+        "attempt refund candidate",
+        "delete inside reset-gated isolated sandbox"
+      ],
+      "hotspot_labels": {
+        "sequence": "order-mutation",
+        "action": [
+          "order-create",
+          "order-note",
+          "order-status-transition",
+          "refund-candidate"
+        ],
+        "route": [
+          "wc/v3/orders",
+          "wc/v3/orders/<order_id>/notes",
+          "wc/v3/orders/<order_id>/refunds"
+        ],
+        "query": [
+          "order lookup",
+          "order stats invalidation"
+        ],
+        "table": [
+          "wp_wc_orders",
+          "wp_wc_order_addresses",
+          "wp_woocommerce_order_items",
+          "wp_actionscheduler_actions"
+        ],
+        "page": [
+          "orders admin"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "coupon-customer-interactions",
       "surface": "coupons",
       "fixture_family": "orders-coupons-customers",
-      "steps": ["seed unique customer", "create restricted coupon", "apply coupon to cart", "place offline order", "read usage counters", "rollback fixture objects"],
-      "hotspot_labels": { "sequence": "coupon-customer-interactions", "action": ["coupon-create", "coupon-apply", "customer-update", "usage-limit-check"], "route": ["wc/v3/coupons", "wc/v3/customers", "wc/store/v1/cart/apply-coupon"], "query": ["coupon validation", "customer lookup", "usage count lookup"], "table": ["wp_posts", "wp_postmeta", "wp_wc_orders", "wp_wc_order_coupon_lookup"], "page": ["cart", "checkout", "customers admin"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "seed unique customer",
+        "create restricted coupon",
+        "apply coupon to cart",
+        "place offline order",
+        "read usage counters",
+        "rollback fixture objects"
+      ],
+      "hotspot_labels": {
+        "sequence": "coupon-customer-interactions",
+        "action": [
+          "coupon-create",
+          "coupon-apply",
+          "customer-update",
+          "usage-limit-check"
+        ],
+        "route": [
+          "wc/v3/coupons",
+          "wc/v3/customers",
+          "wc/store/v1/cart/apply-coupon"
+        ],
+        "query": [
+          "coupon validation",
+          "customer lookup",
+          "usage count lookup"
+        ],
+        "table": [
+          "wp_posts",
+          "wp_postmeta",
+          "wp_wc_orders",
+          "wp_wc_order_coupon_lookup"
+        ],
+        "page": [
+          "cart",
+          "checkout",
+          "customers admin"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "settings-report-admin-pages",
       "surface": "reports_admin_pages",
       "fixture_family": "settings-reports-admin",
-      "steps": ["open safe admin page", "apply report filters", "paginate", "classify destructive action links", "classify credential-bearing settings as skipped"],
-      "hotspot_labels": { "sequence": "settings-report-admin-pages", "action": ["admin-menu-get", "report-filter", "settings-skip-classification"], "route": ["wp-admin/admin.php?page=wc-admin", "wp-admin/admin.php?page=wc-settings"], "query": ["analytics report", "settings option read"], "table": ["wp_options", "wp_wc_order_stats", "wp_wc_product_meta_lookup"], "page": ["analytics admin", "settings admin"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "open safe admin page",
+        "apply report filters",
+        "paginate",
+        "classify destructive action links",
+        "classify credential-bearing settings as skipped"
+      ],
+      "hotspot_labels": {
+        "sequence": "settings-report-admin-pages",
+        "action": [
+          "admin-menu-get",
+          "report-filter",
+          "settings-skip-classification"
+        ],
+        "route": [
+          "wp-admin/admin.php?page=wc-admin",
+          "wp-admin/admin.php?page=wc-settings"
+        ],
+        "query": [
+          "analytics report",
+          "settings option read"
+        ],
+        "table": [
+          "wp_options",
+          "wp_wc_order_stats",
+          "wp_wc_product_meta_lookup"
+        ],
+        "page": [
+          "analytics admin",
+          "settings admin"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     },
     {
       "id": "store-rest-cross-surface",
       "surface": "store_api",
       "fixture_family": "cross-surface-api-state",
-      "steps": ["create product through REST fixture", "read product through Store API", "mutate cart through Store API", "submit checkout", "read order through REST", "reconcile route/query/table/page hotspot labels"],
-      "hotspot_labels": { "sequence": "store-rest-cross-surface", "action": ["rest-product-create", "store-api-cart-mutate", "store-api-checkout", "rest-order-read"], "route": ["wc/v3/products", "wc/store/v1/products", "wc/store/v1/cart", "wc/store/v1/checkout", "wc/v3/orders"], "query": ["catalog lookup", "cart/session lookup", "checkout totals", "order lookup"], "table": ["wp_posts", "wp_postmeta", "wp_wc_orders", "wp_wc_product_meta_lookup"], "page": ["shop", "product", "cart", "checkout"] },
-      "readiness": "executable_in_isolated_sandbox"
+      "steps": [
+        "create product through REST fixture",
+        "read product through Store API",
+        "mutate cart through Store API",
+        "submit checkout",
+        "read order through REST",
+        "reconcile route/query/table/page hotspot labels"
+      ],
+      "hotspot_labels": {
+        "sequence": "store-rest-cross-surface",
+        "action": [
+          "rest-product-create",
+          "store-api-cart-mutate",
+          "store-api-checkout",
+          "rest-order-read"
+        ],
+        "route": [
+          "wc/v3/products",
+          "wc/store/v1/products",
+          "wc/store/v1/cart",
+          "wc/store/v1/checkout",
+          "wc/v3/orders"
+        ],
+        "query": [
+          "catalog lookup",
+          "cart/session lookup",
+          "checkout totals",
+          "order lookup"
+        ],
+        "table": [
+          "wp_posts",
+          "wp_postmeta",
+          "wp_wc_orders",
+          "wp_wc_product_meta_lookup"
+        ],
+        "page": [
+          "shop",
+          "product",
+          "cart",
+          "checkout"
+        ]
+      },
+      "readiness": "destructive_isolated_executable"
     }
   ],
   "relative_hotspot_taxonomy": {
-    "labels": ["sequence", "action", "query", "table", "route", "page"],
-    "sequence": ["product-lifecycle", "variation-lifecycle", "cart-mutation", "checkout-attempts", "order-mutation", "coupon-customer-interactions", "settings-report-admin-pages", "store-rest-cross-surface"],
-    "action": ["product-create", "product-update", "variation-create", "add-to-cart", "apply-coupon", "place-order", "order-status-transition", "admin-menu-get", "report-filter"],
-    "query": ["catalog lookup", "cart/session lookup", "checkout totals", "order lookup", "analytics report", "coupon validation", "settings option read"],
-    "table": ["wp_posts", "wp_postmeta", "wp_wc_orders", "wp_wc_order_addresses", "wp_woocommerce_order_items", "wp_wc_product_meta_lookup", "wp_actionscheduler_actions"],
-    "route": ["wc/v3/products", "wc/v3/products/batch", "wc/v3/products/<product_id>/variations/batch", "wc/v3/orders", "wc/v3/coupons", "wc/v3/customers", "wc/store/v1/cart", "wc/store/v1/checkout"],
-    "page": ["shop", "product", "cart", "checkout", "orders admin", "products admin", "analytics admin", "settings admin"]
+    "labels": [
+      "sequence",
+      "action",
+      "query",
+      "table",
+      "route",
+      "page"
+    ],
+    "sequence": [
+      "product-lifecycle",
+      "variation-lifecycle",
+      "cart-mutation",
+      "checkout-attempts",
+      "order-mutation",
+      "coupon-customer-interactions",
+      "settings-report-admin-pages",
+      "store-rest-cross-surface"
+    ],
+    "action": [
+      "product-create",
+      "product-update",
+      "variation-create",
+      "add-to-cart",
+      "apply-coupon",
+      "place-order",
+      "order-status-transition",
+      "admin-menu-get",
+      "report-filter"
+    ],
+    "query": [
+      "catalog lookup",
+      "cart/session lookup",
+      "checkout totals",
+      "order lookup",
+      "analytics report",
+      "coupon validation",
+      "settings option read"
+    ],
+    "table": [
+      "wp_posts",
+      "wp_postmeta",
+      "wp_wc_orders",
+      "wp_wc_order_addresses",
+      "wp_woocommerce_order_items",
+      "wp_wc_product_meta_lookup",
+      "wp_actionscheduler_actions"
+    ],
+    "route": [
+      "wc/v3/products",
+      "wc/v3/products/batch",
+      "wc/v3/products/<product_id>/variations/batch",
+      "wc/v3/orders",
+      "wc/v3/coupons",
+      "wc/v3/customers",
+      "wc/store/v1/cart",
+      "wc/store/v1/checkout"
+    ],
+    "page": [
+      "shop",
+      "product",
+      "cart",
+      "checkout",
+      "orders admin",
+      "products admin",
+      "analytics admin",
+      "settings admin"
+    ]
   }
 }

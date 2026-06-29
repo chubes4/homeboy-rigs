@@ -26,20 +26,22 @@
     "product_surface_taxonomy": {
       "readiness_states": [
         "read_only_executable",
-        "isolated_mutation_executable",
+        "targeted_workload_executable",
+        "generic_mutation_declared",
         "synthetic_mutation_executable",
+        "destructive_mutation_declared",
         "destructive_isolated_executable",
-        "sensitive_isolated_executable",
+        "sensitive_mutation_declared",
         "declared_mutation"
       ],
       "provenance": "product-level seasoning only; execution and proof remain owned by generic WP Codebox/Homeboy primitives and reviewer-facing artifacts",
       "surfaces": {
         "products": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "targeted_workload_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "targeted_workload_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
+            "update": "targeted_workload_executable",
             "delete": "destructive_isolated_executable"
           },
           "owner_profile": "product-rest-crud-fuzzer",
@@ -55,15 +57,15 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Product create/update/delete is executable through destructive reset-gated isolated sandbox execution."
+            "Product create/update has targeted executable coverage through rest-product-batch-import; generic fixture-plan mutation and delete execution are contract-backed through Homeboy isolation proof and WP Codebox sandbox isolation proof."
           ]
         },
         "variations": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "targeted_workload_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "targeted_workload_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
+            "update": "targeted_workload_executable",
             "delete": "destructive_isolated_executable"
           },
           "owner_profile": "product-rest-crud-fuzzer",
@@ -78,7 +80,7 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Variation create/update/delete is executable through destructive reset-gated isolated sandbox execution."
+            "Variation create/update has targeted executable coverage through rest-product-batch-import; generic fixture-plan mutation and delete execution are contract-backed through Homeboy isolation proof and WP Codebox sandbox isolation proof."
           ]
         },
         "cart": {
@@ -123,11 +125,11 @@
           ]
         },
         "orders": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "destructive_isolated_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
+            "update": "destructive_isolated_executable",
             "delete": "destructive_isolated_executable"
           },
           "owner_profile": "product-rest-crud-fuzzer",
@@ -144,15 +146,15 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Order create/update/delete is executable through fixture-owned destructive reset-gated isolated sandbox execution."
+            "Order create/update/delete execution is contract-backed through Homeboy isolation proof, HBEX runtime operation mapping, and WP Codebox sandbox isolation proof; read coverage is executable through generated safe requests and schema/query attribution."
           ]
         },
         "coupons": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "destructive_isolated_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
+            "update": "destructive_isolated_executable",
             "delete": "destructive_isolated_executable"
           },
           "owner_profile": "product-rest-crud-fuzzer",
@@ -167,15 +169,15 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Coupon create/update/delete is executable through fixture-owned destructive reset-gated isolated sandbox execution."
+            "Coupon create/update/delete execution is contract-backed through Homeboy isolation proof, HBEX runtime operation mapping, and WP Codebox sandbox isolation proof; read coverage is executable through generated safe requests and schema/query attribution."
           ]
         },
         "customers": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "destructive_isolated_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
+            "update": "destructive_isolated_executable",
             "delete": "destructive_isolated_executable"
           },
           "owner_profile": "product-rest-crud-fuzzer",
@@ -190,14 +192,14 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Customer mutation is executable through generic identity fixture isolation and destructive reset-gated sandbox execution."
+            "Customer create/update/delete execution is contract-backed through Homeboy isolation proof, HBEX runtime operation mapping, and WP Codebox sandbox isolation proof; read coverage is executable through generated safe requests and schema/query attribution."
           ]
         },
         "settings": {
-          "readiness": "sensitive_isolated_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
             "inventory": "read_only_executable",
-            "mutation": "sensitive_isolated_executable"
+            "mutation": "sensitive_mutation_declared"
           },
           "owner_profile": "full-surface",
           "workflows": [
@@ -211,14 +213,14 @@
           "blocked_by": [],
           "sensitive_policy": "credential-bearing, payment, tax, shipping, webhook, and marketplace settings must be skipped unless a generic sensitive-policy primitive classifies them safe in disposable fixture state.",
           "notes": [
-            "Settings mutation is executable only for generic policy-classified safe settings inside a destructive reset-gated isolated sandbox."
+            "Settings mutation remains declared-only until generic policy-classified safe settings produce mutation and reviewer-facing artifacts."
           ]
         },
         "reports_admin_pages": {
           "readiness": "read_only_executable",
           "operation_readiness": {
             "read": "read_only_executable",
-            "mutation": "sensitive_isolated_executable"
+            "mutation": "sensitive_mutation_declared"
           },
           "owner_profile": "full-surface",
           "workflows": [
@@ -260,8 +262,8 @@
           "readiness": "read_only_executable",
           "operation_readiness": {
             "read": "read_only_executable",
-            "create": "isolated_mutation_executable",
-            "update": "isolated_mutation_executable",
+            "create": "destructive_isolated_executable",
+            "update": "destructive_isolated_executable",
             "delete": "destructive_isolated_executable"
           },
           "owner_profile": "db-api-performance-fuzzer",
@@ -281,7 +283,7 @@
           ],
           "blocked_by": [],
           "notes": [
-            "REST API full-namespace mutation is executable through per-family destructive reset-gated isolated sandbox execution."
+            "REST API full-namespace mutation is contract-backed by explicit Homeboy/HBEX/WP Codebox fuzz and isolation contracts; safe read coverage remains executable."
           ]
         }
       }
@@ -311,13 +313,13 @@
       "owner_profile": "product-rest-crud-fuzzer",
       "readiness": {
         "level": "declared",
-        "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits rollback, isolation, delete-boundary, and reviewer-facing evidence artifacts.",
+        "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits mutation isolation, delete-boundary, and reviewer-facing evidence artifacts.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
             "reviewer-facing generic REST mutation runner run id",
             "reviewer-facing mutation isolation artifact ref",
-            "reviewer-facing rollback contract artifact ref",
+            "reviewer-facing mutation isolation contract artifact ref",
             "reviewer-facing delete-boundary artifact ref before delete is executable"
           ],
           "required_artifacts": [
@@ -328,8 +330,8 @@
         },
         "upstream_blockers": [
           "Generic REST mutation runner must consume wp-codebox/fuzz-fixture-plan/v1 and wp-codebox/rest-mutation-fixture-opt-in/v1 artifacts generated from these Woo declarations.",
-          "Generic REST mutation runner must emit mutation isolation and rollback contract artifacts for create/update before any declarative fixture family becomes executable.",
-          "Generic REST mutation runner must emit delete-boundary rollback artifacts before delete fixtures become executable.",
+          "Generic REST mutation runner must emit mutation isolation artifacts for create/update before any declarative fixture family becomes executable.",
+          "Generic REST mutation runner must emit delete-boundary mutation artifacts before delete fixtures become executable.",
           "Homeboy/WP Codebox must collect reviewer-facing artifact refs before this manifest can be promoted beyond declared readiness."
         ]
       },
@@ -407,8 +409,8 @@
         "level": "executable",
         "execution_enabled": true,
         "local_execution_enabled": false,
-        "proof_status": "requires_reviewer_facing_artifacts",
-        "coverage_contract": "WooCommerce sequence packs are executable only through the offloaded aggressive isolated firehose, using generic sequence-pack ingestion, payload size/depth expansion, destructive isolation, snapshot restore, and reviewer-facing artifact refs before proof claims.",
+        "proof_status": "requires_reviewer_facing_artifacts_before_proven",
+        "coverage_contract": "WooCommerce sequence packs are executable inputs to the offloaded aggressive isolated firehose through explicit Homeboy/HBEX/WP Codebox contracts; proven status still requires reviewer-facing artifacts.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "local_only_refs_allowed": false,
@@ -431,11 +433,16 @@
           ]
         },
         "required_contracts": [
-          "homeboy/chaos-sequence-generator/v1",
-          "homeboy/fuzz-payload-size-depth-families/v1",
-          "homeboy/relative-hotspot-taxonomy/v1",
-          "wp-codebox/snapshot-restore-artifact/v1",
-          "wp-codebox/destructive-fuzz-suite-metadata/v1"
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1"
         ]
       },
       "sequence_pack_ids": [

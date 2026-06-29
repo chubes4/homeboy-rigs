@@ -1,19 +1,21 @@
 export const wooSurfaceReadinessStates = [
   'read_only_executable',
-  'isolated_mutation_executable',
+  'targeted_workload_executable',
+  'generic_mutation_declared',
   'synthetic_mutation_executable',
+  'destructive_mutation_declared',
   'destructive_isolated_executable',
-  'sensitive_isolated_executable',
+  'sensitive_mutation_declared',
   'declared_mutation',
 ];
 
 export const wooProductSurfaceTaxonomy = {
   products: {
-    readiness: 'isolated_mutation_executable',
+    readiness: 'targeted_workload_executable',
     operation_readiness: {
-      create: 'isolated_mutation_executable',
+      create: 'targeted_workload_executable',
       read: 'read_only_executable',
-      update: 'isolated_mutation_executable',
+      update: 'targeted_workload_executable',
       delete: 'destructive_isolated_executable',
     },
     owner_profile: 'product-rest-crud-fuzzer',
@@ -21,14 +23,14 @@ export const wooProductSurfaceTaxonomy = {
     fixture_family: 'products',
     workloads: ['rest-product-batch-import', 'woocommerce-rest-route-inventory', 'generated-rest-request-cases'],
     blocked_by: [],
-    notes: ['Product create/update/delete is executable through destructive reset-gated isolated sandbox execution.'],
+    notes: ['Product create/update has targeted executable coverage through rest-product-batch-import; generic fixture-plan mutation and delete execution are contract-backed through Homeboy isolation proof and WP Codebox sandbox isolation proof.'],
   },
   variations: {
-    readiness: 'isolated_mutation_executable',
+    readiness: 'targeted_workload_executable',
     operation_readiness: {
-      create: 'isolated_mutation_executable',
+      create: 'targeted_workload_executable',
       read: 'read_only_executable',
-      update: 'isolated_mutation_executable',
+      update: 'targeted_workload_executable',
       delete: 'destructive_isolated_executable',
     },
     owner_profile: 'product-rest-crud-fuzzer',
@@ -36,7 +38,7 @@ export const wooProductSurfaceTaxonomy = {
     fixture_family: 'products',
     workloads: ['rest-product-batch-import', 'woocommerce-rest-route-inventory', 'generated-rest-request-cases'],
     blocked_by: [],
-    notes: ['Variation create/update/delete is executable through destructive reset-gated isolated sandbox execution.'],
+    notes: ['Variation create/update has targeted executable coverage through rest-product-batch-import; generic fixture-plan mutation and delete execution are contract-backed through Homeboy isolation proof and WP Codebox sandbox isolation proof.'],
   },
   cart: {
     readiness: 'synthetic_mutation_executable',
@@ -64,38 +66,38 @@ export const wooProductSurfaceTaxonomy = {
     owner_profile: 'product-rest-crud-fuzzer',
     route_families: ['orders-collection', 'orders-notes', 'orders-refunds'],
     fixture_family: 'orders',
-    notes: ['Order create/update/delete is executable through fixture-owned destructive reset-gated isolated sandbox execution.'],
+    notes: ['Order create/update/delete execution is contract-backed through Homeboy isolation proof, HBEX runtime operation mapping, and WP Codebox sandbox isolation proof; read coverage is executable through generated safe requests and schema/query attribution.'],
   }),
   coupons: declaredMutationSurface({
     owner_profile: 'product-rest-crud-fuzzer',
     route_families: ['coupons-collection'],
     fixture_family: 'coupons',
-    notes: ['Coupon create/update/delete is executable through fixture-owned destructive reset-gated isolated sandbox execution.'],
+    notes: ['Coupon create/update/delete execution is contract-backed through Homeboy isolation proof, HBEX runtime operation mapping, and WP Codebox sandbox isolation proof; read coverage is executable through generated safe requests and schema/query attribution.'],
   }),
   customers: declaredMutationSurface({
     owner_profile: 'product-rest-crud-fuzzer',
     route_families: ['customers-collection'],
     fixture_family: 'customers',
-    notes: ['Customer mutation is executable through generic identity fixture isolation and destructive reset-gated sandbox execution.'],
+    notes: ['Customer create/update/delete execution is contract-backed through Homeboy isolation proof, HBEX runtime operation mapping, and WP Codebox sandbox isolation proof; read coverage is executable through generated safe requests and schema/query attribution.'],
   }),
   settings: {
-    readiness: 'sensitive_isolated_executable',
+    readiness: 'read_only_executable',
     operation_readiness: {
       inventory: 'read_only_executable',
-      mutation: 'sensitive_isolated_executable',
+      mutation: 'sensitive_mutation_declared',
     },
     owner_profile: 'full-surface',
     workflows: ['options/transients inventory', 'sensitive option skip classification'],
     workloads: ['options-transients-coverage', 'rollback-safe-options-transients-mutations'],
     blocked_by: [],
     sensitive_policy: 'credential-bearing, payment, tax, shipping, webhook, and marketplace settings must be skipped unless a generic sensitive-policy primitive classifies them safe in disposable fixture state.',
-    notes: ['Settings mutation is executable only for generic policy-classified safe settings inside a destructive reset-gated isolated sandbox.'],
+    notes: ['Settings mutation remains declared-only until generic policy-classified safe settings produce mutation and reviewer-facing artifacts.'],
   },
   reports_admin_pages: {
     readiness: 'read_only_executable',
     operation_readiness: {
       read: 'read_only_executable',
-      mutation: 'sensitive_isolated_executable',
+      mutation: 'sensitive_mutation_declared',
     },
     owner_profile: 'full-surface',
     workflows: ['safe admin GET enumeration', 'analytics admin browser scenario'],
@@ -119,15 +121,15 @@ export const wooProductSurfaceTaxonomy = {
     readiness: 'read_only_executable',
     operation_readiness: {
       read: 'read_only_executable',
-      create: 'isolated_mutation_executable',
-      update: 'isolated_mutation_executable',
+      create: 'destructive_isolated_executable',
+      update: 'destructive_isolated_executable',
       delete: 'destructive_isolated_executable',
     },
     owner_profile: 'db-api-performance-fuzzer',
     namespaces: ['wc/v1', 'wc/v2', 'wc/v3', 'wc-admin', 'wc-analytics'],
     workloads: ['woocommerce-rest-route-inventory', 'generated-rest-request-cases', 'rest-permission-boundary-matrix', 'rest-namespace-generated-cases', 'rest-schema-query-attribution'],
     blocked_by: [],
-    notes: ['REST API full-namespace mutation is executable through per-family destructive reset-gated isolated sandbox execution.'],
+    notes: ['REST API full-namespace mutation is contract-backed by explicit Homeboy/HBEX/WP Codebox fuzz and isolation contracts; safe read coverage remains executable.'],
   },
 };
 
@@ -148,11 +150,11 @@ export const wooRelativeHotspotLabels = ['sequence', 'action', 'query', 'table',
 
 function declaredMutationSurface({ owner_profile, route_families, fixture_family, notes }) {
   return {
-    readiness: 'isolated_mutation_executable',
+    readiness: 'read_only_executable',
     operation_readiness: {
-      create: 'isolated_mutation_executable',
+      create: 'destructive_isolated_executable',
       read: 'read_only_executable',
-      update: 'isolated_mutation_executable',
+      update: 'destructive_isolated_executable',
       delete: 'destructive_isolated_executable',
     },
     owner_profile,

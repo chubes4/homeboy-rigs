@@ -28,7 +28,7 @@
       }
     ],
     "operation_ready_ref_families": ["products", "orders", "customers", "coupons"],
-    "blocked_until": "HBEX consumes the opt-ins, Codebox executes rollback-safe mutations, and Homeboy records durable reviewer-facing artifact refs."
+    "blocked_until": "HBEX consumes the opt-ins, Codebox executes isolated mutations, and Homeboy records durable reviewer-facing artifact refs."
   },
   "workloads": [
     "codebox-fuzz-suite-contract",

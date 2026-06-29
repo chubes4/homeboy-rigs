@@ -1,7 +1,7 @@
 {
   "schema": "homeboy-rigs/woocommerce-rest-crud-payload-fixtures/v1",
   "id": "woocommerce-rest-crud-payload-fixtures",
-  "description": "Declarative WooCommerce REST CRUD payload fixture catalog for route-family planning. These fixtures describe intended product, order, customer, and coupon payload shapes for a future generic rollback-safe REST mutation runner and generate WP Codebox fixture-plan/REST opt-in artifacts; they do not make those mutations executable or proven.",
+  "description": "Declarative WooCommerce REST CRUD payload fixture catalog for route-family planning. These fixtures describe intended product, order, customer, and coupon payload shapes for a generic isolated REST mutation runner and generate WP Codebox fixture-plan/REST opt-in artifacts; they do not make those mutations executable or proven.",
   "owner_profile": "product-rest-crud-fuzzer",
   "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
   "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
@@ -18,13 +18,13 @@
   ],
   "readiness": {
     "level": "declared",
-      "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits rollback, isolation, delete-boundary, and reviewer-facing evidence artifacts.",
+      "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits mutation isolation, delete-boundary, and reviewer-facing evidence artifacts.",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [
         "reviewer-facing generic REST mutation runner run id",
         "reviewer-facing mutation isolation artifact ref",
-        "reviewer-facing rollback contract artifact ref",
+        "reviewer-facing mutation isolation contract artifact ref",
         "reviewer-facing delete-boundary artifact ref before delete is executable"
       ],
       "required_artifacts": [
@@ -35,8 +35,8 @@
     },
     "upstream_blockers": [
         "Generic REST mutation runner must consume wp-codebox/fuzz-fixture-plan/v1 and wp-codebox/rest-mutation-fixture-opt-in/v1 artifacts generated from these Woo declarations.",
-        "Generic REST mutation runner must emit mutation isolation and rollback contract artifacts for create/update before any declarative fixture family becomes executable.",
-        "Generic REST mutation runner must emit delete-boundary rollback artifacts before delete fixtures become executable.",
+        "Generic REST mutation runner must emit mutation isolation artifacts for create/update before any declarative fixture family becomes executable.",
+        "Generic REST mutation runner must emit delete-boundary mutation artifacts before delete fixtures become executable.",
         "Homeboy/WP Codebox must collect reviewer-facing artifact refs before this manifest can be promoted beyond declared readiness."
       ]
   },
@@ -54,9 +54,9 @@
       },
       "executable_operations": [],
       "blocked_operations": {
-        "create": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted rollback/isolation artifacts for product creates",
-        "update": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted rollback/isolation artifacts for product updates",
-        "delete": "delete-boundary rollback artifact contract is unavailable"
+        "create": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted mutation isolation artifacts for product creates",
+        "update": "generic REST mutation runner has not consumed wp-codebox/fuzz-fixture-plan/v1 artifacts or emitted mutation isolation artifacts for product updates",
+        "delete": "delete-boundary artifact contract is unavailable"
       }
     },
     {
@@ -73,8 +73,8 @@
       "executable_operations": [],
       "blocked_operations": {
         "create": "generic REST mutation runner has not accepted order payload fixtures",
-        "update": "generic REST mutation runner has not emitted rollback contracts for order updates",
-        "delete": "delete-boundary rollback artifact contract is unavailable"
+        "update": "generic REST mutation runner has not emitted mutation isolation artifacts for order updates",
+        "delete": "delete-boundary artifact contract is unavailable"
       }
     },
     {
@@ -91,8 +91,8 @@
       "executable_operations": [],
       "blocked_operations": {
         "create": "generic REST mutation runner has not accepted customer payload fixtures",
-        "update": "generic REST mutation runner has not emitted rollback contracts for customer updates",
-        "delete": "delete-boundary rollback artifact contract is unavailable"
+        "update": "generic REST mutation runner has not emitted mutation isolation artifacts for customer updates",
+        "delete": "delete-boundary artifact contract is unavailable"
       }
     },
     {
@@ -109,8 +109,8 @@
       "executable_operations": [],
       "blocked_operations": {
         "create": "generic REST mutation runner has not accepted coupon payload fixtures",
-        "update": "generic REST mutation runner has not emitted rollback contracts for coupon updates",
-        "delete": "delete-boundary rollback artifact contract is unavailable"
+        "update": "generic REST mutation runner has not emitted mutation isolation artifacts for coupon updates",
+        "delete": "delete-boundary artifact contract is unavailable"
       }
     }
   ]

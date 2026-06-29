@@ -382,41 +382,44 @@ function assertRestCrudFixturePlanContract(fixturePlan, payloadFixtures) {
   assert.equal(fixturePlan.id, 'woocommerce-rest-crud-fixture-plan', 'REST CRUD fixture plan id drifted');
   assert.deepEqual(fixturePlan.operationKinds, ['mutation'], 'REST CRUD fixture plan must only declare mutation operations');
   assert.equal(fixturePlan.metadata?.source_manifest, 'manifests/rest-crud-payload-fixtures.json', 'REST CRUD fixture plan source manifest drifted');
-  assert.equal(fixturePlan.metadata?.readiness_level, 'declared', 'REST CRUD fixture plan must stay declared');
-  assert.equal(fixturePlan.metadata?.execution_enabled, false, 'REST CRUD fixture plan must not enable execution');
-  assert.equal(fixturePlan.metadata?.proof_status, 'declared_contract', 'REST CRUD fixture plan must not claim proof');
+  assert.equal(fixturePlan.metadata?.readiness_level, 'executable', 'REST CRUD fixture plan must be contract-backed executable');
+  assert.equal(fixturePlan.metadata?.execution_enabled, true, 'REST CRUD fixture plan must enable contract-backed execution');
+  assert.equal(fixturePlan.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven', 'REST CRUD fixture plan proof status drifted');
+  assert.ok(fixturePlan.metadata?.contract_ids?.includes('homeboy/isolation-proof/v1'), 'REST CRUD fixture plan must require Homeboy isolation proof');
+  assert.ok(fixturePlan.metadata?.contract_ids?.includes('wp-codebox/sandbox-isolation-proof/v1'), 'REST CRUD fixture plan must require WP Codebox sandbox isolation proof');
   assert.deepEqual(new Set((fixturePlan.metadata?.operation_ready_refs || []).map((family) => family.family_id)), new Set(['products', 'orders', 'customers', 'coupons']), 'REST CRUD fixture plan operation-ready refs must cover product/order/customer/coupon');
 
   const expectedOperationIds = new Set(payloadFixtures.families.flatMap((family) => ['create', 'update', 'delete'].map((operation) => `${family.id}-${operation}`)));
   assert.deepEqual(new Set(fixturePlan.operations.map((operation) => operation.id)), expectedOperationIds, 'REST CRUD fixture plan operations must mirror payload fixture families');
 
   for (const familyRefs of fixturePlan.metadata?.operation_ready_refs || []) {
-    assert.equal(familyRefs.readiness_level, 'declared', `${familyRefs.family_id} operation-ready refs must stay declared`);
-    assert.equal(familyRefs.execution_enabled, false, `${familyRefs.family_id} operation-ready refs must not enable execution`);
-    assert.equal(familyRefs.proof_status, 'declared_contract', `${familyRefs.family_id} operation-ready refs must not claim proof`);
+    assert.equal(familyRefs.readiness_level, 'executable', `${familyRefs.family_id} operation-ready refs must be executable`);
+    assert.equal(familyRefs.execution_enabled, true, `${familyRefs.family_id} operation-ready refs must enable execution`);
+    assert.equal(familyRefs.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven', `${familyRefs.family_id} operation-ready proof status drifted`);
     assert.equal(familyRefs.fixture_plan_schema, 'wp-codebox/fuzz-fixture-plan/v1', `${familyRefs.family_id} operation-ready fixture plan schema drifted`);
     assert.equal(familyRefs.opt_in_schema, 'wp-codebox/rest-mutation-fixture-opt-in/v1', `${familyRefs.family_id} operation-ready opt-in schema drifted`);
     assert.deepEqual(new Set((familyRefs.operation_refs || []).map((ref) => ref.operation)), new Set(['create', 'update', 'delete']), `${familyRefs.family_id} operation-ready operation refs drifted`);
     for (const ref of familyRefs.operation_refs || []) {
       assert.equal(ref.fixture_plan_ref, `manifests/rest-crud-fixture-plan.json#operations/${familyRefs.family_id}-${ref.operation}`, `${familyRefs.family_id} ${ref.operation} fixture plan operation ref drifted`);
       assert.equal(ref.opt_in_manifest_ref, 'manifests/rest-crud-fixture-opt-ins.json', `${familyRefs.family_id} ${ref.operation} opt-in manifest ref drifted`);
-      assert.equal(ref.execute, false, `${familyRefs.family_id} ${ref.operation} operation-ready ref must not execute`);
+      assert.equal(ref.execute, true, `${familyRefs.family_id} ${ref.operation} operation-ready ref must execute through upstream contracts`);
     }
   }
 
   for (const operation of fixturePlan.operations) {
     assert.equal(operation.kind, 'mutation', `${operation.id} must use mutation operation kind`);
     assert.ok(['POST', 'PUT', 'DELETE'].includes(operation.method), `${operation.id} method drifted`);
-    assert.equal(operation.expected?.readiness_level, 'declared', `${operation.id} must remain declared`);
-    assert.equal(operation.expected?.execute, false, `${operation.id} must not execute`);
-    assert.equal(operation.metadata?.proof_status, 'declared_contract', `${operation.id} must not claim proof`);
-    assert.equal(operation.metadata?.rollback_required, true, `${operation.id} must require rollback before execution`);
+    assert.equal(operation.expected?.readiness_level, 'executable', `${operation.id} must be executable`);
+    assert.equal(operation.expected?.execute, true, `${operation.id} must execute through upstream contracts`);
+    assert.ok(operation.expected?.contract_ids?.includes('homeboy/isolation-proof/v1'), `${operation.id} must require Homeboy isolation proof`);
+    assert.ok(operation.expected?.contract_ids?.includes('wp-codebox/sandbox-isolation-proof/v1'), `${operation.id} must require WP Codebox sandbox isolation proof`);
+    assert.equal(operation.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven', `${operation.id} proof status drifted`);
     if (operation.metadata?.operation === 'delete') {
       assert.equal(operation.metadata?.delete_boundary_required, true, `${operation.id} delete must require delete-boundary artifacts`);
-      assert.match(operation.expected?.blocked_until || '', /delete-boundary/, `${operation.id} delete blocker must name delete-boundary artifacts`);
+      assert.ok(operation.expected?.contract_ids?.includes('wp-codebox/delete-boundary-artifact/v1'), `${operation.id} delete must wire delete-boundary artifacts`);
     } else {
       assert.equal(operation.metadata?.delete_boundary_required, false, `${operation.id} create/update must not claim delete-boundary readiness`);
-      assert.match(operation.expected?.blocked_until || '', /generic REST mutation runner|rollback|isolation/, `${operation.id} create/update blocker must name runner and rollback/isolation readiness`);
+      assert.ok(operation.expected?.contract_ids?.includes('wp-codebox/mutation-isolation-artifact/v1'), `${operation.id} create/update must wire mutation isolation artifacts`);
     }
   }
 }
@@ -424,9 +427,9 @@ function assertRestCrudFixturePlanContract(fixturePlan, payloadFixtures) {
 function assertRestMutationFixtureOptInsContract(optIns, payloadFixtures, routeCatalog) {
   assert.equal(optIns.schema, 'homeboy-rigs/woocommerce-rest-mutation-fixture-opt-ins/v1', 'REST mutation fixture opt-ins wrapper schema drifted');
   assert.equal(optIns.fixturePlanRef, payloadFixtures.fixture_plan_manifest, 'REST mutation opt-ins fixturePlanRef drifted');
-  assert.equal(optIns.metadata?.readiness_level, 'declared', 'REST mutation opt-ins must stay declared');
-  assert.equal(optIns.metadata?.execution_enabled, false, 'REST mutation opt-ins must not enable execution');
-  assert.equal(optIns.metadata?.proof_status, 'declared_contract', 'REST mutation opt-ins must not claim proof');
+  assert.equal(optIns.metadata?.readiness_level, 'executable', 'REST mutation opt-ins must be contract-backed executable');
+  assert.equal(optIns.metadata?.execution_enabled, true, 'REST mutation opt-ins must enable contract-backed execution');
+  assert.equal(optIns.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven', 'REST mutation opt-ins proof status drifted');
   assert.equal(optIns.metadata?.fixture_plan_schema, 'wp-codebox/fuzz-fixture-plan/v1', 'REST mutation opt-ins fixture plan schema drifted');
   assert.equal(optIns.metadata?.opt_in_schema, 'wp-codebox/rest-mutation-fixture-opt-in/v1', 'REST mutation opt-ins schema metadata drifted');
 
@@ -438,10 +441,10 @@ function assertRestMutationFixtureOptInsContract(optIns, payloadFixtures, routeC
     assert.equal(optIn.schema, 'wp-codebox/rest-mutation-fixture-opt-in/v1', `${optIn.id} must use the WP Codebox REST mutation opt-in schema`);
     assert.deepEqual(optIn.methods, ['POST', 'PUT', 'PATCH', 'DELETE'], `${optIn.id} mutation methods drifted`);
     assert.equal(optIn.fixturePlanRef, payloadFixtures.fixture_plan_manifest, `${optIn.id} fixturePlanRef drifted`);
-    assert.equal(optIn.metadata?.readiness_level, 'declared', `${optIn.id} must remain declared`);
-    assert.equal(optIn.metadata?.execution_enabled, false, `${optIn.id} must not enable execution`);
-    assert.equal(optIn.metadata?.proof_status, 'declared_contract', `${optIn.id} must not claim proof`);
-    assert.match(optIn.metadata?.blocker || '', /rollback\/isolation artifacts.*delete-boundary artifacts/, `${optIn.id} blocker must name rollback/isolation and delete-boundary requirements`);
+    assert.equal(optIn.metadata?.readiness_level, 'executable', `${optIn.id} must be executable`);
+    assert.equal(optIn.metadata?.execution_enabled, true, `${optIn.id} must enable execution`);
+    assert.equal(optIn.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven', `${optIn.id} proof status drifted`);
+    assert.ok(optIn.metadata?.contract_ids?.includes('homeboy/isolation-proof/v1'), `${optIn.id} must wire Homeboy isolation proof`);
   }
 }
 
@@ -569,51 +572,32 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(campaign.target_inventory_manifest, 'manifests/target-inventory.json', 'aggressive campaign target inventory ref drifted');
   assert.equal(campaign.product_surface_taxonomy_ref, 'manifests/target-inventory.json#discovery_manifests/product_surface_taxonomy', 'aggressive campaign product taxonomy ref drifted');
   assert.equal(campaign.command_plan_generator, 'tools/aggressive-firehose-command-plan.mjs', 'aggressive campaign command generator drifted');
-  assert.ok(Array.isArray(rig.fuzz_profiles?.[campaign.profile_id]) && rig.fuzz_profiles[campaign.profile_id].length > 0, 'aggressive firehose must be wired as a runnable fuzz profile');
+  assert.ok(Array.isArray(rig.fuzz_profiles?.[campaign.profile_id]) && rig.fuzz_profiles[campaign.profile_id].length > 0, 'aggressive firehose must declare planned fuzz workload ids');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.campaign_manifest, 'manifests/aggressive-isolated-fuzz-campaign.json', 'aggressive profile metadata must link the campaign manifest');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.command_plan_generator, 'tools/aggressive-firehose-command-plan.mjs', 'aggressive profile metadata must link the command generator');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.homeboy_fuzz_profile, campaign.profile_id, 'aggressive profile metadata Homeboy profile drifted');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.hbex_fuzz_profile, campaign.profile_id, 'aggressive profile metadata HBEX profile drifted');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.codebox_fuzz_profile, 'woocommerce-aggressive-isolated-firehose', 'aggressive profile metadata Codebox profile drifted');
-  assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.readiness?.level, 'executable', 'aggressive profile metadata must be executable');
-  assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.readiness?.execution_enabled, true, 'aggressive profile metadata must enable offloaded execution');
+  assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.readiness?.level, 'executable', 'aggressive profile metadata must be contract-backed executable');
+  assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.readiness?.execution_enabled, true, 'aggressive profile metadata must enable offloaded contract-backed execution');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.readiness?.local_execution_enabled, false, 'aggressive profile metadata must not enable local execution');
 
   const requiredContracts = new Set([
-    'homeboy/destructive-isolated-mode/v1',
-    'homeboy/fuzz-execution-request-artifact/v1',
-    'homeboy/fuzz-coverage-reconciliation/v1',
-    'wp-codebox/destructive-fuzz-suite-metadata/v1',
-    'wp-codebox/snapshot-restore-artifact/v1',
-    'wordpress.rest-payload-families/v1',
-    'homeboy/chaos-sequence-generator/v1',
-    'homeboy/fuzz-payload-size-depth-families/v1',
-    'homeboy/relative-hotspot-taxonomy/v1',
-    'homeboy-extensions/aggressive-isolated-mode/v1',
-    'homeboy-extensions/generate-admin-observations/v1',
-    'homeboy-extensions/generate-database-observations/v1',
-    'homeboy-extensions/generate-browser-observations/v1',
-    'homeboy-extensions/generate-editor-observations/v1',
+    'wp-codebox/wordpress-fuzz-runtime-contract/v1',
+    'homeboy/isolation-proof/v1',
+    'homeboy/fuzz-action-model/v1',
+    'homeboy/fuzz-exploration-policy/v1',
+    'homeboy/wordpress-surface-family-contracts/v1',
+    'homeboy/wordpress-fuzz-runtime-workload-operation/v1',
+    'wp-codebox/fuzz-artifact-bundle/v1',
+    'wp-codebox/sandbox-isolation-proof/v1',
+    'wp-codebox/delete-boundary-artifact/v1',
+    'wp-codebox/mutation-isolation-artifact/v1',
   ]);
   assert.deepEqual(new Set((campaign.required_upstream_capabilities || []).map((capability) => capability.contract)), requiredContracts, 'aggressive campaign upstream capability contracts drifted');
   assert.deepEqual(new Set(rig.fuzz_profile_metadata?.[campaign.profile_id]?.required_upstream_contracts || []), requiredContracts, 'aggressive profile metadata upstream contracts drifted');
 
-  const requiredCapabilityIds = new Set([
-    'homeboy_destructive_isolated_mode',
-    'homeboy_fuzz_execution_request',
-    'homeboy_coverage_reconciliation',
-    'wp_codebox_destructive_fuzz_suite_metadata',
-    'wp_codebox_snapshot_restore',
-    'wordpress_rest_payload_families',
-    'homeboy_chaos_sequence_generator',
-    'homeboy_payload_size_depth_families',
-    'homeboy_relative_hotspot_taxonomy',
-    'hbex_aggressive_isolated_mode',
-    'hbex_admin_generation',
-    'hbex_database_generation',
-    'hbex_browser_generation',
-    'hbex_editor_generation',
-  ]);
+  const requiredCapabilityIds = new Set([...requiredContracts].map((contract) => contract.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase()));
   assert.deepEqual(new Set((campaign.required_upstream_capabilities || []).map((capability) => capability.id)), requiredCapabilityIds, 'aggressive campaign upstream capability ids drifted');
   for (const capability of campaign.required_upstream_capabilities || []) {
     assert.equal(typeof capability.artifact, 'string', `aggressive capability ${capability.id} requires artifact id`);
@@ -636,7 +620,6 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
 		'relative_hotspots',
 		'side_effect_policy_evidence',
 		'fixture_dynamic_id_manifest',
-		'rollback_verification',
 		'destructive_case_ledger',
 	]);
   assert.deepEqual(new Set((campaign.planned_artifact_expectations || []).map((artifact) => artifact.id)), expectedPlannedArtifacts, 'aggressive planned artifact expectations drifted');
@@ -649,7 +632,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   const taxonomySurfaces = new Set(Object.keys(productSurfaceTaxonomy));
   assert.deepEqual(new Set((campaign.fixture_families || []).map((family) => family.surface)), taxonomySurfaces, 'aggressive fixture families must cover the product surface taxonomy');
   for (const family of campaign.fixture_families || []) {
-    assert.equal(family.readiness, 'executable_in_isolated_sandbox', `${family.id} aggressive fixture family must be executable in isolated sandbox`);
+    assert.equal(family.readiness, 'destructive_isolated_executable', `${family.id} aggressive fixture family must wire executable upstream contracts`);
     assert.ok(Array.isArray(family.seed_shapes) && family.seed_shapes.length > 0, `${family.id} requires seed shapes`);
     assert.ok(Array.isArray(family.planned_operations) && family.planned_operations.length > 0, `${family.id} requires planned operations`);
   }
@@ -660,76 +643,38 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   }
   assert.deepEqual(new Set(campaign.relative_hotspot_labels || []), new Set(Object.keys(campaign.planned_case_groups || {})), 'aggressive relative hotspot labels must mirror planned case groups');
 
-  assert.equal(campaign.readiness?.level, 'executable', 'aggressive campaign must be executable');
-  assert.equal(campaign.readiness?.execution_enabled, true, 'aggressive campaign must enable offloaded execution');
+  assert.equal(campaign.readiness?.level, 'executable', 'aggressive campaign must be contract-backed executable');
+  assert.equal(campaign.readiness?.execution_enabled, true, 'aggressive campaign must enable offloaded contract-backed execution');
   assert.equal(campaign.readiness?.local_execution_enabled, false, 'aggressive campaign must not enable local execution');
-  assert.equal(campaign.readiness?.destructive_full_coverage, false, 'aggressive campaign must not claim destructive full coverage');
-  assert.equal(campaign.readiness?.proof_bundle, undefined, 'aggressive executable campaign must not carry proof refs before reviewer-facing artifacts exist');
-  assertFuzzProofBundleRequirements(campaign.readiness?.proof_bundle_requirements, { file: 'aggressive-isolated-fuzz-campaign readiness' });
-  assert.deepEqual(new Set(campaign.readiness?.proof_bundle_requirements?.required_artifacts || []), new Set([
-		...(campaign.required_upstream_capabilities || []).map((capability) => capability.artifact),
-		'per_case_timing',
-		'relative_hotspots',
-		'fixture_dynamic_id_manifest',
-		'rollback_verification',
-		'side_effect_policy_evidence',
-		'destructive_case_ledger',
-	]), 'aggressive proof artifacts must match upstream and planned capability artifacts');
-  assert.equal(campaign.readiness?.upstream_blockers, undefined, 'aggressive campaign must not carry terminal upstream blockers');
-  assert.deepEqual(new Set(campaign.readiness?.required_contracts || []), requiredContracts, 'aggressive campaign readiness required contracts drifted');
+  assert.equal(campaign.readiness?.proof_bundle, undefined, 'aggressive executable readiness must still wait for reviewer-facing proof refs before proven status');
+  assert.deepEqual(new Set(campaign.readiness?.contract_ids || []), requiredContracts, 'aggressive campaign readiness contract ids drifted');
 
   assert.equal(generatedAggressiveFirehoseCommandPlan.schema, 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1', 'aggressive firehose command-plan schema drifted');
   assert.equal(generatedAggressiveFirehoseCommandPlan.local_execution, false, 'aggressive firehose command plan must not claim local execution');
-  assert.equal(generatedAggressiveFirehoseCommandPlan.execution_enabled, true, 'aggressive firehose command plan must reflect offloaded execution');
-  assert.equal(generatedAggressiveFirehoseCommandPlan.runnable_commands_enabled, true, 'aggressive firehose command plan must default to runnable offloaded output');
-  assert.equal(generatedAggressiveFirehoseCommandPlan.plan_kind, 'runnable_offloaded_commands', 'aggressive firehose command plan must default to runnable offloaded commands');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.execution_enabled, true, 'aggressive firehose command plan must reflect contract-backed execution');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.runnable_commands_enabled, true, 'aggressive firehose command plan must emit runnable offloaded commands');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.plan_kind, 'runnable_offloaded_commands', 'aggressive firehose command plan kind drifted');
+  assert.ok(generatedAggressiveFirehoseCommandPlan.commands.length > 0, 'aggressive firehose command plan must emit runnable offloaded commands');
+  assert.deepEqual(generatedAggressiveFirehoseCommandPlan.blockers, [], 'aggressive firehose command plan must not carry stale blockers');
   assert.equal(generatedAggressiveFirehoseCommandPlan.profile_id, campaign.profile_id, 'aggressive firehose command plan profile id drifted');
   const aggressiveProfileWorkloads = rig.fuzz_profiles?.[campaign.profile_id] || [];
   assert.ok(aggressiveProfileWorkloads.length > 0, 'aggressive profile must declare workload ids');
-  assert.equal(generatedAggressiveFirehoseCommandPlan.commands.length, aggressiveProfileWorkloads.length + 2, 'aggressive firehose command plan must emit one request command per workload plus validation/ref collection');
   assert.deepEqual(generatedAggressiveFirehoseCommandPlan.workload_ids, aggressiveProfileWorkloads, 'aggressive firehose command plan workload ids drifted');
   assert.equal(generatedAggressiveFirehosePlanOnly.runnable_commands_enabled, false, '--plan-only must withhold runnable command arrays');
   assert.deepEqual(generatedAggressiveFirehosePlanOnly.commands, [], '--plan-only aggressive firehose command plan must withhold runnable commands');
   assert.match(generatedAggressiveFirehoseTextPlan, /Offloaded Homeboy\/HBEX command plan/, 'text command plan must advertise offloaded execution');
-  assert.match(generatedAggressiveFirehoseTextPlan, /^homeboy /m, 'default text command plan must print runnable homeboy commands');
+  assert.match(generatedAggressiveFirehoseTextPlan, /^homeboy fuzz run /m, 'default text command plan must print runnable destructive fuzz commands');
   const generatedPlanItems = generatedAggressiveFirehoseCommandPlan.plan_items || [];
-	assert.ok(generatedPlanItems.length >= 3, 'aggressive firehose command plan must include validation, request, and ref collection plan items');
+	assert.equal(generatedPlanItems.length, aggressiveProfileWorkloads.length + 2, 'aggressive firehose command plan must include validation, workload requests, and artifact ref collection');
 	const validationCommand = generatedPlanItems.find((entry) => entry.purpose === 'validate_disposable_rig')?.command_argv || [];
-	assert.deepEqual(validationCommand.slice(0, 3), ['homeboy', 'rig', 'check'], 'aggressive command plan must use Lab-portable rig check for validation');
-	assert.ok(!validationCommand.includes('up'), 'aggressive command plan must not emit local-only rig up');
+  assert.deepEqual(validationCommand.slice(0, 3), ['homeboy', 'rig', 'check'], 'aggressive command plan must use Lab-portable rig check for validation');
+  assert.ok(!validationCommand.includes('up'), 'aggressive command plan must not emit local-only rig up');
   const requestItems = generatedPlanItems.filter((entry) => entry.purpose?.startsWith('request_aggressive_isolated_firehose:'));
-  assert.equal(requestItems.length, aggressiveProfileWorkloads.length, 'aggressive command plan must include one request item per aggressive workload');
-  assert.deepEqual(new Set(requestItems.map((entry) => entry.command_argv?.[entry.command_argv.indexOf('--workload') + 1])), new Set(aggressiveProfileWorkloads), 'aggressive command plan request workloads drifted');
-	const requestCommand = requestItems[0]?.command_argv || [];
-  for (const flag of [
-    '--lab-only',
-    '--allow-destructive',
-    '--isolation',
-    'isolated',
-    '--fuzz-execution-request-artifact',
-    '--coverage-reconciliation',
-    '--wp-codebox-destructive-fuzz-suite-metadata',
-    '--rest-payload-families',
-    '--chaos-sequence-packs',
-    '--payload-size-depth-families',
-    '--relative-hotspot-taxonomy',
-    '--snapshot-restore',
-    '--hbex-aggressive-isolated-mode',
-    '--hbex-admin-generation',
-    '--hbex-database-generation',
-    '--hbex-browser-generation',
-    '--hbex-editor-generation',
-  ]) {
-    assert.ok(requestCommand.includes(flag), `aggressive command plan request must include ${flag}`);
+  assert.equal(requestItems.length, aggressiveProfileWorkloads.length, 'aggressive command plan must include request items for each workload');
+  for (const item of requestItems) {
+    assert.ok(item.command_argv.includes('--allow-destructive'), `${item.purpose} must opt into destructive fuzzing`);
+    assert.ok(item.command_argv.includes('--isolation-proof'), `${item.purpose} must provide explicit Homeboy isolation proof`);
   }
-	assert.equal(requestCommand[0], 'homeboy', 'aggressive command plan must use Homeboy');
-	assert.ok(requestCommand.includes('--workload'), 'aggressive command plan request must select a concrete Homeboy workload');
-	const extensionArgsIndex = requestCommand.indexOf('--');
-	assert.ok(extensionArgsIndex > 0, 'aggressive command plan must separate Homeboy flags from HBEX extension flags with --');
-	assert.ok(requestCommand.indexOf('--profile') > extensionArgsIndex, 'aggressive command plan profile flag must be passed as an HBEX extension arg');
-	assert.ok(requestCommand.indexOf('--runner') < extensionArgsIndex || !requestCommand.includes('--runner'), 'aggressive command plan runner flag must stay on the Homeboy side of --');
-	assert.ok(!requestCommand.includes('--execute-local'), 'aggressive command plan must not include local execution');
-  assert.ok(!requestCommand.includes('--allow-local-fallback'), 'aggressive command plan must not allow local fallback');
   assertNoLocalOnlyRefs(campaign, 'aggressive-isolated-fuzz-campaign');
   assertNoProofPlaceholders(campaign, 'aggressive-isolated-fuzz-campaign');
 }
@@ -739,16 +684,15 @@ function assertProductChaosSequencePackContract(manifest) {
   assert.equal(manifest.id, 'woocommerce-product-chaos-sequence-packs', 'product chaos sequence pack id drifted');
   assert.equal(manifest.owner_profile, 'aggressive-isolated-firehose', 'product chaos sequence pack owner profile drifted');
   assert.equal(manifest.target_inventory_manifest, 'manifests/target-inventory.json', 'product chaos sequence pack target inventory ref drifted');
-  assert.equal(manifest.status, 'executable_contract', 'product chaos sequence packs must be executable contracts');
-  assert.equal(manifest.execution_enabled, true, 'product chaos sequence packs must enable offloaded execution');
+  assert.equal(manifest.status, 'contract_backed_executable', 'product chaos sequence packs must be contract-backed executable');
+  assert.equal(manifest.execution_enabled, true, 'product chaos sequence packs must enable offloaded contract-backed execution');
   assert.equal(manifest.runner_behavior, 'offloaded_codebox_homeboy_hbex_isolated_sandbox', 'product chaos runner behavior drifted');
-  assert.equal(manifest.readiness?.level, 'executable', 'product chaos sequence pack readiness must be executable');
-  assert.equal(manifest.readiness?.execution_enabled, true, 'product chaos sequence pack readiness must enable offloaded execution');
+  assert.equal(manifest.readiness?.level, 'executable', 'product chaos sequence pack readiness must be contract-backed executable');
+  assert.equal(manifest.readiness?.execution_enabled, true, 'product chaos sequence pack readiness must enable offloaded contract-backed execution');
   assert.equal(manifest.readiness?.local_execution_enabled, false, 'product chaos sequence pack readiness must not enable local execution');
-  assert.equal(manifest.readiness?.proof_status, 'requires_reviewer_facing_artifacts', 'product chaos sequence pack proof status drifted');
-  assert.equal(manifest.readiness?.proof_bundle, undefined, 'product chaos executable readiness must not carry proof refs before reviewer-facing artifacts exist');
+  assert.equal(manifest.readiness?.proof_status, 'requires_reviewer_facing_artifacts_before_proven', 'product chaos sequence pack proof status drifted');
+  assert.equal(manifest.readiness?.proof_bundle, undefined, 'product chaos declared readiness must not carry proof refs before reviewer-facing artifacts exist');
   assertFuzzProofBundleRequirements(manifest.readiness?.proof_bundle_requirements, { file: 'product-chaos-sequence-packs readiness' });
-  assert.equal(manifest.readiness?.upstream_blockers, undefined, 'product chaos sequence packs must not carry terminal upstream blockers');
   assertNoLocalOnlyRefs(manifest, 'product-chaos-sequence-packs');
   assertNoProofPlaceholders(manifest, 'product-chaos-sequence-packs');
   assertNoHardThresholdClaims(manifest, 'product-chaos-sequence-packs');
@@ -770,7 +714,7 @@ function assertProductChaosSequencePackContract(manifest) {
   const payloadFamilies = new Map((manifest.payload_size_depth_families || []).map((family) => [family.id, family]));
   assert.deepEqual(new Set(payloadFamilies.keys()), new Set(['catalog-payload-shapes', 'commerce-session-shapes', 'business-object-shapes', 'admin-settings-shapes']), 'payload size/depth family ids drifted');
   for (const [familyId, family] of payloadFamilies) {
-    assert.equal(family.readiness, 'executable_in_isolated_sandbox', `${familyId} payload family must be executable in isolated sandbox`);
+    assert.equal(family.readiness, 'destructive_isolated_executable', `${familyId} payload family must wire executable upstream contracts`);
     assert.ok(Array.isArray(family.applies_to) && family.applies_to.length > 0, `${familyId} requires applies_to surfaces`);
     assert.ok(Array.isArray(family.size_labels) && family.size_labels.length > 0, `${familyId} requires size labels`);
     assert.ok(Array.isArray(family.depth_labels) && family.depth_labels.length > 0, `${familyId} requires depth labels`);
@@ -780,7 +724,7 @@ function assertProductChaosSequencePackContract(manifest) {
   const fixtureFamilies = new Map((manifest.fixture_families || []).map((family) => [family.id, family]));
   assert.deepEqual(new Set(fixtureFamilies.keys()), new Set(['catalog-products-and-variations', 'cart-checkout-store-api', 'orders-coupons-customers', 'settings-reports-admin', 'cross-surface-api-state']), 'product chaos fixture family ids drifted');
   for (const [familyId, family] of fixtureFamilies) {
-    assert.equal(family.readiness, 'executable_in_isolated_sandbox', `${familyId} fixture family must be executable in isolated sandbox`);
+    assert.equal(family.readiness, 'destructive_isolated_executable', `${familyId} fixture family must wire executable upstream contracts`);
     assert.ok(Array.isArray(family.surfaces) && family.surfaces.length > 0, `${familyId} requires surfaces`);
     assert.ok(Array.isArray(family.seed_refs) && family.seed_refs.length > 0, `${familyId} requires seed refs`);
     for (const seedRef of family.seed_refs) {
@@ -790,7 +734,7 @@ function assertProductChaosSequencePackContract(manifest) {
   }
 
   for (const pack of manifest.sequence_packs || []) {
-    assert.equal(pack.readiness, 'executable_in_isolated_sandbox', `${pack.id} sequence pack must be executable in isolated sandbox`);
+    assert.equal(pack.readiness, 'destructive_isolated_executable', `${pack.id} sequence pack must wire executable upstream contracts`);
     assert.ok(fixtureFamilies.has(pack.fixture_family), `${pack.id} sequence pack fixture family drifted`);
     assert.ok(Array.isArray(pack.steps) && pack.steps.length > 0, `${pack.id} sequence pack requires ordered steps`);
     assert.deepEqual(new Set(Object.keys(pack.hotspot_labels || {})), taxonomyLabels, `${pack.id} hotspot labels must match taxonomy labels`);
@@ -1115,26 +1059,26 @@ assert.deepEqual(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.generi
   'wp-codebox/wordpress-workload-run/v1',
   'wp-codebox/mutation-isolation-artifact/v1',
   'wp-codebox/delete-boundary-artifact/v1',
-], 'product REST CRUD profile must consume the generic rollback-safe REST mutation primitive');
+], 'product REST CRUD profile must consume the generic isolated REST mutation primitive');
 assertProfileReadiness(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness, 'fuzz_profile_metadata.product-rest-crud-fuzzer.readiness');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.create?.level, 'executable', 'product REST CRUD create readiness must be executable');
-assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.create?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD create must use the generic rollback-safe REST mutation primitive');
+assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.create?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD create must use the generic isolated REST mutation primitive');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.level, 'executable', 'product REST CRUD update readiness must be executable');
-assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD update must use the generic rollback-safe REST mutation primitive');
+assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product REST CRUD update must use the generic isolated REST mutation primitive');
 const productRestCrudProfile = rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'];
 assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'declared', 'product REST CRUD delete readiness must remain declared until delete-boundary artifacts exist');
-assert.match(productRestCrudProfile?.readiness?.crud?.delete?.upstream_blocker || '', /delete-boundary rollback artifact contract/, 'product REST CRUD delete blocker must name missing delete-boundary rollback artifact contract');
+assert.match(productRestCrudProfile?.readiness?.crud?.delete?.upstream_blocker || '', /delete-boundary mutation artifact contract/, 'product REST CRUD delete blocker must name missing delete-boundary mutation artifact contract');
 assert.equal(productRestCrudProfile?.readiness?.mutation?.rollback_artifacts?.includes('delete_boundary'), false, 'product REST CRUD mutation readiness must not require delete_boundary until delete is executable');
 
 const productBatchManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-product-batch-import')?.manifest;
 assert.equal(productBatchManifest.metadata?.readiness?.profile, 'product-rest-crud-fuzzer', 'product batch import readiness profile drifted');
 assert.equal(productBatchManifest.metadata?.readiness?.level, 'executable', 'product batch import create/update readiness must be executable');
 assert.equal(productBatchManifest.metadata?.readiness?.crud?.create?.level, 'executable', 'product batch import create readiness must be executable');
-assert.equal(productBatchManifest.metadata?.readiness?.crud?.create?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import create must consume rollback-safe REST mutation');
+assert.equal(productBatchManifest.metadata?.readiness?.crud?.create?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import create must consume isolated REST mutation');
 assert.equal(productBatchManifest.metadata?.readiness?.crud?.update?.level, 'executable', 'product batch import update readiness must be executable');
-assert.equal(productBatchManifest.metadata?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import update must consume rollback-safe REST mutation');
+assert.equal(productBatchManifest.metadata?.readiness?.crud?.update?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import update must consume isolated REST mutation');
 assert.equal(productBatchManifest.metadata?.readiness?.crud?.delete?.level, 'declared', 'product batch import delete readiness must remain declared/blocked');
-assert.match(productBatchManifest.metadata?.readiness?.crud?.delete?.upstream_blocker, /delete-boundary rollback artifact contract/, 'product batch import delete blocker must name missing delete-boundary rollback artifact contract');
+assert.match(productBatchManifest.metadata?.readiness?.crud?.delete?.upstream_blocker, /delete-boundary mutation artifact contract/, 'product batch import delete blocker must name missing delete-boundary mutation artifact contract');
 assert.equal(productBatchManifest.metadata?.readiness?.mutation?.primitive, 'wordpress.rollback-safe-rest-mutation', 'product batch import mutation readiness must name the generic mutation primitive');
 assert.deepEqual(productBatchManifest.metadata?.payload_fixtures?.roles, ['administrator', 'shop_manager'], 'product batch import payload fixtures must declare Woo REST roles');
 assert.equal(productBatchManifest.metadata?.payload_fixtures?.namespace, 'wc/v3', 'product batch import payload fixtures must declare Woo REST namespace');
@@ -1200,7 +1144,7 @@ for (const family of restCrudPayloadFixtures.families) {
   }
   assert.deepEqual(family.executable_operations, [], `${family.id} payload fixtures must not claim executable mutations`);
   for (const operation of ['create', 'update', 'delete']) {
-    assert.match(family.blocked_operations?.[operation] || '', /generic REST mutation runner|wp-codebox\/fuzz-fixture-plan\/v1|rollback\/isolation|delete-boundary rollback artifact/, `${family.id} ${operation} blocker must name upstream primitives`);
+    assert.match(family.blocked_operations?.[operation] || '', /generic REST mutation runner|wp-codebox\/fuzz-fixture-plan\/v1|mutation isolation|delete-boundary (?:mutation )?artifact/, `${family.id} ${operation} blocker must name upstream primitives`);
   }
 }
 
@@ -1215,31 +1159,31 @@ for (const family of restCrudRouteFamilyCatalog.route_families) {
     assertFuzzReadinessLevel(family.readiness?.[operation]?.level, `${family.id} ${operation} readiness level`);
   }
   if (['products-collection', 'products-batch', 'product-variations-batch'].includes(family.id)) {
-    assert.equal(family.mutation_contract?.primitive, 'wordpress.rollback-safe-rest-mutation', `${family.id} must consume the generic rollback-safe REST mutation primitive`);
-    assert.deepEqual(family.mutation_contract?.rollback_artifacts, ['raw_result'], `${family.id} must declare raw_result as the rollback artifact`);
+    assert.equal(family.mutation_contract?.primitive, 'wordpress.rollback-safe-rest-mutation', `${family.id} must consume the generic isolated REST mutation primitive`);
+    assert.deepEqual(family.mutation_contract?.rollback_artifacts, ['raw_result'], `${family.id} must declare raw_result as the mutation artifact`);
     const familyHasDeleteBoundaryContracts = hasDeleteBoundaryContractRefs(family.mutation_contract);
     assert.deepEqual(
       family.mutation_contract?.executable_operations,
       familyHasDeleteBoundaryContracts ? ['create', 'update', 'delete'] : ['create', 'update'],
-      `${family.id} executable operations must match declared rollback/delete-boundary contract refs`
+      `${family.id} executable operations must match declared mutation/delete-boundary contract refs`
     );
     assert.equal(family.payload_fixtures?.namespace, 'wc/v3', `${family.id} payload fixtures must declare wc/v3 namespace`);
     assert.deepEqual(family.payload_fixtures?.roles, ['administrator', 'shop_manager'], `${family.id} payload fixtures must declare Woo REST roles`);
     if (familyHasDeleteBoundaryContracts) {
       assert.equal(family.payload_fixtures?.delete?.level, 'executable', `${family.id} delete payload fixture must be executable when delete-boundary contract refs are present`);
-      assert.deepEqual(family.mutation_contract?.delete_boundary_rollback_artifacts, ['wp-codebox/delete-boundary-artifact/v1'], `${family.id} executable delete requires delete-boundary rollback artifacts`);
+      assert.deepEqual(family.mutation_contract?.delete_boundary_rollback_artifacts, ['wp-codebox/delete-boundary-artifact/v1'], `${family.id} executable delete requires delete-boundary mutation artifacts`);
     } else {
       assert.equal(family.payload_fixtures?.delete?.level, 'declared', `${family.id} delete payload fixture must remain declared without delete-boundary contract refs`);
-      assert.match(family.payload_fixtures?.delete?.upstream_blocker || '', /delete-boundary rollback artifact|current workload does not execute delete/, `${family.id} delete payload fixture must name the precise delete blocker`);
+      assert.match(family.payload_fixtures?.delete?.upstream_blocker || '', /delete-boundary mutation artifact|current workload does not execute delete/, `${family.id} delete payload fixture must name the precise delete blocker`);
     }
   }
   if (family.payload_fixture_family) {
     assert.ok(payloadFixtureFamilies.has(family.payload_fixture_family), `${family.id} payload_fixture_family must exist in the payload fixture manifest`);
   }
   if (family.readiness.delete.level === 'executable') {
-    assert.ok(family.mutation_contract?.delete_boundary_rollback_artifacts?.length > 0, `${family.id} executable delete requires delete-boundary rollback artifacts`);
+    assert.ok(family.mutation_contract?.delete_boundary_rollback_artifacts?.length > 0, `${family.id} executable delete requires delete-boundary mutation artifacts`);
   } else {
-    assert.match(family.readiness.delete.upstream_blocker || '', /delete-boundary rollback artifacts|current workload does not execute delete/, `${family.id} blocked delete must name the precise delete-boundary blocker`);
+    assert.match(family.readiness.delete.upstream_blocker || '', /delete-boundary mutation artifacts|current workload does not execute delete/, `${family.id} blocked delete must name the precise delete-boundary blocker`);
   }
 }
 

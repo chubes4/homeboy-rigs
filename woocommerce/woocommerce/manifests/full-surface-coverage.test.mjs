@@ -28,6 +28,9 @@ const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 
 const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
 const aggressiveIsolatedCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json'), 'utf8'));
 const aggressiveDestructiveWorkloads = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-destructive-workloads.json'), 'utf8'));
+const restCrudFixturePlan = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-fixture-plan.json'), 'utf8'));
+const targetInventory = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/target-inventory.json'), 'utf8'));
+const productChaosSequencePacks = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/product-chaos-sequence-packs.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
 const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
@@ -36,6 +39,13 @@ const performanceHotspotsWorkload = JSON.parse(readFileSync(path.join(packageRoo
 const runtimePrepScript = readFileSync(path.join(packageRoot, 'tools/prepare-runtime-dependency.sh'), 'utf8');
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
+const genericExecutableReadinessStates = new Set([
+  'targeted_workload_executable',
+  'isolated_mutation_executable',
+  'destructive_isolated_executable',
+  'sensitive_isolated_executable',
+  'executable_in_isolated_sandbox',
+]);
 
 const executableCoverageWorkloadIds = () => new Set([
   ...Object.values(performanceRig.bench_workloads?.wordpress || {}).flat().map((entry) => workloadIdFromPath(entry.path)),
@@ -221,7 +231,7 @@ test('DB/API campaign consumes the declared Codebox fixture contract without pro
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle_requirements.status, 'required_before_proven');
 });
 
-test('aggressive destructive Woo workloads declare isolation, rollback, dynamic IDs, and side-effect policy gates', () => {
+test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and side-effect policy gates', () => {
   assert.equal(
     aggressiveIsolatedCampaign.fixture_sources.aggressive_destructive_workloads,
     'manifests/aggressive-destructive-workloads.json'
@@ -229,6 +239,12 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   assert.equal(aggressiveDestructiveWorkloads.execution_scope, 'offloaded_codebox_homeboy_hbex_isolated_sandbox');
   assert.equal(aggressiveDestructiveWorkloads.local_execution_enabled, false);
   assert.equal(aggressiveDestructiveWorkloads.destructive_full_coverage_proven, false);
+  assert.equal(aggressiveDestructiveWorkloads.readiness.level, 'executable');
+  assert.equal(aggressiveDestructiveWorkloads.readiness.execution_enabled, true);
+  assert.deepEqual(aggressiveDestructiveWorkloads.readiness.missing_upstream_contracts, []);
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/isolation-proof/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'));
   assert.equal(aggressiveDestructiveWorkloads.readiness.proof_bundle_requirements.status, 'required_before_proven');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.scope, 'fixture_owned_only');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.placeholder_ids_allowed, false);
@@ -250,8 +266,6 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
     'codebox_isolation_readiness',
     'snapshot_restore_artifact',
     'fixture_dynamic_id_manifest',
-    'rollback_plan',
-    'rollback_verification',
     'side_effect_policy_evidence',
     'destructive_case_ledger',
   ]) {
@@ -261,10 +275,50 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   for (const workload of aggressiveDestructiveWorkloads.workloads) {
     assert.ok(workload.fixture_family, `${workload.id} must bind to a fixture family`);
     assert.ok(workload.fixture_dynamic_ids.length > 0, `${workload.id} must use fixture-owned dynamic IDs`);
-    assert.ok(workload.rollback_scope.length > 0, `${workload.id} must declare rollback scope`);
+    assert.ok(workload.disposable_mutation_scope.length > 0, `${workload.id} must declare disposable mutation scope`);
     for (const artifact of requiredArtifacts) {
       assert.ok(workload.required_artifacts.includes(artifact), `${workload.id} must require ${artifact}`);
     }
+  }
+});
+
+test('REST CRUD fixture plan advertises executable state only through explicit upstream contracts', () => {
+  assert.equal(restCrudFixturePlan.metadata.execution_enabled, true);
+  assert.equal(restCrudFixturePlan.metadata.readiness_level, 'executable');
+  assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('homeboy/isolation-proof/v1'));
+  assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
+
+  const surfaces = targetInventory.discovery_manifests.product_surface_taxonomy.surfaces;
+  const surfaceByResourceKind = new Map([
+    ['product', 'products'],
+    ['order', 'orders'],
+    ['customer', 'customers'],
+    ['coupon', 'coupons'],
+  ]);
+
+  for (const operation of restCrudFixturePlan.operations) {
+    assert.equal(operation.expected.execute, true, `${operation.id} must be contract-backed executable`);
+    assert.equal(operation.expected.readiness_level, 'executable', `${operation.id} readiness drifted`);
+    assert.ok(operation.expected.contract_ids.includes('homeboy/isolation-proof/v1'), `${operation.id} must wire Homeboy isolation proof`);
+    assert.ok(operation.expected.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'), `${operation.id} must wire WP Codebox sandbox isolation proof`);
+    const surfaceId = surfaceByResourceKind.get(operation.resource.kind);
+    assert.ok(surfaceId, `${operation.id} must map to a target inventory surface`);
+    const state = surfaces[surfaceId].operation_readiness[operation.metadata.operation];
+    assert.ok(state, `${operation.id} must declare ${operation.metadata.operation} readiness`);
+    assert.ok(genericExecutableReadinessStates.has(state), `${operation.id} must map to contract-backed executable target inventory state`);
+  }
+
+  assert.equal(productChaosSequencePacks.execution_enabled, true);
+  assert.equal(productChaosSequencePacks.readiness.execution_enabled, true);
+  assert.equal(aggressiveIsolatedCampaign.readiness.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose'].readiness.execution_enabled, true);
+  assert.equal(targetInventory.discovery_manifests.product_chaos_sequence_packs.readiness.execution_enabled, true);
+
+  for (const family of aggressiveIsolatedCampaign.fixture_families) {
+    assert.ok(genericExecutableReadinessStates.has(family.readiness), `${family.id} fixture family must wire executable upstream contracts`);
+  }
+  for (const sequencePack of productChaosSequencePacks.sequence_packs) {
+    assert.ok(genericExecutableReadinessStates.has(sequencePack.readiness), `${sequencePack.id} sequence pack must wire executable upstream contracts`);
   }
 });
 
@@ -281,19 +335,19 @@ test('aggressive destructive Woo workloads cover required destructive surface fa
   assert.ok(workloadSurfaces.get('hpos-order-table-destructive-lifecycle').has('hpos'));
   assert.ok(workloadSurfaces.get('action-scheduler-destructive-lifecycle').has('action_scheduler'));
 
-  const hposRollbackScope = new Set(
-    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').rollback_scope
+  const hposMutationScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').disposable_mutation_scope
   );
-  assert.ok(hposRollbackScope.has('wp_wc_orders'));
-  assert.ok(hposRollbackScope.has('wp_wc_order_addresses'));
-  assert.ok(hposRollbackScope.has('wp_wc_order_operational_data'));
+  assert.ok(hposMutationScope.has('wp_wc_orders'));
+  assert.ok(hposMutationScope.has('wp_wc_order_addresses'));
+  assert.ok(hposMutationScope.has('wp_wc_order_operational_data'));
 
-  const actionSchedulerRollbackScope = new Set(
-    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').rollback_scope
+  const actionSchedulerMutationScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').disposable_mutation_scope
   );
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_actions'));
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_claims'));
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_logs'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_actions'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_claims'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_logs'));
 });
 
 test('external side-effect policy blocks live effects and requires skip or isolated mock evidence', () => {
