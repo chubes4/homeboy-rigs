@@ -14,7 +14,8 @@
     "wordpress-plugin-module-state-matrix",
     "wordpress-plugin-module-option-table-inventory",
     "wordpress-plugin-sync-queue-coverage",
-    "wordpress-plugin-cron-sync-actions"
+    "wordpress-plugin-cron-sync-actions",
+    "wordpress-disposable-destructive-contract"
   ],
   "coverage_map": {
     "rest": {
@@ -100,10 +101,10 @@
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "options": {
-      "coverage_goal": "bounded Jetpack option read/write/default shape coverage for isolated fixture options, including serialized values and rollback verification",
+      "coverage_goal": "bounded Jetpack option read/write/default shape coverage for isolated disposable fixture options, including serialized value and disposable destructive contract artifacts",
       "workload": "fuzz/jetpack-options-matrix.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json",
-      "mutation_policy": "snapshot_before_write_restore_after_assert"
+      "mutation_policy": "upstream_disposable_destructive_contract"
     },
     "modules": {
       "coverage_goal": "bounded Jetpack module activate/deactivate/settings state matrix plus module option/table inventory in an isolated runner",
@@ -118,7 +119,7 @@
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
     "connection_fixtures": {
-      "coverage_goal": "connected/disconnected site fixture boundaries, token placeholder serialization, and WP.com-dependent skip classifications",
+      "coverage_goal": "local placeholder connected/disconnected fixture boundaries, token placeholder serialization, and WP.com remote-state provisioning blockers",
       "workload": "fuzz/jetpack-connected-disconnected-fixtures.json",
       "rig": "rigs/jetpack-api-route-inventory/rig.json"
     },
@@ -196,10 +197,10 @@
     },
     "jetpack-module-state-matrix": {
       "surface": "modules",
-      "coverage_shape": "bounded Jetpack module activation, deactivation, dependency, and settings-state matrix",
+      "coverage_shape": "bounded Jetpack module activation, deactivation, dependency, and settings-state matrix for local disposable mutation",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Mutates only module state in the isolated runner", "Connection-dependent modules are classified instead of calling external services"]
+        "notes": ["Mutates only module state in the isolated disposable runner", "Connection-dependent remote effects are blocked until explicit WP.com provisioning exists", "Rollback is not required for disposable sandbox mutation"]
       },
       "artifact_expectations": { "required": ["metrics", "module matrix rows"], "optional": ["skipped module reasons"] }
     },
@@ -214,37 +215,37 @@
     },
     "jetpack-options-matrix": {
       "surface": "options",
-      "coverage_shape": "bounded Jetpack option defaults, serialization, update, and rollback matrix",
+      "coverage_shape": "bounded Jetpack option defaults, serialization, update, and local disposable mutation matrix",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Mutates options only inside the isolated runner database", "Secrets and tokens are represented by synthetic placeholder values", "Every mutation must record before/after/restore rows so failed assertions can roll back safely"]
+        "notes": ["Mutates options only inside the isolated disposable runner database", "Secrets and tokens are represented by synthetic placeholder values", "Rollback is not required for disposable sandbox mutation"]
       },
-      "artifact_expectations": { "required": ["metrics", "option matrix rows", "rollback rows", "serialization boundary rows"], "optional": ["autoload counts", "secret placeholder classifications"] }
+      "artifact_expectations": { "required": ["metrics", "option matrix rows", "disposable destructive contract rows", "serialization boundary rows"], "optional": ["autoload counts", "secret placeholder classifications"] }
     },
     "jetpack-sync-queue-coverage": {
       "surface": "sync",
       "coverage_shape": "bounded Jetpack sync queue, action serialization, cron, and retry coverage without remote dispatch",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Exercises local sync queue state only", "Outbound WordPress.com dispatch is blocked by the external HTTP guardrail", "Queue option deltas must be restored before the run exits"]
+        "notes": ["Exercises local sync queue state only", "Outbound WordPress.com dispatch is blocked by the external HTTP guardrail", "Rollback is not required for disposable sandbox mutation"]
       },
-      "artifact_expectations": { "required": ["metrics", "sync queue artifact", "serialized action samples", "queue rollback rows"], "optional": ["retry boundary rows"] }
+      "artifact_expectations": { "required": ["metrics", "sync queue artifact", "serialized action samples", "queue disposable mutation rows"], "optional": ["retry boundary rows"] }
     },
     "jetpack-cron-sync-actions": {
       "surface": "sync",
-      "coverage_shape": "Jetpack cron event, local sync action, queue option delta, and rollback-safe cron mutation inventory without remote dispatch",
+      "coverage_shape": "Jetpack cron event, local sync action, queue option delta, and disposable cron mutation inventory without remote dispatch",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Schedules and clears only synthetic cron events in the isolated runner", "Blocks outbound dispatch with the Jetpack external HTTP guardrail", "Records rollback rows for cron and queue option mutations"]
+        "notes": ["Schedules and clears only synthetic cron events in the isolated disposable runner", "Blocks outbound dispatch with the Jetpack external HTTP guardrail", "Rollback is not required for disposable sandbox mutation"]
       },
-      "artifact_expectations": { "required": ["cron events", "sync actions", "queue option deltas", "rollback rows"], "optional": ["blocked dispatch attempts", "skipped action reasons"] }
+      "artifact_expectations": { "required": ["cron events", "sync actions", "queue option deltas", "disposable mutation rows"], "optional": ["blocked dispatch attempts", "skipped action reasons"] }
     },
     "jetpack-connected-disconnected-fixtures": {
       "surface": "connection_fixtures",
-      "coverage_shape": "connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, fixture option restoration, and WP.com-dependent skip classifications",
+      "coverage_shape": "local placeholder connected and disconnected Jetpack fixture-state matrix for REST, module, sync, token-placeholder serialization, fixture reset, and WP.com remote-state provisioning blockers",
       "safety": {
         "classification": "isolated_fixture_mutation",
-        "notes": ["Uses synthetic placeholder connection values only", "Records connected_required, disconnected_expected, and credential_unavailable skip reasons instead of contacting WordPress.com"]
+        "notes": ["Uses synthetic placeholder connection values only", "Records provisioned_connected_state_required, connected_required, disconnected_expected, and credential_unavailable skip reasons instead of contacting WordPress.com", "Does not claim true WP.com connected-state support"]
       },
       "artifact_expectations": { "required": ["metrics", "connection fixture matrix artifact", "connection skip reason artifact"], "optional": ["skip reason samples", "placeholder serialization rows"] }
     },

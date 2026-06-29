@@ -4,7 +4,7 @@
   "label": "Jetpack cron and sync action inventory",
   "safety_class": "isolated_mutation",
   "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"],
-  "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "rollback-safe-cron-mutation"],
+  "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "disposable-cron-mutation"],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": {
@@ -14,27 +14,35 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "network_policy": "block_all_synthetic_external_requests",
+    "mutation_policy": "upstream_disposable_destructive_contract",
+    "upstream_disposable_destructive_contract": {
+      "status": "required",
+      "contract": "wordpress-disposable-destructive-contract",
+      "fixture_scope": "wp-codebox-disposable-wordpress",
+      "rollback_required": false,
+      "remote_state_allowed": false
+    },
     "artifact_expectations": {
-      "required": ["cron_events", "sync_actions", "queue_option_deltas", "rollback_rows", "connected_disconnected_blockers", "replay_fixture_manifest", "proof_artifact_index"],
+      "required": ["cron_events", "sync_actions", "queue_option_deltas", "disposable_mutation_rows", "connected_disconnected_blockers", "replay_fixture_manifest", "proof_artifact_index"],
       "optional": ["blocked_dispatch_attempts", "serialized_action_samples", "skipped_actions", "schedule_drift_rows"]
     },
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Jetpack-specific cron hooks, sync actions, queue option deltas, connected/disconnected blockers, replay fixtures, and rollback-safe cron mutation inventory with external HTTP blocked.",
+      "coverage_contract": "Jetpack-specific cron hooks, sync actions, queue option deltas, connected/disconnected blockers, replay fixtures, and disposable cron mutation inventory with external HTTP blocked.",
       "upstream_blockers": [
-        "durable rollback artifact manifests and persisted proof links are required before proven status",
-        "connected Jetpack runs require synthetic token fixtures or reviewer-approved fixture credentials before credential-gated hooks can be replayed",
-        "cron and sync replay proof must come from a disposable fixture; this manifest does not add a generic cron runner or sync queue executor primitive"
+        "true WP.com connected-state behavior requires an explicit OAuth app, sandbox blog, service account, or exact equivalent before credential-gated hooks can run"
       ],
       "mutation": {
-        "safety_boundary": "Runs in isolated WP Codebox fixtures with remote dispatch disabled, original values restored, rollback required, and external HTTP guarded.",
+        "safety_boundary": "Runs in isolated WP Codebox fixtures through the upstream disposable destructive contract with remote dispatch disabled and external HTTP guarded.",
+        "rollback_required": false,
         "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
-        "mutation_isolation_artifacts": ["cron_sync_actions", "cron_sync_mutation_rows", "queue_option_mutation_rows"],
+        "mutation_isolation_artifacts": ["cron_sync_actions", "cron_sync_disposable_mutation_rows", "queue_option_before_after_rows"],
         "delete_boundary_artifacts": ["delete_boundary_artifact"],
         "destructive_case_ledgers": ["destructive_case_ledger"],
         "teardown_discard_evidence": ["sandbox_teardown_evidence"],
         "artifact_bundle_refs": ["artifact_bundle_ref"],
-        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
+        "rollback_artifacts": [],
+        "disposable_contract_artifacts": ["cron_sync_actions", "cron_sync_disposable_mutation_rows", "queue_option_before_after_rows"]
       }
     }
   },
@@ -44,7 +52,7 @@
     {
       "case_id": "jetpack-cron-sync-actions:default",
       "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"],
-      "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "rollback-safe-cron-mutation"],
+      "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "disposable-cron-mutation"],
       "inputs": {
         "cron_hooks": [
           "jetpack_clean_nonces",
@@ -74,22 +82,22 @@
         ],
         "queue_options": ["jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started", "jetpack_sync_settings_sync_wait_time", "jetpack_sync_non_blocking", "jetpack_sync_checksum"],
         "queue_surfaces": [
-          { "name": "jpsq_sync_checkout", "kind": "option", "mutation_policy": "snapshot_restore", "proof_rows": ["before", "after", "restored"] },
-          { "name": "jpsq_sync_started", "kind": "option", "mutation_policy": "snapshot_restore", "proof_rows": ["before", "after", "restored"] },
-          { "name": "jpsq_full_sync_started", "kind": "option", "mutation_policy": "snapshot_restore", "proof_rows": ["before", "after", "restored"] },
-          { "name": "jetpack_sync_settings_sync_wait_time", "kind": "option", "mutation_policy": "snapshot_restore", "proof_rows": ["before", "after", "restored"] },
-          { "name": "jetpack_sync_non_blocking", "kind": "option", "mutation_policy": "snapshot_restore", "proof_rows": ["before", "after", "restored"] },
-          { "name": "jetpack_sync_checksum", "kind": "option", "mutation_policy": "snapshot_restore", "proof_rows": ["before", "after", "restored"] }
+          { "name": "jpsq_sync_checkout", "kind": "option", "mutation_policy": "upstream_disposable_destructive_contract", "proof_rows": ["before", "after"] },
+          { "name": "jpsq_sync_started", "kind": "option", "mutation_policy": "upstream_disposable_destructive_contract", "proof_rows": ["before", "after"] },
+          { "name": "jpsq_full_sync_started", "kind": "option", "mutation_policy": "upstream_disposable_destructive_contract", "proof_rows": ["before", "after"] },
+          { "name": "jetpack_sync_settings_sync_wait_time", "kind": "option", "mutation_policy": "upstream_disposable_destructive_contract", "proof_rows": ["before", "after"] },
+          { "name": "jetpack_sync_non_blocking", "kind": "option", "mutation_policy": "upstream_disposable_destructive_contract", "proof_rows": ["before", "after"] },
+          { "name": "jetpack_sync_checksum", "kind": "option", "mutation_policy": "upstream_disposable_destructive_contract", "proof_rows": ["before", "after"] }
         ],
         "connection_state_blockers": [
           { "state": "disconnected", "classification": "blocked", "reason_code": "connected_required", "applies_to": ["jetpack_sync_cron", "jetpack_sync_full_cron", "jetpack_v2_heartbeat", "jetpack_scan_refresh_states_event"] },
           { "state": "connected_placeholder", "classification": "guarded", "reason_code": "wpcom_boundary_blocked", "applies_to": ["jetpack_v2_heartbeat", "jetpack_scan_refresh_states_event", "jetpack_waf_rules_update_cron", "jetpack_waf_ip_allow_list_update_cron"] }
         ],
-        "replay_fixture_requirements": ["isolated_wp_codebox_site", "jetpack_plugin_active", "synthetic_connection_placeholders", "external_http_guardrail", "pre_action_queue_snapshot", "post_action_queue_restore"],
-        "proof_artifact_expectations": ["cron event inventory with hook/source/state rows", "sync action inventory with payload-shape rows", "connected/disconnected blocker rows", "queue option before/after/restore rows", "replay fixture manifest", "external HTTP guardrail assertion", "proof artifact index"],
+        "replay_fixture_requirements": ["isolated_wp_codebox_site", "jetpack_plugin_active", "synthetic_connection_placeholders", "external_http_guardrail", "upstream_disposable_destructive_contract"],
+        "proof_artifact_expectations": ["cron event inventory with hook/source/state rows", "sync action inventory with payload-shape rows", "connected/disconnected blocker rows", "queue option before/after rows", "replay fixture manifest", "external HTTP guardrail assertion", "proof artifact index"],
         "remote_dispatch": false,
-        "restore_original_values": true,
-        "rollback_required": true,
+        "connected_remote_state_provisioning_required": true,
+        "rollback_required": false,
         "force_http_guardrail": true
       },
       "phases": {
@@ -97,7 +105,7 @@
           { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] },
           { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }
         ],
-        "action": [{ "command": "wordpress.inventory-plugin-cron-sync-actions", "args": ["remote_dispatch=false", "restore_original_values=true", "rollback_required=true", "force_http_guardrail=true"] }],
+        "action": [{ "command": "wordpress.inventory-plugin-cron-sync-actions", "args": ["remote_dispatch=false", "connected_remote_state_provisioning_required=true", "rollback_required=false", "force_http_guardrail=true"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=cron_sync_actions"] }]
       },
       "artifacts": [
@@ -109,7 +117,7 @@
     }
   ],
   "limits": { "max_cases": 80, "max_duration_seconds": 900 },
-  "coverage": { "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "rollback-safe-cron-mutation"] },
+  "coverage": { "surface_ids": ["jetpack-sync", "wordpress-cron", "wordpress-options"], "operations": ["cron-event-inventory", "sync-action-inventory", "queue-option-delta", "disposable-cron-mutation"] },
   "artifacts": { "expected": [
     { "name": "cron_sync_actions", "role": "fuzz_report", "semantic_key": "fuzz.report", "required": true },
     { "name": "cron_sync_replay_fixture", "role": "fixture_manifest", "semantic_key": "fuzz.replay_fixture", "required": true },

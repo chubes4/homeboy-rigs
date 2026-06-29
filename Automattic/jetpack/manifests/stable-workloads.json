@@ -4,7 +4,7 @@
   "description": "Reviewer-friendly Jetpack profiling workload names. Jetpack owns route, module, admin, DB, and external HTTP semantics here; Homeboy only runs declared workload ids and collects generic artifacts.",
   "rig": "rigs/jetpack-api-route-inventory/rig.json",
   "lab_command_generator": "tools/stable-workload-lab-commands.mjs",
-  "comparison_surfaces": ["fuzz-observations", "fuzz-hotspots", "db-query-hotspots", "coverage-gaps", "guardrail-results"],
+  "comparison_surfaces": ["fuzz-observations", "relative-hotspot-artifacts", "db-query-hotspots", "coverage-gaps", "guardrail-results"],
   "contracts": [
     {
       "id": "rest-db-query-profile",
@@ -17,7 +17,8 @@
         "required_artifacts": ["rest_request_cases", "rest_db_query_profile"],
         "required_artifact_fields": ["per_route_query_counts", "query_attribution", "budget_comparison", "connected_state_caveats"]
       },
-      "budgets": {
+      "relative_hotspot_artifacts": ["rest_db_query_profile", "fuzz_hotspot_delta", "coverage_gap_report"],
+      "optional_run_caps": {
         "max_profiled_rest_cases": 50,
         "max_queries_per_rest_case": 75,
         "max_uncached_options_queries_per_case": 12,
@@ -36,7 +37,8 @@
         "required_artifacts": ["db_inventory", "module_option_table_inventory"],
         "required_artifact_fields": ["option_keys", "table_prefixes", "module_groups", "connected_state_blockers"]
       },
-      "budgets": {
+      "relative_hotspot_artifacts": ["db_inventory", "module_option_table_inventory"],
+      "optional_run_caps": {
         "max_duration_seconds": 600
       }
     },
@@ -52,7 +54,8 @@
         "required_artifacts": ["admin_page_coverage", "public_module_frontend_coverage"],
         "required_skip_reason_codes": ["connection_required", "credential_unavailable", "destructive_action"]
       },
-      "budgets": {
+      "relative_hotspot_artifacts": ["admin_page_coverage", "public_module_frontend_coverage", "browser_request_hotspot_delta"],
+      "optional_run_caps": {
         "max_admin_pages": 40,
         "max_external_service_requests": 0,
         "max_duration_seconds": 900
@@ -68,7 +71,8 @@
         "required_artifacts": ["external_http_guardrail"],
         "required_status_outcomes": ["blocked_synthetic_probe", "classified_wpcom_boundary"]
       },
-      "budgets": {
+      "relative_hotspot_artifacts": ["external_http_guardrail", "guardrail_hotspot_delta"],
+      "optional_run_caps": {
         "max_live_external_service_calls": 0,
         "max_duration_seconds": 600
       }
