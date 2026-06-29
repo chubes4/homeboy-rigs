@@ -390,6 +390,7 @@
           "destructive_case_ledgers": ["destructive_case_ledger"],
           "teardown_discard_evidence": ["sandbox_teardown_evidence"],
           "artifact_bundle_refs": ["artifact_bundle_ref"],
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
           "upstream_blockers": [
             "Generic REST mutation runner must emit mutation artifacts before create/update/delete cases can join this profile.",
             "Generic REST mutation runner must emit delete-boundary mutation artifacts before mutating CRUD cases can join this profile."
@@ -488,6 +489,7 @@
           "destructive_case_ledgers": ["destructive_case_ledger"],
           "teardown_discard_evidence": ["sandbox_teardown_evidence"],
           "artifact_bundle_refs": ["artifact_bundle_ref"],
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
           "mutation_artifact_schemas": [
             "wp-codebox/mutation-isolation-artifact/v1",
             "wp-codebox/delete-boundary-artifact/v1"
