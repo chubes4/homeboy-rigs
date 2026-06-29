@@ -167,9 +167,8 @@ tags include the tag; both together intersect.
 The workload composes these generic surfaces:
 
 - Homeboy rig package discovery and `bench_workloads.nodejs` registration.
-- Repo-level `shared/wp-codebox/check-cli.sh` for rig-level WP Codebox CLI availability.
-- Repo-level `shared/wp-codebox/recipe.mjs` for Homeboy Extensions WP Codebox recipe
-  execution when `--run` is explicitly provided.
+- Repo-level `shared/wp-codebox/recipe.mjs` as a pass-through to Homeboy Extensions WP Codebox recipe execution when `--run` is explicitly provided.
+- WP Codebox CLI availability and executable discovery are upstream runtime contract requirements, not rig-level fallback checks.
 - WP Codebox `workspace-recipe/v1` steps using generic `wordpress.wp-cli`
   commands.
 - WP Codebox `wordpress.editor-validate-blocks` command (#1597) for the

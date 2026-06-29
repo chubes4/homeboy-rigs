@@ -1,6 +1,6 @@
 {
   "id": "static-site-importer-fixture-matrix",
-  "description": "Static Site Importer fixture matrix workload that composes generic WP Codebox recipe orchestration while keeping SSI-specific fixture and diagnostic policy in homeboy-rigs.",
+  "description": "Static Site Importer fixture matrix workload that composes upstream WP Codebox recipe contracts while keeping SSI-specific fixture and diagnostic policy in homeboy-rigs.",
   "package_dependencies": ["../../shared/wp-codebox"],
   "components": {
     "static-site-importer": {
@@ -48,11 +48,6 @@
         "component": "static-site-importer",
         "component_path_contains": "static-site-importer",
         "remediation": "Pass homeboy bench --path /path/to/static-site-importer or update components.static-site-importer.path before running static-site-importer-fixture-matrix."
-      },
-      {
-        "kind": "command",
-        "label": "WP Codebox CLI exists",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
       },
       {
         "kind": "command",
