@@ -26,21 +26,22 @@
     "product_surface_taxonomy": {
       "readiness_states": [
         "read_only_executable",
-        "isolated_mutation_executable",
+        "targeted_workload_executable",
+        "generic_mutation_declared",
         "synthetic_mutation_executable",
-        "destructive_isolated_executable",
-        "sensitive_isolated_executable",
+        "destructive_mutation_declared",
+        "sensitive_mutation_declared",
         "declared_mutation"
       ],
       "provenance": "product-level seasoning only; execution and proof remain owned by generic WP Codebox/Homeboy primitives and reviewer-facing artifacts",
       "surfaces": {
         "products": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "targeted_workload_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "targeted_workload_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
-            "delete": "destructive_isolated_executable"
+            "update": "targeted_workload_executable",
+            "delete": "destructive_mutation_declared"
           },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
@@ -55,16 +56,16 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Product create/update/delete is executable through destructive reset-gated isolated sandbox execution."
+            "Product create/update has targeted executable coverage through rest-product-batch-import; generic fixture-plan mutation and delete execution remain declared-only while the fixture plan says execute:false."
           ]
         },
         "variations": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "targeted_workload_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "targeted_workload_executable",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
-            "delete": "destructive_isolated_executable"
+            "update": "targeted_workload_executable",
+            "delete": "destructive_mutation_declared"
           },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
@@ -78,7 +79,7 @@
           ],
           "blocked_by": [],
           "notes": [
-            "Variation create/update/delete is executable through destructive reset-gated isolated sandbox execution."
+            "Variation create/update has targeted executable coverage through rest-product-batch-import; generic fixture-plan mutation and delete execution remain declared-only while the fixture plan says execute:false."
           ]
         },
         "cart": {
@@ -123,12 +124,12 @@
           ]
         },
         "orders": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "generic_mutation_declared",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
-            "delete": "destructive_isolated_executable"
+            "update": "generic_mutation_declared",
+            "delete": "destructive_mutation_declared"
           },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
@@ -142,18 +143,20 @@
             "generated-rest-request-cases",
             "rest-schema-query-attribution"
           ],
-          "blocked_by": [],
+          "blocked_by": [
+            "Generic REST fixture plan keeps create/update/delete operations execute:false."
+          ],
           "notes": [
-            "Order create/update/delete is executable through fixture-owned destructive reset-gated isolated sandbox execution."
+            "Order create/update/delete are generic fixture-plan declarations only while the fixture plan says execute:false; read coverage is executable through generated safe requests and schema/query attribution."
           ]
         },
         "coupons": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "generic_mutation_declared",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
-            "delete": "destructive_isolated_executable"
+            "update": "generic_mutation_declared",
+            "delete": "destructive_mutation_declared"
           },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
@@ -165,18 +168,20 @@
             "generated-rest-request-cases",
             "rest-schema-query-attribution"
           ],
-          "blocked_by": [],
+          "blocked_by": [
+            "Generic REST fixture plan keeps create/update/delete operations execute:false."
+          ],
           "notes": [
-            "Coupon create/update/delete is executable through fixture-owned destructive reset-gated isolated sandbox execution."
+            "Coupon create/update/delete are generic fixture-plan declarations only while the fixture plan says execute:false; read coverage is executable through generated safe requests and schema/query attribution."
           ]
         },
         "customers": {
-          "readiness": "isolated_mutation_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
-            "create": "isolated_mutation_executable",
+            "create": "generic_mutation_declared",
             "read": "read_only_executable",
-            "update": "isolated_mutation_executable",
-            "delete": "destructive_isolated_executable"
+            "update": "generic_mutation_declared",
+            "delete": "destructive_mutation_declared"
           },
           "owner_profile": "product-rest-crud-fuzzer",
           "route_families": [
@@ -188,16 +193,18 @@
             "generated-rest-request-cases",
             "rest-schema-query-attribution"
           ],
-          "blocked_by": [],
+          "blocked_by": [
+            "Generic REST fixture plan keeps create/update/delete operations execute:false."
+          ],
           "notes": [
-            "Customer mutation is executable through generic identity fixture isolation and destructive reset-gated sandbox execution."
+            "Customer create/update/delete are generic fixture-plan declarations only while the fixture plan says execute:false; read coverage is executable through generated safe requests and schema/query attribution."
           ]
         },
         "settings": {
-          "readiness": "sensitive_isolated_executable",
+          "readiness": "read_only_executable",
           "operation_readiness": {
             "inventory": "read_only_executable",
-            "mutation": "sensitive_isolated_executable"
+            "mutation": "sensitive_mutation_declared"
           },
           "owner_profile": "full-surface",
           "workflows": [
@@ -211,14 +218,14 @@
           "blocked_by": [],
           "sensitive_policy": "credential-bearing, payment, tax, shipping, webhook, and marketplace settings must be skipped unless a generic sensitive-policy primitive classifies them safe in disposable fixture state.",
           "notes": [
-            "Settings mutation is executable only for generic policy-classified safe settings inside a destructive reset-gated isolated sandbox."
+            "Settings mutation remains declared-only until generic policy-classified safe settings produce rollback and reviewer-facing artifacts."
           ]
         },
         "reports_admin_pages": {
           "readiness": "read_only_executable",
           "operation_readiness": {
             "read": "read_only_executable",
-            "mutation": "sensitive_isolated_executable"
+            "mutation": "sensitive_mutation_declared"
           },
           "owner_profile": "full-surface",
           "workflows": [
@@ -260,9 +267,9 @@
           "readiness": "read_only_executable",
           "operation_readiness": {
             "read": "read_only_executable",
-            "create": "isolated_mutation_executable",
-            "update": "isolated_mutation_executable",
-            "delete": "destructive_isolated_executable"
+            "create": "generic_mutation_declared",
+            "update": "generic_mutation_declared",
+            "delete": "destructive_mutation_declared"
           },
           "owner_profile": "db-api-performance-fuzzer",
           "namespaces": [
@@ -279,9 +286,11 @@
             "rest-namespace-generated-cases",
             "rest-schema-query-attribution"
           ],
-          "blocked_by": [],
+          "blocked_by": [
+            "Generic REST fixture plan keeps create/update/delete operations execute:false."
+          ],
           "notes": [
-            "REST API full-namespace mutation is executable through per-family destructive reset-gated isolated sandbox execution."
+            "REST API full-namespace mutation is declared-only while the generic fixture plan keeps create/update/delete operations execute:false; safe read coverage remains executable."
           ]
         }
       }
@@ -404,11 +413,11 @@
       "manifest": "manifests/product-chaos-sequence-packs.json",
       "owner_profile": "aggressive-isolated-firehose",
       "readiness": {
-        "level": "executable",
-        "execution_enabled": true,
+        "level": "declared",
+        "execution_enabled": false,
         "local_execution_enabled": false,
         "proof_status": "requires_reviewer_facing_artifacts",
-        "coverage_contract": "WooCommerce sequence packs are executable only through the offloaded aggressive isolated firehose, using generic sequence-pack ingestion, payload size/depth expansion, destructive isolation, snapshot restore, and reviewer-facing artifact refs before proof claims.",
+        "coverage_contract": "WooCommerce sequence packs are declared fixture and taxonomy inputs for the offloaded aggressive isolated firehose. They are not executable while the source fixture plan keeps mutation execution disabled; execution requires generic sequence-pack ingestion, payload size/depth expansion, destructive isolation, snapshot restore, and reviewer-facing artifact refs before proof claims.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "local_only_refs_allowed": false,

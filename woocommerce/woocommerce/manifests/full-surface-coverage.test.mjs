@@ -28,6 +28,9 @@ const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 
 const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
 const aggressiveIsolatedCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json'), 'utf8'));
 const aggressiveDestructiveWorkloads = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-destructive-workloads.json'), 'utf8'));
+const restCrudFixturePlan = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-fixture-plan.json'), 'utf8'));
+const targetInventory = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/target-inventory.json'), 'utf8'));
+const productChaosSequencePacks = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/product-chaos-sequence-packs.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
 const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
@@ -36,6 +39,12 @@ const performanceHotspotsWorkload = JSON.parse(readFileSync(path.join(packageRoo
 const runtimePrepScript = readFileSync(path.join(packageRoot, 'tools/prepare-runtime-dependency.sh'), 'utf8');
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
+const genericExecutableReadinessStates = new Set([
+  'isolated_mutation_executable',
+  'destructive_isolated_executable',
+  'sensitive_isolated_executable',
+  'executable_in_isolated_sandbox',
+]);
 
 const executableCoverageWorkloadIds = () => new Set([
   ...Object.values(performanceRig.bench_workloads?.wordpress || {}).flat().map((entry) => workloadIdFromPath(entry.path)),
@@ -229,6 +238,8 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   assert.equal(aggressiveDestructiveWorkloads.execution_scope, 'offloaded_codebox_homeboy_hbex_isolated_sandbox');
   assert.equal(aggressiveDestructiveWorkloads.local_execution_enabled, false);
   assert.equal(aggressiveDestructiveWorkloads.destructive_full_coverage_proven, false);
+  assert.equal(aggressiveDestructiveWorkloads.readiness.level, 'declared');
+  assert.equal(aggressiveDestructiveWorkloads.readiness.execution_enabled, false);
   assert.equal(aggressiveDestructiveWorkloads.readiness.proof_bundle_requirements.status, 'required_before_proven');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.scope, 'fixture_owned_only');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.placeholder_ids_allowed, false);
@@ -265,6 +276,50 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
     for (const artifact of requiredArtifacts) {
       assert.ok(workload.required_artifacts.includes(artifact), `${workload.id} must require ${artifact}`);
     }
+  }
+});
+
+test('disabled REST CRUD fixture plan cannot advertise generic destructive execution', () => {
+  const disabledOperations = restCrudFixturePlan.operations.filter((operation) => operation.expected?.execute === false);
+  assert.ok(disabledOperations.length > 0, 'expected disabled fixture-plan mutation operations');
+  assert.equal(restCrudFixturePlan.metadata.execution_enabled, false);
+
+  const surfaces = targetInventory.discovery_manifests.product_surface_taxonomy.surfaces;
+  const surfaceByResourceKind = new Map([
+    ['product', 'products'],
+    ['order', 'orders'],
+    ['customer', 'customers'],
+    ['coupon', 'coupons'],
+  ]);
+
+  for (const operation of disabledOperations) {
+    const surfaceId = surfaceByResourceKind.get(operation.resource.kind);
+    assert.ok(surfaceId, `${operation.id} must map to a target inventory surface`);
+    const state = surfaces[surfaceId].operation_readiness[operation.metadata.operation];
+    assert.ok(state, `${operation.id} must declare ${operation.metadata.operation} readiness`);
+    assert.ok(
+      !genericExecutableReadinessStates.has(state),
+      `${operation.id} has execute:false but target inventory declares ${state}`
+    );
+  }
+
+  assert.equal(productChaosSequencePacks.execution_enabled, false);
+  assert.equal(productChaosSequencePacks.readiness.execution_enabled, false);
+  assert.equal(aggressiveIsolatedCampaign.readiness.execution_enabled, false);
+  assert.equal(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose'].readiness.execution_enabled, false);
+  assert.equal(targetInventory.discovery_manifests.product_chaos_sequence_packs.readiness.execution_enabled, false);
+
+  for (const family of aggressiveIsolatedCampaign.fixture_families) {
+    assert.ok(
+      !genericExecutableReadinessStates.has(family.readiness),
+      `${family.id} fixture family must not claim generic execution while fixture plan is disabled`
+    );
+  }
+  for (const sequencePack of productChaosSequencePacks.sequence_packs) {
+    assert.ok(
+      !genericExecutableReadinessStates.has(sequencePack.readiness),
+      `${sequencePack.id} sequence pack must not claim generic execution while fixture plan is disabled`
+    );
   }
 });
 

@@ -28,44 +28,46 @@ const payload = {
   local_execution: false,
   execution_enabled: executionSupported,
   runnable_commands_enabled: runnableCommandsEnabled,
-  plan_kind: runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan',
+  plan_kind: executionSupported ? (runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan') : 'declared_offloaded_command_plan',
   run_id_prefix: runIdPrefix,
   workload_ids: profileWorkloads,
   blockers: executionSupported ? [] : [
-    'manifest.readiness.execution_enabled must be true for offloaded execution',
+    'manifest.readiness.execution_enabled is false because REST CRUD fixture-plan mutations are disabled',
   ],
   plan_items: [
     {
       purpose: 'validate_disposable_rig',
       command_argv: withOptionalLabArgs(['homeboy', 'rig', 'check', 'woocommerce-performance'], options),
     },
-    ...profileWorkloads.map((workloadId, index) => ({
-      purpose: `request_aggressive_isolated_firehose:${workloadId}`,
-      command_argv: fuzzRunCommandForWorkload(workloadId, index, options),
-    })),
-    {
-      purpose: 'collect_reviewer_facing_artifact_refs',
-      command_argv: withOptionalLabArgs([
-        'homeboy', 'runs', 'refs',
-        '--rig', 'woocommerce-performance',
-        '--kind', 'fuzz',
-        '--status', 'completed',
-        '--tracker-ref', options.trackerRef,
-        '--artifact-kind', 'fuzz.execution_request',
-        '--artifact-kind', 'fuzz.coverage_reconciliation',
-        '--artifact-kind', 'fuzz.payload_family_coverage',
-        '--artifact-kind', 'fuzz.chaos_sequence_packs',
-        '--artifact-kind', 'fuzz.payload_size_depth_families',
-        '--artifact-kind', 'fuzz.relative_hotspot_taxonomy',
-        '--artifact-kind', 'fuzz.reset',
-        '--artifact-kind', 'fuzz.case_timing',
-        '--artifact-kind', 'wordpress.database_observations',
-        '--artifact-kind', 'wordpress.admin_observations',
-        '--artifact-kind', 'wordpress.browser_observations',
-        '--artifact-kind', 'wordpress.editor_observations',
-        '--artifact-kind', 'fuzz.relative_hotspots',
-      ], options),
-    },
+    ...(executionSupported ? [
+      ...profileWorkloads.map((workloadId, index) => ({
+        purpose: `request_aggressive_isolated_firehose:${workloadId}`,
+        command_argv: fuzzRunCommandForWorkload(workloadId, index, options),
+      })),
+      {
+        purpose: 'collect_reviewer_facing_artifact_refs',
+        command_argv: withOptionalLabArgs([
+          'homeboy', 'runs', 'refs',
+          '--rig', 'woocommerce-performance',
+          '--kind', 'fuzz',
+          '--status', 'completed',
+          '--tracker-ref', options.trackerRef,
+          '--artifact-kind', 'fuzz.execution_request',
+          '--artifact-kind', 'fuzz.coverage_reconciliation',
+          '--artifact-kind', 'fuzz.payload_family_coverage',
+          '--artifact-kind', 'fuzz.chaos_sequence_packs',
+          '--artifact-kind', 'fuzz.payload_size_depth_families',
+          '--artifact-kind', 'fuzz.relative_hotspot_taxonomy',
+          '--artifact-kind', 'fuzz.reset',
+          '--artifact-kind', 'fuzz.case_timing',
+          '--artifact-kind', 'wordpress.database_observations',
+          '--artifact-kind', 'wordpress.admin_observations',
+          '--artifact-kind', 'wordpress.browser_observations',
+          '--artifact-kind', 'wordpress.editor_observations',
+          '--artifact-kind', 'fuzz.relative_hotspots',
+        ], options),
+      },
+    ] : []),
   ],
 };
 
@@ -82,15 +84,17 @@ if (options.json) {
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 } else {
   process.stdout.write(`# ${payload.schema}\n`);
-  process.stdout.write(`# Offloaded Homeboy/HBEX command plan. Local execution is not supported; commands include --lab-only and isolated destructive flags.\n`);
+  process.stdout.write(`# Offloaded Homeboy/HBEX command plan. Local execution is not supported.\n`);
   if (runnableCommandsEnabled) {
     for (const item of payload.commands) {
       process.stdout.write(`# ${item.purpose}\n${shellJoin(item.command)}\n`);
     }
-  } else {
+  } else if (executionSupported) {
     for (const item of payload.plan_items) {
       process.stdout.write(`# ${item.purpose}: offloaded command withheld by --plan-only (${item.command_argv[0]} ${item.command_argv[1]} ...)\n`);
     }
+  } else {
+    process.stdout.write(`# Commands withheld: ${payload.blockers.join('; ')}\n`);
   }
 }
 

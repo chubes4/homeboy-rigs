@@ -2,7 +2,7 @@
   "schema": "homeboy-rigs/woocommerce-aggressive-isolated-fuzz-campaign/v1",
   "id": "woocommerce-aggressive-isolated-fuzz-campaign",
   "profile_id": "aggressive-isolated-firehose",
-  "description": "Runnable WooCommerce aggressive randomized firehose campaign wiring for offloaded Codebox/Homeboy/HBEX isolated destructive coverage. This references the full product surface taxonomy and fixture seeds while keeping local execution disabled.",
+  "description": "Declared WooCommerce aggressive randomized firehose campaign wiring for future offloaded Codebox/Homeboy/HBEX isolated destructive coverage. This references the full product surface taxonomy and fixture seeds while mutation execution remains disabled.",
   "target_inventory_manifest": "manifests/target-inventory.json",
   "full_surface_manifest": "manifests/full-surface-coverage.json",
   "product_surface_taxonomy_ref": "manifests/target-inventory.json#discovery_manifests/product_surface_taxonomy",
@@ -213,77 +213,77 @@
       "surface": "products",
       "seed_shapes": ["simple product", "grouped product", "variable product parent", "attribute/term matrix", "SKU/title/slug collision guards"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "variations",
       "surface": "variations",
       "seed_shapes": ["fixture-owned variable parent", "variation attribute matrix", "stock/status/price variants"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "cart",
       "surface": "cart",
       "seed_shapes": ["anonymous cart", "logged-in customer cart", "coupon cart", "shipping package matrix"],
       "planned_operations": ["add item", "update quantity", "apply coupon", "remove item", "session reset"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "checkout",
       "surface": "checkout",
       "seed_shapes": ["offline payment checkout", "shipping method matrix", "duplicate submit", "gateway-disabled boundary"],
       "planned_operations": ["prepare checkout", "submit order", "retry", "cancel/reset"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "orders",
       "surface": "orders",
       "seed_shapes": ["fixture-owned order", "order note", "refund candidate", "status transition matrix"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "coupons",
       "surface": "coupons",
       "seed_shapes": ["percent coupon", "fixed cart coupon", "usage limit", "product/category restriction"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "customers",
       "surface": "customers",
       "seed_shapes": ["unique customer", "billing profile", "shipping profile", "order-linked customer"],
       "planned_operations": ["create", "read", "update", "delete"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "settings",
       "surface": "settings",
       "seed_shapes": ["non-credential option", "tax/shipping setting skip", "payment credential skip", "webhook/marketplace skip"],
       "planned_operations": ["inventory", "classify", "mutate safe setting", "reset"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "reports_admin_pages",
       "surface": "reports_admin_pages",
       "seed_shapes": ["administrator session", "shop_manager session", "analytics page", "orders/products admin filters"],
       "planned_operations": ["visit", "filter", "paginate", "classify skipped action"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "store_api",
       "surface": "store_api",
       "seed_shapes": ["catalog browse", "cart route", "checkout route", "nonce/session boundary"],
       "planned_operations": ["generated read", "cart mutation", "checkout mutation", "permission boundary"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     },
     {
       "id": "rest_api",
       "surface": "rest_api",
       "seed_shapes": ["wc/v3 CRUD route", "wc-admin read route", "wc-analytics read route", "dynamic path parameter"],
       "planned_operations": ["generated read", "generated create", "generated update", "generated delete"],
-      "readiness": "executable_in_isolated_sandbox"
+      "readiness": "declared_fixture_contract"
     }
   ],
   "planned_case_groups": {
@@ -297,12 +297,12 @@
   },
   "relative_hotspot_labels": ["sequence", "route", "action", "query", "table", "page", "block"],
   "readiness": {
-    "level": "executable",
-    "execution_enabled": true,
+    "level": "declared",
+    "execution_enabled": false,
     "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
     "local_execution_enabled": false,
     "destructive_full_coverage": false,
-    "coverage_contract": "Aggressive randomized destructive firehose coverage is executable only through offloaded Homeboy Lab routing into a WP Codebox isolated sandbox with --allow-destructive and --isolation isolated. Proven status still requires reviewer-facing Homeboy, WP Codebox, payload-family, snapshot-restore, and HBEX admin/database/browser/editor artifacts.",
+    "coverage_contract": "Aggressive randomized destructive firehose coverage is declared only while the source fixture plan keeps mutation execution disabled. Execution requires offloaded Homeboy Lab routing into a WP Codebox isolated sandbox with --allow-destructive and --isolation isolated plus reviewer-facing Homeboy, WP Codebox, payload-family, snapshot-restore, and HBEX admin/database/browser/editor artifacts.",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "local_only_refs_allowed": false,

@@ -210,7 +210,7 @@
       }
     },
     "aggressive-isolated-firehose": {
-      "description": "Runnable WooCommerce aggressive randomized destructive firehose profile for offloaded Codebox/Homeboy/HBEX isolated sandbox execution. This profile is not supported for local execution.",
+      "description": "Declared WooCommerce aggressive randomized destructive firehose profile for future offloaded Codebox/Homeboy/HBEX isolated sandbox execution. This profile is not supported for local execution and is not executable while fixture-plan mutations remain disabled.",
       "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
       "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
       "target_inventory_manifest": "manifests/target-inventory.json",
@@ -236,11 +236,11 @@
         "homeboy-extensions/generate-editor-observations/v1"
       ],
       "readiness": {
-        "level": "executable",
-        "execution_enabled": true,
+        "level": "declared",
+        "execution_enabled": false,
         "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
         "local_execution_enabled": false,
-        "coverage_contract": "The aggressive isolated firehose is executable through Homeboy Lab offload into WP Codebox/HBEX with --allow-destructive and --isolation isolated. It is not local execution and is not proven destructive full coverage until reviewer-facing Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist."
+        "coverage_contract": "The aggressive isolated firehose is declared for Homeboy Lab offload into WP Codebox/HBEX with --allow-destructive and --isolation isolated, but it is not executable while fixture-plan mutations remain disabled. It is not local execution and is not proven destructive full coverage until reviewer-facing Homeboy, WP Codebox, WordPress payload-family, snapshot restore, and HBEX admin/database/browser/editor artifacts exist."
       }
     },
     "db-api-performance-fuzzer": {
