@@ -10,6 +10,14 @@ import { runWpCodeboxRecipe } from './recipe.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 
+const sharedWpCodeboxContractIds = [
+  'wp-codebox/wordpress-fuzz-runtime-contract/v1',
+  'wp-codebox/fuzz-artifact-bundle/v1',
+  'wp-codebox/sandbox-isolation-proof/v1',
+  'homeboy/isolation-proof/v1',
+  'homeboy/wordpress-fuzz-runtime-workload-operation/v1',
+];
+
 let helperSeq = 0;
 
 function installFakeRecipeHelper(body) {
@@ -90,6 +98,16 @@ test('WP Codebox shared adapters do not carry quarantined generic helper behavio
       assert.doesNotMatch(contents, pattern, `${rel} must not contain ${pattern}`);
     }
   }
+});
+
+test('shared WP Codebox docs name explicit upstream contract ids', () => {
+  const readme = readFileSync(path.join(__dirname, 'README.md'), 'utf8');
+
+  for (const contractId of sharedWpCodeboxContractIds) {
+    assert.match(readme, new RegExp(contractId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `README must name ${contractId}`);
+  }
+
+  assert.doesNotMatch(readme, /missing upstream|until that contract exists|fallback/i);
 });
 
 test('repo docs and manifests do not present smoke as proof', () => {
