@@ -1611,6 +1611,91 @@ test('recipe runs a wp.blocks.validateBlock editor-validation step on imported c
   assert.equal(disabled.workflow.steps.some((step) => step.command === EDITOR_VALIDATE_BLOCKS_COMMAND), false);
 });
 
+test('--no-editor-validation skips the editor-validate-blocks step while keeping native-rate + findings', () => {
+  // The editor-validate-blocks step launches a browser per site and is the
+  // slowest per-fixture step. --no-editor-validation skips it (companion to
+  // --no-visual-parity) so findings/native-rate still get collected. This proves
+  // the full thread: CLI flag -> bench env -> recipe step omission, plus that the
+  // result still carries native-rate/findings with no editor-validity data.
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-no-editor-validation-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const planFixtureRoot = path.join(root, 'fixtures');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(planFixtureRoot, 'fixture-a'), { recursive: true });
+
+  // Default: editor-validation enabled, no skip env setting (unchanged behavior).
+  const enabledPlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    fixtureRoot: planFixtureRoot,
+    skipInstall: true,
+    skipSync: true,
+  });
+  assert.equal(enabledPlan.editor_validation.enabled, true);
+  assert.equal(
+    enabledPlan.steps.at(-1).args.includes('bench_env.SSI_FIXTURE_MATRIX_EDITOR_VALIDATION=0'),
+    false,
+  );
+
+  // --no-editor-validation -> options.editorValidation === false -> env=0 setting
+  // threaded into the bench (mirrors --no-visual-parity exactly).
+  const skippedPlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    fixtureRoot: planFixtureRoot,
+    editorValidation: false,
+    skipInstall: true,
+    skipSync: true,
+  });
+  assert.equal(skippedPlan.editor_validation.enabled, false);
+  assert.ok(skippedPlan.steps.at(-1).args.includes('bench_env.SSI_FIXTURE_MATRIX_EDITOR_VALIDATION=0'));
+
+  // Recipe: the editor-validate-blocks step is present by default and omitted when
+  // disabled, while the import/validate-artifact step (which feeds native-rate and
+  // findings) always survives.
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'no-editor-validation-recipe' });
+  const enabledRecipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+  });
+  assert.ok(enabledRecipe.workflow.steps.some((step) => step.command === EDITOR_VALIDATE_BLOCKS_COMMAND));
+
+  const skippedRecipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+    editorValidation: false,
+  });
+  assert.equal(
+    skippedRecipe.workflow.steps.some((step) => step.command === EDITOR_VALIDATE_BLOCKS_COMMAND),
+    false,
+  );
+  assert.ok(skippedRecipe.workflow.steps.some((step) => /static-site-importer validate-artifact/.test(step.args?.[0] ?? '')));
+
+  // With the editor-validation step skipped there is no validateBlock editor-validity
+  // data, but native-rate (from block composition) and findings still flow.
+  const result = normalizeFixtureMatrixResult({
+    matrix,
+    results: [
+      {
+        fixture_id: 'simple-site',
+        status: 'passed',
+        // 8 native, 2 core/html => native_conversion_rate 0.8.
+        block_type_counts: {
+          'core/paragraph': 6,
+          'core/heading': 2,
+          'core/html': 2,
+        },
+        diagnostics: [
+          { kind: 'core_html_block', loss_class: 'native_conversion', message: 'Fell back to core/html.' },
+        ],
+      },
+    ],
+  });
+  assert.equal(result.summary.editor_quality.native_conversion_rate, 0.8);
+  assert.equal(result.summary.editor_quality.editor_validated_fixture_count, 0);
+  assert.ok(result.findings.length >= 1);
+});
+
 test('editorBlockValidationStep invokes editor-validate-blocks against the most concrete imported target', () => {
   // Defaults to the imported static front page (resolved at runtime from
   // page_on_front by wp-codebox) — real imported content, not an empty editor.

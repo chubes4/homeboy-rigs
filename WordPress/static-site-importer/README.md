@@ -213,7 +213,11 @@ results — back into `editor_block_invalid` diagnostics. These classify into th
 Blocks Engine feature/visual-parity bucket (`candidate_repo: blocks-engine`,
 `repair_mode: editor-block-validation-parity`) with the unacceptable
 `editor_block_invalid` loss class, so the honest gate fails the fixture. Valid
-blocks emit nothing. Set `editorValidation: false` to omit the step.
+blocks emit nothing. Set `--no-editor-validation` /
+`SSI_FIXTURE_MATRIX_EDITOR_VALIDATION=0` / `editorValidation: false` to omit the
+step (the slowest per-site step, it launches a browser per fixture); the run
+still produces native-rate, loss-classes, pattern-families, and the rest of the
+findings — just no `validateBlock` editor-validity data.
 
 Live caveat: the `editor-validate-blocks` step runs locally in WP Codebox today
 (see "Running the matrix locally" below) — a real local recipe-run executed the
