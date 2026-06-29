@@ -192,7 +192,7 @@ assert.ok(dbRun.module_inventory.expected_modules.includes('stats'), 'Jetpack DB
 
 assertBoundary('jetpack-options-matrix', {
   safetyClass: 'read_only',
-  operations: ['option-default-read', 'option-update-rollback-plan', 'read-update-safety-classification', 'connected-state-blocker-classification', 'serialization-boundary-classification'],
+  operations: ['option-default-read', 'option-update-mutation-plan', 'read-update-safety-classification', 'connected-state-blocker-classification', 'serialization-boundary-classification'],
   inputs: { secret_placeholders_only: true, execute_mutations: false, mutation_mode: 'declared_plan', connected_state_required_for_mutation: true, runtime_isolation_required_for_mutation: true, restore_original_values: true, rollback_required: true },
 });
 assertBoundary('jetpack-module-state-matrix', {

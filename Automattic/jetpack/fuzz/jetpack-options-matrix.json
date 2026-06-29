@@ -10,7 +10,7 @@
   "operations": [
     "option-default-read",
     "option-inventory",
-    "option-update-rollback-plan",
+    "option-update-mutation-plan",
     "read-update-safety-classification",
     "connected-state-blocker-classification",
     "serialization-boundary-classification",
@@ -27,39 +27,41 @@
     "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists",
     "generic_primitive": {
       "status": "blocked",
-      "reason": "Option writes remain planned until disposable runtime isolation, connected-state fixtures, and rollback artifacts are explicitly available."
+      "reason": "Option writes remain planned until disposable runtime isolation, connected-state fixtures, and mutation isolation artifacts are explicitly available."
     },
     "readiness": {
       "level": "declared",
-      "coverage_contract": "Jetpack option inventory, default reads, serialization/autoload classification, connected-state blockers, and option write rollback plans. Mutating writes are not executed without isolated runtime and connected-state fixtures.",
+      "coverage_contract": "Jetpack option inventory, default reads, serialization/autoload classification, connected-state blockers, and option write mutation plans. Mutating writes are not executed without isolated runtime and connected-state fixtures.",
       "upstream_blockers": [
         "isolated runtime fixture must guarantee option writes are disposable",
         "connected-state fixture must provide synthetic Jetpack connection state for connection-sensitive options",
-        "rollback artifact capture must persist before/after/restore rows before option writes are enabled"
+        "mutation isolation artifact capture must persist before/after rows before option writes are enabled"
       ],
       "crud": {
         "create": {
           "level": "declared",
-          "upstream_blocker": "new option writes require disposable runtime isolation and rollback artifacts"
+          "upstream_blocker": "new option writes require disposable runtime isolation and mutation isolation artifacts"
         },
         "read": {
           "level": "executable"
         },
         "update": {
           "level": "declared",
-          "upstream_blocker": "option updates require connected-state fixtures and rollback artifacts"
+          "upstream_blocker": "option updates require connected-state fixtures and mutation isolation artifacts"
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "option deletion is out of scope without rollback artifact proof"
+          "upstream_blocker": "option deletion is out of scope without delete-boundary artifact proof"
         }
       },
       "mutation": {
-        "safety_boundary": "Planned only. Execution requires disposable WP Codebox isolation, synthetic Jetpack connected/disconnected fixtures, secret placeholders, and before/after/restore artifacts for every changed option.",
-        "rollback_artifacts": [
-          "option_write_rollback_plan",
-          "option_before_after_restore_rows"
-        ]
+        "safety_boundary": "Planned only. Execution requires disposable WP Codebox isolation, synthetic Jetpack connected/disconnected fixtures, secret placeholders, and mutation isolation artifacts for every changed option.",
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["option_write_mutation_plan", "option_before_after_rows"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"]
       }
     },
     "artifact_expectations": {
@@ -67,7 +69,7 @@
         "option_matrix",
         "read_update_safety_rows",
         "connected_state_blockers",
-        "rollback_requirement_rows",
+        "mutation_requirement_rows",
         "serialization_boundary_rows"
       ],
       "optional": [
@@ -98,7 +100,7 @@
       "operations": [
         "option-default-read",
         "option-inventory",
-        "option-update-rollback-plan",
+        "option-update-mutation-plan",
         "read-update-safety-classification",
         "connected-state-blocker-classification",
         "serialization-boundary-classification",
@@ -259,7 +261,7 @@
     "operations": [
       "option-default-read",
       "option-inventory",
-      "option-update-rollback-plan",
+      "option-update-mutation-plan",
       "read-update-safety-classification",
       "connected-state-blocker-classification",
       "serialization-boundary-classification",

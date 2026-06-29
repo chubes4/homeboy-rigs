@@ -336,7 +336,10 @@ export function assertExecutableCrudMutationSafety(readiness, { file } = {}) {
 
   assert.ok(readiness.mutation, `${file} executable CRUD mutation readiness requires metadata.readiness.mutation`);
   assertFuzzMutationReadiness(readiness.mutation, { file });
-  assert.ok(readiness.mutation.rollback_artifacts.length > 0, `${file} executable CRUD mutation readiness requires rollback_artifacts`);
+  assert.ok(readiness.mutation.disposable_sandbox_boundary_artifacts.length > 0, `${file} executable CRUD mutation readiness requires disposable_sandbox_boundary_artifacts`);
+  assert.ok(readiness.mutation.mutation_isolation_artifacts.length > 0, `${file} executable CRUD mutation readiness requires mutation_isolation_artifacts`);
+  assert.ok(readiness.mutation.teardown_discard_evidence.length > 0, `${file} executable CRUD mutation readiness requires teardown_discard_evidence`);
+  assert.ok(readiness.mutation.artifact_bundle_refs.length > 0, `${file} executable CRUD mutation readiness requires artifact_bundle_refs`);
 
   for (const operation of executableMutations) {
     const safetyClass = readiness.crud[operation].safety_class;

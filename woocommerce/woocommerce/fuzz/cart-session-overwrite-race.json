@@ -40,9 +40,12 @@
       },
       "mutation": {
         "safety_boundary": "Cart/session state is mutated only inside a disposable WP Codebox WordPress fixture.",
-        "rollback_artifacts": [
-          "raw_result"
-        ]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["raw_result"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"]
       }
     },
     "fixture": {

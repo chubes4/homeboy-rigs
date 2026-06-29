@@ -14,7 +14,7 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "network_policy": "block_all_synthetic_external_requests",
-    "mutation_policy": "snapshot_queue_options_restore_after_assert",
+    "mutation_policy": "disposable_sandbox_mutation_isolation",
     "artifact_expectations": {
       "required": ["sync_queue", "serialized_action_samples", "queue_rollback_rows", "queue_surface_inventory", "connected_disconnected_blockers", "replay_fixture_manifest", "proof_artifact_index"],
       "optional": ["retry_boundary_rows", "blocked_dispatch_attempts", "queue_drain_skipped_rows"]
@@ -29,7 +29,12 @@
       ],
       "mutation": {
         "safety_boundary": "Runs only against isolated WP Codebox queue options and synthetic action payloads with remote dispatch disabled, original values restored, rollback required, and external HTTP guarded.",
-        "rollback_artifacts": ["sync_queue_coverage", "queue_rollback_rows", "queue_option_restore_rows"]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["sync_queue_coverage", "mutation_isolation_artifact"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"]
       }
     }
   },
@@ -52,9 +57,9 @@
         ],
         "queue_options": ["jpsq_sync_checkout", "jpsq_sync_started", "jpsq_full_sync_started", "jetpack_sync_settings_sync_wait_time", "jetpack_sync_non_blocking", "jetpack_sync_checksum"],
         "queue_surfaces": [
-          { "name": "incremental_sync_queue", "kind": "option_backed_queue", "options": ["jpsq_sync_checkout", "jpsq_sync_started"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "snapshot_restore" },
-          { "name": "full_sync_queue", "kind": "option_backed_queue", "options": ["jpsq_full_sync_started"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "snapshot_restore" },
-          { "name": "sync_settings", "kind": "option_state", "options": ["jetpack_sync_settings_sync_wait_time", "jetpack_sync_non_blocking", "jetpack_sync_checksum"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "snapshot_restore" }
+          { "name": "incremental_sync_queue", "kind": "option_backed_queue", "options": ["jpsq_sync_checkout", "jpsq_sync_started"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "disposable_sandbox_mutation_isolation" },
+          { "name": "full_sync_queue", "kind": "option_backed_queue", "options": ["jpsq_full_sync_started"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "disposable_sandbox_mutation_isolation" },
+          { "name": "sync_settings", "kind": "option_state", "options": ["jetpack_sync_settings_sync_wait_time", "jetpack_sync_non_blocking", "jetpack_sync_checksum"], "safety_class": "isolated_fixture_mutation", "mutation_policy": "disposable_sandbox_mutation_isolation" }
         ],
         "connection_state_blockers": [
           { "state": "disconnected", "classification": "blocked", "reason_code": "connected_required", "applies_to": ["remote_dispatch", "module_state_sync"] },

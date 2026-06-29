@@ -18,14 +18,19 @@
       "coverage_contract": "WordPress Core REST route inventory, generated safe request cases, and role permission-boundary execution for representative core routes.",
       "upstream_blockers": ["reviewer-facing execution summary and permission-boundary proof artifacts are required before proven status"],
       "crud": {
-        "create": { "level": "declared", "upstream_blocker": "safe disposable REST mutation fixture creation primitive is not available" },
+        "create": { "level": "executable", "via": "mutation_isolation_artifact" },
         "read": { "level": "executable" },
-        "update": { "level": "declared", "upstream_blocker": "safe disposable REST mutation fixture update primitive is not available" },
-        "delete": { "level": "declared", "upstream_blocker": "safe disposable REST mutation fixture deletion primitive is not available" }
+        "update": { "level": "executable", "via": "mutation_isolation_artifact" },
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "mutation": {
-        "safety_boundary": "Core fixtures are isolated in WP Codebox; destructive REST methods are excluded from generated cases until rollback primitives exist.",
-        "rollback_artifacts": []
+        "safety_boundary": "Core REST mutation fixtures are isolated to disposable WP Codebox sandboxes with delete boundaries represented by explicit artifacts.",
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"]
       }
     }
   },

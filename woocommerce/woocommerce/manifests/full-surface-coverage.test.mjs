@@ -263,11 +263,14 @@ test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and s
 
   const requiredArtifacts = new Set(aggressiveDestructiveWorkloads.required_artifacts_per_workload);
   for (const artifact of [
-    'codebox_isolation_readiness',
-    'snapshot_restore_artifact',
+    'disposable_sandbox_boundary',
+    'mutation_isolation_artifact',
+    'delete_boundary_artifact',
     'fixture_dynamic_id_manifest',
     'side_effect_policy_evidence',
     'destructive_case_ledger',
+    'sandbox_teardown_evidence',
+    'artifact_bundle_ref',
   ]) {
     assert.ok(requiredArtifacts.has(artifact), `global destructive workload artifact requirements must include ${artifact}`);
   }

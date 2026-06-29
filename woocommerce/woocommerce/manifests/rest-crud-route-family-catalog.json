@@ -16,13 +16,13 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "mutation_contract": {
-        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "primitive": "wordpress.disposable-rest-mutation",
         "workload": "rest-product-batch-import",
-        "rollback_artifacts": ["raw_result"],
+        "mutation_isolation_artifacts": ["raw_result"],
         "delete_workload": "generated-rest-request-cases",
-        "rollback_contract_schema": "homeboy/wordpress-rest-mutation-rollback-contract/v1",
         "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
-        "executable_operations": ["create", "update"]
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["create", "update", "delete"]
       },
       "payload_fixtures": {
         "namespace": "wc/v3",
@@ -30,8 +30,9 @@
         "create": ["simple product", "grouped product", "variable product parent"],
         "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails"],
         "delete": {
-          "level": "declared",
-          "upstream_blocker": "delete-boundary mutation artifact contract is unavailable"
+          "level": "executable",
+          "via": "generated-rest-request-cases",
+          "artifact": "delete_boundary_artifact"
         }
       },
       "readiness": {
@@ -39,8 +40,9 @@
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "executable", "via": "rest-product-batch-import" },
         "delete": {
-          "level": "declared",
-          "upstream_blocker": "generated REST request cases do not emit delete-boundary mutation artifacts"
+          "level": "executable",
+          "via": "generated-rest-request-cases",
+          "artifact": "delete_boundary_artifact"
         }
       },
       "skipped_coverage": [
@@ -65,17 +67,19 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "mutation_contract": {
-        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "primitive": "wordpress.disposable-rest-mutation",
         "workload": "rest-product-batch-import",
-        "rollback_artifacts": ["raw_result"],
-        "executable_operations": ["create", "update"]
+        "mutation_isolation_artifacts": ["raw_result"],
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["create", "update", "delete"]
       },
       "payload_fixtures": {
         "namespace": "wc/v3",
         "roles": ["administrator", "shop_manager"],
         "create": ["simple product", "grouped product", "variable product parent"],
         "update": ["price/status/catalog visibility", "attribute and category assignment", "slug/title/SKU collision guardrails"],
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifact contract is unavailable" }
+        "delete": { "level": "executable", "via": "generated-rest-request-cases", "artifact": "delete_boundary_artifact" }
       },
       "readiness": {
         "create": { "level": "executable", "via": "isolated_mutation" },
@@ -101,17 +105,19 @@
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
       "mutation_contract": {
-        "primitive": "wordpress.rollback-safe-rest-mutation",
+        "primitive": "wordpress.disposable-rest-mutation",
         "workload": "rest-product-batch-import",
-        "rollback_artifacts": ["raw_result"],
-        "executable_operations": ["create", "update"]
+        "mutation_isolation_artifacts": ["raw_result"],
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["create", "update", "delete"]
       },
       "payload_fixtures": {
         "namespace": "wc/v3",
         "roles": ["administrator", "shop_manager"],
         "create": ["variation under fixture-owned variable product"],
         "update": ["regular/sale price", "stock and status", "attribute option and image assignment"],
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifact contract is unavailable" }
+        "delete": { "level": "executable", "via": "generated-rest-request-cases", "artifact": "delete_boundary_artifact" }
       },
       "readiness": {
         "create": { "level": "executable", "via": "isolated_mutation" },
@@ -140,11 +146,18 @@
         "workloads": ["rest-product-batch-import", "generated-rest-request-cases"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.disposable-rest-mutation",
+        "workload": "generated-rest-request-cases",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["create", "delete"]
+      },
       "readiness": {
         "create": { "level": "executable", "via": "fixture_setup" },
         "read": { "level": "declared", "upstream_blocker": "dynamic attribute and term path cases require generated fixture-owned path parameter artifacts" },
         "update": { "level": "declared", "upstream_blocker": "update is fixture-owned and lacks standalone mutation artifact proof" },
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary REST primitive and delete-boundary mutation artifacts are unavailable" }
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "skipped_coverage": [
         {
@@ -153,7 +166,7 @@
         },
         {
           "scope": "delete",
-          "reason_code": "missing_rollback_safe_delete_primitive"
+          "reason_code": "fixture_owned_delete_boundary"
         }
       ]
     },
@@ -167,16 +180,23 @@
         "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.disposable-rest-mutation",
+        "workload": "generated-rest-request-cases",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["delete"]
+      },
       "payload_fixture_family": "orders",
       "readiness": {
         "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume order payload fixtures and emit mutation artifacts" },
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "declared", "upstream_blocker": "generic REST mutation runner must emit mutation artifacts for order updates" },
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifacts are unavailable" }
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "skipped_coverage": [
         { "scope": "mutating_order_payloads", "reason_code": "missing_generic_rest_mutation_runner" },
-        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+        { "scope": "delete", "reason_code": "fixture_owned_delete_boundary" }
       ]
     },
     {
@@ -189,16 +209,23 @@
         "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.disposable-rest-mutation",
+        "workload": "generated-rest-request-cases",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["delete"]
+      },
       "payload_fixture_family": "orders",
       "readiness": {
         "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume order note fixtures and emit mutation artifacts" },
         "read": { "level": "declared", "upstream_blocker": "dynamic order id path cases require generated fixture-owned path parameter artifacts" },
         "update": { "level": "declared", "upstream_blocker": "order notes do not have a declared update mutation fixture" },
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifacts are unavailable" }
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "skipped_coverage": [
         { "scope": "dynamic_order_id_paths", "reason_code": "fixture_owned_dynamic_path_parameter" },
-        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+        { "scope": "delete", "reason_code": "fixture_owned_delete_boundary" }
       ]
     },
     {
@@ -211,12 +238,19 @@
         "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.disposable-rest-mutation",
+        "workload": "generated-rest-request-cases",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["delete"]
+      },
       "payload_fixture_family": "orders",
       "readiness": {
         "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume refund fixtures and emit mutation artifacts" },
         "read": { "level": "declared", "upstream_blocker": "dynamic paid order id path cases require generated fixture-owned path parameter artifacts" },
         "update": { "level": "declared", "upstream_blocker": "refund updates are not declared as safe mutable fixtures" },
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifacts are unavailable" }
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "skipped_coverage": [
         { "scope": "dynamic_paid_order_id_paths", "reason_code": "fixture_owned_dynamic_path_parameter" },
@@ -233,16 +267,23 @@
         "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.disposable-rest-mutation",
+        "workload": "generated-rest-request-cases",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["delete"]
+      },
       "payload_fixture_family": "customers",
       "readiness": {
         "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume customer payload fixtures and emit mutation artifacts" },
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "declared", "upstream_blocker": "generic REST mutation runner must emit mutation artifacts for customer updates" },
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifacts are unavailable" }
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "skipped_coverage": [
         { "scope": "mutating_customer_payloads", "reason_code": "missing_generic_rest_mutation_runner" },
-        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+        { "scope": "delete", "reason_code": "fixture_owned_delete_boundary" }
       ]
     },
     {
@@ -255,23 +296,30 @@
         "workloads": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-schema-query-attribution", "coverage-gap-report"],
         "profiles": ["product-rest-crud-fuzzer", "full-surface"]
       },
+      "mutation_contract": {
+        "primitive": "wordpress.disposable-rest-mutation",
+        "workload": "generated-rest-request-cases",
+        "mutation_isolation_artifact_schema": "wp-codebox/mutation-isolation-artifact/v1",
+        "delete_boundary_artifact_schema": "wp-codebox/delete-boundary-artifact/v1",
+        "executable_operations": ["delete"]
+      },
       "payload_fixture_family": "coupons",
       "readiness": {
         "create": { "level": "declared", "upstream_blocker": "generic REST mutation runner must consume coupon payload fixtures and emit mutation artifacts" },
         "read": { "level": "executable", "via": "generated-rest-request-cases" },
         "update": { "level": "declared", "upstream_blocker": "generic REST mutation runner must emit mutation artifacts for coupon updates" },
-        "delete": { "level": "declared", "upstream_blocker": "delete-boundary mutation artifacts are unavailable" }
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       },
       "skipped_coverage": [
         { "scope": "mutating_coupon_payloads", "reason_code": "missing_generic_rest_mutation_runner" },
-        { "scope": "delete", "reason_code": "missing_rollback_safe_delete_primitive" }
+        { "scope": "delete", "reason_code": "fixture_owned_delete_boundary" }
       ]
     }
   ],
   "skip_reason_codes": [
     "dynamic_path_parameter",
     "fixture_owned_dynamic_path_parameter",
-    "missing_rollback_safe_delete_primitive",
+    "fixture_owned_delete_boundary",
     "current_workload_does_not_execute_delete",
     "owned_by_batch_import_workload",
     "owned_by_generated_rest_request_cases",
