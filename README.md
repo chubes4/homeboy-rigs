@@ -271,9 +271,9 @@ Keep the Studio bench harness layered so each repo owns the smallest stable surf
 
 Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block quality probes from `Extra-Chill/homeboy-extensions#1009`; target post metrics remain tracked in `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.
 
-WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Artifact consumers should resolve files through `shared/wp-codebox/artifacts.mjs` instead of parsing `artifacts.directory/files/...` at each call site. The helper consumes artifact file manifests when WP Codebox/Homeboy expose them and keeps one temporary fallback for the current `files/browser/*` bundle layout until that manifest contract is stable upstream.
+WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Artifact consumers should resolve files through `shared/wp-codebox/artifacts.mjs` instead of parsing `artifacts.directory/files/...` at each call site. The helper delegates to the upstream manifest-aware resolver contract and does not provide legacy artifact-layout fallback.
 
-Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, and rig check pipelines should call `shared/wp-codebox/check-cli.sh` instead of duplicating `command -v wp-codebox`, local checkout guesses, or env-var precedence. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, and command-scoped filesystem assertions; keep local helpers small until Homeboy/Homeboy Extensions exposes those contracts.
+Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, which is a pass-through to promoted upstream helpers. Rigs must not duplicate `command -v wp-codebox`, local checkout guesses, env-var precedence, watchdogs, duplicate-run dedupe, or artifact fallback. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, command-scoped filesystem assertions, child reaping, and structured recipe failure reporting; keep affected rigs downscoped until Homeboy/Homeboy Extensions exposes those contracts.
 
 Cleanup should move in small waves:
 
@@ -433,8 +433,9 @@ homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stri
 ```
 
 Additional trace scenarios cover post-load interactions for scrolling to the ECE
-container, changing quantity, and attempting variation changes while preserving
-the original load-only `smoke` behavior.
+container, changing quantity, and attempting variation changes. The `smoke`
+profile is contract sanity for fixture availability only, not reviewer-facing
+proof.
 
 ```bash
 homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-scroll-to-ece
@@ -465,7 +466,8 @@ The provider calls WP Codebox's `wordpress.visual-compare` primitive against the
 baseline/candidate screenshots captured by the trace workload and emits source,
 candidate, diff, JSON diff, and explanation artifacts.
 
-The `smoke` profile keeps the default WP Codebox browser behavior. The optional
+The `smoke` profile is contract sanity for the default WP Codebox browser path.
+It is not proof of wallet eligibility, performance, or visual parity. The optional
 `secure-browser` profile depends on generic upstream preview/profile contracts
 from Extra-Chill/homeboy#3554 and Automattic/wp-codebox#651/#652 and keeps
 Stripe-specific scenario behavior in this rig package.

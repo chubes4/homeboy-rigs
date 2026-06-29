@@ -6,9 +6,10 @@ surface and supplies all SSI policy from this package.
 
 ## Required Current Interfaces
 
-- `${package.root}/../../shared/wp-codebox/recipe.mjs` must expose `runWpCodeboxRecipe(options)`.
+- `${package.root}/../../shared/wp-codebox/recipe.mjs` must expose `runWpCodeboxRecipe(options)` as a pass-through to the upstream Homeboy Extensions helper.
 - `runWpCodeboxRecipe(options)` must accept `recipeFile`, `artifactsDir`,
-  `outputFile`, and optional `wpCodeboxBin`.
+  `outputFile`, and optional `wpCodeboxBin` without adding Rigs-owned watchdog,
+  dedupe, CLI-discovery, or fallback artifact behavior.
 - WP Codebox recipes must accept schema `wp-codebox/workspace-recipe/v1`.
 - WP Codebox workflow steps must support `command: "wordpress.wp-cli"` with an
   `args` entry containing a `command=...` WP-CLI string.

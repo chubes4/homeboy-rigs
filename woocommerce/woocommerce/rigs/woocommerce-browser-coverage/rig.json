@@ -50,11 +50,6 @@
       },
       {
         "kind": "command",
-        "label": "WP Codebox CLI exists",
-        "command": "bash \"${package.root}/../../shared/wp-codebox/check-cli.sh\""
-      },
-      {
-        "kind": "command",
         "label": "WooCommerce admin assets are built",
         "command": "bash \"${package.root}/tools/check-admin-assets.sh\" \"${components.woocommerce.path}\"",
         "remediation": "Use a packaged WooCommerce plugin checkout or build the WooCommerce admin assets before running woocommerce-browser-coverage."

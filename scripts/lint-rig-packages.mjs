@@ -129,8 +129,8 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     failures.push(`${rel}: use portable component path settings instead of committed ~/Developer or $HOME/Developer checkout paths`);
   }
 
-  if (/WP Codebox CLI/.test(pipelineCommands) && /command -v wp-codebox|Developer\/wp-codebox|HOMEBOY_WP_CODEBOX_BIN/.test(pipelineCommands)) {
-    failures.push(`${rel}: use shared/wp-codebox/check-cli.sh instead of duplicating WP Codebox CLI discovery in rig commands`);
+  if (/shared\/wp-codebox\/check-cli\.sh|command -v wp-codebox|Developer\/wp-codebox|HOMEBOY_WP_CODEBOX_BIN/.test(pipelineCommands)) {
+    failures.push(`${rel}: WP Codebox executable discovery belongs upstream; do not add rig-local CLI checks or fallback discovery`);
   }
 
   lintSharedPaths(rel, rig);

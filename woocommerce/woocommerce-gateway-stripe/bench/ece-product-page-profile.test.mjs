@@ -45,7 +45,7 @@ process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS ||= workloadUtilsPath;
 
 const { buildEceProfileOptions, setting } = await import('./ece-product-page-profile.mjs');
 
-test('WP Codebox helper centralizes binary resolution', () => {
+test('WP Codebox helper delegates binary resolution to upstream contract', () => {
   const helperDir = mkdtempSync(path.join(tmpdir(), 'homeboy-wp-codebox-helper-'));
   const helperPath = path.join(helperDir, 'wp-codebox-recipe-helper.cjs');
   writeFileSync(helperPath, `
