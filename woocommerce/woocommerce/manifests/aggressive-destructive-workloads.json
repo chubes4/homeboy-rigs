@@ -2,7 +2,7 @@
   "schema": "homeboy-rigs/woocommerce-aggressive-destructive-workloads/v1",
   "id": "woocommerce-aggressive-destructive-workloads",
   "profile_id": "aggressive-isolated-firehose",
-  "description": "WooCommerce-owned aggressive destructive workload declarations for offloaded WP Codebox isolation. These declarations provide Woo surface knowledge and fixture policy only; Homeboy, HBEX, and WP Codebox supply the generic execution, isolation, and artifact contracts.",
+  "description": "WooCommerce-owned aggressive destructive workload declarations for future offloaded WP Codebox isolation. These declarations provide Woo surface knowledge and fixture policy only; the generic fixture execution plan is still disabled until Homeboy, HBEX, and WP Codebox supply executable isolation, rollback, and artifact contracts.",
   "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
   "local_execution_enabled": false,
   "destructive_full_coverage_proven": false,
@@ -26,11 +26,11 @@
     "homeboy-rigs/external-side-effect-policy/v1"
   ],
   "readiness": {
-    "level": "executable_in_isolated_sandbox",
-    "execution_enabled": true,
+    "level": "declared",
+    "execution_enabled": false,
     "local_execution_enabled": false,
     "proof_status": "requires_reviewer_facing_artifacts",
-    "coverage_contract": "Aggressive destructive workloads may run only through offloaded WP Codebox isolation with explicit destructive mode, fixture-owned dynamic IDs, rollback plans, rollback verification, and side-effect policy artifacts. No destructive case is proven by this manifest alone.",
+    "coverage_contract": "Aggressive destructive workloads are declared inventory and artifact requirements only. They cannot be advertised as executable while the source fixture plan keeps mutation operations disabled; execution requires offloaded WP Codebox isolation with explicit destructive mode, fixture-owned dynamic IDs, rollback plans, rollback verification, side-effect policy artifacts, and reviewer-facing proof refs.",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "local_only_refs_allowed": false,

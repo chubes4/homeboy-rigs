@@ -187,6 +187,13 @@ The Woo DB/API fuzz progression is split into two focused profiles:
   on the same upstream rollback-safe delete primitive and delete-boundary artifact
   contract.
 
+The aggressive isolated firehose, product chaos sequence packs, and generated REST
+CRUD fixture-plan handoff are declared inventory/contracts, not executable proof.
+Every operation in `manifests/rest-crud-fixture-plan.json` currently has
+`execute:false`, so manifests must not advertise generic isolated/destructive
+execution until the offloaded runner emits rollback, isolation, delete-boundary,
+and reviewer-facing artifact refs.
+
 The hotspot and coverage aggregation workloads execute through
 `homeboy.artifact-postprocess` when the approved offloaded runner provides the
 campaign artifact root. Do not shim aggregation in the rig: Homeboy/Homeboy

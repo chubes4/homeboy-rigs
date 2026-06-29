@@ -65,11 +65,13 @@ silently pass with optional output or local-only evidence.
 
 CRUD/mutation readiness: read paths are executable across REST route inventory,
 generated safe requests, browser rendering, and DB/query attribution. Create and
-update are proven only for targeted catalog, checkout, cart/session, option, and
-transient bug clusters; delete remains declared-only unless a workload records a
-rollback-safe destructive fixture. Upstream blockers are safe CRUD fixture
-primitives, durable fuzz artifact manifests, and reviewer-facing run links for
-full namespace proof.
+update are executable only for targeted catalog, checkout, cart/session, option,
+and transient workloads, and proven only where reviewer-facing proof artifacts are
+linked. The generic REST fixture-plan path remains declared-only because its
+mutation operations still say `execute:false`; delete remains declared-only unless
+a workload records a rollback-safe destructive fixture. Upstream blockers are safe
+CRUD fixture primitives, durable fuzz artifact manifests, and reviewer-facing run
+links for full namespace proof.
 
 WooCommerce fuzz manifests also carry explicit WP Codebox fixture metadata
 (`wp-codebox`, disposable WordPress, WooCommerce component activation) and
