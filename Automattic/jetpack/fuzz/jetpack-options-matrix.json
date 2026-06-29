@@ -2,7 +2,7 @@
   "schema": "homeboy/fuzz-workload/v1",
   "id": "jetpack-options-matrix",
   "label": "Jetpack options matrix",
-  "safety_class": "read_only",
+  "safety_class": "isolated_mutation",
   "surface_ids": [
     "jetpack-options",
     "wordpress-options"
@@ -10,7 +10,7 @@
   "operations": [
     "option-default-read",
     "option-inventory",
-    "option-update-rollback-plan",
+    "option-update-disposable-mutation",
     "read-update-safety-classification",
     "connected-state-blocker-classification",
     "serialization-boundary-classification",
@@ -24,41 +24,41 @@
     "workload_path": "${package.root}/manifests/full-surface-coverage.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
-    "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists",
-    "generic_primitive": {
-      "status": "blocked",
-      "reason": "Option writes remain planned until disposable runtime isolation, connected-state fixtures, and rollback artifacts are explicitly available."
+    "mutation_policy": "upstream_disposable_destructive_contract",
+    "upstream_disposable_destructive_contract": {
+      "status": "required",
+      "contract": "wordpress-disposable-destructive-contract",
+      "fixture_scope": "wp-codebox-disposable-wordpress",
+      "rollback_required": false,
+      "remote_state_allowed": false
     },
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Jetpack option inventory, default reads, serialization/autoload classification, connected-state blockers, and option write rollback plans. Mutating writes are not executed without isolated runtime and connected-state fixtures.",
+      "level": "executable",
+      "coverage_contract": "Jetpack option inventory, default reads, serialization/autoload classification, connected-state blockers, and disposable local option writes through the upstream destructive contract. WP.com remote-state writes stay blocked until explicit provisioning exists.",
       "upstream_blockers": [
-        "isolated runtime fixture must guarantee option writes are disposable",
-        "connected-state fixture must provide synthetic Jetpack connection state for connection-sensitive options",
-        "rollback artifact capture must persist before/after/restore rows before option writes are enabled"
+        "true WP.com connected-state behavior requires an explicit OAuth app, sandbox blog, service account, or exact equivalent before remote-state writes can run"
       ],
       "crud": {
         "create": {
-          "level": "declared",
-          "upstream_blocker": "new option writes require disposable runtime isolation and rollback artifacts"
+          "level": "executable"
         },
         "read": {
           "level": "executable"
         },
         "update": {
-          "level": "declared",
-          "upstream_blocker": "option updates require connected-state fixtures and rollback artifacts"
+          "level": "executable"
         },
         "delete": {
-          "level": "declared",
-          "upstream_blocker": "option deletion is out of scope without rollback artifact proof"
+          "level": "executable"
         }
       },
       "mutation": {
-        "safety_boundary": "Planned only. Execution requires disposable WP Codebox isolation, synthetic Jetpack connected/disconnected fixtures, secret placeholders, and before/after/restore artifacts for every changed option.",
-        "rollback_artifacts": [
-          "option_write_rollback_plan",
-          "option_before_after_restore_rows"
+        "safety_boundary": "Executes local option writes only in a disposable WP Codebox WordPress runtime through the upstream destructive contract. True WP.com remote-state writes are classified as provisioning-blocked.",
+        "rollback_required": false,
+        "rollback_artifacts": [],
+        "disposable_contract_artifacts": [
+          "option_disposable_mutation_contract",
+          "option_before_after_rows"
         ]
       }
     },
@@ -67,7 +67,7 @@
         "option_matrix",
         "read_update_safety_rows",
         "connected_state_blockers",
-        "rollback_requirement_rows",
+        "disposable_mutation_contract_rows",
         "serialization_boundary_rows"
       ],
       "optional": [
@@ -98,7 +98,7 @@
       "operations": [
         "option-default-read",
         "option-inventory",
-        "option-update-rollback-plan",
+          "option-update-disposable-mutation",
         "read-update-safety-classification",
         "connected-state-blocker-classification",
         "serialization-boundary-classification",
@@ -175,17 +175,16 @@
           "oversized-json"
         ],
         "secret_placeholders_only": true,
-        "connected_state_required_for_mutation": true,
+        "connected_state_required_for_mutation": false,
+        "connected_remote_state_provisioning_required": true,
         "runtime_isolation_required_for_mutation": true,
-        "execute_mutations": false,
-        "mutation_mode": "declared_plan",
-        "restore_original_values": true,
-        "rollback_required": true,
-        "rollback_requirements": [
-          "snapshot original option rows before write",
-          "record autoload and serialized value shape before and after",
-          "restore original values before assertions complete",
-          "fail closed when connected/disconnected fixture state is unavailable"
+        "execute_mutations": true,
+        "mutation_mode": "upstream_disposable_destructive_contract",
+        "rollback_required": false,
+        "disposable_destructive_contract": [
+          "run only inside wp-codebox disposable WordPress",
+          "record option before and after value shape",
+          "classify WP.com remote-state writes as provisioned_connected_state_required"
         ],
         "skip_reason_codes": [
           "connection_required",
@@ -206,11 +205,12 @@
             "command": "wordpress.fuzz-plugin-options",
             "args": [
               "secret_placeholders_only=true",
-              "execute_mutations=false",
-              "mutation_mode=declared_plan",
-              "connected_state_required_for_mutation=true",
+              "execute_mutations=true",
+              "mutation_mode=upstream_disposable_destructive_contract",
+              "connected_state_required_for_mutation=false",
+              "connected_remote_state_provisioning_required=true",
               "runtime_isolation_required_for_mutation=true",
-              "rollback_required=true"
+              "rollback_required=false"
             ]
           }
         ],
@@ -233,17 +233,17 @@
           }
         },
         {
-          "name": "option_write_rollback_plan",
-          "path": "jetpack-options-matrix/option_write_rollback_plan.json",
+          "name": "option_disposable_mutation_contract",
+          "path": "jetpack-options-matrix/option_disposable_mutation_contract.json",
           "required": true,
           "metadata": {
-            "semantic_key": "fuzz.rollback_plan"
+              "semantic_key": "fuzz.disposable_destructive_contract"
           }
         }
       ],
       "metadata": {
-        "safety_class": "read_only",
-        "mutation_policy": "declare_option_write_plan_until_isolated_connected_fixture_exists"
+        "safety_class": "isolated_mutation",
+        "mutation_policy": "upstream_disposable_destructive_contract"
       }
     }
   ],
@@ -259,7 +259,7 @@
     "operations": [
       "option-default-read",
       "option-inventory",
-      "option-update-rollback-plan",
+      "option-update-disposable-mutation",
       "read-update-safety-classification",
       "connected-state-blocker-classification",
       "serialization-boundary-classification",
@@ -275,9 +275,9 @@
         "required": true
       },
       {
-        "name": "option_write_rollback_plan",
-        "role": "rollback_plan",
-        "semantic_key": "fuzz.rollback_plan",
+        "name": "option_disposable_mutation_contract",
+        "role": "disposable_destructive_contract",
+        "semantic_key": "fuzz.disposable_destructive_contract",
         "required": true
       }
     ]

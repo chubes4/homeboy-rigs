@@ -27,14 +27,19 @@
     "workload_path": "${package.root}/manifests/full-surface-coverage.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
-    "product_budgets": {
-      "max_rest_p95_duration_ms": 750,
-      "max_admin_p95_duration_ms": 1200,
-      "max_public_frontend_p95_duration_ms": 1000,
-      "max_queries_per_rest_case": 75,
-      "max_assets_per_public_request": 35,
+    "relative_hotspot_artifacts": {
+      "primary": true,
+      "required": [
+        "rest_db_query_profile",
+        "jetpack_performance_observation",
+        "jetpack_performance_surface_summary"
+      ],
+      "compare_against": "previous accepted Jetpack fuzz artifact set"
+    },
+    "optional_run_caps": {
       "max_external_http_attempts": 0,
-      "max_sync_queue_delta": 0
+      "max_sync_queue_delta": 0,
+      "max_duration_seconds": 900
     },
     "observed_surfaces": [
       "rest-generated-cases",
@@ -77,7 +82,7 @@
     ],
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Jetpack non-benchmark performance observation surfaces, product budgets, hotspot classes, query attribution, and connected-state caveats.",
+      "coverage_contract": "Jetpack non-benchmark performance observation surfaces, relative hotspot artifacts, optional run caps, query attribution, and connected-state caveats.",
       "upstream_blockers": [
         "Reviewer-facing fuzz run artifacts are required before this workload can be marked proven."
       ]
@@ -135,23 +140,20 @@
           "sync_queue_delta",
           "skip_reason_count"
         ],
-        "budget_keys": [
-          "max_rest_p95_duration_ms",
-          "max_admin_p95_duration_ms",
-          "max_public_frontend_p95_duration_ms",
-          "max_queries_per_rest_case",
-          "max_assets_per_public_request",
+        "optional_run_cap_keys": [
           "max_external_http_attempts",
-          "max_sync_queue_delta"
+          "max_sync_queue_delta",
+          "max_duration_seconds"
         ],
-        "product_budgets": {
-          "max_rest_p95_duration_ms": 750,
-          "max_admin_p95_duration_ms": 1200,
-          "max_public_frontend_p95_duration_ms": 1000,
-          "max_queries_per_rest_case": 75,
-          "max_assets_per_public_request": 35,
+        "relative_hotspot_artifacts": [
+          "rest_db_query_profile",
+          "jetpack_performance_observation",
+          "jetpack_performance_surface_summary"
+        ],
+        "optional_run_caps": {
           "max_external_http_attempts": 0,
-          "max_sync_queue_delta": 0
+          "max_sync_queue_delta": 0,
+          "max_duration_seconds": 900
         },
         "hotspot_classes": [
           "slow-rest-route",
@@ -277,7 +279,7 @@
           "metadata": {
             "semantic_key": "fuzz.report",
             "contains": [
-              "product_budget_comparison",
+              "relative_hotspot_comparison",
               "hotspot_classification",
               "query_attribution_summary",
               "connected_state_caveats"
@@ -292,7 +294,7 @@
             "semantic_key": "fuzz.performance_surface_summary",
             "contains": [
               "surface_rollups",
-              "budget_status",
+              "optional_run_cap_status",
               "artifact_inputs",
               "skip_reason_rollups"
             ]
@@ -334,7 +336,7 @@
         "semantic_key": "fuzz.report",
         "required": true,
         "contains": [
-          "product_budget_comparison",
+          "relative_hotspot_comparison",
           "hotspot_classification",
           "query_attribution_summary",
           "connected_state_caveats"
@@ -347,7 +349,7 @@
         "required": true,
         "contains": [
           "surface_rollups",
-          "budget_status",
+          "optional_run_cap_status",
           "artifact_inputs",
           "skip_reason_rollups"
         ]

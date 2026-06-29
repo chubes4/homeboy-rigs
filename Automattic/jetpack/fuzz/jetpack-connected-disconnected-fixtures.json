@@ -10,7 +10,7 @@
     "wordpress-options"
   ],
   "operations": [
-    "connected-fixture-state",
+    "local-placeholder-connected-fixture-state",
     "disconnected-fixture-state",
     "token-placeholder-serialization",
     "skip-reason-classification"
@@ -29,7 +29,7 @@
     ],
     "fixture_state_contract": {
       "connected": {
-        "description": "Synthetic local connected-site shape with placeholder blog/user IDs and fake token material only.",
+        "description": "Synthetic local connected-site shape with placeholder blog/user IDs and fake token material only. This is not true WP.com connected-state support.",
         "required_options": [
           "jetpack_options",
           "jetpack_private_options",
@@ -84,6 +84,18 @@
       "Connected behavior that requires public-api.wordpress.com must be reported as a skip, not exercised with live credentials.",
       "The Jetpack external HTTP guardrail owns network blocking proof for this lane."
     ],
+    "connected_remote_state_contract": {
+      "level": "blocked_until_provisioned",
+      "required_provisioning": [
+        "wpcom_oauth_app",
+        "wpcom_sandbox_blog",
+        "wpcom_service_account"
+      ],
+      "exact_equivalent_allowed": true,
+      "guessed_support_allowed": false,
+      "local_placeholder_state_is_remote_support": false,
+      "blocker_reason_code": "provisioned_connected_state_required"
+    },
     "module_availability_expectations": {
       "available_in_both_states": [
         "shortcodes",
@@ -106,7 +118,7 @@
     "reset_contract": {
       "snapshot_before_mutation": true,
       "restore_original_values": true,
-      "rollback_required": true,
+      "rollback_required": false,
       "reset_after_each_state": true,
       "option_patterns": [
         "jetpack_options",
@@ -120,14 +132,14 @@
       ],
       "failure_policy": "fail_if_fixture_state_leaks_after_assert"
     },
-    "mutation_policy": "snapshot_connection_options_restore_after_assert",
+    "mutation_policy": "upstream_disposable_destructive_contract",
     "artifact_expectations": {
       "required": [
         "connected_fixture_rows",
         "disconnected_fixture_rows",
         "token_placeholder_serialization",
         "skip_reason_rows",
-        "rollback_reset_rows",
+        "fixture_reset_rows",
         "redaction_rows"
       ],
       "optional": [
@@ -159,7 +171,7 @@
     },
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Jetpack connected and disconnected fixture states using placeholder tokens, redaction checks, skip-reason classification, and rollback/reset artifacts.",
+      "coverage_contract": "Jetpack local placeholder connected and disconnected fixture states using placeholder tokens, redaction checks, skip-reason classification, and fixture reset artifacts. True WP.com connected-state behavior is blocked until explicit OAuth app, sandbox blog, service account, or exact equivalent provisioning exists.",
       "upstream_blockers": [
         "Reviewer-facing fuzz run artifacts are required before this workload can be marked proven."
       ]
@@ -186,7 +198,7 @@
         "wordpress-options"
       ],
       "operations": [
-        "connected-fixture-state",
+          "local-placeholder-connected-fixture-state",
         "disconnected-fixture-state",
         "token-placeholder-serialization",
         "skip-reason-classification"
@@ -231,10 +243,12 @@
         "real_tokens_allowed": false,
         "network_calls_allowed": false,
         "wpcom_sandbox_required": false,
+        "connected_remote_state_provisioning_required": true,
+        "guessed_connected_state_support_allowed": false,
         "secret_placeholders_only": true,
         "restore_original_values": true,
         "reset_after_each_state": true,
-        "rollback_required": true,
+        "rollback_required": false,
         "module_availability_expectations": {
           "available_in_both_states": [
             "shortcodes",
@@ -279,7 +293,8 @@
               "states=connected,disconnected",
               "secret_placeholders_only=true",
               "restore_original_values=true",
-              "rollback_required=true",
+              "rollback_required=false",
+              "connected_remote_state_provisioning_required=true",
               "classify_skips=true"
             ]
           }
@@ -311,17 +326,17 @@
           }
         },
         {
-          "name": "connection_reset_report",
-          "path": "jetpack-connected-disconnected-fixtures/connection_reset_report.json",
+          "name": "connection_fixture_reset_report",
+          "path": "jetpack-connected-disconnected-fixtures/connection_fixture_reset_report.json",
           "required": true,
           "metadata": {
-            "semantic_key": "fuzz.rollback_report"
+            "semantic_key": "fuzz.fixture_reset_report"
           }
         }
       ],
       "metadata": {
         "safety_class": "isolated_mutation",
-        "mutation_policy": "snapshot_connection_options_restore_after_assert"
+        "mutation_policy": "upstream_disposable_destructive_contract"
       }
     }
   ],
@@ -337,7 +352,7 @@
       "wordpress-options"
     ],
     "operations": [
-      "connected-fixture-state",
+      "local-placeholder-connected-fixture-state",
       "disconnected-fixture-state",
       "token-placeholder-serialization",
       "skip-reason-classification"
@@ -358,9 +373,9 @@
         "required": true
       },
       {
-        "name": "connection_reset_report",
-        "role": "rollback_report",
-        "semantic_key": "fuzz.rollback_report",
+        "name": "connection_fixture_reset_report",
+        "role": "fixture_reset_report",
+        "semantic_key": "fuzz.fixture_reset_report",
         "required": true
       }
     ]

@@ -191,31 +191,32 @@ assert.ok(dbRun.option_names.includes('jetpack_active_modules'), 'Jetpack DB inv
 assert.ok(dbRun.module_inventory.expected_modules.includes('stats'), 'Jetpack DB inventory must include representative modules');
 
 assertBoundary('jetpack-options-matrix', {
-  safetyClass: 'read_only',
-  operations: ['option-default-read', 'option-update-rollback-plan', 'read-update-safety-classification', 'connected-state-blocker-classification', 'serialization-boundary-classification'],
-  inputs: { secret_placeholders_only: true, execute_mutations: false, mutation_mode: 'declared_plan', connected_state_required_for_mutation: true, runtime_isolation_required_for_mutation: true, restore_original_values: true, rollback_required: true },
+  safetyClass: 'isolated_mutation',
+  operations: ['option-default-read', 'option-update-disposable-mutation', 'read-update-safety-classification', 'connected-state-blocker-classification', 'serialization-boundary-classification'],
+  inputs: { secret_placeholders_only: true, execute_mutations: true, mutation_mode: 'upstream_disposable_destructive_contract', connected_state_required_for_mutation: false, connected_remote_state_provisioning_required: true, runtime_isolation_required_for_mutation: true, rollback_required: false },
 });
 assertBoundary('jetpack-module-state-matrix', {
-  safetyClass: 'read_only',
-  operations: ['module-discovery', 'module-group-inventory', 'module-activate-deactivate-plan', 'connected-state-blocker-classification', 'rollback-requirement-plan'],
-  inputs: { external_dispatch: false, execute_mutations: false, mutation_mode: 'declared_plan', connected_state_required_for_mutation: true, runtime_isolation_required_for_mutation: true, restore_original_values: true, rollback_required: true },
+  safetyClass: 'isolated_mutation',
+  operations: ['module-discovery', 'module-group-inventory', 'module-activate-deactivate-disposable-mutation', 'connected-state-blocker-classification', 'disposable-destructive-contract-classification'],
+  inputs: { external_dispatch: false, execute_mutations: true, mutation_mode: 'upstream_disposable_destructive_contract', connected_state_required_for_mutation: false, connected_remote_state_provisioning_required: true, runtime_isolation_required_for_mutation: true, rollback_required: false },
 });
 assertBoundary('jetpack-sync-queue-coverage', {
   safetyClass: 'isolated_mutation',
-  operations: ['sync-queue-discovery', 'sync-action-inventory', 'queue-option-rollback'],
-  inputs: { remote_dispatch: false, force_http_guardrail: true, restore_original_values: true, rollback_required: true },
+  operations: ['sync-queue-discovery', 'sync-action-inventory', 'queue-option-disposable-mutation'],
+  inputs: { remote_dispatch: false, force_http_guardrail: true, connected_remote_state_provisioning_required: true, rollback_required: false },
 });
 assertBoundary('jetpack-cron-sync-actions', {
   safetyClass: 'isolated_mutation',
-  operations: ['cron-event-inventory', 'sync-action-inventory', 'queue-option-delta', 'rollback-safe-cron-mutation'],
-  inputs: { remote_dispatch: false, force_http_guardrail: true },
+  operations: ['cron-event-inventory', 'sync-action-inventory', 'queue-option-delta', 'disposable-cron-mutation'],
+  inputs: { remote_dispatch: false, force_http_guardrail: true, connected_remote_state_provisioning_required: true, rollback_required: false },
 });
 assertBoundary('jetpack-connected-disconnected-fixtures', {
   safetyClass: 'isolated_mutation',
-  operations: ['connected-fixture-state', 'disconnected-fixture-state', 'token-placeholder-serialization', 'skip-reason-classification'],
-  inputs: { real_wpcom_credentials_allowed: false, real_tokens_allowed: false, network_calls_allowed: false, wpcom_sandbox_required: false, secret_placeholders_only: true, restore_original_values: true, reset_after_each_state: true, rollback_required: true },
+  operations: ['local-placeholder-connected-fixture-state', 'disconnected-fixture-state', 'token-placeholder-serialization', 'skip-reason-classification'],
+  inputs: { real_wpcom_credentials_allowed: false, real_tokens_allowed: false, network_calls_allowed: false, wpcom_sandbox_required: false, connected_remote_state_provisioning_required: true, guessed_connected_state_support_allowed: false, secret_placeholders_only: true, restore_original_values: true, reset_after_each_state: true, rollback_required: false },
 });
 assertConnectedDisconnectedFixtureContract();
+assertDisposableMutationSplitContract();
 
 const moduleInventory = manifestFor('jetpack-module-option-table-inventory');
 assert.equal(moduleInventory.safety_class, 'read_only', 'Jetpack module inventory must remain read-only');
@@ -236,12 +237,12 @@ const optionsMatrix = manifestFor('jetpack-options-matrix');
 assert.ok(optionsMatrix.cases[0].inputs.option_keys.includes('jetpack_active_modules'), 'Jetpack options matrix must enumerate active module option');
 assert.ok(optionsMatrix.cases[0].inputs.option_keys.includes('jetpack_private_options'), 'Jetpack options matrix must enumerate private option placeholders');
 assert.ok(optionsMatrix.cases[0].inputs.connected_state_blocked_option_keys.includes('jpsq_sync_checkout'), 'Jetpack options matrix must classify sync queue connected-state blockers');
-assert.ok(optionsMatrix.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.rollback_plan'), 'Jetpack options matrix must declare rollback plan artifact');
+assert.ok(optionsMatrix.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.disposable_destructive_contract'), 'Jetpack options matrix must declare disposable destructive contract artifact');
 
 const moduleState = manifestFor('jetpack-module-state-matrix');
 assert.ok(Object.keys(moduleState.cases[0].inputs.module_groups).includes('traffic'), 'Jetpack module state matrix must group traffic modules');
 assert.ok(moduleState.cases[0].inputs.connected_state_blockers.includes('publicize'), 'Jetpack module state matrix must classify connected-state module blockers');
-assert.ok(moduleState.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.rollback_plan'), 'Jetpack module state matrix must declare rollback plan artifact');
+assert.ok(moduleState.artifacts.expected.some((artifact) => artifact.semantic_key === 'fuzz.disposable_destructive_contract'), 'Jetpack module state matrix must declare disposable destructive contract artifact');
 
 const adminPageCoverage = manifestFor('jetpack-admin-page-coverage');
 assert.ok(adminPageCoverage.cases[0].inputs.include_menu_slugs.includes('jetpack'), 'Jetpack admin coverage must include dashboard menu');
@@ -318,18 +319,18 @@ function assertBoundary(workloadId, { safetyClass, operations, inputs }) {
 }
 
 function assertPerformanceObservationContract(manifest) {
-  const budgets = manifest.metadata?.product_budgets || {};
-  assert.equal(budgets.max_external_http_attempts, 0, 'Jetpack performance observation must budget zero external HTTP attempts');
-  assert.equal(budgets.max_sync_queue_delta, 0, 'Jetpack performance observation must budget zero sync queue delta');
-  assert.ok(budgets.max_rest_p95_duration_ms > 0, 'Jetpack performance observation must declare REST latency budget');
-  assert.ok(budgets.max_admin_p95_duration_ms > 0, 'Jetpack performance observation must declare admin latency budget');
+  const runCaps = manifest.metadata?.optional_run_caps || {};
+  assert.equal(manifest.metadata?.relative_hotspot_artifacts?.primary, true, 'Jetpack performance observation must make relative hotspot artifacts primary');
+  assert.ok(manifest.metadata.relative_hotspot_artifacts.required.includes('rest_db_query_profile'), 'Jetpack performance observation must require REST DB hotspot artifact');
+  assert.equal(runCaps.max_external_http_attempts, 0, 'Jetpack performance observation must cap external HTTP attempts at zero when caps are retained');
+  assert.equal(runCaps.max_sync_queue_delta, 0, 'Jetpack performance observation must cap sync queue delta at zero when caps are retained');
   assert.ok(manifest.metadata.observed_surfaces.includes('db-query-profile'), 'Jetpack performance observation must include DB query profile surface');
   assert.ok(manifest.metadata.hotspot_classes.includes('duplicate-db-query'), 'Jetpack performance observation must classify duplicate DB query hotspots');
   assert.equal(manifest.metadata.query_attribution_expectations.source_artifact, 'rest_db_query_profile', 'Jetpack performance observation query attribution source drifted');
   assert.deepEqual(new Set(manifest.cases[0].inputs.states), new Set(['connected', 'disconnected']), 'Jetpack performance observation must caveat connected and disconnected states');
   assert.ok(manifest.metadata.connected_state_caveats.length >= 2, 'Jetpack performance observation must document connected-state caveats');
-  assertArtifactContains(manifest, 'jetpack_performance_observation', ['product_budget_comparison', 'hotspot_classification', 'query_attribution_summary', 'connected_state_caveats']);
-  assertArtifactContains(manifest, 'jetpack_performance_surface_summary', ['surface_rollups', 'budget_status', 'artifact_inputs', 'skip_reason_rollups']);
+  assertArtifactContains(manifest, 'jetpack_performance_observation', ['relative_hotspot_comparison', 'hotspot_classification', 'query_attribution_summary', 'connected_state_caveats']);
+  assertArtifactContains(manifest, 'jetpack_performance_surface_summary', ['surface_rollups', 'optional_run_cap_status', 'artifact_inputs', 'skip_reason_rollups']);
 }
 
 function assertRestQueryProfileContract(manifest) {
@@ -360,14 +361,17 @@ function assertArtifactContains(manifest, artifactName, expectedFields) {
 
 function assertJetpackStableWorkloads(manifest, expectedIds, expectedFuzzIds) {
   assert.deepEqual(new Set(manifest.contracts.map((contract) => contract.id)), expectedIds, 'Jetpack stable workload ids drifted');
-  assert.ok(Array.isArray(manifest.comparison_surfaces) && manifest.comparison_surfaces.includes('fuzz-hotspots'), 'Jetpack stable workloads must compare fuzz hotspots');
+  assert.ok(Array.isArray(manifest.comparison_surfaces) && manifest.comparison_surfaces.includes('relative-hotspot-artifacts'), 'Jetpack stable workloads must compare relative hotspot artifacts');
 
   for (const contract of manifest.contracts) {
     assert.equal(contract.readiness, 'executable', `${contract.id} must be executable`);
     assert.ok(Array.isArray(contract.entry_workloads) && contract.entry_workloads.length > 0, `${contract.id} must declare entry workloads`);
     assert.ok(Array.isArray(contract.observed_surfaces) && contract.observed_surfaces.length > 0, `${contract.id} must declare observed surfaces`);
     assert.ok(contract.expected_observations?.required_artifacts?.length > 0, `${contract.id} must require artifacts`);
-    assert.ok(contract.budgets?.max_duration_seconds > 0, `${contract.id} must declare max duration budget`);
+    assert.ok(Array.isArray(contract.relative_hotspot_artifacts) && contract.relative_hotspot_artifacts.length > 0, `${contract.id} must declare relative hotspot artifacts`);
+    if (contract.optional_run_caps) {
+      assert.ok(contract.optional_run_caps.max_duration_seconds > 0, `${contract.id} optional run caps must bound duration when retained`);
+    }
 
     for (const workloadId of contract.entry_workloads) {
       assert.ok(expectedFuzzIds.has(workloadId), `${contract.id} entry workload ${workloadId} must be a declared Jetpack fuzz workload`);
@@ -398,6 +402,14 @@ function assertConnectedDisconnectedFixtureContract() {
 
   assert.ok(Array.isArray(metadata.wpcom_sandbox_blockers) && metadata.wpcom_sandbox_blockers.length >= 2, 'Connection fixture must declare WP.com sandbox blockers');
   assert.ok(metadata.wpcom_sandbox_blockers.some((blocker) => blocker.includes('No WP.com OAuth')), 'Connection fixture must document missing WP.com OAuth sandbox');
+  assert.equal(metadata.connected_remote_state_contract?.level, 'blocked_until_provisioned', 'Connection fixture must block true WP.com connected state until provisioned');
+  assert.equal(metadata.connected_remote_state_contract?.guessed_support_allowed, false, 'Connection fixture must not guess WP.com connected-state support');
+  assert.equal(metadata.connected_remote_state_contract?.local_placeholder_state_is_remote_support, false, 'Local placeholder state must not count as remote connected-state support');
+  assert.ok(metadata.connected_remote_state_contract.required_provisioning.includes('wpcom_oauth_app'), 'Connection fixture must require a WP.com OAuth app for remote state');
+  assert.ok(metadata.connected_remote_state_contract.required_provisioning.includes('wpcom_sandbox_blog'), 'Connection fixture must require a WP.com sandbox blog for remote state');
+  assert.ok(metadata.connected_remote_state_contract.required_provisioning.includes('wpcom_service_account'), 'Connection fixture must require a WP.com service account for remote state');
+  assert.equal(runnerCase.inputs.connected_remote_state_provisioning_required, true, 'Connection fixture inputs must require connected remote-state provisioning');
+  assert.equal(runnerCase.inputs.guessed_connected_state_support_allowed, false, 'Connection fixture inputs must forbid guessed connected-state support');
   assert.ok(runnerCase.inputs.skip_reason_codes.includes('credential_unavailable'), 'Connection fixture must classify credential skips');
   assert.ok(runnerCase.inputs.skip_reason_codes.includes('external_service_required'), 'Connection fixture must classify external service skips');
   assert.ok(runnerCase.inputs.skip_reason_codes.includes('connection_required'), 'Connection fixture must classify connection-required skips');
@@ -408,15 +420,31 @@ function assertConnectedDisconnectedFixtureContract() {
 
   assert.equal(metadata.reset_contract.snapshot_before_mutation, true, 'Connection fixture must snapshot before mutation');
   assert.equal(metadata.reset_contract.restore_original_values, true, 'Connection fixture must restore original values');
-  assert.equal(metadata.reset_contract.rollback_required, true, 'Connection fixture must require rollback');
+  assert.equal(metadata.reset_contract.rollback_required, false, 'Connection fixture must not require rollback for disposable local fixture mutation');
   assert.equal(metadata.reset_contract.reset_after_each_state, true, 'Connection fixture must reset after each state');
   assert.ok(metadata.reset_contract.option_patterns.includes('jetpack_private_options'), 'Connection fixture reset contract must include private options');
-  assert.ok(metadata.artifact_expectations.required.includes('rollback_reset_rows'), 'Connection fixture must require rollback reset artifact rows');
+  assert.ok(metadata.artifact_expectations.required.includes('fixture_reset_rows'), 'Connection fixture must require fixture reset artifact rows');
   assert.ok(metadata.artifact_expectations.required.includes('redaction_rows'), 'Connection fixture must require redaction artifact rows');
 
-  assert.ok(runnerCase.artifacts.some((artifact) => artifact.name === 'connection_reset_report' && artifact.metadata?.semantic_key === 'fuzz.rollback_report'), 'Connection fixture must declare a reset report case artifact');
-  assert.ok(manifest.artifacts.expected.some((artifact) => artifact.name === 'connection_reset_report' && artifact.semantic_key === 'fuzz.rollback_report'), 'Connection fixture must declare a reset report expected artifact');
+  assert.ok(runnerCase.artifacts.some((artifact) => artifact.name === 'connection_fixture_reset_report' && artifact.metadata?.semantic_key === 'fuzz.fixture_reset_report'), 'Connection fixture must declare a reset report case artifact');
+  assert.ok(manifest.artifacts.expected.some((artifact) => artifact.name === 'connection_fixture_reset_report' && artifact.semantic_key === 'fuzz.fixture_reset_report'), 'Connection fixture must declare a reset report expected artifact');
   assert.ok(metadata.proof_artifact_expectations.connection_fixture_matrix.includes('module_expectations'), 'Connection fixture proof matrix must include module expectations');
   assert.ok(metadata.proof_artifact_expectations.connection_skip_reasons.includes('blocked_by_wpcom_sandbox'), 'Connection fixture skip proof must include WP.com blocker status');
   assert.ok(metadata.proof_artifact_expectations.connection_reset_report.includes('leaked_keys'), 'Connection fixture reset proof must include leaked key checks');
+}
+
+function assertDisposableMutationSplitContract() {
+  for (const workloadId of ['jetpack-options-matrix', 'jetpack-module-state-matrix', 'jetpack-sync-queue-coverage', 'jetpack-cron-sync-actions']) {
+    const manifest = manifestFor(workloadId);
+    const runnerCase = manifest.cases[0];
+    const contract = manifest.metadata?.upstream_disposable_destructive_contract;
+
+    assert.equal(manifest.safety_class, 'isolated_mutation', `${workloadId} local mutation must be isolated mutation`);
+    assert.equal(contract?.contract, 'wordpress-disposable-destructive-contract', `${workloadId} must wire to upstream disposable destructive contract`);
+    assert.equal(contract?.fixture_scope, 'wp-codebox-disposable-wordpress', `${workloadId} must target disposable WordPress fixtures`);
+    assert.equal(contract?.rollback_required, false, `${workloadId} disposable mutation must not be rollback-blocked`);
+    assert.equal(contract?.remote_state_allowed, false, `${workloadId} disposable mutation must not claim remote-state writes`);
+    assert.equal(runnerCase.inputs?.rollback_required, false, `${workloadId} case must not require rollback`);
+    assert.equal(runnerCase.inputs?.connected_remote_state_provisioning_required, true, `${workloadId} must keep connected WP.com behavior provision-blocked`);
+  }
 }
