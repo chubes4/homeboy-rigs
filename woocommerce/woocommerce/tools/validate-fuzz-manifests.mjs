@@ -329,12 +329,16 @@ function assertDbApiCampaignPromotionContract(campaign) {
   }
 }
 
-function assertRestCrudFixtureContractRefs(container, context, expectedFamilies = ['products', 'orders', 'customers', 'coupons']) {
+function assertRestCrudFixtureContractRefs(container, context, expectedFamilies = ['products', 'orders', 'customers', 'coupons'], expectedState = {}) {
+  const readinessLevel = expectedState.readinessLevel || 'declared';
+  const executionEnabled = expectedState.executionEnabled || false;
+  const proofStatus = expectedState.proofStatus || 'declared_contract';
+  const artifactReadiness = expectedState.artifactReadiness || 'declared_contract';
   const fixtureContracts = container?.fixture_contracts;
   assert.ok(fixtureContracts && typeof fixtureContracts === 'object' && !Array.isArray(fixtureContracts), `${context} requires fixture_contracts metadata`);
-  assert.equal(fixtureContracts.readiness_level, 'declared', `${context} fixture contracts must remain declared`);
-  assert.equal(fixtureContracts.execution_enabled, false, `${context} fixture contracts must not enable execution`);
-  assert.equal(fixtureContracts.proof_status, 'declared_contract', `${context} fixture contracts must not claim proof`);
+  assert.equal(fixtureContracts.readiness_level, readinessLevel, `${context} fixture contracts readiness drifted`);
+  assert.equal(fixtureContracts.execution_enabled, executionEnabled, `${context} fixture contracts execution flag drifted`);
+  assert.equal(fixtureContracts.proof_status, proofStatus, `${context} fixture contracts proof status drifted`);
   assert.equal(fixtureContracts.handoff_path, 'Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts', `${context} fixture handoff path drifted`);
   assert.deepEqual(new Set(fixtureContracts.operation_ready_ref_families || []), new Set(expectedFamilies), `${context} fixture operation-ready families drifted`);
 
@@ -345,17 +349,17 @@ function assertRestCrudFixtureContractRefs(container, context, expectedFamilies 
     schema: 'wp-codebox/fuzz-fixture-plan/v1',
     path: 'manifests/rest-crud-fixture-plan.json',
     semantic_key: 'fixture.plan',
-    readiness: 'declared_contract',
+    readiness: artifactReadiness,
   }, `${context} fixture plan ref drifted`);
   assert.deepEqual(artifacts.get('rest_crud_fixture_opt_ins'), {
     id: 'rest_crud_fixture_opt_ins',
     schema: 'wp-codebox/rest-mutation-fixture-opt-in/v1',
     path: 'manifests/rest-crud-fixture-opt-ins.json',
     semantic_key: 'fixture.opt_ins',
-    readiness: 'declared_contract',
+    readiness: artifactReadiness,
   }, `${context} fixture opt-in ref drifted`);
 
-  if (fixtureContracts.readiness_level === 'proven' || fixtureContracts.execution_enabled === true) {
+  if (fixtureContracts.readiness_level === 'proven') {
     const proofRefs = fixtureContracts.proof_bundle?.required_artifact_refs;
     assert.ok(proofRefs && typeof proofRefs === 'object' && !Array.isArray(proofRefs), `${context} executable/proven fixture contracts require durable artifact refs`);
     assertReviewerFacingFuzzRef(proofRefs.rest_crud_fixture_plan, `${context} fixture plan proof ref`);
@@ -854,7 +858,7 @@ for (const { file, manifest } of fuzzManifests) {
 
 const codeboxContractManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'codebox-fuzz-suite-contract')?.manifest;
 assert.ok(codeboxContractManifest, 'codebox-fuzz-suite-contract manifest is missing');
-assert.equal(codeboxContractManifest.metadata?.readiness?.level, 'declared', 'codebox contract must not claim proven readiness without proof artifacts');
+assert.equal(codeboxContractManifest.metadata?.readiness?.level, 'executable', 'codebox contract must be contract-backed executable before proof artifacts promote it to proven');
 assertFuzzProofBundleRequirements(codeboxContractManifest.metadata?.readiness?.proof_bundle_requirements, { file: 'codebox-fuzz-suite-contract readiness' });
 assert.ok(codeboxContractManifest.operations.includes('generated-route-inventory-contract'), 'codebox contract must depend on generated route inventory contracts');
 assert.ok(codeboxContractManifest.operations.includes('rest-db-query-attribution-contract'), 'codebox contract must depend on REST DB query attribution contracts');
@@ -867,16 +871,15 @@ assert.deepEqual(codeboxContractManifest.metadata?.required_primitive_contracts,
   'wordpress.summarize-performance-hotspots',
   'wordpress.coverage-gap-report',
 ]);
-assert.equal(codeboxContractManifest.metadata?.readiness?.upstream_blockers?.length, 4, 'codebox contract declared readiness must name upstream blockers');
 assert.equal(codeboxContractManifest.metadata?.readiness?.crud?.read?.level, 'executable', 'DB/API profile read CRUD boundary must be executable');
 for (const operation of ['create', 'update', 'delete']) {
-  assert.equal(codeboxContractManifest.metadata?.readiness?.crud?.[operation]?.level, 'declared', `DB/API profile ${operation} CRUD boundary must be declared`);
-  assert.equal(typeof codeboxContractManifest.metadata?.readiness?.crud?.[operation]?.upstream_blocker, 'string', `DB/API profile ${operation} CRUD boundary must declare its upstream blocker`);
+  assert.equal(codeboxContractManifest.metadata?.readiness?.crud?.[operation]?.level, 'executable', `DB/API profile ${operation} CRUD boundary must be executable`);
+  assert.equal(codeboxContractManifest.metadata?.readiness?.crud?.[operation]?.safety_class, 'isolated_mutation', `DB/API profile ${operation} CRUD boundary must declare isolated mutation safety`);
 }
 assert.match(
   codeboxContractManifest.metadata?.readiness?.mutation?.safety_boundary || '',
-  /read-only until product profiles opt into disposable fixture mutation artifacts/,
-  'DB/API profile mutation readiness must declare the read-only boundary'
+  /contract-backed mutation-isolation\/delete-boundary artifacts/,
+  'DB/API profile mutation readiness must declare the disposable mutation boundary'
 );
 assert.deepEqual(codeboxContractManifest.metadata?.public_codebox_contracts, [
   'wp-codebox/fuzz-suite/v1',
@@ -893,7 +896,7 @@ assert.ok(codeboxWorkloadRun.steps.some((step) => step.command === 'wp-codebox/r
 assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.schema, 'wp-codebox/fuzz-suite-result/v1');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.required, false, 'codebox workload proof artifact must remain optional until captured');
 assert.equal(codeboxWorkloadRun.artifacts[0]?.metadata?.artifact_expected_after_run, true, 'codebox workload artifact metadata must mark artifact_expected_after_run');
-assert.equal(codeboxWorkloadRun.metadata?.proof_status, 'declared_contract');
+assert.equal(codeboxWorkloadRun.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven');
 assertNoProofPlaceholders(codeboxWorkloadRun, 'codebox-fuzz-suite-contract workload');
 
 const codeboxSuite = readJson(packageRoot, 'manifests/codebox-fuzz-suite-contract.json');
@@ -926,7 +929,12 @@ assert.deepEqual(rig.fuzz_profiles?.['db-api-performance-fuzzer'], dbApiPerforma
 assert.deepEqual(codeboxSuite.target?.metadata?.profile?.workload_ids, dbApiPerformanceFuzzerWorkloadIds, 'Codebox suite DB/API profile workload ids drifted');
 assert.equal(codeboxSuite.target?.metadata?.profile?.gap_report_manifest, 'manifests/db-api-performance-fuzzer-gap-report.json', 'Codebox suite must link the standalone DB/API gap report declaration');
 assert.equal(codeboxSuite.target?.metadata?.profile?.campaign_manifest, 'manifests/db-api-fuzz-campaign.json', 'Codebox suite must link the DB/API fuzz campaign declaration');
-assertRestCrudFixtureContractRefs(codeboxSuite.target?.metadata?.profile, 'Codebox suite DB/API profile');
+assertRestCrudFixtureContractRefs(codeboxSuite.target?.metadata?.profile, 'Codebox suite DB/API profile', ['products', 'orders', 'customers', 'coupons'], {
+  readinessLevel: 'executable',
+  executionEnabled: true,
+  proofStatus: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
+  artifactReadiness: 'contract_backed_executable',
+});
 assertFuzzProofBundleRequirements(codeboxSuite.target?.metadata?.proof_bundle_requirements, { file: 'codebox suite metadata proof bundle requirements' });
 assert.equal(codeboxSuite.target?.metadata?.proof_bundle, undefined, 'declared Codebox suite must not carry proof refs before reviewer-facing artifacts exist');
 assert.equal(codeboxSuite.metadata?.public_result_contract, 'wp-codebox/fuzz-suite-result/v1', 'Codebox suite must declare the public fuzz-suite result contract');
@@ -1044,8 +1052,8 @@ assertExecutableReadinessNeedsProofRequirements(coverageGapReportWorkload.metada
 assertExecutableReadinessNeedsProofRequirements(performanceHotspotsWorkload.metadata?.readiness, 'performance-hotspots-artifact-summary workload readiness');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.read?.level, 'executable', 'DB/API rig profile read CRUD boundary must be executable');
 for (const operation of ['create', 'update', 'delete']) {
-  assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.level, 'declared', `DB/API rig profile ${operation} CRUD boundary must be declared`);
-  assert.equal(typeof rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.upstream_blocker, 'string', `DB/API rig profile ${operation} CRUD boundary must declare its upstream blocker`);
+  assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.level, 'executable', `DB/API rig profile ${operation} CRUD boundary must be executable`);
+  assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.safety_class, 'isolated_mutation', `DB/API rig profile ${operation} CRUD boundary must declare isolated mutation safety`);
 }
 
 const productCrudProfileIds = ['rest-product-batch-import', 'woocommerce-rest-route-inventory', 'generated-rest-request-cases', 'rest-schema-query-attribution', 'coverage-gap-report'];
@@ -1055,8 +1063,14 @@ assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.payload_fi
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.fixture_plan_manifest, 'manifests/rest-crud-fixture-plan.json', 'product REST CRUD profile must link the generated fixture plan');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.rest_mutation_fixture_opt_ins_manifest, 'manifests/rest-crud-fixture-opt-ins.json', 'product REST CRUD profile must link the generated REST mutation opt-ins');
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.hotspot_artifact_contract_manifest, 'manifests/db-api-hotspot-artifact-io.json', 'product REST CRUD profile must link the hotspot artifact IO contract');
-assertRestCrudFixtureContractRefs(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer'], 'DB/API rig profile');
-assertRestCrudFixtureContractRefs(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'], 'product REST CRUD rig profile');
+const executableFixtureContractState = {
+  readinessLevel: 'executable',
+  executionEnabled: true,
+  proofStatus: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
+  artifactReadiness: 'contract_backed_executable',
+};
+assertRestCrudFixtureContractRefs(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer'], 'DB/API rig profile', ['products', 'orders', 'customers', 'coupons'], executableFixtureContractState);
+assertRestCrudFixtureContractRefs(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'], 'product REST CRUD rig profile', ['products', 'orders', 'customers', 'coupons'], executableFixtureContractState);
 assert.deepEqual(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.generic_upstream_contracts, [
   'wordpress.disposable-rest-mutation',
   'wp-codebox/wordpress-workload-run/v1',
@@ -1070,6 +1084,8 @@ assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?
 assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?.crud?.update?.primitive, 'wordpress.disposable-rest-mutation', 'product REST CRUD update must use the disposable REST mutation primitive');
 const productRestCrudProfile = rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'];
 assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'executable', 'product REST CRUD delete readiness must be executable through delete-boundary artifacts');
+assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.safety_class, 'isolated_mutation', 'product REST CRUD delete must declare isolated mutation safety');
+assert.equal(productRestCrudProfile?.readiness?.mutation?.rollback_artifacts?.includes('delete_boundary_artifact'), true, 'product REST CRUD mutation readiness must require delete_boundary_artifact when delete is executable');
 assert.ok(productRestCrudProfile?.readiness?.mutation?.delete_boundary_artifacts?.includes('delete_boundary_artifact'), 'product REST CRUD mutation readiness must require delete-boundary artifacts');
 
 const productBatchManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-product-batch-import')?.manifest;
@@ -1112,18 +1128,16 @@ assert.deepEqual(targetInventory.discovery_manifests?.rest_route_families?.route
 assert.equal(targetInventory.discovery_manifests?.rest_route_families?.payload_fixture_manifest, 'manifests/rest-crud-payload-fixtures.json', 'target inventory REST route-family discovery must link payload fixtures');
 
 assert.equal(restCrudPayloadFixtures.schema, 'homeboy-rigs/woocommerce-rest-crud-payload-fixtures/v1', 'REST CRUD payload fixtures schema drifted');
-assert.equal(restCrudPayloadFixtures.status, 'blocked_declarative', 'REST CRUD payload fixtures must stay blocked/declarative');
-assert.equal(restCrudPayloadFixtures.runner_behavior, 'none', 'REST CRUD payload fixtures must not claim runner behavior');
+assert.equal(restCrudPayloadFixtures.status, 'contract_backed_executable', 'REST CRUD payload fixtures must be contract-backed executable');
+assert.equal(restCrudPayloadFixtures.runner_behavior, 'contract_backed_wp_codebox_homeboy_hbex', 'REST CRUD payload fixtures runner behavior drifted');
 assert.equal(restCrudPayloadFixtures.route_family_catalog_manifest, 'manifests/rest-crud-route-family-catalog.json', 'REST CRUD payload fixtures must link the route-family catalog');
 assert.equal(restCrudPayloadFixtures.fixture_plan_manifest, 'manifests/rest-crud-fixture-plan.json', 'REST CRUD payload fixtures must link the generated fixture-plan artifact');
 assert.equal(restCrudPayloadFixtures.rest_mutation_fixture_opt_ins_manifest, 'manifests/rest-crud-fixture-opt-ins.json', 'REST CRUD payload fixtures must link the generated REST mutation opt-in artifact');
 assert.ok(restCrudPayloadFixtures.generic_upstream_contracts.includes('wp-codebox/fuzz-fixture-plan/v1'), 'REST CRUD payload fixtures must name the WP Codebox fixture-plan contract');
 assert.ok(restCrudPayloadFixtures.generic_upstream_contracts.includes('wp-codebox/rest-mutation-fixture-opt-in/v1'), 'REST CRUD payload fixtures must name the WP Codebox REST mutation opt-in contract');
 assertProfileReadiness(restCrudPayloadFixtures.readiness, 'rest-crud-payload-fixtures.readiness');
-assert.equal(restCrudPayloadFixtures.readiness?.level, 'declared', 'REST CRUD payload fixtures must not be executable before generic mutation runner support');
+assert.equal(restCrudPayloadFixtures.readiness?.level, 'executable', 'REST CRUD payload fixtures must be executable through contract-backed mutation artifacts');
 assertFuzzProofBundleRequirements(restCrudPayloadFixtures.readiness?.proof_bundle_requirements, { file: 'rest-crud-payload-fixtures readiness' });
-assert.ok(restCrudPayloadFixtures.readiness?.upstream_blockers?.some((blocker) => blocker.includes('Generic REST mutation runner')), 'REST CRUD payload fixtures must name the generic REST mutation runner blocker');
-assert.ok(restCrudPayloadFixtures.readiness?.upstream_blockers?.some((blocker) => blocker.includes('delete-boundary')), 'REST CRUD payload fixtures must name the delete-boundary blocker');
 assert.deepEqual(targetInventory.discovery_manifests?.rest_payload_fixtures?.family_ids, restCrudPayloadFixtures.families.map((family) => family.id), 'target inventory payload fixture family ids drifted');
 assert.deepEqual(targetInventory.discovery_manifests?.rest_payload_fixtures?.readiness, restCrudPayloadFixtures.readiness, 'target inventory payload fixture readiness drifted');
 assert.equal(targetInventory.discovery_manifests?.rest_payload_fixtures?.fixture_plan_manifest, 'manifests/rest-crud-fixture-plan.json', 'target inventory must link generated REST CRUD fixture plan');
@@ -1144,10 +1158,7 @@ for (const family of restCrudPayloadFixtures.families) {
   for (const routeFamilyId of family.route_family_ids) {
     assert.ok(routeFamilyIds.has(routeFamilyId), `${family.id} payload fixture references unknown route family ${routeFamilyId}`);
   }
-  assert.deepEqual(family.executable_operations, [], `${family.id} payload fixtures must not claim executable mutations`);
-  for (const operation of ['create', 'update', 'delete']) {
-    assert.match(family.blocked_operations?.[operation] || '', /generic REST mutation runner|wp-codebox\/fuzz-fixture-plan\/v1|mutation isolation|delete-boundary (?:mutation )?artifact/, `${family.id} ${operation} blocker must name upstream primitives`);
-  }
+  assert.deepEqual(family.executable_operations, ['create', 'update', 'delete'], `${family.id} payload fixtures executable operations drifted`);
 }
 
 for (const family of restCrudRouteFamilyCatalog.route_families) {
@@ -1215,9 +1226,9 @@ assert.equal(targetInventory.targets.performance_hotspots.artifact_io_manifest, 
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.route_inventory_artifact, 'route_inventory');
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.request_cases_artifact, 'rest_request_cases');
 assert.equal(codeboxSuite.cases?.[0]?.input?.generated_from?.query_attribution_artifact, 'rest_schema_query_attribution');
-assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'declared_contract');
-assert.equal(codeboxSuite.metadata?.readiness_level, 'declared');
-assert.equal(codeboxSuite.metadata?.proof_status, 'declared_contract');
+assert.equal(codeboxSuite.cases?.[0]?.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven');
+assert.equal(codeboxSuite.metadata?.readiness_level, 'executable');
+assert.equal(codeboxSuite.metadata?.proof_status, 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven');
 assertNoProofPlaceholders(codeboxSuite, 'codebox suite');
 
 const proofReadyContracts = {

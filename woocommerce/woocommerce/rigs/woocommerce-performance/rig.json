@@ -318,9 +318,9 @@
         "wordpress.coverage-gap-report"
       ],
       "fixture_contracts": {
-        "readiness_level": "declared",
-        "execution_enabled": false,
-        "proof_status": "declared_contract",
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
         "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
         "artifacts": [
           {
@@ -328,14 +328,14 @@
             "schema": "wp-codebox/fuzz-fixture-plan/v1",
             "path": "manifests/rest-crud-fixture-plan.json",
             "semantic_key": "fixture.plan",
-            "readiness": "declared_contract"
+            "readiness": "contract_backed_executable"
           },
           {
             "id": "rest_crud_fixture_opt_ins",
             "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
             "path": "manifests/rest-crud-fixture-opt-ins.json",
             "semantic_key": "fixture.opt_ins",
-            "readiness": "declared_contract"
+            "readiness": "contract_backed_executable"
           }
         ],
         "operation_ready_ref_families": [
@@ -346,8 +346,11 @@
         ]
       },
       "readiness": {
-        "level": "declared",
-        "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; mutating REST execution is owned by product profiles that opt into disposable sandbox mutation contracts.",
+        "level": "executable",
+        "execution_enabled": true,
+        "local_execution_enabled": false,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "coverage_contract": "DB/API performance fuzzing is executable as a profile over existing WooCommerce fuzz workloads, the full-surface gap report contract, and contract-backed REST CRUD fixture artifacts. Proven status still requires reviewer-facing run artifacts.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -367,48 +370,44 @@
         },
         "crud": {
           "create": {
-            "level": "declared",
-            "upstream_blocker": "DB/API performance fuzzing has not opted create into disposable mutation execution."
+            "level": "executable",
+            "safety_class": "isolated_mutation"
           },
           "read": {
             "level": "executable"
           },
           "update": {
-            "level": "declared",
-            "upstream_blocker": "DB/API performance fuzzing has not opted update into disposable mutation execution."
+            "level": "executable",
+            "safety_class": "isolated_mutation"
           },
           "delete": {
-            "level": "declared",
-            "upstream_blocker": "DB/API performance fuzzing has not opted delete into disposable mutation execution."
+            "level": "executable",
+            "safety_class": "isolated_mutation"
           }
         },
         "mutation": {
-          "safety_boundary": "Profile execution is read-only until product profiles opt into disposable fixture mutation artifacts for REST CRUD cases.",
+          "safety_boundary": "Profile execution uses disposable WP Codebox fixtures and contract-backed mutation-isolation/delete-boundary artifacts for REST CRUD cases.",
           "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
           "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
           "delete_boundary_artifacts": ["delete_boundary_artifact"],
           "destructive_case_ledgers": ["destructive_case_ledger"],
           "teardown_discard_evidence": ["sandbox_teardown_evidence"],
           "artifact_bundle_refs": ["artifact_bundle_ref"],
-          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
-          "upstream_blockers": [
-            "Generic REST mutation runner must emit mutation artifacts before create/update/delete cases can join this profile.",
-            "Generic REST mutation runner must emit delete-boundary mutation artifacts before mutating CRUD cases can join this profile."
-          ]
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
         }
       }
     },
     "product-rest-crud-fuzzer": {
-      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness. Product delete remains declared until delete-boundary execution emits delete-boundary artifacts.",
+      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/delete/readback readiness through contract-backed fixture and delete-boundary artifacts.",
       "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
       "payload_fixture_manifest": "manifests/rest-crud-payload-fixtures.json",
       "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
       "rest_mutation_fixture_opt_ins_manifest": "manifests/rest-crud-fixture-opt-ins.json",
       "hotspot_artifact_contract_manifest": "manifests/db-api-hotspot-artifact-io.json",
       "fixture_contracts": {
-        "readiness_level": "declared",
-        "execution_enabled": false,
-        "proof_status": "declared_contract",
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
         "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
         "artifacts": [
           {
@@ -416,14 +415,14 @@
             "schema": "wp-codebox/fuzz-fixture-plan/v1",
             "path": "manifests/rest-crud-fixture-plan.json",
             "semantic_key": "fixture.plan",
-            "readiness": "declared_contract"
+            "readiness": "contract_backed_executable"
           },
           {
             "id": "rest_crud_fixture_opt_ins",
             "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
             "path": "manifests/rest-crud-fixture-opt-ins.json",
             "semantic_key": "fixture.opt_ins",
-            "readiness": "declared_contract"
+            "readiness": "contract_backed_executable"
           }
         ],
         "operation_ready_ref_families": [
@@ -441,7 +440,7 @@
       ],
       "readiness": {
         "level": "executable",
-        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import, with delete boundaries represented by reviewer-facing delete-boundary artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
+        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update/delete plus readback through rest-product-batch-import and contract-backed WP Codebox fixture-plan/REST opt-in artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -476,6 +475,7 @@
           },
           "delete": {
             "level": "executable",
+            "primitive": "wp-codebox/delete-boundary-artifact/v1",
             "artifact": "delete_boundary_artifact",
             "safety_class": "isolated_mutation"
           }
