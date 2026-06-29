@@ -881,11 +881,13 @@ module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
     });
     const failure = summary.runtime.child_command_failures[0];
 
-    // #560: the child's real stderr (+ stdout tail) is folded into the thrown
-    // error message so the cause propagates instead of a bare command line.
+    // The child's raw failure cause propagates as the runtime error message. The
+    // child's real stderr + stdout tails are surfaced for attribution on the
+    // structured child-command failure below (`stderr_tail`/`stdout_tail`).
+    // Folding those tails into the Error *message* (#560) now lives in the
+    // production WP Codebox recipe helper (quarantined out of shared/wp-codebox
+    // in PR #573), which this test mocks, so the rig path keeps the bare cause.
     assert.match(runtimeError.message, /^recipe-run failed/);
-    assert.match(runtimeError.message, /stderr:\nstderr line 1\nstderr line 2/);
-    assert.match(runtimeError.message, /stdout \(tail\):\nstdout line 1\nstdout line 2/);
     assert.equal(summary.runtime.exit_code, 17);
     assert.equal(failure.schema, 'homeboy/child-command-failure/v1');
     assert.equal(failure.exit_status, 17);
