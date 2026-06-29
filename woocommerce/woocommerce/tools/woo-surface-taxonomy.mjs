@@ -91,7 +91,7 @@ export const wooProductSurfaceTaxonomy = {
     workloads: ['options-transients-coverage', 'rollback-safe-options-transients-mutations'],
     blocked_by: [],
     sensitive_policy: 'credential-bearing, payment, tax, shipping, webhook, and marketplace settings must be skipped unless a generic sensitive-policy primitive classifies them safe in disposable fixture state.',
-    notes: ['Settings mutation remains declared-only until generic policy-classified safe settings produce rollback and reviewer-facing artifacts.'],
+    notes: ['Settings mutation remains declared-only until generic policy-classified safe settings produce mutation and reviewer-facing artifacts.'],
   },
   reports_admin_pages: {
     readiness: 'read_only_executable',

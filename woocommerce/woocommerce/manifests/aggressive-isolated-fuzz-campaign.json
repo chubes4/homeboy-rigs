@@ -171,12 +171,6 @@
       "required_before_proven": true
     },
     {
-      "id": "rollback_verification",
-      "schema": "wp-codebox/rollback-verification/v1",
-      "semantic_key": "fuzz.rollback_verification",
-      "required_before_proven": true
-    },
-    {
       "id": "destructive_case_ledger",
       "schema": "homeboy/destructive-case-ledger/v1",
       "semantic_key": "fuzz.destructive_case_ledger",

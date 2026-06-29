@@ -161,7 +161,7 @@ registered through `bench_workloads`, so there is no legacy bench fallback path
 for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
   admin coverage, REST coverage, namespace generated cases, permission
   boundaries, schema/query attribution, DB inventory, Action Scheduler, lookup
-  tables, rollback-safe options/transients, frontend rendering, performance
+  tables, isolated options/transients, frontend rendering, performance
 summaries, or external HTTP guardrails.
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
@@ -180,11 +180,11 @@ The Woo DB/API fuzz progression is split into two focused profiles:
 - `db-api-performance-fuzzer` groups read-only REST route inventory, generated
   safe request cases, REST DB query profiling, DB inventory, schema/query
   attribution, gap reporting, and hotspot summary declarations. Create, update,
-  and delete stay declared until upstream rollback-safe REST mutation primitives
-  emit rollback artifacts.
+  and delete stay declared until upstream isolated REST mutation primitives
+  emit mutation artifacts.
 - `product-rest-crud-fuzzer` makes product and variation batch create/update plus
   readback executable through `rest-product-batch-import`. Delete remains blocked
-  on the same upstream rollback-safe delete primitive and delete-boundary artifact
+  on the same upstream delete-boundary primitive and delete-boundary artifact
   contract.
 
 The aggressive isolated firehose, product chaos sequence packs, and generated REST
@@ -368,10 +368,10 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   WooCommerce lookup-table inventory, and lookup row attribution around fixture
   setup and safe request cases without dispatching live jobs.
 - `options-transients-coverage` declares option, transient, Action Scheduler,
-  lookup-table, and rollback-safe isolated option mutation coverage. It is D/E
-  until artifacts show rollback rows and transient/action deltas.
+  lookup-table, and isolated option mutation coverage. It is D/E
+  until artifacts show mutation rows and transient/action deltas.
 - `rollback-safe-options-transients-mutations` narrows the isolated mutation
-  contract to rollback verification, transient growth attribution, and skipped
+  contract to mutation verification, transient growth attribution, and skipped
   sensitive option reasons so options/transients proof can be reviewed without
   inferring mutation safety from the broader inventory workload.
 - `frontend-rendering-request-coverage` declares shop, product, cart, checkout,

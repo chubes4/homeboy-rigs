@@ -49,7 +49,6 @@
       "metadata": {
         "operation": "create",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -100,7 +99,6 @@
       "metadata": {
         "operation": "update",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -148,7 +146,6 @@
       "metadata": {
         "operation": "delete",
         "safety_class": "destructive",
-        "rollback_required": true,
         "delete_boundary_required": true,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -197,7 +194,6 @@
       "metadata": {
         "operation": "create",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -246,7 +242,6 @@
       "metadata": {
         "operation": "update",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -293,7 +288,6 @@
       "metadata": {
         "operation": "delete",
         "safety_class": "destructive",
-        "rollback_required": true,
         "delete_boundary_required": true,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -339,7 +333,6 @@
       "metadata": {
         "operation": "create",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -385,7 +378,6 @@
       "metadata": {
         "operation": "update",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -430,7 +422,6 @@
       "metadata": {
         "operation": "delete",
         "safety_class": "destructive",
-        "rollback_required": true,
         "delete_boundary_required": true,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -476,7 +467,6 @@
       "metadata": {
         "operation": "create",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -522,7 +512,6 @@
       "metadata": {
         "operation": "update",
         "safety_class": "isolated_mutation",
-        "rollback_required": true,
         "delete_boundary_required": false,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }
@@ -567,7 +556,6 @@
       "metadata": {
         "operation": "delete",
         "safety_class": "destructive",
-        "rollback_required": true,
         "delete_boundary_required": true,
         "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven"
       }

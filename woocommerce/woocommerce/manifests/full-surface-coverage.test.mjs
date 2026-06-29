@@ -231,7 +231,7 @@ test('DB/API campaign consumes the declared Codebox fixture contract without pro
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle_requirements.status, 'required_before_proven');
 });
 
-test('aggressive destructive Woo workloads declare isolation, rollback, dynamic IDs, and side-effect policy gates', () => {
+test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and side-effect policy gates', () => {
   assert.equal(
     aggressiveIsolatedCampaign.fixture_sources.aggressive_destructive_workloads,
     'manifests/aggressive-destructive-workloads.json'
@@ -266,8 +266,6 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
     'codebox_isolation_readiness',
     'snapshot_restore_artifact',
     'fixture_dynamic_id_manifest',
-    'rollback_plan',
-    'rollback_verification',
     'side_effect_policy_evidence',
     'destructive_case_ledger',
   ]) {
@@ -277,7 +275,7 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   for (const workload of aggressiveDestructiveWorkloads.workloads) {
     assert.ok(workload.fixture_family, `${workload.id} must bind to a fixture family`);
     assert.ok(workload.fixture_dynamic_ids.length > 0, `${workload.id} must use fixture-owned dynamic IDs`);
-    assert.ok(workload.rollback_scope.length > 0, `${workload.id} must declare rollback scope`);
+    assert.ok(workload.disposable_mutation_scope.length > 0, `${workload.id} must declare disposable mutation scope`);
     for (const artifact of requiredArtifacts) {
       assert.ok(workload.required_artifacts.includes(artifact), `${workload.id} must require ${artifact}`);
     }
@@ -337,19 +335,19 @@ test('aggressive destructive Woo workloads cover required destructive surface fa
   assert.ok(workloadSurfaces.get('hpos-order-table-destructive-lifecycle').has('hpos'));
   assert.ok(workloadSurfaces.get('action-scheduler-destructive-lifecycle').has('action_scheduler'));
 
-  const hposRollbackScope = new Set(
-    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').rollback_scope
+  const hposMutationScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').disposable_mutation_scope
   );
-  assert.ok(hposRollbackScope.has('wp_wc_orders'));
-  assert.ok(hposRollbackScope.has('wp_wc_order_addresses'));
-  assert.ok(hposRollbackScope.has('wp_wc_order_operational_data'));
+  assert.ok(hposMutationScope.has('wp_wc_orders'));
+  assert.ok(hposMutationScope.has('wp_wc_order_addresses'));
+  assert.ok(hposMutationScope.has('wp_wc_order_operational_data'));
 
-  const actionSchedulerRollbackScope = new Set(
-    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').rollback_scope
+  const actionSchedulerMutationScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').disposable_mutation_scope
   );
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_actions'));
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_claims'));
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_logs'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_actions'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_claims'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_logs'));
 });
 
 test('external side-effect policy blocks live effects and requires skip or isolated mock evidence', () => {

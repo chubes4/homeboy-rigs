@@ -213,7 +213,7 @@
           "blocked_by": [],
           "sensitive_policy": "credential-bearing, payment, tax, shipping, webhook, and marketplace settings must be skipped unless a generic sensitive-policy primitive classifies them safe in disposable fixture state.",
           "notes": [
-            "Settings mutation remains declared-only until generic policy-classified safe settings produce rollback and reviewer-facing artifacts."
+            "Settings mutation remains declared-only until generic policy-classified safe settings produce mutation and reviewer-facing artifacts."
           ]
         },
         "reports_admin_pages": {
@@ -313,13 +313,13 @@
       "owner_profile": "product-rest-crud-fuzzer",
       "readiness": {
         "level": "declared",
-        "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits rollback, isolation, delete-boundary, and reviewer-facing evidence artifacts.",
+        "coverage_contract": "Payload fixtures are static Woo-owned declarations only. The product batch PHP workload remains separate executable coverage, but this generic fixture-plan contract stays declared until the generic REST mutation runner consumes WP Codebox fixture plans and emits mutation isolation, delete-boundary, and reviewer-facing evidence artifacts.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
             "reviewer-facing generic REST mutation runner run id",
             "reviewer-facing mutation isolation artifact ref",
-            "reviewer-facing rollback contract artifact ref",
+            "reviewer-facing mutation isolation contract artifact ref",
             "reviewer-facing delete-boundary artifact ref before delete is executable"
           ],
           "required_artifacts": [
@@ -330,8 +330,8 @@
         },
         "upstream_blockers": [
           "Generic REST mutation runner must consume wp-codebox/fuzz-fixture-plan/v1 and wp-codebox/rest-mutation-fixture-opt-in/v1 artifacts generated from these Woo declarations.",
-          "Generic REST mutation runner must emit mutation isolation and rollback contract artifacts for create/update before any declarative fixture family becomes executable.",
-          "Generic REST mutation runner must emit delete-boundary rollback artifacts before delete fixtures become executable.",
+          "Generic REST mutation runner must emit mutation isolation artifacts for create/update before any declarative fixture family becomes executable.",
+          "Generic REST mutation runner must emit delete-boundary mutation artifacts before delete fixtures become executable.",
           "Homeboy/WP Codebox must collect reviewer-facing artifact refs before this manifest can be promoted beyond declared readiness."
         ]
       },

@@ -28,7 +28,7 @@ explicit fuzz-readiness contract without claiming proof. `metadata.readiness`
 uses `level: declared|executable|proven`, a `coverage_contract` string,
 optional `proof_refs`, optional `upstream_blockers`, optional CRUD operation
 levels for `create`, `read`, `update`, and `delete`, and optional mutation
-rollback fields (`safety_boundary`, `rollback_artifacts`). `level: proven`
+mutation-safety fields (`safety_boundary`, `mutation_artifacts`). `level: proven`
 requires a `proof_bundle` with reviewer-facing `canonical_fuzz_envelope_ref` as
 the primary proof pointer, or legacy `artifact_refs`, `run_ids`, `gap_reports`,
 and `fuzz_result_artifacts` for manifests that have not yet migrated. Product
@@ -56,10 +56,10 @@ silently pass with optional output or local-only evidence.
 | Surface | Status | Current assets | Proven / missing edge |
 |---|---|---|---|
 | API | D/E/P partial | `woocommerce/woocommerce/manifests/full-surface-coverage.json`, `woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json`, `fuzz/rest-permission-boundary-matrix.json`, `fuzz/rest-namespace-generated-cases.json`, `fuzz/rest-schema-query-attribution.json`, `bench/woocommerce-rest-route-inventory.php`, `bench/generated-rest-request-cases.workload.json`, `bench/rest-product-batch-import.php` | Route inventory, generated safe GET cases, namespace classification, permission-boundary matrix, and schema/query attribution declarations are executable. The DB/API campaign manifest declares the offloaded Codebox fuzz-suite run set plus generic artifact-postprocess outputs for coverage gap and hotspot summary artifacts. Product batch import gives mutation/performance proof for catalog REST behavior, but full REST namespace proof still needs baseline/candidate artifacts per upstream PR or issue. |
-| DB | D/E/P partial | `woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json`, `fuzz/options-transients-coverage.json`, `fuzz/action-scheduler-lookup-table-coverage.json`, `fuzz/rollback-safe-options-transients-mutations.json`, `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json`, `bench/coverage-gap-report.workload.json`, `bench/performance-hotspots-artifact-summary.workload.json`, checkout, layered-nav, and admin dashboard workloads | Query counts, schema/query attribution, lookup-table inventory, transient growth, Action Scheduler deltas, option/transient inventory, rollback-safe mutation contracts, and physical-product dashboard query metrics are documented. The campaign postprocess contracts consume an offloaded artifact root and require reviewer-facing `coverage_gap_report` and `performance_hotspots_summary` artifacts before proof. This is proven for targeted bug clusters, not complete schema/query coverage. |
+| DB | D/E/P partial | `woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json`, `fuzz/options-transients-coverage.json`, `fuzz/action-scheduler-lookup-table-coverage.json`, `fuzz/rollback-safe-options-transients-mutations.json`, `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json`, `bench/coverage-gap-report.workload.json`, `bench/performance-hotspots-artifact-summary.workload.json`, checkout, layered-nav, and admin dashboard workloads | Query counts, schema/query attribution, lookup-table inventory, transient growth, Action Scheduler deltas, option/transient inventory, isolated mutation contracts, and physical-product dashboard query metrics are documented. The campaign postprocess contracts consume an offloaded artifact root and require reviewer-facing `coverage_gap_report` and `performance_hotspots_summary` artifacts before proof. This is proven for targeted bug clusters, not complete schema/query coverage. |
 | Admin | D/E/P partial | `fuzz/admin-page-coverage.json`, `bench/admin-page-coverage.php`, `browser-scenarios/products_admin.json`, `orders_admin.json`, `analytics_admin.json` | Bounded safe GET coverage runs through the generic fuzz workload and emits an explicit `homeboy-rigs/woocommerce-admin-page-enumeration-contract/v1` contract for `$menu`/`$submenu` enumeration, administrator vs shop-manager expectations, skipped/destructive reason codes, required JSON artifact fields, request logs, query attribution, and metrics. Destructive admin actions remain intentionally skipped. |
 | External HTTP | D/E | `bench/woocommerce-external-http-guardrail.php`, `manifests/full-surface-coverage.json` | Guardrail is executable for marketplace/payment/tax/shipping host probes. Reviewer-facing proof artifacts are still pending. |
-| Hooks / cron / options | D/E/P partial | `fuzz/options-transients-coverage.json`, `fuzz/action-scheduler-lookup-table-coverage.json`, `fuzz/rollback-safe-options-transients-mutations.json`, `checkout-shortcode-place-order-latency.php`, gateway readiness/matrix workloads, fixture option setup in Woo and Stripe rigs | Action Scheduler deltas, lookup tables, gateway option state, checkout session mutation, option/transient inventory, rollback-safe isolated option mutation, and page-option setup are covered by targeted workloads. General hook inventory remains D/E only until run artifacts exist. |
+| Hooks / cron / options | D/E/P partial | `fuzz/options-transients-coverage.json`, `fuzz/action-scheduler-lookup-table-coverage.json`, `fuzz/rollback-safe-options-transients-mutations.json`, `checkout-shortcode-place-order-latency.php`, gateway readiness/matrix workloads, fixture option setup in Woo and Stripe rigs | Action Scheduler deltas, lookup tables, gateway option state, checkout session mutation, option/transient inventory, isolated option mutation, and page-option setup are covered by targeted workloads. General hook inventory remains D/E only until run artifacts exist. |
 | Frontend / rendering | D/E/P partial | `fuzz/frontend-rendering-request-coverage.json`, `bench/woocommerce-browser-coverage.trace.mjs`, `browser-scenarios/shop.json`, `product.json`, `cart.json`, `checkout.json`, `rigs/woocommerce-browser-coverage/rig.json`, `cart-session-overwrite-race.trace.mjs` | Shop/product/cart/checkout, frontend request capture, skipped-destructive reason codes, and browser cart-session race coverage are executable. Checkout duplicate-order and cart/session bug coverage is issue-linked; broader visual/rendering parity is not claimed. |
 | Performance-related fuzz | D/E/P partial | `fuzz/performance-hotspots-artifact-summary.json`, `checkout-concurrent-create-order.php`, `checkout-shipping-cache.php`, `layered-nav-count-cache.php`, `layered-nav-catalog-crawl.php`, `admin-dashboard-physical-products-query.php`, `cart-session-overwrite-race.php` | Proven for the documented checkout duplicate-order, shipping cache, layered-nav transient, and admin dashboard query bug clusters listed in `woocommerce/woocommerce/README.md`. Full-surface performance summary remains D/E until new run artifacts exist. |
 
@@ -69,7 +69,7 @@ update are executable only for targeted catalog, checkout, cart/session, option,
 and transient workloads, and proven only where reviewer-facing proof artifacts are
 linked. The generic REST fixture-plan path remains declared-only because its
 mutation operations still say `execute:false`; delete remains declared-only unless
-a workload records a rollback-safe destructive fixture. Upstream blockers are safe
+a workload records a disposable destructive fixture. Upstream blockers are safe
 CRUD fixture primitives, durable fuzz artifact manifests, and reviewer-facing run
 links for full namespace proof.
 
@@ -97,7 +97,7 @@ Canonical Core fuzz contracts live under `WordPress/wordpress-develop`.
 CRUD/mutation readiness: read coverage is declared/executable for REST, admin,
 frontend, media, user, option, postmeta, hook, cron, and rewrite inventories.
 Create/update/delete remain declared-only until upstream fuzz runner primitives
-provide rollback-safe Core fixture mutation and durable artifact manifests.
+provide disposable Core fixture mutation and durable artifact manifests.
 
 ## Gutenberg
 
@@ -115,7 +115,7 @@ CRUD/mutation readiness: read coverage is executable for REST route inventory,
 editor/admin/browser surfaces, block rendering, template/pattern entities, and DB
 query attribution. Create/update are partially executable through editor state
 and fixture traces but proven only for targeted pattern-preview and notes-related
-bugs. Delete remains declared-only until upstream fixture rollback primitives can
+bugs. Delete remains declared-only until upstream fixture mutation primitives can
 exercise template, pattern, and block-entity deletion without product-specific
 cleanup shims.
 
@@ -124,10 +124,10 @@ cleanup shims.
 | Surface | Status | Current assets | Proven / missing edge |
 |---|---|---|---|
 | API | D/E | `Automattic/jetpack/manifests/rest-route-coverage.json`, `bench/jetpack-rest-route-inventory.php`, `bench/generated-rest-request-cases.workload.json`, `fuzz/jetpack-rest-route-inventory.json` | Jetpack/WP.com route inventory and generated safe GET case contracts are declared with existing rig entry points. P status needs generic REST fuzz runner artifacts, route coverage diffs, run IDs, and a gap report; this package does not claim complete Jetpack REST fuzz execution. |
-| DB | D/E read-only, D mutation | `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json`, `fuzz/db-inventory.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Read-only DB inventory/profile and module option/table inventory are declared with executable entry points. Option write/rollback and connected-fixture mutation remain declared until generic database inventory/profile, isolated mutation, rollback artifact, and fixture-restore primitives produce reviewer-facing artifacts. |
+| DB | D/E read-only, D mutation | `bench/db-inventory.workload.json`, `bench/rest-db-query-profile.workload.json`, `fuzz/db-inventory.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Read-only DB inventory/profile and module option/table inventory are declared with executable entry points. Option write and connected-fixture mutation remain declared until generic database inventory/profile, isolated mutation, mutation artifact, and fixture-restore primitives produce reviewer-facing artifacts. |
 | Admin | D/E | `fuzz/jetpack-admin-page-coverage.json`, `browser-scenarios/dashboard.json`, `connection.json`, `modules.json`, `settings.json`, `rigs/jetpack-browser-coverage/rig.json` | Jetpack wp-admin menu/submenu/hash-route enumeration, destructive skip reason codes, and browser scenarios are declared with executable rig/trace paths. P status needs admin-page coverage artifacts, skip-reason artifacts, request logs, run IDs, and a gap report from the generic admin coverage runner. |
 | External HTTP | D/E | `fuzz/jetpack-external-http-guardrail.json`, `bench/jetpack-external-http-guardrail.php` | Connection, WP.com, sync, and module HTTP guardrails declare blocked synthetic probes and WP.com boundary classification. Proof needs persisted guardrail collection artifacts and run IDs; live WordPress.com service calls are not part of the fixture. |
-| Hooks / cron / options | D/E read-only, D mutation | `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-sync-queue-coverage.json`, `fuzz/jetpack-cron-sync-actions.json`, `fuzz/jetpack-module-state-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Module option/table inventory is the executable read-only win. Option/module/sync/cron mutation rows are product-layer declarations tied to generic plugin option, module-state, sync-queue, cron-action, rollback, and artifact-manifest primitives; they are not proven fuzz execution yet. |
+| Hooks / cron / options | D/E read-only, D mutation | `fuzz/jetpack-options-matrix.json`, `fuzz/jetpack-module-option-table-inventory.json`, `fuzz/jetpack-sync-queue-coverage.json`, `fuzz/jetpack-cron-sync-actions.json`, `fuzz/jetpack-module-state-matrix.json`, `fuzz/jetpack-connected-disconnected-fixtures.json` | Module option/table inventory is the executable read-only win. Option/module/sync/cron mutation rows are product-layer declarations tied to generic plugin option, module-state, sync-queue, cron-action, mutation, and artifact-manifest primitives; they are not proven fuzz execution yet. |
 | Frontend / rendering | D/E partial | `fuzz/jetpack-public-module-frontend-coverage.json`, `bench/jetpack-browser-coverage.trace.mjs`, browser scenarios for dashboard/connection/modules/settings/public post/public page | Browser/admin and public-module request coverage are declared with executable trace paths for local fixture states and skip classifications. Rendering correctness, connected remote behavior, and full module coverage need browser request artifacts, module scenario matrices, skip-reason artifacts, run IDs, and gap reports. |
 | Performance-related fuzz | D partial | `fuzz/jetpack-performance-observation.json`, REST generated cases, DB inventory/profile, external HTTP guardrail, browser coverage profile | Performance observation is currently a manifest-level summary contract for timing, query counts, assets, sync, HTTP guardrails, skip counts, and slow-surface summaries. No targeted Jetpack performance bug repro or reviewer-facing fuzz proof bundle is linked in this package yet. |
 
@@ -136,7 +136,7 @@ inventory, DB/query inventory, module option/table inventory, admin/browser
 paths, public-module fixture pages, and external HTTP guardrails. Option/module
 state, sync queue, cron, and connected/disconnected fixture mutations are
 declared as product-layer contracts only until generic upstream primitives can
-run isolated mutations, restore fixture state, and emit rollback artifacts.
+run isolated mutations, restore fixture state, and emit mutation artifacts.
 Create/update/delete for connected remote state are blocked on safe WP.com and
 Jetpack sandbox primitives and should not be emulated with local product-specific
 fallbacks.
@@ -144,14 +144,14 @@ fallbacks.
 Next Jetpack proof artifacts: non-local `homeboy fuzz run` IDs, REST route
 coverage diffs, admin and browser request coverage artifacts, DB inventory/query
 profile artifacts, external HTTP guardrail collections, module/option/sync/cron
-rollback rows, connected/disconnected skip-reason artifacts, coverage gap
+mutation rows, connected/disconnected skip-reason artifacts, coverage gap
 reports, and `metadata.readiness.proof_bundle.fuzz_result_artifacts` entries for
 any row promoted to P.
 
 ## Pending Cross-Project Work
 
 - Core REST permission-boundary, DB schema/query attribution, admin safe-page enumeration, and hook/cron/options/postmeta/rewrite inventory are D/E in `WordPress/wordpress-develop`; they still need proof artifacts before P.
-- Jetpack module option/table inventory, public-module frontend scenarios, and external HTTP guardrails have declared executable entry points, while sync/cron action coverage, rollback-safe mutation rows, connected/disconnected fixture mutation, and performance observation summaries remain contract-level until generic upstream fuzz primitives emit proof artifacts.
+- Jetpack module option/table inventory, public-module frontend scenarios, and external HTTP guardrails have declared executable entry points, while sync/cron action coverage, isolated mutation rows, connected/disconnected fixture mutation, and performance observation summaries remain contract-level until generic upstream fuzz primitives emit proof artifacts.
 - All four projects need durable proof bundles or linked run artifacts before the full-surface rows can move from `D/E` to `P`; WooCommerce admin coverage has the contract shape but still needs fresh reviewer-facing fuzz run artifacts for any newly discovered admin surfaces.
 - Visual rendering correctness remains outside this matrix unless a workload explicitly uses WP Codebox visual comparison or another reviewer-facing visual artifact.
-- Safe CRUD/mutation execution across Core, Gutenberg, and Jetpack is blocked on upstream fuzz runner primitives for disposable fixture mutation, rollback artifact manifests, and durable proof links. Product rigs should declare those blockers in `metadata.readiness.upstream_blockers` instead of adding cleanup shims.
+- Safe CRUD/mutation execution across Core, Gutenberg, and Jetpack is blocked on upstream fuzz runner primitives for disposable fixture mutation, mutation artifact manifests, and durable proof links. Product rigs should declare those blockers in `metadata.readiness.upstream_blockers` instead of adding cleanup shims.

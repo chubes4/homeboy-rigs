@@ -214,7 +214,7 @@
       "seed_refs": [
         "payload_size_depth_families/business-object-shapes"
       ],
-      "fixture_scope": "linked fixture-owned business objects with destructive reset-gated rollback requirements",
+      "fixture_scope": "linked fixture-owned business objects with destructive reset-gated disposable mutation requirements",
       "readiness": "destructive_isolated_executable"
     },
     {

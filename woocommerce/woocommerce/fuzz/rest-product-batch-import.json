@@ -25,7 +25,7 @@
       "level": "executable",
       "profile": "product-rest-crud-fuzzer",
       "execution": "wp-codebox-isolated-mutation",
-      "coverage_contract": "WP Codebox can execute isolated WooCommerce product and variation batch create/update cases through the generic rollback-safe REST mutation primitive with synthetic fixture readback. Delete remains declared until rollback-safe delete primitives emit delete-boundary rollback artifacts, and proven status still requires reviewer-facing run evidence.",
+      "coverage_contract": "WP Codebox can execute isolated WooCommerce product and variation batch create/update cases through the generic isolated REST mutation primitive with synthetic fixture readback. Delete remains declared until delete-boundary primitives emit delete-boundary mutation artifacts, and proven status still requires reviewer-facing run evidence.",
       "upstream_blockers": [
         "Reviewer-facing fuzz run artifacts and rollback/gap reports are required before proven status.",
         "Rollback-safe REST delete primitives and delete-boundary artifacts are required before delete coverage can execute."
@@ -64,7 +64,7 @@
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "The current workload exercises batch create/update and readback guardrails only; delete coverage waits for the generic rollback-safe REST delete primitive to emit a reviewer-facing delete-boundary rollback artifact contract."
+          "upstream_blocker": "The current workload exercises batch create/update and readback guardrails only; delete coverage waits for the generic delete-boundary REST primitive to emit a reviewer-facing delete-boundary mutation artifact contract."
         }
       },
       "mutation": {
@@ -131,7 +131,7 @@
       },
       "delete": {
         "level": "declared",
-        "upstream_blocker": "Delete payload execution requires a generic delete-boundary rollback artifact contract before Woo marks delete executable."
+        "upstream_blocker": "Delete payload execution requires a generic delete-boundary mutation artifact contract before Woo marks delete executable."
       }
     },
     "fixture": {

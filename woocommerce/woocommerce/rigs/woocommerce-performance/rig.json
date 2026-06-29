@@ -347,7 +347,7 @@
       },
       "readiness": {
         "level": "declared",
-        "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; it does not claim CRUD or mutating REST execution until upstream rollback-safe primitives exist.",
+        "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; it does not claim CRUD or mutating REST execution until upstream isolated mutation primitives exist.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -379,21 +379,21 @@
           },
           "delete": {
             "level": "declared",
-            "upstream_blocker": "No generic rollback-safe REST delete primitive is declared for DB/API performance fuzzing."
+            "upstream_blocker": "No generic delete-boundary REST primitive is declared for DB/API performance fuzzing."
           }
         },
         "mutation": {
-          "safety_boundary": "Profile execution is read-only until upstream provides isolated fixture mutation, rollback artifact, and delete-boundary primitives for REST CRUD cases.",
+          "safety_boundary": "Profile execution is read-only until upstream provides isolated fixture mutation, mutation artifact, and delete-boundary primitives for REST CRUD cases.",
           "rollback_artifacts": [],
           "upstream_blockers": [
-            "Generic REST mutation runner must emit rollback artifacts before create/update/delete cases can join this profile.",
-            "Generic REST mutation runner must emit delete-boundary rollback artifacts before mutating CRUD cases can join this profile."
+            "Generic REST mutation runner must emit mutation artifacts before create/update/delete cases can join this profile.",
+            "Generic REST mutation runner must emit delete-boundary mutation artifacts before mutating CRUD cases can join this profile."
           ]
         }
       }
     },
     "product-rest-crud-fuzzer": {
-      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness. Product delete remains declared until rollback-safe delete emits delete-boundary artifacts.",
+      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/readback readiness. Product delete remains declared until delete-boundary execution emits delete-boundary artifacts.",
       "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
       "payload_fixture_manifest": "manifests/rest-crud-payload-fixtures.json",
       "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
@@ -436,7 +436,7 @@
       ],
       "readiness": {
         "level": "executable",
-        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import. Product delete remains declared until the generic rollback-safe REST delete primitive emits reviewer-facing delete-boundary rollback artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
+        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import. Product delete remains declared until the generic delete-boundary REST primitive emits reviewer-facing delete-boundary mutation artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -471,12 +471,12 @@
           },
           "delete": {
             "level": "declared",
-            "upstream_blocker": "Product delete coverage waits for the generic rollback-safe REST delete primitive to emit a reviewer-facing delete-boundary rollback artifact contract."
+            "upstream_blocker": "Product delete coverage waits for the generic delete-boundary REST primitive to emit a reviewer-facing delete-boundary mutation artifact contract."
           }
         },
         "mutation": {
           "primitive": "wordpress.rollback-safe-rest-mutation",
-          "safety_boundary": "Executable product create/update cases run only inside disposable WP Codebox fixtures and must emit rollback/readback details before any proof claim. Delete remains declared until rollback-safe delete emits delete-boundary details.",
+          "safety_boundary": "Executable product create/update cases run only inside disposable WP Codebox fixtures and must emit mutation/readback details before any proof claim. Delete remains declared until rollback-safe delete emits delete-boundary details.",
           "rollback_artifacts": [
             "raw_result"
           ],

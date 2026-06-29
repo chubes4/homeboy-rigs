@@ -2,7 +2,7 @@
   "schema": "homeboy-rigs/woocommerce-aggressive-destructive-workloads/v1",
   "id": "woocommerce-aggressive-destructive-workloads",
   "profile_id": "aggressive-isolated-firehose",
-  "description": "WooCommerce-owned aggressive destructive workload declarations for offloaded WP Codebox isolation. Rigs owns Woo surface knowledge and fixture policy; execution is contract-backed by Homeboy, HBEX, and WP Codebox public fuzz/isolation contracts.",
+  "description": "WooCommerce-owned aggressive destructive workload declarations for disposable WP Codebox execution. Rigs owns Woo surface knowledge and fixture policy; execution is contract-backed by Homeboy, HBEX, and WP Codebox public fuzz/sandbox contracts.",
   "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
   "local_execution_enabled": false,
   "destructive_full_coverage_proven": false,
@@ -31,7 +31,7 @@
     "execution_enabled": true,
     "local_execution_enabled": false,
     "proof_status": "requires_reviewer_facing_artifacts_before_proven",
-    "coverage_contract": "Aggressive destructive workloads execute only through explicit upstream contracts: Homeboy isolation proof, Homeboy fuzz action/exploration contracts, HBEX WordPress runtime workload operation mapping, WP Codebox fuzz artifact bundles, mutation/delete-boundary artifacts, and WP Codebox sandbox isolation proof.",
+    "coverage_contract": "Aggressive destructive workloads execute only through explicit upstream contracts: Homeboy isolation proof, Homeboy fuzz action/exploration contracts, HBEX WordPress runtime workload operation mapping, WP Codebox fuzz artifact bundles, mutation/delete-boundary artifacts, and disposable WP Codebox sandbox isolation proof.",
     "contract_ids": [
       "wp-codebox/wordpress-fuzz-runtime-contract/v1",
       "homeboy/isolation-proof/v1",
@@ -53,8 +53,6 @@
         "reviewer-facing Codebox isolation readiness artifact ref",
         "reviewer-facing snapshot restore artifact ref",
         "reviewer-facing fixture dynamic ID artifact ref",
-        "reviewer-facing rollback plan artifact ref",
-        "reviewer-facing rollback verification artifact ref",
         "reviewer-facing side-effect policy evidence artifact ref",
         "reviewer-facing destructive case ledger artifact ref"
       ],
@@ -62,8 +60,6 @@
         "codebox_isolation_readiness",
         "snapshot_restore_artifact",
         "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
         "side_effect_policy_evidence",
         "destructive_case_ledger"
       ]
@@ -80,7 +76,7 @@
       "created_ids",
       "route_parameter_bindings",
       "owner_case_id",
-      "rollback_ref"
+      "disposable_sandbox_ref"
     ]
   },
   "side_effect_policy": {
@@ -169,8 +165,6 @@
     "codebox_isolation_readiness",
     "snapshot_restore_artifact",
     "fixture_dynamic_id_manifest",
-    "rollback_plan",
-    "rollback_verification",
     "side_effect_policy_evidence",
     "destructive_case_ledger"
   ],
@@ -206,25 +200,23 @@
         "term_id",
         "category_id"
       ],
-      "rollback_scope": [
+      "required_artifacts": [
+        "codebox_isolation_readiness",
+        "snapshot_restore_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [],
+      "disposable_mutation_scope": [
         "wp_posts",
         "wp_postmeta",
         "terms",
         "term_taxonomy",
         "term_relationships",
         "wp_wc_product_meta_lookup"
-      ],
-      "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
-        "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
-        "side_effect_policy_evidence",
-        "destructive_case_ledger",
-        "delete_boundary_artifact"
-      ],
-      "side_effect_surfaces": []
+      ]
     },
     {
       "id": "order-refund-destructive-lifecycle",
@@ -254,7 +246,19 @@
         "customer_id",
         "product_id"
       ],
-      "rollback_scope": [
+      "required_artifacts": [
+        "codebox_isolation_readiness",
+        "snapshot_restore_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [
+        "payment",
+        "tax"
+      ],
+      "disposable_mutation_scope": [
         "wp_wc_orders",
         "wp_wc_order_addresses",
         "wp_wc_order_operational_data",
@@ -263,20 +267,6 @@
         "wp_wc_order_stats",
         "wp_comments",
         "wp_commentmeta"
-      ],
-      "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
-        "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
-        "side_effect_policy_evidence",
-        "destructive_case_ledger",
-        "delete_boundary_artifact"
-      ],
-      "side_effect_surfaces": [
-        "payment",
-        "tax"
       ]
     },
     {
@@ -308,25 +298,23 @@
         "cart_token",
         "order_id"
       ],
-      "rollback_scope": [
+      "required_artifacts": [
+        "codebox_isolation_readiness",
+        "snapshot_restore_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [],
+      "disposable_mutation_scope": [
         "wp_users",
         "wp_usermeta",
         "wp_posts",
         "wp_postmeta",
         "wp_wc_orders",
         "wp_wc_order_coupon_lookup"
-      ],
-      "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
-        "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
-        "side_effect_policy_evidence",
-        "destructive_case_ledger",
-        "delete_boundary_artifact"
-      ],
-      "side_effect_surfaces": []
+      ]
     },
     {
       "id": "stock-inventory-destructive-lifecycle",
@@ -356,23 +344,21 @@
         "order_item_id",
         "stock_adjustment_ref"
       ],
-      "rollback_scope": [
-        "wp_postmeta",
-        "wp_wc_product_meta_lookup",
-        "wp_wc_order_product_lookup",
-        "wp_actionscheduler_actions"
-      ],
       "required_artifacts": [
         "codebox_isolation_readiness",
         "snapshot_restore_artifact",
         "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
         "side_effect_policy_evidence",
         "destructive_case_ledger"
       ],
       "side_effect_surfaces": [
         "webhook"
+      ],
+      "disposable_mutation_scope": [
+        "wp_postmeta",
+        "wp_wc_product_meta_lookup",
+        "wp_wc_order_product_lookup",
+        "wp_actionscheduler_actions"
       ]
     },
     {
@@ -405,19 +391,10 @@
         "order_id",
         "shipping_rate_id"
       ],
-      "rollback_scope": [
-        "wp_woocommerce_sessions",
-        "wp_wc_orders",
-        "wp_wc_order_addresses",
-        "wp_woocommerce_order_items",
-        "wp_actionscheduler_actions"
-      ],
       "required_artifacts": [
         "codebox_isolation_readiness",
         "snapshot_restore_artifact",
         "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
         "side_effect_policy_evidence",
         "destructive_case_ledger"
       ],
@@ -425,6 +402,13 @@
         "payment",
         "tax",
         "shipping"
+      ],
+      "disposable_mutation_scope": [
+        "wp_woocommerce_sessions",
+        "wp_wc_orders",
+        "wp_wc_order_addresses",
+        "wp_woocommerce_order_items",
+        "wp_actionscheduler_actions"
       ]
     },
     {
@@ -453,21 +437,10 @@
         "operational_data_ref",
         "order_item_id"
       ],
-      "rollback_scope": [
-        "wp_wc_orders",
-        "wp_wc_order_addresses",
-        "wp_wc_order_operational_data",
-        "wp_wc_orders_meta",
-        "wp_wc_order_stats",
-        "wp_wc_order_product_lookup",
-        "wp_wc_order_coupon_lookup"
-      ],
       "required_artifacts": [
         "codebox_isolation_readiness",
         "snapshot_restore_artifact",
         "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
         "database_observations"
@@ -475,6 +448,15 @@
       "side_effect_surfaces": [
         "payment",
         "tax"
+      ],
+      "disposable_mutation_scope": [
+        "wp_wc_orders",
+        "wp_wc_order_addresses",
+        "wp_wc_order_operational_data",
+        "wp_wc_orders_meta",
+        "wp_wc_order_stats",
+        "wp_wc_order_product_lookup",
+        "wp_wc_order_coupon_lookup"
       ]
     },
     {
@@ -500,18 +482,10 @@
         "log_entry_id",
         "claim_id"
       ],
-      "rollback_scope": [
-        "wp_actionscheduler_actions",
-        "wp_actionscheduler_claims",
-        "wp_actionscheduler_groups",
-        "wp_actionscheduler_logs"
-      ],
       "required_artifacts": [
         "codebox_isolation_readiness",
         "snapshot_restore_artifact",
         "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
         "database_observations"
@@ -520,6 +494,12 @@
         "webhook",
         "marketplace",
         "credential_bearing_settings"
+      ],
+      "disposable_mutation_scope": [
+        "wp_actionscheduler_actions",
+        "wp_actionscheduler_claims",
+        "wp_actionscheduler_groups",
+        "wp_actionscheduler_logs"
       ]
     }
   ]

@@ -112,7 +112,6 @@ function buildFamilyOperations(family) {
       metadata: {
         operation,
         safety_class: operation === 'delete' ? 'destructive' : 'isolated_mutation',
-        rollback_required: true,
         delete_boundary_required: operation === 'delete',
         proof_status: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
       },
