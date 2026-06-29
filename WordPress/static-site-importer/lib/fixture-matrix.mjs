@@ -82,4 +82,6 @@ export {
 export {
   runLiveWpParity,
   normalizeLiveWpParityReport,
+  collectLiveWpParity,
+  normalizeLiveWpParityCollectorOptions,
 } from './fixture-matrix/collectors/live-wp-parity.mjs';
