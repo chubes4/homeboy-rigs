@@ -904,16 +904,17 @@ module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
     process.env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH = staticSiteImporter;
     process.env.SSI_FIXTURE_MATRIX_RUN = '1';
     process.env.SSI_FIXTURE_MATRIX_BATCH_SIZE = '1';
-    await assert.rejects(
-      () => runFixtureMatrixBench(),
-      (error) => {
-        assert.match(error.message, /^recipe-run failed/);
-        assert.match(error.message, /stderr:\nstderr line 1\nstderr line 2/);
-        assert.equal(error.child_command_failures[0].exit_status, 17);
-        assert.equal(error.child_command_failures[0].artifact_refs.artifacts_directory, process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY);
-        return true;
-      }
-    );
+    // A failing batch must NOT make the bench reject: rejecting makes the harness
+    // discard the whole lane as an assertion_failure. Instead the bench returns
+    // the aggregate with the failed fixture counted (so the
+    // `failed_fixture_count <= 0` result-gate fails the run without discarding it)
+    // and keeps the child-command failure in metadata for attribution.
+    const benchResult = await runFixtureMatrixBench();
+    assert.equal(benchResult.metrics.fixture_count, 1);
+    assert.equal(benchResult.metrics.passed_fixture_count, 0);
+    assert.equal(benchResult.metrics.failed_fixture_count, 1);
+    assert.equal(benchResult.metadata.child_command_failures[0].exit_status, 17);
+    assert.equal(benchResult.metadata.child_command_failures[0].artifact_refs.artifacts_directory, process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY);
   } finally {
     if (previousHelper === undefined) {
       delete process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
@@ -1550,6 +1551,68 @@ test('runFixtureMatrix isolates a throwing batch so sibling batches still comple
     assert.equal(summary.result_summary.failed, 1);
   } finally {
     restoreConcurrencyEnv(snapshot);
+  }
+});
+
+test('runFixtureMatrixBench returns a partial result with survivors aggregated when a batch fails', async () => {
+  // The bench-harness entry point is where the whole-run discard used to live:
+  // any failing batch made `runFixtureMatrixBench` throw, so the harness recorded
+  // an assertion_failure and dropped the aggregate (every survivor lost). This
+  // proves the harness boundary now isolates the failure -- the bench returns
+  // normally with the survivors aggregated and the failure counted, so the rig's
+  // `failed_fixture_count <= 0` result-gate fails the run WITHOUT discarding it.
+  const concurrencySnapshot = snapshotConcurrencyEnv();
+  const benchEnvKeys = [
+    'SSI_FIXTURE_MATRIX_FIXTURE_ROOT',
+    'SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY',
+    'SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH',
+    'SSI_FIXTURE_MATRIX_RUN',
+    'SSI_FIXTURE_MATRIX_BATCH_SIZE',
+    'SSI_FIXTURE_MATRIX_CONCURRENCY',
+    'SSI_FIXTURE_MATRIX_VISUAL_PARITY',
+  ];
+  const benchEnvSnapshot = Object.fromEntries(benchEnvKeys.map((key) => [key, process.env[key]]));
+  const workspace = setupConcurrencyWorkspace('ssi-bench-isolation-', 4);
+
+  process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = workspace.helperPath;
+  process.env.SSI_TEST_RECIPE_BATCH_COUNT = '4';
+  process.env.SSI_TEST_RECIPE_UNIT_MS = '5';
+  process.env.SSI_TEST_RECIPE_THROW_BATCH = '2';
+  process.env.SSI_FIXTURE_MATRIX_FIXTURE_ROOT = workspace.fixtureRoot;
+  process.env.SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY = workspace.outputDirectory;
+  process.env.SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH = workspace.staticSiteImporter;
+  process.env.SSI_FIXTURE_MATRIX_RUN = '1';
+  process.env.SSI_FIXTURE_MATRIX_BATCH_SIZE = '1';
+  process.env.SSI_FIXTURE_MATRIX_CONCURRENCY = '4';
+  process.env.SSI_FIXTURE_MATRIX_VISUAL_PARITY = '0';
+
+  try {
+    // Does not reject: the failing batch is recorded, not fatal.
+    const benchResult = await runFixtureMatrixBench();
+
+    // The aggregate spans all four fixtures: the three surviving batches passed
+    // and only the failing batch is counted as failed.
+    assert.equal(benchResult.metrics.fixture_count, 4);
+    assert.equal(benchResult.metrics.passed_fixture_count, 3);
+    assert.equal(benchResult.metrics.failed_fixture_count, 1);
+    assert.equal(benchResult.metrics.not_run_fixture_count, 0);
+
+    // The result-gate (failed_fixture_count <= 0) will fail on this, while the
+    // partial result is still emitted and the failing batch stays attributable.
+    const failures = benchResult.metadata.child_command_failures;
+    assert.equal(failures.length, 1);
+    assert.equal(failures[0].batch_id, 'batch-002');
+    assert.equal(failures[0].exit_status, 19);
+
+    // The aggregate result artifact was written for the lane to record.
+    const resultPayload = JSON.parse(readFileSync(benchResult.artifacts.result.path, 'utf8'));
+    assert.equal(resultPayload.summary.succeeded, 3);
+    assert.equal(resultPayload.summary.failed, 1);
+  } finally {
+    restoreConcurrencyEnv(concurrencySnapshot);
+    for (const key of benchEnvKeys) {
+      restoreEnv(key, benchEnvSnapshot[key]);
+    }
   }
 });
 
