@@ -191,7 +191,7 @@ function fuzzRunCommandForWorkload(workloadId, index, options) {
     '--chaos-sequence-packs',
     '--payload-size-depth-families',
     '--relative-hotspot-taxonomy',
-    '--snapshot-restore',
+    '--disposable-sandbox-boundary',
     '--hbex-aggressive-isolated-mode',
     '--hbex-admin-generation',
     '--hbex-database-generation',

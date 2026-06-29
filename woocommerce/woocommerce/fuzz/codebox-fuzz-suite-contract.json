@@ -41,7 +41,7 @@
       "upstream_blockers": [
         "Public fuzz-suite execution must consume generated route inventory and request-case artifacts instead of static route fixtures.",
         "REST DB query attribution must be emitted as reviewer-facing fuzz-suite-result artifacts before this can become executable or proven.",
-        "Generic rollback-safe REST create/update/delete primitives must emit rollback artifacts before mutating DB/API cases can join the profile.",
+        "Disposable REST create/update/delete cases must emit mutation isolation and delete boundary artifacts before mutating DB/API cases can join the profile.",
         "Public fuzz-suite proof must include reviewer-facing coverage gap report and hotspot summary artifacts before this contract can become proven."
       ],
       "proof_bundle_requirements": {
@@ -61,23 +61,29 @@
       "crud": {
         "create": {
           "level": "declared",
-          "upstream_blocker": "No generic rollback-safe REST create primitive is declared for DB/API performance fuzzing."
+          "upstream_blocker": "DB/API performance fuzzing has not opted create into disposable mutation execution."
         },
         "read": {
           "level": "executable"
         },
         "update": {
           "level": "declared",
-          "upstream_blocker": "No generic rollback-safe REST update primitive is declared for DB/API performance fuzzing."
+          "upstream_blocker": "DB/API performance fuzzing has not opted update into disposable mutation execution."
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "No generic rollback-safe REST delete primitive is declared for DB/API performance fuzzing."
+          "upstream_blocker": "DB/API performance fuzzing has not opted delete into disposable mutation execution."
         }
       },
       "mutation": {
-        "safety_boundary": "DB/API performance fuzzing remains read-only until isolated fixture mutation and rollback artifacts exist for REST create, update, and delete cases.",
-        "rollback_artifacts": []
+        "safety_boundary": "DB/API performance fuzzing remains read-only until product profiles opt into disposable fixture mutation artifacts for REST create, update, and delete cases.",
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

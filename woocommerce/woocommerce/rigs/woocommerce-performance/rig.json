@@ -347,7 +347,7 @@
       },
       "readiness": {
         "level": "declared",
-        "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; it does not claim CRUD or mutating REST execution until upstream isolated mutation primitives exist.",
+        "coverage_contract": "DB/API performance fuzzing is declared as a profile over existing WooCommerce fuzz workloads plus the full-surface gap report contract; mutating REST execution is owned by product profiles that opt into disposable sandbox mutation contracts.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -368,23 +368,29 @@
         "crud": {
           "create": {
             "level": "declared",
-            "upstream_blocker": "No generic rollback-safe REST create primitive is declared for DB/API performance fuzzing."
+            "upstream_blocker": "DB/API performance fuzzing has not opted create into disposable mutation execution."
           },
           "read": {
             "level": "executable"
           },
           "update": {
             "level": "declared",
-            "upstream_blocker": "No generic rollback-safe REST update primitive is declared for DB/API performance fuzzing."
+            "upstream_blocker": "DB/API performance fuzzing has not opted update into disposable mutation execution."
           },
           "delete": {
             "level": "declared",
-            "upstream_blocker": "No generic delete-boundary REST primitive is declared for DB/API performance fuzzing."
+            "upstream_blocker": "DB/API performance fuzzing has not opted delete into disposable mutation execution."
           }
         },
         "mutation": {
-          "safety_boundary": "Profile execution is read-only until upstream provides isolated fixture mutation, mutation artifact, and delete-boundary primitives for REST CRUD cases.",
-          "rollback_artifacts": [],
+          "safety_boundary": "Profile execution is read-only until product profiles opt into disposable fixture mutation artifacts for REST CRUD cases.",
+          "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+          "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
+          "delete_boundary_artifacts": ["delete_boundary_artifact"],
+          "destructive_case_ledgers": ["destructive_case_ledger"],
+          "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+          "artifact_bundle_refs": ["artifact_bundle_ref"],
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
           "upstream_blockers": [
             "Generic REST mutation runner must emit mutation artifacts before create/update/delete cases can join this profile.",
             "Generic REST mutation runner must emit delete-boundary mutation artifacts before mutating CRUD cases can join this profile."
@@ -428,15 +434,14 @@
         ]
       },
       "generic_upstream_contracts": [
-        "wordpress.rollback-safe-rest-mutation",
-        "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+        "wordpress.disposable-rest-mutation",
         "wp-codebox/wordpress-workload-run/v1",
         "wp-codebox/mutation-isolation-artifact/v1",
         "wp-codebox/delete-boundary-artifact/v1"
       ],
       "readiness": {
         "level": "executable",
-        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import. Product delete remains declared until the generic delete-boundary REST primitive emits reviewer-facing delete-boundary mutation artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
+        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update plus readback through rest-product-batch-import, with delete boundaries represented by reviewer-facing delete-boundary artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -452,7 +457,7 @@
           "create": {
             "level": "executable",
             "workload": "rest-product-batch-import",
-            "primitive": "wordpress.rollback-safe-rest-mutation",
+            "primitive": "wordpress.disposable-rest-mutation",
             "safety_class": "isolated_mutation"
           },
           "read": {
@@ -466,21 +471,26 @@
           "update": {
             "level": "executable",
             "workload": "rest-product-batch-import",
-            "primitive": "wordpress.rollback-safe-rest-mutation",
+            "primitive": "wordpress.disposable-rest-mutation",
             "safety_class": "isolated_mutation"
           },
           "delete": {
-            "level": "declared",
-            "upstream_blocker": "Product delete coverage waits for the generic delete-boundary REST primitive to emit a reviewer-facing delete-boundary mutation artifact contract."
+            "level": "executable",
+            "artifact": "delete_boundary_artifact",
+            "safety_class": "isolated_mutation"
           }
         },
         "mutation": {
-          "primitive": "wordpress.rollback-safe-rest-mutation",
-          "safety_boundary": "Executable product create/update cases run only inside disposable WP Codebox fixtures and must emit mutation/readback details before any proof claim. Delete remains declared until rollback-safe delete emits delete-boundary details.",
-          "rollback_artifacts": [
-            "raw_result"
-          ],
-          "rollback_artifact_schemas": [
+          "primitive": "wordpress.disposable-rest-mutation",
+          "safety_boundary": "Executable product create/update/delete cases run only inside disposable WP Codebox fixtures and must emit mutation/readback/delete-boundary details before any proof claim.",
+          "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+          "mutation_isolation_artifacts": ["raw_result", "mutation_isolation_artifact"],
+          "delete_boundary_artifacts": ["delete_boundary_artifact"],
+          "destructive_case_ledgers": ["destructive_case_ledger"],
+          "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+          "artifact_bundle_refs": ["artifact_bundle_ref"],
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
+          "mutation_artifact_schemas": [
             "wp-codebox/mutation-isolation-artifact/v1",
             "wp-codebox/delete-boundary-artifact/v1"
           ]

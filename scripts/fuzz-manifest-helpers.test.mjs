@@ -194,13 +194,13 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
   })), false);
 });
 
-test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {
+test('assertFuzzReadinessMetadata accepts declared CRUD and disposable mutation contracts', () => {
   assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
     metadata: {
       workload_path: '${package.root}/bench/product.workload.json',
       readiness: {
         level: 'executable',
-        coverage_contract: 'Catalog REST CRUD coverage with rollback-safe option mutation proof artifacts.',
+        coverage_contract: 'Catalog REST CRUD coverage with disposable sandbox and mutation isolation proof artifacts.',
         upstream_blockers: ['homeboy fuzz runner needs durable artifact manifest links before full proof'],
         crud: {
           create: { level: 'declared', upstream_blocker: 'safe fixture create primitive is not available upstream' },
@@ -209,8 +209,13 @@ test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation co
           delete: { level: 'declared', upstream_blocker: 'safe fixture delete primitive is not available upstream' },
         },
         mutation: {
-          safety_boundary: 'Runs in disposable WP Codebox with rollback artifacts for changed options/transients.',
-          rollback_artifacts: ['rollback_report'],
+          safety_boundary: 'Runs in disposable WP Codebox with mutation isolated to fixture-owned options/transients.',
+          disposable_sandbox_boundary_artifacts: ['disposable_sandbox_boundary'],
+          mutation_isolation_artifacts: ['mutation_isolation_artifact'],
+          delete_boundary_artifacts: ['delete_boundary_artifact'],
+          destructive_case_ledgers: ['destructive_case_ledger'],
+          teardown_discard_evidence: ['sandbox_teardown_evidence'],
+          artifact_bundle_refs: ['artifact_bundle_ref'],
         },
       },
     },

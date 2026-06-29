@@ -50,18 +50,24 @@
       "local_only_refs_allowed": false,
       "placeholder_refs_allowed": false,
       "required_refs": [
-        "reviewer-facing Codebox isolation readiness artifact ref",
-        "reviewer-facing snapshot restore artifact ref",
+        "reviewer-facing disposable sandbox boundary artifact ref",
+        "reviewer-facing mutation isolation artifact ref",
+        "reviewer-facing delete boundary artifact ref",
         "reviewer-facing fixture dynamic ID artifact ref",
         "reviewer-facing side-effect policy evidence artifact ref",
-        "reviewer-facing destructive case ledger artifact ref"
+        "reviewer-facing destructive case ledger artifact ref",
+        "reviewer-facing sandbox teardown/discard evidence artifact ref",
+        "reviewer-facing fuzz artifact bundle ref"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "delete_boundary_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
-        "destructive_case_ledger"
+        "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref"
       ]
     }
   },
@@ -162,11 +168,14 @@
     ]
   },
   "required_artifacts_per_workload": [
-    "codebox_isolation_readiness",
-    "snapshot_restore_artifact",
+    "disposable_sandbox_boundary",
+    "mutation_isolation_artifact",
+    "delete_boundary_artifact",
     "fixture_dynamic_id_manifest",
     "side_effect_policy_evidence",
-    "destructive_case_ledger"
+    "destructive_case_ledger",
+    "sandbox_teardown_evidence",
+    "artifact_bundle_ref"
   ],
   "workloads": [
     {
@@ -201,11 +210,13 @@
         "category_id"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
         "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [],
@@ -247,11 +258,13 @@
         "product_id"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
         "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [
@@ -299,11 +312,13 @@
         "order_id"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
         "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [],
@@ -345,11 +360,14 @@
         "stock_adjustment_ref"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
-        "destructive_case_ledger"
+        "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [
         "webhook"
@@ -392,11 +410,14 @@
         "shipping_rate_id"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
-        "destructive_case_ledger"
+        "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [
         "payment",
@@ -438,11 +459,14 @@
         "order_item_id"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact",
         "database_observations"
       ],
       "side_effect_surfaces": [
@@ -483,11 +507,14 @@
         "claim_id"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact",
         "database_observations"
       ],
       "side_effect_surfaces": [

@@ -99,9 +99,21 @@
       "required_before_execution": true
     },
     {
-      "id": "snapshot_restore_artifact",
-      "schema": "wp-codebox/snapshot-restore-artifact/v1",
-      "semantic_key": "fuzz.reset",
+      "id": "disposable_sandbox_boundary",
+      "schema": "wp-codebox/sandbox-isolation-proof/v1",
+      "semantic_key": "fuzz.disposable_sandbox_boundary",
+      "required_before_execution": true
+    },
+    {
+      "id": "mutation_isolation_artifact",
+      "schema": "wp-codebox/mutation-isolation-artifact/v1",
+      "semantic_key": "fuzz.mutation_isolation",
+      "required_before_execution": true
+    },
+    {
+      "id": "delete_boundary_artifact",
+      "schema": "wp-codebox/delete-boundary-artifact/v1",
+      "semantic_key": "fuzz.delete_boundary",
       "required_before_execution": true
     },
     {
@@ -174,6 +186,18 @@
       "id": "destructive_case_ledger",
       "schema": "homeboy/destructive-case-ledger/v1",
       "semantic_key": "fuzz.destructive_case_ledger",
+      "required_before_proven": true
+    },
+    {
+      "id": "sandbox_teardown_evidence",
+      "schema": "wp-codebox/sandbox-discard-evidence/v1",
+      "semantic_key": "fuzz.sandbox_teardown_evidence",
+      "required_before_proven": true
+    },
+    {
+      "id": "artifact_bundle_ref",
+      "schema": "wp-codebox/fuzz-artifact-bundle/v1",
+      "semantic_key": "fuzz.artifact_bundle_ref",
       "required_before_proven": true
     }
   ],
