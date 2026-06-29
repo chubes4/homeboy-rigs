@@ -14,16 +14,25 @@
     },
     "side_effect_policies": {
       "read": "inventory and request observations are read-only or safe GET cases",
-      "create_update": "fixture mutations must stay inside disposable WooCommerce catalog, checkout, cart, option, transient, and order state",
-      "delete": "delete paths are blocked unless an upstream rollback artifact contract proves isolated fixture cleanup",
+      "create_update": "fixture mutations execute only with explicit Homeboy isolation proof and WP Codebox sandbox isolation proof contracts",
+      "delete": "delete paths execute through WP Codebox delete-boundary artifacts and sandbox isolation proof contracts",
       "external_http": "live payment, tax, shipping, marketplace, and carrier calls are classified or blocked by product policy"
     },
     "action_family_labels": ["catalog", "checkout", "cart_session", "orders", "payments", "shipping_tax", "admin", "rest_api", "options_transients", "database", "external_http", "frontend_rendering"],
-    "blocked_upstream_contract_refs": [
-      "upstream:wordpress-fuzz-runner#durable-proof-bundle",
-      "upstream:wordpress-fuzz-runner#rollback-artifact-manifest",
-      "upstream:wordpress-rest-fuzzer#safe-crud-fixture-primitives"
-    ],
+    "upstream_contracts": {
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "source_prs": {
+        "wp_codebox": "Automattic/wp-codebox#1634,#1635,#1636",
+        "homeboy": "Extra-Chill/homeboy#6941,#6942,#6943",
+        "homeboy_extensions": "Extra-Chill/homeboy-extensions#2016,#2017,#2018"
+      }
+    },
+    "readiness_contract": {
+      "schema": "homeboy-rigs/product-surface-readiness-contract/v1",
+      "level": "executable",
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "missing_upstream_contracts": []
+    },
     "relative_hotspot_labels": ["checkout", "cart", "catalog", "admin", "api"]
   },
   "target_inventory_manifest": "manifests/target-inventory.json",

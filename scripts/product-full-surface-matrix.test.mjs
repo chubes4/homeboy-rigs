@@ -16,6 +16,7 @@ const productManifests = [
     taxonomy: ['rest_api', 'database', 'server_requests', 'browser_requests', 'authenticated_admin_pages', 'options_transients', 'frontend_rendering', 'performance_hotspots'],
     actionFamilies: ['catalog', 'checkout', 'cart_session', 'orders', 'payments', 'shipping_tax', 'admin', 'rest_api', 'options_transients', 'database', 'external_http', 'frontend_rendering'],
     hotspots: ['checkout', 'cart', 'catalog', 'admin', 'api'],
+    missingContracts: [],
   },
   {
     product: 'WordPress/wordpress-develop',
@@ -23,6 +24,7 @@ const productManifests = [
     taxonomy: ['rest_api', 'database', 'admin', 'frontend_rendering', 'hooks_cron_options', 'content_registration', 'media_users', 'performance_surfaces'],
     actionFamilies: ['rest_api', 'database', 'admin', 'frontend', 'hooks', 'cron', 'options', 'content', 'media', 'users', 'rewrite', 'performance'],
     hotspots: ['rest', 'admin', 'frontend', 'editor', 'cron', 'media', 'options', 'database'],
+    missingContracts: [],
   },
   {
     product: 'WordPress/gutenberg',
@@ -30,6 +32,7 @@ const productManifests = [
     taxonomy: ['rest_api', 'database', 'server_requests', 'browser_requests', 'admin_editor_pages', 'frontend_rendering', 'runtime_state', 'performance_observation'],
     actionFamilies: ['editor', 'site_editor', 'templates', 'patterns', 'blocks', 'rest_api', 'database', 'admin', 'frontend', 'external_http', 'performance'],
     hotspots: ['editor', 'site_editor', 'pattern_preview', 'block_rendering', 'api', 'database', 'assets'],
+    missingContracts: [],
   },
   {
     product: 'Automattic/jetpack',
@@ -37,7 +40,19 @@ const productManifests = [
     taxonomy: ['rest_api', 'database', 'server_requests', 'browser_requests', 'authenticated_admin_pages', 'options', 'modules', 'sync', 'connection_fixtures', 'public_frontend', 'performance_observation'],
     actionFamilies: ['connection', 'modules', 'sync', 'cron', 'options', 'rest_api', 'database', 'admin', 'public_frontend', 'external_http', 'performance'],
     hotspots: ['connection', 'sync', 'modules', 'admin', 'rest', 'public_frontend', 'external_http', 'database'],
+    missingContracts: ['jetpack/wpcom-connected-state-sandbox-contract/v1'],
   },
+];
+
+const upstreamContractIds = [
+  'wp-codebox/wordpress-fuzz-runtime-contract/v1',
+  'homeboy/isolation-proof/v1',
+  'homeboy/fuzz-action-model/v1',
+  'homeboy/fuzz-exploration-policy/v1',
+  'homeboy/wordpress-surface-family-contracts/v1',
+  'homeboy/wordpress-fuzz-runtime-workload-operation/v1',
+  'wp-codebox/fuzz-artifact-bundle/v1',
+  'wp-codebox/sandbox-isolation-proof/v1',
 ];
 
 function readJson(relativePath) {
@@ -79,20 +94,26 @@ test('product full-surface manifests keep product-owned matrix contracts', () =>
   }
 });
 
-test('blocked product matrix state stays explicit and non-executable', () => {
+test('product matrix readiness is wired to explicit upstream contract ids', () => {
   for (const productManifest of productManifests) {
     const manifest = readJson(productManifest.file);
-    const blockers = manifest.product_surface_matrix.blocked_upstream_contract_refs;
+    const contracts = manifest.product_surface_matrix.upstream_contracts;
+    const readiness = manifest.product_surface_matrix.readiness_contract;
 
-    assert.ok(Array.isArray(blockers), `${productManifest.product} blockers must be an array`);
-    assert.ok(blockers.length > 0, `${productManifest.product} must declare blockers for unsupported upstream contracts`);
-    for (const blocker of blockers) {
-      assert.match(blocker, /^upstream:[a-z0-9._-]+#[a-z0-9._-]+$/i, `${productManifest.product} blocker ${blocker} must be an explicit upstream contract ref`);
+    assert.ok(contracts && typeof contracts === 'object' && !Array.isArray(contracts), `${productManifest.product} requires upstream_contracts`);
+    assert.deepEqual(contracts.contract_ids, upstreamContractIds, `${productManifest.product} upstream contract ids drifted`);
+    assert.equal(contracts.source_prs.wp_codebox, 'Automattic/wp-codebox#1634,#1635,#1636');
+    assert.equal(contracts.source_prs.homeboy, 'Extra-Chill/homeboy#6941,#6942,#6943');
+    assert.equal(contracts.source_prs.homeboy_extensions, 'Extra-Chill/homeboy-extensions#2016,#2017,#2018');
+
+    assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${productManifest.product} requires readiness_contract`);
+    assert.equal(readiness.schema, 'homeboy-rigs/product-surface-readiness-contract/v1');
+    assert.equal(readiness.level, 'executable');
+    assert.deepEqual(readiness.contract_ids, upstreamContractIds);
+    assert.deepEqual(readiness.missing_upstream_contracts || [], productManifest.missingContracts);
+    for (const missing of readiness.missing_upstream_contracts || []) {
+      assert.match(missing, /^[a-z0-9._/-]+\/v\d+$/i, `${productManifest.product} missing contract ${missing} must name an exact schema id`);
     }
-
-    const matrixText = JSON.stringify(manifest.product_surface_matrix);
-    assert.doesNotMatch(matrixText, /\b(executable|supported|proven|available)\b/i, `${productManifest.product} matrix must not claim unsupported execution`);
-    assert.match(matrixText, /\b(blocked|classified|declaration|declared|require|requires)\b/i, `${productManifest.product} matrix must describe blocked or declaration-only state`);
   }
 });
 

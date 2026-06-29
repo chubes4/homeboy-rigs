@@ -13,17 +13,26 @@
       "admin": "Jetpack dashboard, connection, module, settings, hash-route, and wp-admin navigation targets"
     },
     "side_effect_policies": {
-      "read": "route, DB, admin, browser, public frontend, module inventory, and guardrail rows are declaration-only until proof artifacts exist",
-      "create_update": "module, option, sync, cron, and connection fixture mutations are blocked without upstream rollback-safe plugin-state primitives",
-      "delete": "remote connected-state deletion is blocked pending upstream Jetpack sandbox primitives",
+      "read": "route, DB, admin, browser, public frontend, module inventory, and guardrail rows map to explicit surface-family and runtime-workload operation contracts",
+      "create_update": "module, option, sync, and cron mutations require Homeboy isolation proof and WP Codebox sandbox isolation proof contracts",
+      "delete": "remote connected-state deletion remains blocked pending an explicit Jetpack WP.com connected-state sandbox contract",
       "external_http": "WordPress.com, sync, connection, and module HTTP calls require explicit sandbox primitives or blocked-request artifacts"
     },
     "action_family_labels": ["connection", "modules", "sync", "cron", "options", "rest_api", "database", "admin", "public_frontend", "external_http", "performance"],
-    "blocked_upstream_contract_refs": [
-      "upstream:wordpress-fuzz-runner#durable-proof-bundle",
-      "upstream:wordpress-fuzz-runner#rollback-artifact-manifest",
-      "upstream:jetpack-sandbox#safe-wpcom-connected-state-primitives"
-    ],
+    "upstream_contracts": {
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "source_prs": {
+        "wp_codebox": "Automattic/wp-codebox#1634,#1635,#1636",
+        "homeboy": "Extra-Chill/homeboy#6941,#6942,#6943",
+        "homeboy_extensions": "Extra-Chill/homeboy-extensions#2016,#2017,#2018"
+      }
+    },
+    "readiness_contract": {
+      "schema": "homeboy-rigs/product-surface-readiness-contract/v1",
+      "level": "executable",
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "missing_upstream_contracts": ["jetpack/wpcom-connected-state-sandbox-contract/v1"]
+    },
     "relative_hotspot_labels": ["connection", "sync", "modules", "admin", "rest", "public_frontend", "external_http", "database"]
   },
   "coverage_map": {

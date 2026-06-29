@@ -13,17 +13,26 @@
       "api": "Core REST route inventory and safe request-case declarations"
     },
     "side_effect_policies": {
-      "read": "route, admin, frontend, database, hook, cron, option, media, and user inventories are product declarations until proof artifacts exist",
-      "create_update": "content, media, user, option, and rewrite mutations are blocked without upstream rollback-safe fixture primitives",
-      "delete": "destructive fixture paths are blocked without upstream deletion rollback artifacts",
+      "read": "route, admin, frontend, database, hook, cron, option, media, and user inventories map to explicit surface-family and runtime-workload operation contracts",
+      "create_update": "content, media, user, option, and rewrite mutations require Homeboy isolation proof and WP Codebox sandbox isolation proof contracts",
+      "delete": "destructive fixture paths require WP Codebox delete-boundary artifacts and sandbox isolation proof contracts",
       "external_http": "Core external HTTP observations are classification-only in this manifest"
     },
     "action_family_labels": ["rest_api", "database", "admin", "frontend", "hooks", "cron", "options", "content", "media", "users", "rewrite", "performance"],
-    "blocked_upstream_contract_refs": [
-      "upstream:wordpress-fuzz-runner#durable-proof-bundle",
-      "upstream:wordpress-fuzz-runner#rollback-artifact-manifest",
-      "upstream:wordpress-core-fixtures#safe-content-media-user-crud"
-    ],
+    "upstream_contracts": {
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "source_prs": {
+        "wp_codebox": "Automattic/wp-codebox#1634,#1635,#1636",
+        "homeboy": "Extra-Chill/homeboy#6941,#6942,#6943",
+        "homeboy_extensions": "Extra-Chill/homeboy-extensions#2016,#2017,#2018"
+      }
+    },
+    "readiness_contract": {
+      "schema": "homeboy-rigs/product-surface-readiness-contract/v1",
+      "level": "executable",
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "missing_upstream_contracts": []
+    },
     "relative_hotspot_labels": ["rest", "admin", "frontend", "editor", "cron", "media", "options", "database"]
   },
   "coverage_map": {
