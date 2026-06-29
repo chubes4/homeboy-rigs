@@ -22,10 +22,10 @@
         "Expose an artifact-compatible generic REST route inventory command before replacing the Gutenberg PHP workload."
       ],
       "crud": {
-        "create": { "level": "declared", "upstream_blocker": "safe fixture creation primitive is not available for Gutenberg REST mutations" },
+        "create": { "level": "executable", "via": "mutation_isolation_artifact" },
         "read": { "level": "executable" },
-        "update": { "level": "declared", "upstream_blocker": "safe fixture update primitive is not available for Gutenberg REST mutations" },
-        "delete": { "level": "declared", "upstream_blocker": "safe fixture delete primitive is not available for Gutenberg REST mutations" }
+        "update": { "level": "executable", "via": "mutation_isolation_artifact" },
+        "delete": { "level": "executable", "via": "delete_boundary_artifact" }
       }
     }
   },

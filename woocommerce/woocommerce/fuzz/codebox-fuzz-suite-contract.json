@@ -74,10 +74,13 @@
       },
       "mutation": {
         "safety_boundary": "DB/API performance fuzzing and REST CRUD fixture cases execute only through disposable WP Codebox fixtures and contract-backed mutation-isolation/delete-boundary artifacts before any proof claim.",
-        "rollback_artifacts": [
-          "mutation_isolation_artifact",
-          "delete_boundary_artifact"
-        ]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

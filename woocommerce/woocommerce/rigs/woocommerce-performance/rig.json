@@ -387,10 +387,13 @@
         },
         "mutation": {
           "safety_boundary": "Profile execution uses disposable WP Codebox fixtures and contract-backed mutation-isolation/delete-boundary artifacts for REST CRUD cases.",
-          "rollback_artifacts": [
-            "mutation_isolation_artifact",
-            "delete_boundary_artifact"
-          ]
+          "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+          "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
+          "delete_boundary_artifacts": ["delete_boundary_artifact"],
+          "destructive_case_ledgers": ["destructive_case_ledger"],
+          "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+          "artifact_bundle_refs": ["artifact_bundle_ref"],
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
         }
       }
     },
@@ -430,8 +433,7 @@
         ]
       },
       "generic_upstream_contracts": [
-        "wordpress.rollback-safe-rest-mutation",
-        "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+        "wordpress.disposable-rest-mutation",
         "wp-codebox/wordpress-workload-run/v1",
         "wp-codebox/mutation-isolation-artifact/v1",
         "wp-codebox/delete-boundary-artifact/v1"
@@ -454,7 +456,7 @@
           "create": {
             "level": "executable",
             "workload": "rest-product-batch-import",
-            "primitive": "wordpress.rollback-safe-rest-mutation",
+            "primitive": "wordpress.disposable-rest-mutation",
             "safety_class": "isolated_mutation"
           },
           "read": {
@@ -468,23 +470,27 @@
           "update": {
             "level": "executable",
             "workload": "rest-product-batch-import",
-            "primitive": "wordpress.rollback-safe-rest-mutation",
+            "primitive": "wordpress.disposable-rest-mutation",
             "safety_class": "isolated_mutation"
           },
           "delete": {
             "level": "executable",
             "primitive": "wp-codebox/delete-boundary-artifact/v1",
+            "artifact": "delete_boundary_artifact",
             "safety_class": "isolated_mutation"
           }
         },
         "mutation": {
-          "primitive": "wordpress.rollback-safe-rest-mutation",
-          "safety_boundary": "Executable product create/update/delete cases run only inside disposable WP Codebox fixtures and must emit mutation/readback and delete-boundary details before any proof claim.",
-          "rollback_artifacts": [
-            "raw_result",
-            "delete_boundary_artifact"
-          ],
-          "rollback_artifact_schemas": [
+          "primitive": "wordpress.disposable-rest-mutation",
+          "safety_boundary": "Executable product create/update/delete cases run only inside disposable WP Codebox fixtures and must emit mutation/readback/delete-boundary details before any proof claim.",
+          "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+          "mutation_isolation_artifacts": ["raw_result", "mutation_isolation_artifact"],
+          "delete_boundary_artifacts": ["delete_boundary_artifact"],
+          "destructive_case_ledgers": ["destructive_case_ledger"],
+          "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+          "artifact_bundle_refs": ["artifact_bundle_ref"],
+          "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
+          "mutation_artifact_schemas": [
             "wp-codebox/mutation-isolation-artifact/v1",
             "wp-codebox/delete-boundary-artifact/v1"
           ]

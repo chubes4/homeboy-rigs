@@ -28,7 +28,13 @@
       ],
       "mutation": {
         "safety_boundary": "Runs in isolated WP Codebox fixtures with remote dispatch disabled, original values restored, rollback required, and external HTTP guarded.",
-        "rollback_artifacts": ["cron_sync_actions", "cron_sync_rollback_rows", "queue_option_restore_rows"]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["cron_sync_actions", "cron_sync_mutation_rows", "queue_option_mutation_rows"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     }
   },

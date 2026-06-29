@@ -418,7 +418,12 @@
             "reviewer-facing relative hotspot taxonomy artifact ref",
             "reviewer-facing fuzz execution request artifact ref",
             "reviewer-facing coverage reconciliation artifact ref",
-            "reviewer-facing snapshot restore artifact ref"
+            "reviewer-facing disposable sandbox boundary artifact ref",
+            "reviewer-facing mutation isolation artifact ref",
+            "reviewer-facing delete boundary artifact ref",
+            "reviewer-facing destructive case ledger artifact ref",
+            "reviewer-facing sandbox teardown/discard evidence artifact ref",
+            "reviewer-facing fuzz artifact bundle ref"
           ],
           "required_artifacts": [
             "chaos_sequence_pack_resolution",
@@ -426,7 +431,12 @@
             "relative_hotspot_taxonomy",
             "fuzz_execution_request",
             "coverage_reconciliation",
-            "snapshot_restore_artifact"
+            "disposable_sandbox_boundary",
+            "mutation_isolation_artifact",
+            "delete_boundary_artifact",
+            "destructive_case_ledger",
+            "sandbox_teardown_evidence",
+            "artifact_bundle_ref"
           ]
         },
         "required_contracts": [

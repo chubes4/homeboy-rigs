@@ -21,7 +21,7 @@
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Read available WooCommerce DB/API fuzzer run artifacts and emit a generic coverage gap report with expected, covered, gaps, status, and evidence refs through the supported homeboy.artifact-postprocess command shape. Proven status requires reviewer-facing offloaded artifact refs. Mutating CRUD remains out of scope until rollback-safe primitives exist.",
+      "coverage_contract": "Read available WooCommerce DB/API fuzzer run artifacts and emit a generic coverage gap report with expected, covered, gaps, status, and evidence refs through the supported homeboy.artifact-postprocess command shape. Proven status requires reviewer-facing offloaded artifact refs. Mutating CRUD is represented by product-owned mutation isolation and delete-boundary artifacts.",
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
