@@ -22,36 +22,58 @@ import {
 } from '../shared/utils.mjs';
 
 // Turn `wordpress.visual-compare` evidence into `visual_parity_mismatch`
-// diagnostics. A comparison whose mismatch ratio (mismatch_pixels/total_pixels)
-// exceeds the threshold — or that reports a dimension mismatch — emits a
-// diagnostic. When the run opted into gating, the diagnostic carries a `gate`
-// signal so it resolves to the unacceptable `visual_parity_mismatch` loss class
-// and fails the fixture; otherwise it is captured but non-gating (capture-only
-// default, since pixel diffs can be flaky). Matches at or under the threshold
-// emit nothing.
+// diagnostics, gated on the TRUSTWORTHY (dimension-fair) ratio.
+//
+// The legacy gate compared `mismatch_pixels/total_pixels` over the union canvas
+// (max width × max height of source vs candidate). When the two renders differ in
+// size — the common case, since the static source frequently lays out wider/taller
+// than the imported WordPress page — that raw ratio is dominated by the canvas-size
+// band (one side real content, the other transparent fill) and tells you almost
+// nothing about real visual fidelity. It also hard-failed on ANY dimension mismatch.
+//
+// The trustworthy gate instead compares the FAIR ratio: pixel mismatch over the
+// common overlap region only (`overlap_mismatch_pixels/overlap_pixels`, emitted by
+// wp-codebox). The dimension delta is reported as a SEPARATE signal rather than
+// smeared into the gate. A dimension mismatch only forces a finding when no overlap
+// signal is available (a degenerate/empty capture), where the fair ratio cannot be
+// computed. When the runtime predates overlap metrics, the fair ratio falls back to
+// the raw ratio so older evidence still gates as before. Matches at or under the
+// threshold emit nothing.
 export function collectVisualParityDiagnostics(payload, options = {}) {
   const { threshold, gate } = normalizeVisualParityGateOptions(options);
   const diagnostics = [];
   for (const comparison of collectVisualParityComparisons(payload)) {
-    if (comparison.mismatch_ratio <= threshold && !comparison.dimension_mismatch) {
+    // Dimension mismatch is only a hard gate when we cannot measure a fair ratio
+    // (no overlap region — e.g. a zero-area/failed capture).
+    const dimensionForcesFinding = comparison.dimension_mismatch && !comparison.has_overlap_signal;
+    if (comparison.mismatch_ratio <= threshold && !dimensionForcesFinding) {
       continue;
     }
     const percent = (comparison.mismatch_ratio * 100).toFixed(2);
+    const rawPercent = (comparison.raw_mismatch_ratio * 100).toFixed(2);
     const thresholdPercent = (threshold * 100).toFixed(2);
+    const fairPixels = comparison.has_overlap_signal ? comparison.overlap_mismatch_pixels : comparison.mismatch_pixels;
+    const fairTotal = comparison.has_overlap_signal ? comparison.overlap_pixels : comparison.total_pixels;
     diagnostics.push({
       kind: VISUAL_PARITY_MISMATCH_KIND,
       ...(gate ? { gate: true, visual_parity_gate: true } : {}),
       source_path: comparison.source_path || '',
-      observed_output: `${percent}% pixels differ (${comparison.mismatch_pixels}/${comparison.total_pixels})`,
-      mismatch_pixels: comparison.mismatch_pixels,
-      total_pixels: comparison.total_pixels,
+      observed_output: `${percent}% pixels differ in overlap (${fairPixels}/${fairTotal})`,
+      mismatch_pixels: fairPixels,
+      total_pixels: fairTotal,
       mismatch_ratio: comparison.mismatch_ratio,
+      raw_mismatch_pixels: comparison.mismatch_pixels,
+      raw_total_pixels: comparison.total_pixels,
+      raw_mismatch_ratio: comparison.raw_mismatch_ratio,
+      overlap_mismatch_pixels: comparison.overlap_mismatch_pixels,
+      overlap_pixels: comparison.overlap_pixels,
       threshold,
       dimension_mismatch: comparison.dimension_mismatch,
+      dimension_delta_pixels: comparison.dimension_delta_pixels,
       artifact_refs: visualParityArtifactRefs(comparison),
-      message: comparison.dimension_mismatch
-        ? `Visual parity dimension mismatch between source and imported output (${comparison.mismatch_pixels}/${comparison.total_pixels} pixels, ${percent}%).`
-        : `Pixel visual parity mismatch: ${comparison.mismatch_pixels}/${comparison.total_pixels} pixels (${percent}%) exceed the ${thresholdPercent}% threshold.`,
+      message: dimensionForcesFinding
+        ? `Visual parity dimension mismatch between source and imported output with no measurable overlap region (raw ${comparison.mismatch_pixels}/${comparison.total_pixels} pixels, ${rawPercent}%).`
+        : `Pixel visual parity mismatch: ${fairPixels}/${fairTotal} overlap pixels (${percent}%) exceed the ${thresholdPercent}% threshold (raw full-page ${rawPercent}%, dimension delta ${comparison.dimension_delta_pixels} px).`,
     });
   }
   return diagnostics;
@@ -99,21 +121,45 @@ function normalizeVisualParityComparison(value) {
   const mismatchPixels = firstNumber([summary.mismatch_pixels, summary.mismatchPixels, comparison.mismatchPixels, comparison.mismatch_pixels, obj.mismatch_pixels, obj.mismatchPixels]);
   const totalPixels = firstNumber([summary.total_pixels, summary.totalPixels, comparison.totalPixels, comparison.total_pixels, obj.total_pixels, obj.totalPixels]);
   const explicitRatio = firstNumber([summary.mismatch_ratio, summary.mismatchRatio, comparison.mismatchRatio, comparison.mismatch_ratio, obj.mismatch_ratio, obj.mismatchRatio]);
+  // Dimension-fair (overlap-region) metrics emitted by wp-codebox's trustworthy
+  // visual-compare. When present these drive the gate; otherwise the fair ratio
+  // falls back to the raw union-canvas ratio for backward compatibility.
+  const overlapMismatchPixels = firstNumber([summary.overlap_mismatch_pixels, summary.overlapMismatchPixels, comparison.overlapMismatchPixels, comparison.overlap_mismatch_pixels, obj.overlap_mismatch_pixels, obj.overlapMismatchPixels]);
+  const overlapPixels = firstNumber([summary.overlap_pixels, summary.overlapPixels, comparison.overlapPixels, comparison.overlap_pixels, obj.overlap_pixels, obj.overlapPixels]);
+  const overlapRatio = firstNumber([summary.overlap_mismatch_ratio, summary.overlapMismatchRatio, comparison.overlapMismatchRatio, comparison.overlap_mismatch_ratio, obj.overlap_mismatch_ratio, obj.overlapMismatchRatio]);
+  const dimensionDeltaPixels = firstNumber([summary.dimension_delta_pixels, summary.dimensionDeltaPixels, comparison.dimensionDeltaPixels, comparison.dimension_delta_pixels, obj.dimension_delta_pixels, obj.dimensionDeltaPixels]);
   const dimensionMismatch = Boolean(summary.dimension_mismatch ?? comparison.dimensionMismatch ?? comparison.dimension_mismatch ?? obj.dimension_mismatch);
-  const hasMetrics = [mismatchPixels, totalPixels, explicitRatio].some((metric) => Number.isFinite(metric));
+  const hasMetrics = [mismatchPixels, totalPixels, explicitRatio, overlapRatio, overlapMismatchPixels].some((metric) => Number.isFinite(metric));
   if (!hasMetrics && !dimensionMismatch) {
     return null;
   }
   const safeMismatch = Number.isFinite(mismatchPixels) ? mismatchPixels : 0;
   const safeTotal = Number.isFinite(totalPixels) ? totalPixels : 0;
-  const ratio = safeTotal > 0 ? safeMismatch / safeTotal : (Number.isFinite(explicitRatio) ? explicitRatio : 0);
+  const rawRatio = safeTotal > 0 ? safeMismatch / safeTotal : (Number.isFinite(explicitRatio) ? explicitRatio : 0);
+  // The fair ratio is the overlap mismatch over the overlap area. Prefer explicit
+  // counts, then an explicit overlap ratio, then degrade to the raw ratio.
+  const safeOverlapPixels = Number.isFinite(overlapPixels) ? overlapPixels : 0;
+  const safeOverlapMismatch = Number.isFinite(overlapMismatchPixels) ? overlapMismatchPixels : 0;
+  const hasOverlapSignal = safeOverlapPixels > 0 || Number.isFinite(overlapRatio);
+  const fairRatio = safeOverlapPixels > 0
+    ? safeOverlapMismatch / safeOverlapPixels
+    : (Number.isFinite(overlapRatio) ? overlapRatio : rawRatio);
+  const safeDimensionDelta = Number.isFinite(dimensionDeltaPixels)
+    ? dimensionDeltaPixels
+    : (safeTotal > 0 && safeOverlapPixels > 0 ? safeTotal - safeOverlapPixels : 0);
   const files = objectValue(obj.files);
   const artifacts = objectValue(obj.artifacts);
   const sourceObject = objectValue(obj.source);
   return {
     mismatch_pixels: safeMismatch,
     total_pixels: safeTotal,
-    mismatch_ratio: ratio,
+    // `mismatch_ratio` is the GATING signal: the dimension-fair ratio.
+    mismatch_ratio: fairRatio,
+    raw_mismatch_ratio: rawRatio,
+    overlap_mismatch_pixels: safeOverlapMismatch,
+    overlap_pixels: safeOverlapPixels,
+    has_overlap_signal: hasOverlapSignal,
+    dimension_delta_pixels: safeDimensionDelta,
     dimension_mismatch: dimensionMismatch,
     source_path: firstString([sourceObject.path, sourceObject.url, obj.source_path, obj.sourcePath]),
     source_screenshot: firstString([artifacts.source_screenshot, files.sourceScreenshot, obj.source_screenshot, obj.sourceScreenshot]),
@@ -153,7 +199,13 @@ export function collectVisualParityArtifacts(payload) {
     metrics: compactObject({
       mismatch_pixels: comparison.mismatch_pixels,
       total_pixels: comparison.total_pixels,
+      // `mismatch_ratio` is the dimension-fair (overlap) ratio — the trustworthy
+      // signal. Raw union-canvas figures are retained for evidence/diagnosis.
       mismatch_ratio: comparison.mismatch_ratio,
+      raw_mismatch_ratio: comparison.raw_mismatch_ratio,
+      overlap_mismatch_pixels: comparison.overlap_mismatch_pixels,
+      overlap_pixels: comparison.overlap_pixels,
+      dimension_delta_pixels: comparison.dimension_delta_pixels,
       dimension_mismatch: comparison.dimension_mismatch,
     }),
     artifacts: {
