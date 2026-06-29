@@ -17,10 +17,14 @@ import {
 
 const DEFAULT_BATCH_SIZE = 10;
 // Each batch provisions its own WP Codebox sandbox, so batches are independent
-// and safe to fan out in parallel. Default to a modest pool so a local run does
-// not stampede the sandbox provider; the hard cap bounds even an explicit
-// override so a fat-fingered `--concurrency 500` can not exhaust the host.
-const DEFAULT_BATCH_CONCURRENCY = 4;
+// and safe to fan out in parallel. A single live sandbox costs ~3.3GB host RSS,
+// but RSS grows superlinearly when several overlap (a measured `--concurrency 4`
+// run peaked near 65GB and OOM-pressured the host). Default to 2 so a plain run
+// still gets parallel speedup while staying within a few GB of headroom; the
+// hard cap bounds even an explicit override so a fat-fingered `--concurrency 500`
+// can not exhaust the host. Operators with RAM to spare can raise `--concurrency`
+// up to the cap.
+const DEFAULT_BATCH_CONCURRENCY = 2;
 const MAX_BATCH_CONCURRENCY = 16;
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -40,11 +44,22 @@ async function main() {
 
 export default async function runFixtureMatrixBench() {
   const options = { ...optionsFromEnv(), ...parseArgs(process.argv.slice(2)) };
-  const { summary, runtimeError } = await runFixtureMatrix(options);
-  if (runtimeError) {
-    attachChildCommandFailures(runtimeError, summary.runtime?.child_command_failures || []);
-    throw runtimeError;
-  }
+  // Per-fixture / per-batch failures (PHP OOM in collect_artifacts, capture
+  // failures, child timeouts) are already isolated inside `runFixtureMatrix`:
+  // each failing batch is recorded as failed fixtures and folded into the
+  // aggregate while sibling batches still run (see
+  // `runFixtureMatrixBatch`/`mapWithConcurrency`). Re-throwing `runtimeError`
+  // here would make the bench harness treat the entire lane as a hard
+  // assertion_failure and DISCARD the run -- losing the aggregate and every
+  // survivor from the batches that succeeded. Instead, always return the
+  // aggregated metrics so the lane records the partial result; the rig's
+  // `failed_fixture_count <= 0` result-gate then fails the run (because failed
+  // fixtures are counted) WITHOUT discarding it, and `summarizeBenchRun` emits
+  // the operator summary on that gate-FAIL. child_command_failures stay in
+  // metadata so the failing batch remains attributable. Genuine pre-aggregate
+  // setup failures (missing fixtures, composer install) still throw out of
+  // `runFixtureMatrix` and legitimately abort the lane.
+  const { summary } = await runFixtureMatrix(options);
 
   const resultSummary = summary.result_summary || {};
   return {
@@ -68,6 +83,9 @@ export default async function runFixtureMatrixBench() {
       output_directory: summary.output_directory,
       result_summary: summary.result_summary,
       runtime: summary.runtime,
+      // Surface failing batches at the top level (also nested in runtime) so a
+      // gate-FAIL run stays attributable without re-reading the runtime block.
+      ...(summary.child_command_failures?.length ? { child_command_failures: summary.child_command_failures } : {}),
     },
   };
 }
@@ -447,13 +465,6 @@ function runtimeSummary(runtime, runtimeError) {
     ...(runtime.childCommandFailures?.length ? { child_command_failures: runtime.childCommandFailures } : {}),
     error: runtimeError ? runtimeError.message : '',
   };
-}
-
-function attachChildCommandFailures(error, childCommandFailures) {
-  if (!childCommandFailures.length) {
-    return;
-  }
-  error.child_command_failures = childCommandFailures;
 }
 
 function buildWpCodeboxChildCommandFailure({ error, batchNumber, batchSuffix, batchRecipeFile, outputFile, artifactsDir, wpCodeboxBin: bin, artifactRefs }) {
