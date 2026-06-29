@@ -30,6 +30,10 @@ import {
   collectVisualParityArtifacts,
   normalizeVisualParityGateOptions,
 } from './visual-parity.mjs';
+import {
+  collectLiveWpParity,
+  normalizeLiveWpParityCollectorOptions,
+} from './live-wp-parity.mjs';
 import { normalizeFixtureMatrixResult, normalizeFixtureResult } from '../result.mjs';
 
 export function collectFixtureMatrixRunResults(input = {}) {
@@ -39,21 +43,33 @@ export function collectFixtureMatrixRunResults(input = {}) {
   const codeboxError = input.codeboxError || input.codebox_error || null;
   const runtimePayloads = collectRuntimePayloads(codeboxOutput);
   const visualParity = normalizeVisualParityGateOptions(input.visualParity || input.visual_parity || input);
+  // Opt-in live-WP parity collection. Off by default: when absent (or disabled),
+  // `enabled` is false and no live-WP comparison runs, so the per-fixture result
+  // is byte-identical to today. When on, each fixture's captured rendered DOM is
+  // scored against the staged source by the blocks-engine comparator.
+  const liveWpParity = normalizeLiveWpParityCollectorOptions(input.liveWpParity || input.live_wp_parity);
   const results = matrix.fixtures.map((fixture) => {
     const fixtureArtifactsDirectory = path.join(outputDirectory, fixture.id);
     const payloads = [
       ...runtimePayloads.filter((payload) => fixtureIdentity(payload) === fixture.id),
       ...readFixturePayloadFiles(fixtureArtifactsDirectory),
     ];
-    return normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError, visualParity });
+    return normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError, visualParity, liveWpParity });
   });
 
   return normalizeFixtureMatrixResult({ matrix, results });
 }
 
-function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError, visualParity }) {
+function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDirectory, codeboxError, visualParity, liveWpParity }) {
   const merged = mergeObjects(payloads);
   const diagnostics = collectFixtureDiagnostics(merged, { visualParity });
+  // Best-effort live-WP parity (opt-in). Returns null when disabled or when the
+  // capture/source/comparator is unavailable, keeping the lane isolated.
+  const liveWpParityResult = collectLiveWpParity({
+    fixtureArtifactsDirectory,
+    entrypoint: fixture.entrypoint,
+    options: liveWpParity,
+  });
   const error = firstString([
     merged.error,
     merged.message && isFailurePayload(merged) ? merged.message : '',
@@ -82,6 +98,7 @@ function normalizeCollectedFixtureResult({ fixture, payloads, fixtureArtifactsDi
     artifact_refs: collectFixtureArtifactRefs(merged, fixtureArtifactsDirectory),
     artifacts: merged.artifacts || {},
     visual_parity_artifacts: collectVisualParityArtifacts(merged),
+    live_wp_parity: liveWpParityResult,
     raw: { payloads },
   });
 }

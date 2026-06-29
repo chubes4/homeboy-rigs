@@ -158,6 +158,7 @@ export function normalizeFixtureResult(input) {
   } else if (!input.status && input.success === false) {
     status = 'failed';
   }
+  const liveWpParityResult = input.live_wp_parity || input.liveWpParity || null;
   return {
     fixture_id: input.fixture_id || input.fixtureId || input.id || '',
     fixture_path: input.fixture_path || input.fixturePath || input.path || '',
@@ -192,6 +193,10 @@ export function normalizeFixtureResult(input) {
     artifact_refs: normalizeArray(input.artifact_refs || input.artifactRefs),
     artifacts: input.artifacts || {},
     visual_parity_artifacts: input.visual_parity_artifacts || input.visualParityArtifacts || null,
+    // Opt-in live-WP parity result (live-WP score + render-free proxy score +
+    // delta). Only attached when the collector produced one; absent => the key is
+    // omitted entirely so a default (toggle-off) result is byte-identical to today.
+    ...(liveWpParityResult ? { live_wp_parity: liveWpParityResult } : {}),
   };
 }
 

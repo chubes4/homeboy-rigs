@@ -125,6 +125,7 @@ export async function runFixtureMatrix(options) {
     staticSiteImporterSlug: options.staticSiteImporterSlug,
     ...editorValidationRecipeInput(options),
     ...visualParityRecipeInput(options),
+    ...liveWpParityRecipeInput(options),
   });
   const recipeFile = path.join(outputDirectory, 'wp-codebox-static-site-fixture-matrix-recipe.json');
   fs.writeFileSync(recipeFile, `${JSON.stringify(recipe, null, 2)}\n`);
@@ -224,6 +225,7 @@ export async function runFixtureMatrixBatch({ fixtures, batchIndex, matrix, outp
     staticSiteImporterSlug: options.staticSiteImporterSlug,
     ...editorValidationRecipeInput(options),
     ...visualParityRecipeInput(options),
+    ...liveWpParityRecipeInput(options),
   });
   const batchRecipeFile = path.join(outputDirectory, `wp-codebox-static-site-fixture-matrix-batch-${batchSuffix}.json`);
   const outputFile = path.join(outputDirectory, `wp-codebox-output-batch-${batchSuffix}.json`);
@@ -275,6 +277,7 @@ export async function runFixtureMatrixBatch({ fixtures, batchIndex, matrix, outp
     codeboxOutput: batchRuntime?.json,
     codeboxError: batchError,
     visualParity: visualParityGateInput(options),
+    liveWpParity: liveWpParityCollectorInput(options),
   });
 
   return { batchRun, batchResult, error: batchError, childCommandFailure };
@@ -577,6 +580,10 @@ function optionsFromEnv(env = process.env) {
     editorValidation: !isFalsy(benchEnv.SSI_FIXTURE_MATRIX_EDITOR_VALIDATION ?? env.SSI_FIXTURE_MATRIX_EDITOR_VALIDATION),
     visualParity: !isFalsy(benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY ?? env.SSI_FIXTURE_MATRIX_VISUAL_PARITY),
     visualParityGate: isTruthy(benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_GATE) || isTruthy(env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_GATE),
+    // Opt-in live-WP parity capture + comparison. Off by default; mirrors the
+    // visual-parity-gate truthy env mapping. When on, the recipe appends the
+    // capture-html step and the result collector runs the live-wp-parity comparator.
+    liveWpParity: isTruthy(benchEnv.SSI_FIXTURE_MATRIX_LIVE_WP_PARITY) || isTruthy(env.SSI_FIXTURE_MATRIX_LIVE_WP_PARITY),
     pixelThreshold: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_PIXEL_THRESHOLD,
     visualParityCandidateUrl: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_CANDIDATE_URL || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_CANDIDATE_URL,
     visualParitySourceBaseUrl: benchEnv.SSI_FIXTURE_MATRIX_VISUAL_PARITY_SOURCE_BASE_URL || env.SSI_FIXTURE_MATRIX_VISUAL_PARITY_SOURCE_BASE_URL,
@@ -609,6 +616,32 @@ function visualParityGateInput(options) {
   return {
     threshold: options.pixelThreshold,
     gate: options.visualParityGate === true,
+  };
+}
+
+// Live-WP parity recipe option. Off by default; when on, `liveWpParityEnabled`
+// in the recipe builder appends the deterministic capture-html step per fixture.
+// `liveWpParity: false` is inert in the recipe builder (the capture step is only
+// added when truthy), so the OFF recipe is byte-identical to today.
+function liveWpParityRecipeInput(options) {
+  return {
+    liveWpParity: options.liveWpParity === true,
+  };
+}
+
+// Live-WP parity result-collector option. Off by default. When on, supplies the
+// comparator package path so the result collector can score each fixture's
+// captured rendered DOM against its staged source (with the render-free proxy
+// delta). Resolving the transformer path only when enabled avoids touching the
+// OFF path. A live-WP failure is isolated inside the collector (never sinks the lane).
+function liveWpParityCollectorInput(options) {
+  if (options.liveWpParity !== true) {
+    return { enabled: false };
+  }
+  return {
+    enabled: true,
+    blocksEnginePhpTransformerPath: resolveBlocksEnginePhpTransformerPath(options.blocksEnginePhpTransformerPath),
+    withProxy: true,
   };
 }
 

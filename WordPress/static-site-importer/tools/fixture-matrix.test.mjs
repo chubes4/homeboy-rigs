@@ -2753,3 +2753,123 @@ test('normalizeLiveWpParityReport bounds the per-property diff list', () => {
   assert.equal(normalized.score, 0.5);
   assert.equal(normalized.comparison, undefined, 'no comparison block when the CLI omits --with-proxy');
 });
+
+// End-to-end toggle wiring (PR #578 follow-up): proves the live-WP parity toggle
+// is threaded flag -> env -> recipe -> collector, and that the OFF path is
+// byte-identical to today (capture step absent, result carries no live_wp_parity).
+test('--live-wp-parity threads flag -> env into the bench, OFF leaves it absent', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-live-wp-parity-plan-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const planFixtureRoot = path.join(root, 'fixtures');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(planFixtureRoot, 'fixture-a'), { recursive: true });
+
+  // Default: no live-WP parity env setting (unchanged behavior).
+  const offPlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    fixtureRoot: planFixtureRoot,
+    skipInstall: true,
+    skipSync: true,
+  });
+  assert.equal(
+    offPlan.steps.at(-1).args.includes('bench_env.SSI_FIXTURE_MATRIX_LIVE_WP_PARITY=1'),
+    false,
+    'no live-WP parity bench env is emitted unless the flag is passed',
+  );
+
+  // --live-wp-parity -> options.liveWpParity === true -> env=1 setting threaded
+  // into the bench (mirrors --visual-parity-gate).
+  const onPlan = buildFixtureMatrixRunPlan({
+    staticSiteImporter,
+    fixtureRoot: planFixtureRoot,
+    liveWpParity: true,
+    skipInstall: true,
+    skipSync: true,
+  });
+  assert.ok(onPlan.steps.at(-1).args.includes('bench_env.SSI_FIXTURE_MATRIX_LIVE_WP_PARITY=1'));
+});
+
+test('live-WP parity toggle adds the capture step + invokes the collector when ON, byte-identical OFF', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'live-wp-toggle' });
+  const fixtureId = matrix.fixtures[0].id;
+
+  // RECIPE: OFF is byte-identical to the same recipe with no live-WP input, and
+  // emits no capture-html step. ON appends exactly one capture-html step.
+  const recipeBaseline = buildFixtureMatrixRecipe({ matrix, staticSiteImporterPath: '/tmp/ssi' });
+  const recipeOff = buildFixtureMatrixRecipe({ matrix, staticSiteImporterPath: '/tmp/ssi', liveWpParity: false });
+  assert.deepEqual(recipeOff, recipeBaseline, 'liveWpParity:false leaves the recipe byte-identical to today');
+  assert.equal(recipeOff.workflow.steps.some((step) => step.command === 'wordpress.capture-html'), false);
+  const recipeOn = buildFixtureMatrixRecipe({ matrix, staticSiteImporterPath: '/tmp/ssi', liveWpParity: true });
+  assert.equal(recipeOn.workflow.steps.filter((step) => step.command === 'wordpress.capture-html').length, 1);
+
+  // COLLECTOR: stage the captured rendered DOM snapshot + the source so the
+  // host-side collector has both sides to compare.
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-live-wp-collector-'));
+  mkdirSync(path.join(outputDirectory, fixtureId, 'files', 'browser'), { recursive: true });
+  mkdirSync(path.join(outputDirectory, fixtureId, 'source'), { recursive: true });
+  writeFileSync(path.join(outputDirectory, fixtureId, 'files', 'browser', 'snapshot.html'), '<html><body>candidate</body></html>', 'utf8');
+  writeFileSync(path.join(outputDirectory, fixtureId, 'source', 'index.html'), '<html><body>source</body></html>', 'utf8');
+
+  const cliReport = {
+    schema: 'blocks-engine/php-transformer/live-wp-parity-report/v1',
+    source: 'index.html',
+    candidate: 'snapshot.html',
+    live_wp: {
+      status: 'fail',
+      parity: { score: 0.88, property_parity: 0.95, coverage: 0.9 },
+      summary: { source_total: 50, matched_total: 45, finding_total: 5 },
+      matches: [],
+    },
+    comparison: { live_wp_score: 0.88, proxy_score: 0.7, delta: 0.18 },
+  };
+  const calls = [];
+  const exec = (command, args) => {
+    calls.push({ command, args });
+    return { status: 0, stdout: JSON.stringify(cliReport), stderr: '' };
+  };
+
+  // OFF (and absent) are byte-identical and carry no live_wp_parity.
+  const resultAbsent = collectFixtureMatrixRunResults({ matrix, outputDirectory });
+  const resultOff = collectFixtureMatrixRunResults({ matrix, outputDirectory, liveWpParity: { enabled: false, exec } });
+  assert.deepEqual(resultOff, resultAbsent, 'disabled live-WP parity is byte-identical to the default collector result');
+  assert.equal(resultAbsent.fixtures[0].live_wp_parity, undefined, 'no live_wp_parity key on the default result');
+  assert.equal(calls.length, 0, 'the comparator is never invoked when the toggle is off');
+
+  // ON: the comparator runs with --with-proxy and the result carries the live-WP
+  // score, the render-free proxy score, and the live-vs-proxy delta.
+  const resultOn = collectFixtureMatrixRunResults({
+    matrix,
+    outputDirectory,
+    liveWpParity: { enabled: true, blocksEnginePhpTransformerPath: '/repo/php-transformer', exec },
+  });
+  assert.equal(calls.length, 1, 'the comparator is invoked once per fixture when on');
+  assert.ok(calls[0].args.includes('--with-proxy'), 'the collector requests the render-free proxy delta');
+  assert.ok(calls[0].args.includes(path.join(outputDirectory, fixtureId, 'files', 'browser', 'snapshot.html')));
+  const liveWp = resultOn.fixtures[0].live_wp_parity;
+  assert.ok(liveWp, 'the fixture result carries a live-WP parity result when on');
+  assert.equal(liveWp.schema, 'static-site-importer/live-wp-parity-result/v1');
+  assert.equal(liveWp.score, 0.88);
+  assert.equal(liveWp.comparison.proxy_score, 0.7);
+  assert.equal(liveWp.comparison.delta, 0.18);
+});
+
+test('live-WP parity collector failure is isolated and never sinks the lane', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'live-wp-isolation' });
+  const fixtureId = matrix.fixtures[0].id;
+  const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-live-wp-isolation-'));
+  mkdirSync(path.join(outputDirectory, fixtureId, 'files', 'browser'), { recursive: true });
+  mkdirSync(path.join(outputDirectory, fixtureId, 'source'), { recursive: true });
+  writeFileSync(path.join(outputDirectory, fixtureId, 'files', 'browser', 'snapshot.html'), '<html></html>', 'utf8');
+  writeFileSync(path.join(outputDirectory, fixtureId, 'source', 'index.html'), '<html></html>', 'utf8');
+
+  // Comparator hard-fails: the collector swallows it (no live_wp_parity) rather
+  // than throwing out of the lane.
+  const exec = () => ({ status: 2, stdout: '', stderr: 'boom' });
+  const result = collectFixtureMatrixRunResults({
+    matrix,
+    outputDirectory,
+    liveWpParity: { enabled: true, blocksEnginePhpTransformerPath: '/repo/php-transformer', exec },
+  });
+  assert.equal(result.fixtures[0].live_wp_parity, undefined, 'a comparator failure yields no live-WP result, not an aborted lane');
+  assert.equal(result.schema, 'homeboy-rigs/static-site-importer-fixture-matrix-result/v1');
+});

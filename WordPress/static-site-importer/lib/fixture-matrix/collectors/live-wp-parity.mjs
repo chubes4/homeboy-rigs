@@ -15,9 +15,11 @@
 // vs proxy delta directly.
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 
-import { objectValue, finiteNumber, compactObject } from '../shared/utils.mjs';
+import { VISUAL_PARITY_SOURCE_SUBDIR } from '../shared/constants.mjs';
+import { objectValue, finiteNumber, compactObject, isTruthySignal } from '../shared/utils.mjs';
 
 // Run the blocks-engine live-wp-parity CLI against a captured rendered-DOM snapshot.
 //
@@ -67,6 +69,74 @@ export function runLiveWpParity(input = {}) {
   }
 
   return normalizeLiveWpParityReport(parsed);
+}
+
+// Normalize the matrix-facing live-WP parity collector options into a stable
+// shape. `enabled` is the opt-in toggle (off by default), `blocksEnginePhpTransformerPath`
+// points at the comparator package, `withProxy` (default true) also computes the
+// render-free proxy score + delta, and `exec` is an injectable runner for tests.
+export function normalizeLiveWpParityCollectorOptions(options = {}) {
+  const source = objectValue(options);
+  return {
+    enabled: isTruthySignal(source.enabled ?? source.liveWpParity ?? source.live_wp_parity),
+    blocksEnginePhpTransformerPath: firstStringOption([
+      source.blocksEnginePhpTransformerPath,
+      source.blocks_engine_php_transformer_path,
+    ]),
+    withProxy: source.withProxy !== false && source.with_proxy !== false,
+    exec: typeof source.exec === 'function' ? source.exec : undefined,
+  };
+}
+
+// Per-fixture host-side live-WP parity collection. Resolves the captured rendered
+// DOM snapshot (files/browser/snapshot.html, written by the capture step) and the
+// staged fixture source, then runs the blocks-engine comparator via runLiveWpParity.
+//
+// Lane isolation: this is best-effort and NEVER throws. When the toggle is off,
+// the comparator package path is unknown, the snapshot/source artifacts are absent
+// (capture did not run), or the comparator itself fails, it returns null so a
+// live-WP miss can not sink the fixture lane. Returns the normalized
+// `static-site-importer/live-wp-parity-result/v1` result (live-WP score, proxy
+// score, and live-vs-proxy delta) when the comparison succeeds.
+export function collectLiveWpParity(input = {}) {
+  const options = normalizeLiveWpParityCollectorOptions(input.options || input);
+  if (!options.enabled || !options.blocksEnginePhpTransformerPath) {
+    return null;
+  }
+  const fixtureArtifactsDirectory = input.fixtureArtifactsDirectory || input.fixture_artifacts_directory;
+  if (typeof fixtureArtifactsDirectory !== 'string' || fixtureArtifactsDirectory.trim() === '') {
+    return null;
+  }
+  const entrypoint = input.entrypoint || input.fixture?.entrypoint || 'index.html';
+  const candidateHtmlPath = path.join(fixtureArtifactsDirectory, 'files', 'browser', 'snapshot.html');
+  const sourceHtmlPath = path.join(fixtureArtifactsDirectory, VISUAL_PARITY_SOURCE_SUBDIR, entrypoint);
+  // No capture/source on disk => the candidate render or source staging did not
+  // happen for this fixture. Skip silently rather than fail the lane.
+  if (!fs.existsSync(candidateHtmlPath) || !fs.existsSync(sourceHtmlPath)) {
+    return null;
+  }
+  try {
+    return runLiveWpParity({
+      sourceHtmlPath,
+      candidateHtmlPath,
+      blocksEnginePhpTransformerPath: options.blocksEnginePhpTransformerPath,
+      withProxy: options.withProxy,
+      exec: options.exec,
+    });
+  } catch {
+    // Lane isolation: a comparator failure is recorded as "no live-WP result"
+    // for this fixture, never an aborted lane.
+    return null;
+  }
+}
+
+function firstStringOption(values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value;
+    }
+  }
+  return '';
 }
 
 function defaultExec(command, args, options) {
