@@ -2410,6 +2410,62 @@ test('visual-compare dimension mismatch gates even with zero pixel metrics when 
   assert.equal(diagnostics[0].dimension_mismatch, true);
 });
 
+test('(fair) dimension-dominated raw ratio does NOT gate when the overlap is faithful', () => {
+  // 1380x7248 source vs 1280x5017 candidate, overlap pixel-perfect. The raw union
+  // ratio is huge (the canvas-size band) but the fair overlap ratio is 0, so a
+  // faithful styled import must NOT produce a gating finding.
+  const totalPixels = 1380 * 7248;
+  const overlapPixels = 1280 * 5017;
+  const payload = {
+    schema: 'wp-codebox/visual-compare/v1',
+    comparison: {
+      mismatchPixels: totalPixels - overlapPixels,
+      totalPixels,
+      dimensionMismatch: true,
+      overlapMismatchPixels: 0,
+      overlapPixels,
+      dimensionDeltaPixels: totalPixels - overlapPixels,
+    },
+  };
+  assert.deepEqual(collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: true }), []);
+});
+
+test('(fair) a real in-overlap difference still gates on the fair ratio', () => {
+  // 20% of the overlap genuinely differs even though dimensions also differ. The
+  // fair ratio (0.2) exceeds the threshold, so it gates and reports overlap counts.
+  const overlapPixels = 1280 * 5017;
+  const overlapMismatchPixels = Math.round(overlapPixels * 0.2);
+  const totalPixels = 1380 * 7248;
+  const payload = {
+    schema: 'wp-codebox/visual-compare/v1',
+    comparison: {
+      mismatchPixels: overlapMismatchPixels + (totalPixels - overlapPixels),
+      totalPixels,
+      dimensionMismatch: true,
+      overlapMismatchPixels,
+      overlapPixels,
+      dimensionDeltaPixels: totalPixels - overlapPixels,
+    },
+  };
+  const diagnostics = collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: true });
+  assert.equal(diagnostics.length, 1);
+  assert.ok(Math.abs(diagnostics[0].mismatch_ratio - 0.2) < 0.001, `gating ratio should be the fair ~0.2, got ${diagnostics[0].mismatch_ratio}`);
+  assert.equal(diagnostics[0].mismatch_pixels, overlapMismatchPixels);
+  assert.equal(diagnostics[0].total_pixels, overlapPixels);
+  assert.ok(diagnostics[0].raw_mismatch_ratio > diagnostics[0].mismatch_ratio, 'raw ratio should exceed fair ratio');
+});
+
+test('(fair) pre-overlap evidence falls back to the raw ratio for gating', () => {
+  // Older wp-codebox evidence with no overlap fields still gates on the raw ratio.
+  const payload = {
+    schema: 'wp-codebox/visual-compare/v1',
+    comparison: { mismatchPixels: 600000, totalPixels: 2048000, dimensionMismatch: false },
+  };
+  const diagnostics = collectVisualParityDiagnostics(payload, { threshold: 0.1, gate: true });
+  assert.equal(diagnostics.length, 1);
+  assert.ok(Math.abs(diagnostics[0].mismatch_ratio - 600000 / 2048000) < 1e-9);
+});
+
 // #554: at lane scale (~30+ fixtures) the aggregate result used to retain each
 // fixture's raw serialized `post_content`/block markup (via `raw: input` and the
 // #552 block-composition path) plus uncapped finding snippets, so JSON.stringify
