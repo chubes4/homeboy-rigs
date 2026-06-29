@@ -2,6 +2,17 @@
 //
 // Extracted verbatim from the former `lib/fixture-matrix.mjs` monolith as part
 // of the matrix modularization (Refs #242).
+//
+// PRIMARY PARITY SIGNAL: the deterministic, render-free static style parity gate
+// (blocks-engine php-transformer `composer static-parity`) is the primary parity
+// signal — same inputs yield a byte-identical 0..1 score plus a per-element /
+// per-property diff, with no rasterization, no dimension-sensitivity, and no OOM.
+// This full-page pixelmatch step is DEMOTED to optional visual EVIDENCE: it is
+// non-gating by default (see findings.mjs `resolveLossAcceptance`) and now also
+// captures a bounded viewport by default rather than a full-page screenshot,
+// because unbounded full-page capture OOM'd on tall (~6000px) pages. Full-page
+// capture remains available per-fixture via an explicit `full_page`/`fullPage`
+// opt-in.
 
 import {
   DEFAULT_VISUAL_PARITY_PIXEL_THRESHOLD,
@@ -11,7 +22,7 @@ import {
   DEFAULT_VISUAL_PARITY_WAIT_FOR,
   VISUAL_PARITY_SOURCE_SUBDIR,
 } from '../shared/constants.mjs';
-import { objectValue, finiteNumber } from '../shared/utils.mjs';
+import { objectValue, finiteNumber, isTruthySignal } from '../shared/utils.mjs';
 
 // Compose the existing `wordpress.visual-compare` recipe command into a
 // per-fixture visual-parity step. This is the same command the reusable
@@ -76,7 +87,10 @@ export function normalizeVisualParityRecipeOptions(input = {}) {
       width: finiteNumber(viewport.width, DEFAULT_VISUAL_PARITY_VIEWPORT.width),
       height: finiteNumber(viewport.height, DEFAULT_VISUAL_PARITY_VIEWPORT.height),
     },
-    fullPage: input.visualParityFullPage !== false && input.visual_parity_full_page !== false && input.fullPage !== false,
+    // Demoted to optional evidence: full-page capture is opt-in (default false)
+    // so the OOM-prone unbounded screenshot is never the default. Any truthy
+    // `full_page`/`fullPage`/`visual_parity_full_page` re-enables it per fixture.
+    fullPage: isTruthySignal(input.visualParityFullPage ?? input.visual_parity_full_page ?? input.fullPage),
     waitFor: input.visualParityWaitFor || input.visual_parity_wait_for || input.waitFor || DEFAULT_VISUAL_PARITY_WAIT_FOR,
   };
 }

@@ -2247,6 +2247,22 @@ test('visualParityCompareStep composes the existing wordpress.visual-compare com
   assert.ok(step.args.includes('candidate-label=shop-candidate'));
 });
 
+test('visualParityCompareStep demotes full-page capture to an opt-in (default bounded viewport)', () => {
+  // Default: full-page is OFF (the OOM-prone unbounded screenshot is no longer
+  // the default; the deterministic static parity gate is the primary signal).
+  const defaultStep = visualParityCompareStep({ fixture: { id: 'tall' } });
+  assert.ok(defaultStep.args.includes('full-page=false'));
+
+  // Opt-in per fixture re-enables full-page evidence.
+  for (const optIn of [
+    { fixture: { id: 'tall' }, fullPage: true },
+    { fixture: { id: 'tall' }, visual_parity_full_page: true },
+    { fixture: { id: 'tall' }, visualParityFullPage: true },
+  ]) {
+    assert.ok(visualParityCompareStep(optIn).args.includes('full-page=true'));
+  }
+});
+
 test('default visual-parity source-url targets the staged source/ subdir on the served uploads path', () => {
   const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'visual-parity-source-url-test' });
   const recipe = buildFixtureMatrixRecipe({
