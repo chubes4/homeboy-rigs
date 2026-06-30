@@ -8,6 +8,9 @@
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
+          "wp_codebox_source_path": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
+          "wp_codebox_source_subdir": "plugins/woocommerce",
+          "wp_codebox_mount_slug": "woocommerce",
           "wp_codebox_source_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
           "wp_codebox_source_subpath": "plugins/woocommerce",
           "wp_codebox_plugin_file": "plugins/woocommerce/woocommerce.php",
