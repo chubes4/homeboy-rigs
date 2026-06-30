@@ -121,6 +121,9 @@ test('fuzz workload metadata does not fall back to benchmark transcripts', () =>
 
 test('Woo Composer prep declares dependency materialization for plugin vendor output', () => {
   const wordpressExtension = performanceRig.components.woocommerce.extensions.wordpress;
+  assert.equal(wordpressExtension.wp_codebox_source_path, '${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}');
+  assert.equal(wordpressExtension.wp_codebox_source_subdir, 'plugins/woocommerce');
+  assert.equal(wordpressExtension.wp_codebox_mount_slug, 'woocommerce');
   assert.equal(wordpressExtension.wp_codebox_source_subpath, 'plugins/woocommerce');
   assert.equal(wordpressExtension.wp_codebox_plugin_file, 'plugins/woocommerce/woocommerce.php');
 
