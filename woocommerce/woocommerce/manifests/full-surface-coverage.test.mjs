@@ -28,6 +28,7 @@ const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 
 const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
 const aggressiveIsolatedCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json'), 'utf8'));
 const aggressiveDestructiveWorkloads = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-destructive-workloads.json'), 'utf8'));
+const restCrudRouteFamilyCatalog = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-route-family-catalog.json'), 'utf8'));
 const restCrudFixturePlan = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-fixture-plan.json'), 'utf8'));
 const restCrudPayloadFixtures = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-payload-fixtures.json'), 'utf8'));
 const targetInventory = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/target-inventory.json'), 'utf8'));
@@ -344,6 +345,8 @@ test('REST CRUD fixture plan advertises executable state only through explicit u
   assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.level, 'executable');
   assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.execution_enabled, true);
   assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.upstream_blockers, undefined);
+  assert.equal(targetInventory.discovery_manifests.rest_route_families.readiness.level, 'executable');
+  assert.equal(targetInventory.discovery_manifests.rest_route_families.readiness.execution_enabled, true);
 
   assert.equal(productChaosSequencePacks.execution_enabled, true);
   assert.equal(productChaosSequencePacks.readiness.execution_enabled, true);
@@ -356,6 +359,48 @@ test('REST CRUD fixture plan advertises executable state only through explicit u
   }
   for (const sequencePack of productChaosSequencePacks.sequence_packs) {
     assert.ok(genericExecutableReadinessStates.has(sequencePack.readiness), `${sequencePack.id} sequence pack must wire executable upstream contracts`);
+  }
+});
+
+test('REST CRUD route family catalog matches executable fixture-plan state', () => {
+  const staleContractLanguage = /missing_generic_rest_mutation_runner|generic REST mutation runner|upstream_blocker|rollback|revert/i;
+  const manifestTexts = [
+    JSON.stringify(restCrudRouteFamilyCatalog),
+    JSON.stringify(restCrudPayloadFixtures),
+    JSON.stringify(targetInventory.discovery_manifests.rest_route_families),
+    JSON.stringify(targetInventory.discovery_manifests.rest_payload_fixtures),
+    JSON.stringify(codeboxFuzzSuiteManifest),
+    JSON.stringify(codeboxFuzzSuiteWorkload.metadata.readiness),
+    JSON.stringify(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose']),
+    JSON.stringify(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer']),
+    JSON.stringify(performanceRig.fuzz_profile_metadata['product-rest-crud-fuzzer']),
+  ];
+
+  for (const text of manifestTexts) {
+    assert.doesNotMatch(text.replaceAll(/"rollback_artifacts":\[[^\]]*\],?/g, ''), staleContractLanguage);
+  }
+
+  const expectedFamilies = new Set(targetInventory.discovery_manifests.rest_route_families.route_family_ids);
+  assert.deepEqual(new Set(restCrudRouteFamilyCatalog.route_families.map((family) => family.id)), expectedFamilies);
+
+  const fixtureOperationsByFamily = new Map();
+  for (const family of restCrudPayloadFixtures.families) {
+    for (const routeFamilyId of family.route_family_ids) {
+      fixtureOperationsByFamily.set(routeFamilyId, family.executable_operations);
+    }
+  }
+
+  for (const routeFamily of restCrudRouteFamilyCatalog.route_families) {
+    const executableOperations = fixtureOperationsByFamily.get(routeFamily.id);
+    assert.ok(executableOperations, `${routeFamily.id} must map to payload fixture operations`);
+    for (const operation of executableOperations) {
+      assert.equal(
+        routeFamily.readiness?.[operation]?.level,
+        'executable',
+        `${routeFamily.id} ${operation} readiness must agree with executable fixture operations`
+      );
+    }
+    assert.deepEqual(routeFamily.mutation_contract?.executable_operations, executableOperations);
   }
 });
 

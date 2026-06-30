@@ -16,6 +16,83 @@
     "admin_actions": "manifests/admin-action-inventory.json",
     "block_inventory_rendering": "manifests/block-inventory-rendering-fuzz.json"
   },
+  "campaign_input_groups": {
+    "sequence_packs": {
+      "manifest": "manifests/product-chaos-sequence-packs.json",
+      "required_artifacts": [
+        "chaos_sequence_pack_resolution",
+        "payload_size_depth_family_coverage",
+        "relative_hotspot_taxonomy"
+      ]
+    },
+    "rest_fixture_families": {
+      "manifests": [
+        "manifests/rest-crud-route-family-catalog.json",
+        "manifests/rest-crud-payload-fixtures.json",
+        "manifests/rest-crud-fixture-plan.json",
+        "manifests/rest-crud-fixture-opt-ins.json"
+      ],
+      "required_artifacts": [
+        "fixture_dynamic_id_manifest",
+        "mutation_isolation_artifact",
+        "delete_boundary_artifact"
+      ]
+    },
+    "admin_action_surfaces": {
+      "manifest": "manifests/admin-action-inventory.json",
+      "required_artifacts": [
+        "admin_observations",
+        "side_effect_policy_evidence"
+      ]
+    },
+    "browser_action_corpus_hooks": {
+      "scenario_paths": [
+        "browser-scenarios/shop.json",
+        "browser-scenarios/product.json",
+        "browser-scenarios/cart.json",
+        "browser-scenarios/checkout.json",
+        "browser-scenarios/products_admin.json",
+        "browser-scenarios/orders_admin.json",
+        "browser-scenarios/analytics_admin.json"
+      ],
+      "required_artifacts": [
+        "browser_observations",
+        "coverage_reconciliation"
+      ]
+    },
+    "observation_groups": {
+      "groups": [
+        "db",
+        "write",
+        "cache",
+        "query",
+        "block",
+        "page",
+        "admin",
+        "workflow"
+      ],
+      "required_artifacts": [
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations"
+      ]
+    },
+    "side_effect_policy": {
+      "manifest": "manifests/aggressive-destructive-workloads.json#side_effect_policy",
+      "required_artifacts": [
+        "side_effect_policy_evidence"
+      ]
+    },
+    "hotspot_convergence": {
+      "manifest": "manifests/db-api-hotspot-artifact-io.json",
+      "required_artifacts": [
+        "relative_hotspots",
+        "coverage_reconciliation",
+        "per_case_timing"
+      ]
+    }
+  },
   "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
   "required_upstream_capabilities": [
     {
@@ -530,6 +607,25 @@
       "analytics report",
       "coupon validation"
     ],
+    "db": [
+      "hpos order tables",
+      "product lookup tables",
+      "session tables",
+      "action scheduler tables"
+    ],
+    "write": [
+      "product fixture writes",
+      "order fixture writes",
+      "coupon fixture writes",
+      "customer fixture writes",
+      "safe settings writes"
+    ],
+    "cache": [
+      "transient reads and writes",
+      "object cache invalidation",
+      "session cache mutation",
+      "lookup table refresh"
+    ],
     "table": [
       "wp_posts",
       "wp_postmeta",
@@ -556,6 +652,12 @@
       "analytics admin",
       "settings admin"
     ],
+    "admin": [
+      "orders admin actions",
+      "products admin actions",
+      "analytics admin filters",
+      "settings admin safe mutations"
+    ],
     "block": [
       "woocommerce/product-collection",
       "woocommerce/cart",
@@ -563,6 +665,13 @@
       "woocommerce/product-button",
       "woocommerce/product-price",
       "woocommerce/filter-wrapper"
+    ],
+    "workflow": [
+      "catalog to cart",
+      "cart to checkout",
+      "checkout to order",
+      "order to admin fulfillment",
+      "settings to storefront behavior"
     ]
   },
   "relative_hotspot_labels": [
@@ -570,9 +679,14 @@
     "route",
     "action",
     "query",
+    "db",
+    "write",
+    "cache",
     "table",
     "page",
-    "block"
+    "admin",
+    "block",
+    "workflow"
   ],
   "readiness": {
     "level": "executable",

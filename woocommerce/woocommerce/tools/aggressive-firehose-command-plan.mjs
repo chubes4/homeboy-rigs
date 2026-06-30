@@ -15,6 +15,8 @@ const runIdPrefix = options.runIdPrefix || 'woo-firehose-$YYYYMMDD';
 const executionSupported = manifest.readiness?.execution_enabled === true;
 const runnableCommandsEnabled = executionSupported && !options.planOnly;
 const profileWorkloads = rig.fuzz_profiles?.[manifest.profile_id] || [];
+const plannedArtifactSemanticKeys = (manifest.planned_artifact_expectations || []).map((artifact) => artifact.semantic_key);
+const campaignInputs = buildCampaignInputs(manifest);
 
 if (!Array.isArray(profileWorkloads) || profileWorkloads.length === 0) {
   throw new Error(`Rig fuzz profile ${manifest.profile_id} must declare at least one workload`);
@@ -31,6 +33,24 @@ const payload = {
   plan_kind: executionSupported ? (runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan') : 'declared_offloaded_command_plan',
   run_id_prefix: runIdPrefix,
   workload_ids: profileWorkloads,
+  upstream_contract_artifact_sources: [
+    {
+      contract: 'homeboy/isolation-proof/v1',
+      source: 'homeboy fuzz run Lab/offloaded runner metadata',
+      persisted_artifact_kind: 'fuzz_result_envelope',
+      persisted_fields: [
+        'results.planner.isolation_proof_source',
+        'results.isolation.proof_source',
+      ],
+      required_command_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated', '--require-result-envelope'],
+    },
+    {
+      contract: 'wp-codebox/sandbox-isolation-proof/v1',
+      source: 'WP Codebox fuzz artifact bundle emitted by the offloaded runtime',
+      persisted_artifact_kind: 'fuzz_artifacts',
+      semantic_key: 'fuzz.disposable_sandbox_boundary',
+    },
+  ],
   blockers: executionSupported ? [] : [
     'manifest.readiness.execution_enabled is false because REST CRUD fixture-plan mutations are disabled',
   ],
@@ -43,6 +63,8 @@ const payload = {
       ...profileWorkloads.map((workloadId, index) => ({
         purpose: `request_aggressive_isolated_firehose:${workloadId}`,
         command_argv: fuzzRunCommandForWorkload(workloadId, index, options),
+        campaign_inputs: campaignInputs,
+        artifact_expectations: manifest.planned_artifact_expectations,
       })),
       {
         purpose: 'collect_reviewer_facing_artifact_refs',
@@ -52,20 +74,9 @@ const payload = {
           '--kind', 'fuzz',
           '--status', 'completed',
           '--tracker-ref', options.trackerRef,
-          '--artifact-kind', 'fuzz.execution_request',
-          '--artifact-kind', 'fuzz.coverage_reconciliation',
-          '--artifact-kind', 'fuzz.payload_family_coverage',
-          '--artifact-kind', 'fuzz.chaos_sequence_packs',
-          '--artifact-kind', 'fuzz.payload_size_depth_families',
-          '--artifact-kind', 'fuzz.relative_hotspot_taxonomy',
-          '--artifact-kind', 'fuzz.reset',
-          '--artifact-kind', 'fuzz.case_timing',
-          '--artifact-kind', 'wordpress.database_observations',
-          '--artifact-kind', 'wordpress.admin_observations',
-          '--artifact-kind', 'wordpress.browser_observations',
-          '--artifact-kind', 'wordpress.editor_observations',
-          '--artifact-kind', 'fuzz.relative_hotspots',
-          '--artifact-kind', 'fuzz.convergence_summary',
+          '--artifact-kind', 'fuzz_result_envelope',
+          '--artifact-kind', 'fuzz_artifacts',
+          ...plannedArtifactSemanticKeys.flatMap((semanticKey) => ['--artifact-kind', semanticKey]),
         ], options),
       },
     ] : []),
@@ -169,7 +180,7 @@ function fuzzRunCommandForWorkload(workloadId, index, options) {
     '--tracker-ref', options.trackerRef,
     '--allow-destructive',
     '--isolation', 'isolated',
-    '--isolation-proof', '${artifact.root}/isolation-proof.json',
+    '--require-result-envelope',
   ];
 
   if (options.runner) {
@@ -201,6 +212,17 @@ function fuzzRunCommandForWorkload(workloadId, index, options) {
   );
 
   return command;
+}
+
+function buildCampaignInputs(campaign) {
+  return {
+    campaign_manifest: 'manifests/aggressive-isolated-fuzz-campaign.json',
+    target_inventory_manifest: campaign.target_inventory_manifest,
+    full_surface_manifest: campaign.full_surface_manifest,
+    product_surface_taxonomy_ref: campaign.product_surface_taxonomy_ref,
+    fixture_sources: campaign.fixture_sources || {},
+    groups: campaign.campaign_input_groups || {},
+  };
 }
 
 function withOptionalLabArgs(command, options) {
