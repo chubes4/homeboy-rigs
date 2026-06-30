@@ -218,7 +218,10 @@ async function main() {
   const checkOnly = hasArg('--check');
   const mode = argValue('--mode') || 'stub';
   const hostRequestPath = argValue('--host-request') || defaultHostRequestPath;
-  const outDir = path.resolve(argValue('--out') || path.join(os.tmpdir(), `studio-canonical-loop-proof-${process.pid}`));
+  const artifactRoot = process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR
+    || process.env.HOMEBOY_TRACE_ARTIFACT_DIR
+    || process.env.HOMEBOY_BENCH_ARTIFACT_DIR;
+  const outDir = path.resolve(argValue('--out') || path.join(artifactRoot || os.tmpdir(), `studio-canonical-loop-proof-${process.pid}`));
 
   if (!['stub', 'local-wp'].includes(mode)) {
     throw new Error('Supported modes are stub and local-wp. Full live mode requires a Studio Native runtime with the Codebox handoff route installed.');

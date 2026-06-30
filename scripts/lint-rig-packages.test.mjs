@@ -253,6 +253,59 @@ test('accepts explicitly allowed shared path self-targets', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
+test('rejects Studio proof rig checks with hard-coded tmp outputs', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const rigRoot = join(directory, 'Automattic', 'studio', 'rigs', 'studio-native-live-runtime-open');
+  mkdirSync(rigRoot, { recursive: true });
+  writeJson(join(rigRoot, 'rig.json'), {
+    id: 'studio-native-live-runtime-open',
+    pipeline: {
+      check: [{ kind: 'check', command: 'node proofs/studio-native-live-runtime-open.mjs --out /tmp/studio-native-proof' }],
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /proof rig checks must let proof scripts use Homeboy artifact env output directories/);
+});
+
+test('rejects Studio Native live proof local DNS fallback', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const proofRoot = join(directory, 'Automattic', 'studio', 'proofs');
+  mkdirSync(proofRoot, { recursive: true });
+  writeFileSync(join(proofRoot, 'studio-native-live-runtime-open.mjs'), "const url = 'http://studio-native-local-runtime.local/';\n");
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /must require an explicit runtime URL instead of falling back to local DNS/);
+});
+
+test('rejects Woo Stripe ECE local WooCommerce Developer fallback', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const benchRoot = join(directory, 'woocommerce', 'woocommerce-gateway-stripe', 'bench');
+  mkdirSync(benchRoot, { recursive: true });
+  writeFileSync(join(benchRoot, 'ece-product-page-waterfall.trace.mjs'), "const path = 'Developer/woocommerce/plugins/woocommerce';\n");
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Woo Stripe ECE workload must use the declared WooCommerce component\/env path/);
+});
+
 test('rejects rigs with resources, empty down lifecycle, and no cleanup policy', () => {
   const directory = createRigPackage({
     rig: {

@@ -126,6 +126,10 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     failures.push(`${rel}: isolated-block-editor must use the component path or shared node_modules setting instead of /var/lib/datamachine`);
   }
 
+  if (/Automattic\/studio\/rigs\/studio-(?:canonical-loop-proof|native-live-runtime-open)\/rig\.json/.test(rel) && /--out\s+\/tmp\//.test(contents)) {
+    failures.push(`${rel}: proof rig checks must let proof scripts use Homeboy artifact env output directories instead of hard-coded /tmp outputs`);
+  }
+
   if (localDeveloperCheckoutPattern.test(contents)) {
     failures.push(`${rel}: use portable component path settings instead of committed ~/Developer or $HOME/Developer checkout paths`);
   }
@@ -463,6 +467,14 @@ function lintPortableSource(file) {
 
   if (contents.includes(tsrmlsPatchMarker)) {
     failures.push(`${rel}: TSRMLS fallback defines are owned by WordPress/wordpress-playground#3512; do not patch Playground source in rigs`);
+  }
+
+  if (rel === 'Automattic/studio/proofs/studio-native-live-runtime-open.mjs' && contents.includes('studio-native-local-runtime.local')) {
+    failures.push(`${rel}: live runtime proof must require an explicit runtime URL instead of falling back to local DNS`);
+  }
+
+  if (rel === 'woocommerce/woocommerce-gateway-stripe/bench/ece-product-page-waterfall.trace.mjs' && /Developer\/woocommerce\/plugins\/woocommerce/.test(contents)) {
+    failures.push(`${rel}: Woo Stripe ECE workload must use the declared WooCommerce component/env path instead of a local Developer fallback`);
   }
 }
 
