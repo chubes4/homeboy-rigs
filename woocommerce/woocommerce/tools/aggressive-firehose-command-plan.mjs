@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,9 +17,15 @@ const runnableCommandsEnabled = executionSupported && !options.planOnly;
 const profileWorkloads = rig.fuzz_profiles?.[manifest.profile_id] || [];
 const plannedArtifactSemanticKeys = (manifest.planned_artifact_expectations || []).map((artifact) => artifact.semantic_key);
 const campaignInputs = buildCampaignInputs(manifest);
+const isolationProofPath = options.isolationProofPath || defaultIsolationProofPath(options);
 
 if (!Array.isArray(profileWorkloads) || profileWorkloads.length === 0) {
   throw new Error(`Rig fuzz profile ${manifest.profile_id} must declare at least one workload`);
+}
+
+if (options.writeIsolationProof) {
+  writeIsolationProof(options.writeIsolationProof, buildIsolationProof());
+  process.exit(0);
 }
 
 const payload = {
@@ -36,13 +42,9 @@ const payload = {
   upstream_contract_artifact_sources: [
     {
       contract: 'homeboy/isolation-proof/v1',
-      source: 'homeboy fuzz run Lab/offloaded runner metadata',
-      persisted_artifact_kind: 'fuzz_result_envelope',
-      persisted_fields: [
-        'results.planner.isolation_proof_source',
-        'results.isolation.proof_source',
-      ],
-      required_command_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated', '--require-result-envelope'],
+      source: 'preflight command-plan artifact describing the disposable Homeboy Lab/WP Codebox boundary',
+      generated_artifact_path: isolationProofPath,
+      required_command_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated', '--isolation-proof', isolationProofPath, '--require-result-envelope'],
     },
     {
       contract: 'wp-codebox/sandbox-isolation-proof/v1',
@@ -54,12 +56,26 @@ const payload = {
   blockers: executionSupported ? [] : [
     'manifest.readiness.execution_enabled is false because REST CRUD fixture-plan mutations are disabled',
   ],
+  generated_isolation_proof: buildIsolationProof(),
   plan_items: [
     {
       purpose: 'validate_disposable_rig',
       command_argv: withOptionalLabArgs(['homeboy', 'rig', 'check', 'woocommerce-performance'], options),
     },
     ...(executionSupported ? [
+      {
+        purpose: 'write_homeboy_isolation_proof',
+        command_argv: [
+          'node', 'tools/aggressive-firehose-command-plan.mjs',
+          '--write-isolation-proof', isolationProofPath,
+        ],
+        artifact: {
+          path: isolationProofPath,
+          schema: 'homeboy/isolation-proof/v1',
+          semantic_key: 'fuzz.homeboy_isolation_proof',
+          required_before_execution: true,
+        },
+      },
       ...profileWorkloads.map((workloadId, index) => ({
         purpose: `request_aggressive_isolated_firehose:${workloadId}`,
         command_argv: fuzzRunCommandForWorkload(workloadId, index, options),
@@ -73,7 +89,6 @@ const payload = {
           '--rig', 'woocommerce-performance',
           '--kind', 'fuzz',
           '--status', 'completed',
-          '--tracker-ref', options.trackerRef,
           '--artifact-kind', 'fuzz_result_envelope',
           '--artifact-kind', 'fuzz_artifacts',
           ...plannedArtifactSemanticKeys.flatMap((semanticKey) => ['--artifact-kind', semanticKey]),
@@ -118,7 +133,9 @@ function parseArgs(argv) {
     planOnly: false,
     runner: '',
     runIdPrefix: '',
+    isolationProofPath: '',
     trackerRef: '$WC_TRACKER_REF',
+    writeIsolationProof: '',
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -154,8 +171,14 @@ function parseArgs(argv) {
       case '--run-id-prefix':
         parsed.runIdPrefix = readValue(arg);
         break;
+      case '--isolation-proof':
+        parsed.isolationProofPath = readValue(arg);
+        break;
       case '--tracker-ref':
         parsed.trackerRef = readValue(arg);
+        break;
+      case '--write-isolation-proof':
+        parsed.writeIsolationProof = readValue(arg);
         break;
       case '--help':
       case '-h':
@@ -180,6 +203,7 @@ function fuzzRunCommandForWorkload(workloadId, index, options) {
     '--tracker-ref', options.trackerRef,
     '--allow-destructive',
     '--isolation', 'isolated',
+    '--isolation-proof', isolationProofPath,
     '--require-result-envelope',
   ];
 
@@ -225,6 +249,52 @@ function buildCampaignInputs(campaign) {
   };
 }
 
+function buildIsolationProof() {
+  return {
+    schema: 'homeboy/isolation-proof/v1',
+    id: 'woocommerce-aggressive-isolated-firehose-lab-codebox-boundary',
+    rig_id: 'woocommerce-performance',
+    profile_id: manifest.profile_id,
+    local_execution: false,
+    destructive_execution: {
+      allowed: true,
+      boundary: 'offloaded_homeboy_lab_wp_codebox_disposable_sandbox',
+    },
+    disposable_boundary: {
+      lab_runner_required: true,
+      wp_codebox_sandbox_required: true,
+      sandbox_lifetime: 'single offloaded fuzz run handoff',
+      host_wordpress_mutation_allowed: false,
+      component_checkout_mutation_allowed: false,
+    },
+    required_runner_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated'],
+    workload_ids: profileWorkloads,
+    required_contracts: [
+      'homeboy/isolation-proof/v1',
+      'wp-codebox/sandbox-isolation-proof/v1',
+      'wp-codebox/mutation-isolation-artifact/v1',
+      'wp-codebox/delete-boundary-artifact/v1',
+    ],
+    evidence_semantics: {
+      runner_receives_artifact_with_flag: '--isolation-proof',
+      reviewer_facing_evidence_source: 'persisted Homeboy run artifacts emitted by the offloaded Lab runner',
+      operator_input_artifact: true,
+    },
+  };
+}
+
+function defaultIsolationProofPath(options) {
+  if (options.artifactRoot) {
+    return path.join(options.artifactRoot, 'isolation-proof/homeboy-isolation-proof.json');
+  }
+  return 'artifacts/woocommerce-aggressive-firehose/isolation-proof/homeboy-isolation-proof.json';
+}
+
+function writeIsolationProof(targetPath, proof) {
+  mkdirSync(path.dirname(targetPath), { recursive: true });
+  writeFileSync(targetPath, `${JSON.stringify(proof, null, 2)}\n`);
+}
+
 function withOptionalLabArgs(command, options) {
   const withOptions = [...command, '--lab-only'];
   if (options.runner) {
@@ -253,10 +323,12 @@ function printHelp() {
   process.stdout.write(`Options:\n`);
   process.stdout.write(`  --runner <id>             Add a Homeboy Lab runner id to commands.\n`);
   process.stdout.write(`  --artifact-root <dir>     Add a persisted artifact root to commands.\n`);
+  process.stdout.write(`  --isolation-proof <path>  Isolation proof artifact path passed to each fuzz run. Defaults under --artifact-root or artifacts/woocommerce-aggressive-firehose/.\n`);
   process.stdout.write(`  --run-id-prefix <id>      Firehose run id prefix. Defaults to the stable placeholder woo-firehose-$YYYYMMDD.\n`);
   process.stdout.write(`  --tracker-ref <kind:id>   Tracker ref for reviewer-facing evidence. Default: $WC_TRACKER_REF.\n`);
   process.stdout.write(`  --detach-after-handoff    Return after the Lab daemon accepts the run.\n`);
   process.stdout.write(`  --plan-only               Emit structured plan_items but withhold runnable command arrays.\n`);
   process.stdout.write(`  --runnable                Emit runnable offloaded command arrays. This is the default when execution is enabled.\n`);
   process.stdout.write(`  --json                    Emit structured JSON instead of shell commands.\n`);
+  process.stdout.write(`  --write-isolation-proof <path>  Write the homeboy/isolation-proof/v1 preflight artifact and exit.\n`);
 }
