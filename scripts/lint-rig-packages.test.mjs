@@ -297,8 +297,18 @@ test('rejects Woo Stripe ECE local WooCommerce Developer fallback', () => {
     },
   });
   const benchRoot = join(directory, 'woocommerce', 'woocommerce-gateway-stripe', 'bench');
+  const toolsRoot = join(directory, 'woocommerce', 'woocommerce-gateway-stripe', 'tools');
   mkdirSync(benchRoot, { recursive: true });
+  mkdirSync(toolsRoot, { recursive: true });
   writeFileSync(join(benchRoot, 'ece-product-page-waterfall.trace.mjs'), "const path = 'Developer/woocommerce/plugins/woocommerce';\n");
+  writeFileSync(join(toolsRoot, 'portable-source-validator.mjs'), `
+export function validatePortableSource({ rel, contents }) {
+  if (rel !== 'woocommerce/woocommerce-gateway-stripe/bench/ece-product-page-waterfall.trace.mjs') return [];
+  return /Developer\\/woocommerce\\/plugins\\/woocommerce/.test(contents)
+    ? [\`${'${rel}'}: Woo Stripe ECE workload must use the declared WooCommerce component/env path instead of a local Developer fallback\`]
+    : [];
+}
+`);
 
   const result = runLint(directory);
 
@@ -615,6 +625,24 @@ export function validateFuzzWorkload({ rel, workload }) {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /product-local validator ran/);
+});
+
+test('discovers product portable source validators without central product branches', () => {
+  const directory = createRigPackage();
+  const packageRoot = join(directory, 'Vendor', 'product');
+  const toolsRoot = join(packageRoot, 'tools');
+  mkdirSync(toolsRoot, { recursive: true });
+  writeFileSync(join(packageRoot, 'bench', 'portable-source.mjs'), 'const productLocalMarker = true;\n');
+  writeFileSync(join(toolsRoot, 'portable-source-validator.mjs'), `
+export function validatePortableSource({ rel, contents }) {
+  return contents.includes('productLocalMarker') ? [\`${'${rel}'}: product-local portable source validator ran\`] : [];
+}
+`);
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /product-local portable source validator ran/);
 });
 
 test('requires WordPress Core REST fuzz permission proof artifacts', () => {

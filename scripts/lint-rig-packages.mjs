@@ -29,6 +29,7 @@ const fuzzWorkloadFiles = [];
 const portableSourceFiles = [];
 const fuzzManifestValidators = [];
 const fuzzWorkloadValidatorFiles = [];
+const portableSourceValidatorFiles = [];
 const failures = [];
 const warnings = [];
 const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
@@ -78,7 +79,31 @@ function walk(directory) {
     if (entry.isFile() && entry.name === 'fuzz-workload-validator.mjs') {
       fuzzWorkloadValidatorFiles.push(join(directory, entry.name));
     }
+
+    if (entry.isFile() && entry.name === 'portable-source-validator.mjs') {
+      portableSourceValidatorFiles.push(join(directory, entry.name));
+    }
   }
+}
+
+async function loadPortableSourceValidators() {
+  const validators = [];
+
+  for (const file of portableSourceValidatorFiles.sort()) {
+    try {
+      const module = await import(pathToFileURL(file));
+      const validate = module.validatePortableSource || module.default;
+      if (typeof validate !== 'function') {
+        failures.push(`${relative(root, file)}: portable source validator must export validatePortableSource(sourceContext) or a default function`);
+        continue;
+      }
+      validators.push({ file, validate });
+    } catch (error) {
+      failures.push(`${relative(root, file)}: failed to load portable source validator: ${error.message}`);
+    }
+  }
+
+  return validators;
 }
 
 async function loadFuzzWorkloadValidators() {
@@ -453,7 +478,7 @@ function lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot) {
   }
 }
 
-function lintPortableSource(file) {
+function lintPortableSource(file, portableSourceValidators) {
   const rel = relative(root, file);
   const contents = readFileSync(file, 'utf8');
 
@@ -473,9 +498,7 @@ function lintPortableSource(file) {
     failures.push(`${rel}: live runtime proof must require an explicit runtime URL instead of falling back to local DNS`);
   }
 
-  if (rel === 'woocommerce/woocommerce-gateway-stripe/bench/ece-product-page-waterfall.trace.mjs' && /Developer\/woocommerce\/plugins\/woocommerce/.test(contents)) {
-    failures.push(`${rel}: Woo Stripe ECE workload must use the declared WooCommerce component/env path instead of a local Developer fallback`);
-  }
+  lintProductPortableSourceValidators(rel, file, contents, portableSourceValidators);
 }
 
 function lintFuzzWorkload(file, fuzzWorkloadValidators) {
@@ -573,6 +596,24 @@ function lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadVali
   }
 }
 
+function lintProductPortableSourceValidators(rel, file, contents, portableSourceValidators) {
+  for (const validator of portableSourceValidators) {
+    try {
+      const issues = validator.validate({ rel, root, file, contents });
+      if (issues === undefined) {
+        continue;
+      }
+      if (!Array.isArray(issues)) {
+        failures.push(`${relative(root, validator.file)}: validatePortableSource must return an array of failure strings or undefined`);
+        continue;
+      }
+      failures.push(...issues);
+    } catch (error) {
+      failures.push(error.message);
+    }
+  }
+}
+
 function lintPhp(file) {
   const result = spawnSync('php', ['-l', file], { encoding: 'utf8' });
   if (result.status !== 0) {
@@ -637,12 +678,13 @@ function lintFuzzManifestValidators() {
 
 walk(root);
 
+const portableSourceValidators = await loadPortableSourceValidators();
 const fuzzWorkloadValidators = await loadFuzzWorkloadValidators();
 const fuzzWorkloadsByPackageRoot = collectFuzzWorkloads();
 
 rigFiles.forEach((file) => lintRigPortability(file, fuzzWorkloadsByPackageRoot));
 fuzzWorkloadFiles.forEach((file) => lintFuzzWorkload(file, fuzzWorkloadValidators));
-portableSourceFiles.forEach(lintPortableSource);
+portableSourceFiles.forEach((file) => lintPortableSource(file, portableSourceValidators));
 lintGeneratedStudioModelRigs();
 lintFuzzManifestValidators();
 
