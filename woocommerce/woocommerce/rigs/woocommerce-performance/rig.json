@@ -67,11 +67,11 @@
     "dependency_materialization": [
       {
         "id": "woocommerce-php-package-dependencies",
-        "command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
+        "command": "XDEBUG_MODE=off homeboy deps install --path \"${components.woocommerce.path}/plugins/woocommerce\"",
         "component": "woocommerce",
         "cwd": "${components.woocommerce.path}/plugins/woocommerce",
         "inputs": {
-          "recipe": "wordpress-plugin-php-package-dependencies",
+          "recipe": "wordpress-php-package-dependencies",
           "manifest": "${components.woocommerce.path}/plugins/woocommerce/composer.json",
           "lockfile": "${components.woocommerce.path}/plugins/woocommerce/composer.lock"
         },
