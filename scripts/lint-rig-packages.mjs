@@ -172,7 +172,7 @@ function lintLifecycleCleanup(rel, rig) {
     return;
   }
 
-  warnings.push(`${rel}: rigs with declared resources and empty pipeline.down should declare lifecycle.cleanup intent`);
+  failures.push(`${rel}: rigs with declared resources and empty pipeline.down must declare lifecycle.cleanup intent`);
 }
 
 function lintSharedPaths(rel, rig) {
