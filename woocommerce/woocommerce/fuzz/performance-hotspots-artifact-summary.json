@@ -27,12 +27,9 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Data-only contract to summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. Execution is blocked until Homeboy owns an artifact-postprocess runner primitive for persisted artifact roots and a generic hotspot aggregation schema. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
-      "upstream_blockers": [
-        "Homeboy must own a real artifact-postprocess runner primitive for persisted artifact roots before this workload is executable.",
-        "Homeboy must own generic hotspot aggregation semantics before Woo ranking labels can move out of rig-owned schema."
-      ],
+      "level": "executable",
+      "coverage_contract": "Contract to summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs through Homeboy artifact-postprocess and the generic hotspot schema. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "upstream_blockers": [],
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -45,8 +42,9 @@
       }
     },
     "generic_primitive": {
-      "status": "blocked",
-      "blocked_by": "missing Homeboy artifact-postprocess runner primitive for persisted artifact roots and generic hotspot aggregation schema"
+      "status": "supported",
+      "contract": "homeboy/artifact-postprocess-plan/v1",
+      "hotspot_schema": "homeboy/performance-hotspots-summary/v1"
     },
     "fixture": {
       "runtime": "wp-codebox",

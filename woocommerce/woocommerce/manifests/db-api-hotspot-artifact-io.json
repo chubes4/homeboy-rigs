@@ -10,11 +10,8 @@
     "homeboy-rigs/woocommerce-performance-hotspots-summary/v1"
   ],
   "readiness": {
-    "level": "declared",
-    "blocked_by": [
-      "Homeboy must own a real artifact-postprocess runner primitive for persisted artifact roots.",
-      "Homeboy must own generic hotspot aggregation semantics before Woo ranking labels can move out of rig-owned schema."
-    ],
+    "level": "executable",
+    "contract": "homeboy/artifact-postprocess-plan/v1 plus homeboy/performance-hotspots-summary/v1",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [
