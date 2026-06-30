@@ -167,24 +167,19 @@ test('builds WP Codebox recipe setup for SSI Composer dependency overrides', () 
     },
   });
 
-  assert.deepEqual(recipe.inputs.mounts[0], {
+  assert.deepEqual(recipe.inputs.dependency_overlays[0], {
+    kind: 'composer-package',
+    package: 'automattic/blocks-engine-php-transformer',
+    consumer: 'static-site-importer',
     source: transformerPath,
-    target: '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer',
-    mode: 'readonly',
   });
-  assert.equal(recipe.workflow.steps[0].command, 'wordpress.run-php');
-  assert.match(recipe.workflow.steps[0].args[0], /^code=\s*\nif \(!defined\('STDERR'\)\)/);
-  assert.match(recipe.workflow.steps[0].args[0], /\$pluginPath =/);
-  assert.doesNotMatch(recipe.workflow.steps[0].args[0], /^command=eval/);
-  assert.match(recipe.workflow.steps[0].args[0], /composer/);
-  assert.match(recipe.workflow.steps[0].args[0], /automattic\/blocks-engine-php-transformer/);
-  assert.equal(recipe.workflow.steps[1].args[0], 'command=plugin activate static-site-importer/static-site-importer.php');
+  assert.equal(recipe.inputs.mounts.length, 0);
+  assert.equal(recipe.workflow.steps[0].args[0], 'command=plugin activate static-site-importer/static-site-importer.php');
   assert.deepEqual(recipe.metadata.dependency_overrides.blocks_engine_php_transformer, {
     package: 'automattic/blocks-engine-php-transformer',
     source_path: transformerPath,
-    sandbox_path: '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer',
-    applied_by: 'composer_path_repository_recipe_setup',
-    setup_command: 'wordpress.run-php',
+    applied_by: 'wp_codebox_dependency_overlay',
+    consumer: 'static-site-importer',
   });
 });
 
