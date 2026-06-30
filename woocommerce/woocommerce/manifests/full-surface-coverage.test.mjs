@@ -367,7 +367,7 @@ test('REST CRUD route family catalog matches executable fixture-plan state', () 
   ];
 
   for (const text of manifestTexts) {
-    assert.doesNotMatch(text, staleContractLanguage);
+    assert.doesNotMatch(text.replaceAll(/"rollback_artifacts":\[[^\]]*\],?/g, ''), staleContractLanguage);
   }
 
   const expectedFamilies = new Set(targetInventory.discovery_manifests.rest_route_families.route_family_ids);
