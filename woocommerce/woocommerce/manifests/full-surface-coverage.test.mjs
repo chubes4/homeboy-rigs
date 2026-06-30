@@ -119,7 +119,26 @@ test('fuzz workload metadata does not fall back to benchmark transcripts', () =>
   }
 });
 
-test('Woo Composer prep delegates to Homeboy dependency install primitive', () => {
+test('Woo Composer prep declares generic dependency materialization for vendor output', () => {
+  const dependencySteps = performanceRig.requirements?.dependency_materialization || [];
+  const composerStep = dependencySteps.find((step) => step.id === 'woocommerce-php-package-dependencies');
+
+  assert.ok(composerStep, 'expected WooCommerce PHP dependency materialization step');
+  assert.equal(composerStep.provider, 'wordpress-php-package-dependencies');
+  assert.equal(composerStep.component, 'woocommerce');
+  assert.equal(composerStep.cwd, '${components.woocommerce.path}');
+  assert.deepEqual(composerStep.cache_key_inputs, [
+    '${components.woocommerce.path}/composer.json',
+    '${components.woocommerce.path}/composer.lock',
+  ]);
+  assert.deepEqual(
+    new Set(composerStep.expected_outputs.map((output) => `${output.kind}:${output.path}`)),
+    new Set([
+      'dir:${components.woocommerce.path}/vendor',
+      'file:${components.woocommerce.path}/vendor/autoload_packages.php',
+    ])
+  );
+
   const composerRequirements = [
     ...performanceRig.pipeline.check,
     ...performanceRig.pipeline.fuzz_prepare,
@@ -128,6 +147,8 @@ test('Woo Composer prep delegates to Homeboy dependency install primitive', () =
   assert.equal(composerRequirements.length, 2);
   for (const requirement of composerRequirements) {
     assert.match(requirement.prepare_command, /prepare-runtime-dependency\.sh" composer/);
+    assert.doesNotMatch(requirement.remediation, /homeboy rig up/);
+    assert.match(requirement.remediation, /woocommerce-php-package-dependencies/);
   }
 
   assert.match(runtimePrepScript, /homeboy deps install --path "\$woocommerce_plugin_source"/);
