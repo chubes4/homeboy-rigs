@@ -292,8 +292,10 @@
       "manifest": "manifests/rest-crud-route-family-catalog.json",
       "owner_profile": "product-rest-crud-fuzzer",
       "readiness": {
-        "level": "declared",
-        "coverage_contract": "REST route-family discovery is a Woo-owned inventory contract; executable/proven status requires the owning fuzz workloads to emit reviewer-facing artifacts."
+        "level": "executable",
+        "execution_enabled": true,
+        "local_execution_enabled": false,
+        "coverage_contract": "REST route-family discovery is a Woo-owned inventory contract consumed by executable WP Codebox fixture-plan and REST opt-in contracts. Proven status requires reviewer-facing artifacts."
       },
       "route_family_ids": [
         "products-collection",
@@ -320,14 +322,14 @@
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
-            "reviewer-facing generic REST mutation runner run id",
+            "reviewer-facing WP Codebox fuzz-suite run id",
             "reviewer-facing mutation isolation artifact ref",
             "reviewer-facing mutation isolation contract artifact ref",
             "reviewer-facing delete-boundary artifact ref for proven delete execution"
           ],
           "required_artifacts": [
             "mutation_isolation_artifact",
-            "rest_mutation_rollback_contract",
+            "rest_mutation_isolation_contract",
             "delete_boundary_artifact"
           ]
         }
@@ -700,7 +702,7 @@
         "autoloaded_options",
         "action_scheduler",
         "lookup_tables",
-        "rollback_mutations"
+        "isolated_mutations"
       ]
     },
     "performance_hotspots": {

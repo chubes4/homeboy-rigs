@@ -708,6 +708,16 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(generatedAggressiveFirehoseCommandPlan.plan_kind, 'runnable_offloaded_commands', 'aggressive firehose command plan kind drifted');
   assert.ok(generatedAggressiveFirehoseCommandPlan.commands.length > 0, 'aggressive firehose command plan must emit runnable offloaded commands');
   assert.deepEqual(generatedAggressiveFirehoseCommandPlan.blockers, [], 'aggressive firehose command plan must not carry stale blockers');
+  const upstreamArtifactSources = generatedAggressiveFirehoseCommandPlan.upstream_contract_artifact_sources || [];
+  const homeboyIsolationSource = upstreamArtifactSources.find((source) => source.contract === 'homeboy/isolation-proof/v1');
+  const codeboxIsolationSource = upstreamArtifactSources.find((source) => source.contract === 'wp-codebox/sandbox-isolation-proof/v1');
+  assert.ok(homeboyIsolationSource, 'aggressive firehose command plan must declare the Homeboy isolation proof artifact source');
+  assert.equal(homeboyIsolationSource.source, 'homeboy fuzz run Lab/offloaded runner metadata', 'Homeboy isolation proof must come from upstream run metadata');
+  assert.equal(homeboyIsolationSource.persisted_artifact_kind, 'fuzz_result_envelope', 'Homeboy isolation proof must be referenced through the persisted fuzz result envelope');
+  assert.ok(homeboyIsolationSource.persisted_fields.includes('results.isolation.proof_source'), 'Homeboy isolation proof source must name the persisted isolation field');
+  assert.ok(codeboxIsolationSource, 'aggressive firehose command plan must declare the WP Codebox sandbox proof artifact source');
+  assert.equal(codeboxIsolationSource.persisted_artifact_kind, 'fuzz_artifacts', 'WP Codebox sandbox proof must be referenced through persisted fuzz artifacts');
+  assert.equal(codeboxIsolationSource.semantic_key, 'fuzz.disposable_sandbox_boundary', 'WP Codebox sandbox proof must use the disposable boundary semantic key');
   assert.equal(generatedAggressiveFirehoseCommandPlan.profile_id, campaign.profile_id, 'aggressive firehose command plan profile id drifted');
   const aggressiveProfileWorkloads = rig.fuzz_profiles?.[campaign.profile_id] || [];
   assert.ok(aggressiveProfileWorkloads.length > 0, 'aggressive profile must declare workload ids');
@@ -725,7 +735,9 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(requestItems.length, aggressiveProfileWorkloads.length, 'aggressive command plan must include request items for each workload');
   for (const item of requestItems) {
     assert.ok(item.command_argv.includes('--allow-destructive'), `${item.purpose} must opt into destructive fuzzing`);
-    assert.ok(item.command_argv.includes('--isolation-proof'), `${item.purpose} must provide explicit Homeboy isolation proof`);
+    assert.ok(item.command_argv.includes('--lab-only'), `${item.purpose} must require offloaded Lab execution for isolation proof`);
+    assert.ok(item.command_argv.includes('--require-result-envelope'), `${item.purpose} must require the persisted upstream result envelope`);
+    assert.ok(!item.command_argv.includes('--isolation-proof'), `${item.purpose} must not point at a manual isolation proof file`);
     assert.equal(item.campaign_inputs?.campaign_manifest, 'manifests/aggressive-isolated-fuzz-campaign.json', `${item.purpose} must link the campaign manifest`);
     assert.equal(item.campaign_inputs?.target_inventory_manifest, 'manifests/target-inventory.json', `${item.purpose} must link the target inventory manifest`);
     assert.equal(item.campaign_inputs?.groups?.sequence_packs?.manifest, 'manifests/product-chaos-sequence-packs.json', `${item.purpose} must pass sequence pack inputs`);
@@ -742,6 +754,9 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   for (const semanticKey of plannedSemanticKeys) {
     assert.ok(collectRefsCommand.includes(semanticKey), `aggressive artifact ref collection must request ${semanticKey}`);
   }
+  const artifactRefCollector = generatedPlanItems.find((entry) => entry.purpose === 'collect_reviewer_facing_artifact_refs')?.command_argv || [];
+  assert.ok(artifactRefCollector.includes('fuzz_result_envelope'), 'artifact ref collection must include the Homeboy fuzz result envelope');
+  assert.ok(artifactRefCollector.includes('fuzz_artifacts'), 'artifact ref collection must include WP Codebox fuzz artifacts');
   assertNoLocalOnlyRefs(campaign, 'aggressive-isolated-fuzz-campaign');
   assertNoProofPlaceholders(campaign, 'aggressive-isolated-fuzz-campaign');
 }
@@ -1144,7 +1159,7 @@ assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?
 const productRestCrudProfile = rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'];
 assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'executable', 'product REST CRUD delete readiness must be executable through delete-boundary artifacts');
 assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.safety_class, 'isolated_mutation', 'product REST CRUD delete must declare isolated mutation safety');
-assert.equal(productRestCrudProfile?.readiness?.mutation?.rollback_artifacts?.includes('delete_boundary_artifact'), true, 'product REST CRUD mutation readiness must require delete_boundary_artifact when delete is executable');
+assert.equal(productRestCrudProfile?.readiness?.mutation?.isolation_artifacts?.includes('delete_boundary_artifact'), true, 'product REST CRUD mutation readiness must require delete_boundary_artifact when delete is executable');
 assert.ok(productRestCrudProfile?.readiness?.mutation?.delete_boundary_artifacts?.includes('delete_boundary_artifact'), 'product REST CRUD mutation readiness must require delete-boundary artifacts');
 
 const productBatchManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-product-batch-import')?.manifest;
