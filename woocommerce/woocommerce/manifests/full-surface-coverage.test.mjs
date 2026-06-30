@@ -119,23 +119,23 @@ test('fuzz workload metadata does not fall back to benchmark transcripts', () =>
   }
 });
 
-test('Woo Composer prep declares generic dependency materialization for vendor output', () => {
+test('Woo Composer prep declares dependency materialization for plugin vendor output', () => {
   const dependencySteps = performanceRig.requirements?.dependency_materialization || [];
   const composerStep = dependencySteps.find((step) => step.id === 'woocommerce-php-package-dependencies');
 
   assert.ok(composerStep, 'expected WooCommerce PHP dependency materialization step');
-  assert.equal(composerStep.provider, 'wordpress-php-package-dependencies');
+  assert.match(composerStep.command, /prepare-runtime-dependency\.sh" composer/);
   assert.equal(composerStep.component, 'woocommerce');
-  assert.equal(composerStep.cwd, '${components.woocommerce.path}');
+  assert.equal(composerStep.cwd, '${components.woocommerce.path}/plugins/woocommerce');
   assert.deepEqual(composerStep.cache_key_inputs, [
-    '${components.woocommerce.path}/composer.json',
-    '${components.woocommerce.path}/composer.lock',
+    '${components.woocommerce.path}/plugins/woocommerce/composer.json',
+    '${components.woocommerce.path}/plugins/woocommerce/composer.lock',
   ]);
   assert.deepEqual(
     new Set(composerStep.expected_outputs.map((output) => `${output.kind}:${output.path}`)),
     new Set([
-      'dir:${components.woocommerce.path}/vendor',
-      'file:${components.woocommerce.path}/vendor/autoload_packages.php',
+      'dir:${components.woocommerce.path}/plugins/woocommerce/vendor',
+      'file:${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php',
     ])
   );
 
@@ -147,6 +147,7 @@ test('Woo Composer prep declares generic dependency materialization for vendor o
   assert.equal(composerRequirements.length, 2);
   for (const requirement of composerRequirements) {
     assert.match(requirement.prepare_command, /prepare-runtime-dependency\.sh" composer/);
+    assert.match(requirement.file, /plugins\/woocommerce\/vendor\/autoload_packages\.php$/);
     assert.doesNotMatch(requirement.remediation, /homeboy rig up/);
     assert.match(requirement.remediation, /woocommerce-php-package-dependencies/);
   }
