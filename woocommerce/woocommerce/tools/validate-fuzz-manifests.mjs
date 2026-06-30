@@ -95,9 +95,9 @@ assert.deepEqual(actualFuzzIds, expectedFuzzIds, 'WooCommerce fuzz manifest ids 
 assert.deepEqual(declaredIds, expectedFuzzIds, 'rig fuzz_workloads.wordpress ids drifted');
 
 const runtimePrepFiles = new Set([
-  '${components.woocommerce.path}/vendor/autoload_packages.php',
-  '${components.woocommerce.path}/includes/react-admin/feature-config.php',
-  '${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php',
+  '${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php',
+  '${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php',
+  '${components.woocommerce.path}/plugins/woocommerce/assets/client/admin/wp-admin-scripts/command-palette.asset.php',
 ]);
 const runtimePrepCheckSteps = (rig.pipeline?.check || []).filter((step) => runtimePrepFiles.has(step.file));
 
