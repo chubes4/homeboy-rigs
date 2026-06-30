@@ -87,18 +87,16 @@ GitHub Actions runs the package lint with PHP installed.
 
 `rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
 
-`studio-figma-to-wordpress-import` is the black-box Figma to WordPress Studio proof rig. It does not modify Studio. The workload uses the installed `studio` CLI from `PATH`, writes a temporary Blueprint, creates a brand new Studio site, installs Static Site Importer during site creation, imports a Figma runner request fixture, and verifies the imported theme plus SSI import result through Studio/WP-CLI commands.
+`studio-figma-to-wordpress-import` is the adapter rig for the Blocks Engine Figma transformer fixture matrix. Blocks Engine owns fixture discovery, frame selection, transform execution, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy. It expects a Blocks Engine checkout and does not create separate runtime resources.
 
 ```bash
 homeboy rig check studio-figma-to-wordpress-import
-homeboy bench --rig studio-figma-to-wordpress-import --scenario studio-figma-ssi-import --iterations 1 --shared-state /tmp/studio-figma-ssi-import
+homeboy rig up studio-figma-to-wordpress-import
 ```
 
 Useful settings:
 
-- `figma_studio_runner_request=/path/to/runner-request.json` points the rig at a real Figma plugin payload instead of the checked-in fixture.
-- `figma_studio_ssi_plugin_url=https://.../static-site-importer.zip` pins the SSI package used by the generated Blueprint.
-- `figma_studio_site_name="Imported Figma Site"` overrides the generated Studio site name.
+- `HOMEBOY_RIG_COMPONENT_PATH__STUDIO_FIGMA_TO_WORDPRESS_IMPORT__BLOCKS_ENGINE=/path/to/blocks-engine` points the rig at the Blocks Engine checkout.
 
 `studio-combined` declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
 
