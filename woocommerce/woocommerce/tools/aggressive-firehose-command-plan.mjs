@@ -65,6 +65,7 @@ const payload = {
           '--artifact-kind', 'wordpress.browser_observations',
           '--artifact-kind', 'wordpress.editor_observations',
           '--artifact-kind', 'fuzz.relative_hotspots',
+          '--artifact-kind', 'fuzz.convergence_summary',
         ], options),
       },
     ] : []),

@@ -256,6 +256,9 @@ test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and s
   assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/isolation-proof/v1'));
   assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
   assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy-extensions/generate-database-observations/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy-extensions/generate-admin-observations/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy-extensions/generate-browser-observations/v1'));
   assert.equal(aggressiveDestructiveWorkloads.readiness.proof_bundle_requirements.status, 'required_before_proven');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.scope, 'fixture_owned_only');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.placeholder_ids_allowed, false);
@@ -280,6 +283,12 @@ test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and s
     'fixture_dynamic_id_manifest',
     'side_effect_policy_evidence',
     'destructive_case_ledger',
+    'database_observations',
+    'admin_observations',
+    'browser_observations',
+    'editor_observations',
+    'relative_hotspots',
+    'convergence_summary',
     'sandbox_teardown_evidence',
     'artifact_bundle_ref',
   ]) {
@@ -287,6 +296,7 @@ test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and s
   }
 
   for (const workload of aggressiveDestructiveWorkloads.workloads) {
+    assert.equal(new Set(workload.required_artifacts).size, workload.required_artifacts.length, `${workload.id} required artifacts must not contain duplicates`);
     assert.ok(workload.fixture_family, `${workload.id} must bind to a fixture family`);
     assert.ok(workload.fixture_dynamic_ids.length > 0, `${workload.id} must use fixture-owned dynamic IDs`);
     assert.ok(workload.disposable_mutation_scope.length > 0, `${workload.id} must declare disposable mutation scope`);

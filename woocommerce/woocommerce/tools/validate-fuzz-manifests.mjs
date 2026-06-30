@@ -597,6 +597,10 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     'wp-codebox/sandbox-isolation-proof/v1',
     'wp-codebox/delete-boundary-artifact/v1',
     'wp-codebox/mutation-isolation-artifact/v1',
+    'homeboy-extensions/generate-database-observations/v1',
+    'homeboy-extensions/generate-admin-observations/v1',
+    'homeboy-extensions/generate-browser-observations/v1',
+    'homeboy-extensions/generate-editor-observations/v1',
   ]);
   assert.deepEqual(new Set((campaign.required_upstream_capabilities || []).map((capability) => capability.contract)), requiredContracts, 'aggressive campaign upstream capability contracts drifted');
   assert.deepEqual(new Set(rig.fuzz_profile_metadata?.[campaign.profile_id]?.required_upstream_contracts || []), requiredContracts, 'aggressive profile metadata upstream contracts drifted');
@@ -624,6 +628,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     'browser_observations',
 		'editor_observations',
 		'relative_hotspots',
+		'convergence_summary',
 		'side_effect_policy_evidence',
 		'fixture_dynamic_id_manifest',
 		'destructive_case_ledger',
@@ -631,11 +636,56 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
 		'artifact_bundle_ref',
 	]);
   assert.deepEqual(new Set((campaign.planned_artifact_expectations || []).map((artifact) => artifact.id)), expectedPlannedArtifacts, 'aggressive planned artifact expectations drifted');
+  const plannedArtifactsById = new Map((campaign.planned_artifact_expectations || []).map((artifact) => [artifact.id, artifact]));
   for (const artifact of campaign.planned_artifact_expectations || []) {
     assert.equal(typeof artifact.schema, 'string', `aggressive planned artifact ${artifact.id} requires schema`);
     assert.equal(typeof artifact.semantic_key, 'string', `aggressive planned artifact ${artifact.id} requires semantic_key`);
     assert.ok(artifact.required_before_execution === true || artifact.required_before_proven === true, `aggressive planned artifact ${artifact.id} must block execution or proof`);
   }
+
+  const expectedObservationRequirements = new Map([
+    ['database_observations', {
+      contract_id: 'homeboy-extensions/generate-database-observations/v1',
+      required_sections: ['query_fingerprints', 'cache_transient_churn', 'db_write_sets', 'duplicate_query_groups', 'option_autoload_churn'],
+      product_label_groups: ['query', 'table'],
+    }],
+    ['admin_observations', {
+      contract_id: 'homeboy-extensions/generate-admin-observations/v1',
+      required_sections: ['admin_action_steps'],
+      product_label_groups: ['action', 'page'],
+    }],
+    ['browser_observations', {
+      contract_id: 'homeboy-extensions/generate-browser-observations/v1',
+      required_sections: ['browser_action_steps'],
+      product_label_groups: ['action', 'page', 'block'],
+    }],
+    ['relative_hotspots', {
+      contract_id: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+      required_sections: ['relative_hotspot_outputs', 'relative_hotspot_convergence'],
+      product_label_groups: ['sequence', 'route', 'action', 'query', 'table', 'page', 'block'],
+    }],
+    ['convergence_summary', {
+      contract_id: 'homeboy/fuzz-exploration-policy/v1',
+      required_sections: ['relative_convergence_outputs', 'replay_minimize_refs'],
+      product_label_groups: ['sequence', 'route', 'action'],
+    }],
+    ['destructive_case_ledger', {
+      contract_id: 'homeboy/wordpress-fuzz-runtime-workload-operation/v1',
+      required_sections: ['replay_minimize_refs'],
+    }],
+  ]);
+  for (const [artifactId, expected] of expectedObservationRequirements) {
+    const artifact = plannedArtifactsById.get(artifactId);
+    assert.ok(artifact, `aggressive planned artifact expectations must include ${artifactId}`);
+    assert.equal(artifact.contract_id, expected.contract_id, `${artifactId} must use landed contract id ${expected.contract_id}`);
+    if (expected.required_sections) {
+      assert.deepEqual(artifact.required_sections, expected.required_sections, `${artifactId} required sections drifted`);
+    }
+    if (expected.product_label_groups) {
+      assert.deepEqual(artifact.product_label_groups, expected.product_label_groups, `${artifactId} product label groups drifted`);
+    }
+  }
+  assert.equal(plannedArtifactsById.get('relative_hotspots')?.proof_policy, 'relative_ranking_only', 'relative hotspots must not use thresholds as primary proof');
 
   const taxonomySurfaces = new Set(Object.keys(productSurfaceTaxonomy));
   assert.deepEqual(new Set((campaign.fixture_families || []).map((family) => family.surface)), taxonomySurfaces, 'aggressive fixture families must cover the product surface taxonomy');
