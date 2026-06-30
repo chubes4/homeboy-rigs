@@ -217,12 +217,12 @@ function buildDependencyOverrideSetup(input, importer) {
     ],
     steps: [
       {
-        command: 'wordpress.wp-cli',
-        args: [`command=eval ${wpCliDoubleQuotedToken(dependencyOverrideComposerSetupPhp({
+        command: 'wordpress.run-php',
+        args: [`code=${dependencyOverrideComposerSetupPhp({
           pluginPath: sandboxPluginPath,
           packagePath: sandboxPackagePath,
           packageName,
-        }))}`],
+        })}`],
       },
     ],
     metadata: {
@@ -231,7 +231,7 @@ function buildDependencyOverrideSetup(input, importer) {
         source_path: packagePath,
         sandbox_path: sandboxPackagePath,
         applied_by: 'composer_path_repository_recipe_setup',
-        setup_command: 'wordpress.wp-cli eval',
+        setup_command: 'wordpress.run-php',
       },
     },
   };

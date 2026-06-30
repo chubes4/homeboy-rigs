@@ -172,9 +172,9 @@ test('builds WP Codebox recipe setup for SSI Composer dependency overrides', () 
     target: '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer',
     mode: 'readonly',
   });
-  assert.equal(recipe.workflow.steps[0].command, 'wordpress.wp-cli');
-  assert.match(recipe.workflow.steps[0].args[0], /^command=eval "/);
-  assert.doesNotMatch(recipe.workflow.steps[0].args[0], /'\\''/);
+  assert.equal(recipe.workflow.steps[0].command, 'wordpress.run-php');
+  assert.match(recipe.workflow.steps[0].args[0], /^code=\s*\n\$pluginPath =/);
+  assert.doesNotMatch(recipe.workflow.steps[0].args[0], /^command=eval/);
   assert.match(recipe.workflow.steps[0].args[0], /composer/);
   assert.match(recipe.workflow.steps[0].args[0], /automattic\/blocks-engine-php-transformer/);
   assert.equal(recipe.workflow.steps[1].args[0], 'command=plugin activate static-site-importer/static-site-importer.php');
@@ -183,7 +183,7 @@ test('builds WP Codebox recipe setup for SSI Composer dependency overrides', () 
     source_path: transformerPath,
     sandbox_path: '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer',
     applied_by: 'composer_path_repository_recipe_setup',
-    setup_command: 'wordpress.wp-cli eval',
+    setup_command: 'wordpress.run-php',
   });
 });
 
