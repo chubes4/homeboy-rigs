@@ -102,7 +102,9 @@ export function buildFixtureMatrixRecipe(input = {}) {
   const playgroundArtifactsDirectory = input.playgroundArtifactsDirectory || input.playground_artifacts_directory;
   const commandArtifactsDirectory = playgroundArtifactsDirectory || artifactsDirectory;
   const importer = normalizeStaticSiteImporterPlugin(input);
+  const dependencyOverrideSetup = buildDependencyOverrideSetup(input, importer);
   const mounts = normalizeArray(input.mounts);
+  mounts.push(...dependencyOverrideSetup.mounts);
   const extraPlugins = [importer.extraPlugin, ...normalizeArray(input.extraPlugins || input.extra_plugins)];
   const editorValidationEnabled = input.editorValidation !== false && input.editor_validation !== false;
   // Real-content validation options forwarded to the editor-validate-blocks step.
@@ -155,8 +157,12 @@ export function buildFixtureMatrixRecipe(input = {}) {
       mounts,
       extra_plugins: extraPlugins,
     },
+    ...(Object.keys(dependencyOverrideSetup.metadata).length
+      ? { metadata: { dependency_overrides: dependencyOverrideSetup.metadata } }
+      : {}),
     workflow: {
       steps: [
+        ...dependencyOverrideSetup.steps,
         importer.activationStep,
         ...matrix.fixtures.flatMap((fixture) => [
           {
@@ -177,6 +183,125 @@ export function buildFixtureMatrixRecipe(input = {}) {
   };
 }
 
+function buildDependencyOverrideSetup(input, importer) {
+  const overrides = input.dependencyOverrides || input.dependency_overrides || {};
+  const blocksEnginePhpTransformer = overrides.blocks_engine_php_transformer || overrides.blocksEnginePhpTransformer;
+  const rawPackagePath = blocksEnginePhpTransformer?.path || '';
+  if (!rawPackagePath) {
+    return { mounts: [], steps: [], metadata: {} };
+  }
+
+  const packagePath = path.resolve(rawPackagePath);
+  const packageName = blocksEnginePhpTransformer.package || 'automattic/blocks-engine-php-transformer';
+  if (packageName !== 'automattic/blocks-engine-php-transformer') {
+    throw new Error(`Unsupported SSI dependency override package: ${packageName}`);
+  }
+  const packageComposerFile = path.join(packagePath, 'composer.json');
+  if (!fs.existsSync(packageComposerFile)) {
+    throw new Error(`SSI dependency override package composer.json not found: ${packageComposerFile}`);
+  }
+  const packageComposer = JSON.parse(fs.readFileSync(packageComposerFile, 'utf8'));
+  if (packageComposer?.name !== packageName) {
+    throw new Error(`SSI dependency override path must contain ${packageName}: ${packagePath}`);
+  }
+
+  const sandboxPackagePath = '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer';
+  const sandboxPluginPath = `/wordpress/wp-content/plugins/${importer.slug}`;
+  return {
+    mounts: [
+      {
+        source: packagePath,
+        target: sandboxPackagePath,
+        mode: 'readonly',
+      },
+    ],
+    steps: [
+      {
+        command: 'wordpress.wp-cli',
+        args: [`command=eval ${shellToken(dependencyOverrideComposerSetupPhp({
+          pluginPath: sandboxPluginPath,
+          packagePath: sandboxPackagePath,
+          packageName,
+        }))}`],
+      },
+    ],
+    metadata: {
+      blocks_engine_php_transformer: {
+        package: packageName,
+        source_path: packagePath,
+        sandbox_path: sandboxPackagePath,
+        applied_by: 'composer_path_repository_recipe_setup',
+        setup_command: 'wordpress.wp-cli eval',
+      },
+    },
+  };
+}
+
+function dependencyOverrideComposerSetupPhp({ pluginPath, packagePath, packageName }) {
+  return `
+$pluginPath = ${phpString(pluginPath)};
+$packagePath = ${phpString(packagePath)};
+$packageName = ${phpString(packageName)};
+$composerFile = $pluginPath . '/composer.json';
+$packageComposerFile = $packagePath . '/composer.json';
+if (!file_exists($composerFile)) {
+    fwrite(STDERR, "Static Site Importer composer.json not found at $composerFile\\n");
+    exit(1);
+}
+if (!file_exists($packageComposerFile)) {
+    fwrite(STDERR, "Dependency override composer.json not found at $packageComposerFile\\n");
+    exit(1);
+}
+$packageComposer = json_decode(file_get_contents($packageComposerFile), true);
+if (!is_array($packageComposer) || ($packageComposer['name'] ?? '') !== $packageName) {
+    fwrite(STDERR, "Dependency override package mismatch at $packageComposerFile\\n");
+    exit(1);
+}
+$composer = json_decode(file_get_contents($composerFile), true);
+if (!is_array($composer)) {
+    fwrite(STDERR, "Static Site Importer composer.json is invalid JSON at $composerFile\\n");
+    exit(1);
+}
+$constraint = $composer['require'][$packageName] ?? '0.1.15';
+$version = preg_match('/^\\^?(\\d+\\.\\d+\\.\\d+)$/', trim((string) $constraint), $matches) ? $matches[1] : '0.1.15';
+$composer['repositories'] = isset($composer['repositories']) && is_array($composer['repositories']) ? $composer['repositories'] : [];
+$composer['repositories']['blocks-engine-php-transformer-dev'] = [
+    'type' => 'path',
+    'url' => $packagePath,
+    'canonical' => true,
+    'options' => [
+        'symlink' => false,
+        'versions' => [ $packageName => $version ],
+    ],
+];
+file_put_contents($composerFile, json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\\n");
+$descriptorSpec = [
+    0 => ['pipe', 'r'],
+    1 => ['pipe', 'w'],
+    2 => ['pipe', 'w'],
+];
+$process = proc_open(['composer', 'update', $packageName, '--with-dependencies', '--no-interaction', '--prefer-source', '--no-progress'], $descriptorSpec, $pipes, $pluginPath);
+if (!is_resource($process)) {
+    fwrite(STDERR, "Failed to start composer for SSI dependency override\\n");
+    exit(1);
+}
+fclose($pipes[0]);
+$stdout = stream_get_contents($pipes[1]);
+$stderr = stream_get_contents($pipes[2]);
+fclose($pipes[1]);
+fclose($pipes[2]);
+$exitCode = proc_close($process);
+if ($exitCode !== 0) {
+    fwrite(STDERR, "SSI dependency override composer update failed with exit $exitCode\\n" . $stderr . $stdout);
+    exit($exitCode ?: 1);
+}
+`;
+}
+
+function phpString(value) {
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
 // Convert an in-sandbox WordPress filesystem path into its web-served path by
 // stripping the docroot prefix. WP Codebox installs WordPress at `/wordpress`, so
 // `/wordpress/wp-content/uploads/foo` is served at `/wp-content/uploads/foo`. A
@@ -192,6 +317,7 @@ export function normalizeStaticSiteImporterPlugin(input = {}) {
   const slugValue = input.staticSiteImporterSlug || input.static_site_importer_slug || DEFAULT_IMPORTER_SLUG;
   const pluginFile = input.staticSiteImporterPlugin || input.static_site_importer_plugin || `${slugValue}/${slugValue}.php`;
   return {
+    slug: slugValue,
     extraPlugin: {
       source,
       slug: slugValue,
