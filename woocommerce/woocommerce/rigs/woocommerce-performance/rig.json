@@ -67,27 +67,27 @@
     "dependency_materialization": [
       {
         "id": "woocommerce-php-package-dependencies",
-        "provider": "wordpress-php-package-dependencies",
+        "command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
         "component": "woocommerce",
-        "cwd": "${components.woocommerce.path}",
+        "cwd": "${components.woocommerce.path}/plugins/woocommerce",
         "inputs": {
-          "recipe": "wordpress-php-package-dependencies",
-          "manifest": "${components.woocommerce.path}/composer.json",
-          "lockfile": "${components.woocommerce.path}/composer.lock"
+          "recipe": "wordpress-plugin-php-package-dependencies",
+          "manifest": "${components.woocommerce.path}/plugins/woocommerce/composer.json",
+          "lockfile": "${components.woocommerce.path}/plugins/woocommerce/composer.lock"
         },
         "expected_outputs": [
           {
-            "path": "${components.woocommerce.path}/vendor",
+            "path": "${components.woocommerce.path}/plugins/woocommerce/vendor",
             "kind": "dir"
           },
           {
-            "path": "${components.woocommerce.path}/vendor/autoload_packages.php",
+            "path": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
             "kind": "file"
           }
         ],
         "cache_key_inputs": [
-          "${components.woocommerce.path}/composer.json",
-          "${components.woocommerce.path}/composer.lock"
+          "${components.woocommerce.path}/plugins/woocommerce/composer.json",
+          "${components.woocommerce.path}/plugins/woocommerce/composer.lock"
         ],
         "safety": "network_access"
       }
@@ -549,37 +549,37 @@
       {
         "kind": "requirement",
         "label": "WooCommerce runner checkout exists",
-        "file": "${components.woocommerce.path}/woocommerce.php",
-        "remediation": "Pass homeboy bench --path /path/to/plugins/woocommerce or update components.woocommerce.path before running woocommerce-performance."
+        "file": "${components.woocommerce.path}/plugins/woocommerce/woocommerce.php",
+        "remediation": "Pass homeboy bench --path /path/to/woocommerce-monorepo or update components.woocommerce.path before running woocommerce-performance."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce cart class exists",
-        "file": "${components.woocommerce.path}/includes/class-wc-cart.php",
-        "remediation": "Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone."
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-cart.php",
+        "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce shipping class exists",
-        "file": "${components.woocommerce.path}/includes/class-wc-shipping.php",
-        "remediation": "Verify the selected component path is the WooCommerce monorepo plugin directory, not an empty or partial clone."
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-shipping.php",
+        "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
-        "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}\"",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "up",
           "bench_prepare"
         ],
-        "remediation": "Materialize dependency step woocommerce-php-package-dependencies with provider wordpress-php-package-dependencies."
+        "remediation": "Materialize dependency step woocommerce-php-package-dependencies for the plugins/woocommerce runtime path."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce generated feature config exists or can be prepared",
-        "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}\"",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "up",
           "bench_prepare"
@@ -589,8 +589,8 @@
       {
         "kind": "requirement",
         "label": "WooCommerce admin script asset registry exists or can be built",
-        "file": "${components.woocommerce.path}/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" admin-assets \"${components.woocommerce.path}\"",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" admin-assets \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "up",
           "bench_prepare"
@@ -610,18 +610,18 @@
       {
         "kind": "requirement",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
-        "file": "${components.woocommerce.path}/vendor/autoload_packages.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}\"",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "fuzz_prepare"
         ],
-        "remediation": "Materialize dependency step woocommerce-php-package-dependencies with provider wordpress-php-package-dependencies."
+        "remediation": "Materialize dependency step woocommerce-php-package-dependencies for the plugins/woocommerce runtime path."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce generated feature config exists or can be prepared",
-        "file": "${components.woocommerce.path}/includes/react-admin/feature-config.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}\"",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "fuzz_prepare"
         ],
