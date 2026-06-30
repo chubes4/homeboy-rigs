@@ -253,7 +253,7 @@ test('accepts explicitly allowed shared path self-targets', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('warns when rigs declare resources with empty down lifecycle and no cleanup policy', () => {
+test('rejects rigs with resources, empty down lifecycle, and no cleanup policy', () => {
   const directory = createRigPackage({
     rig: {
       resources: {
@@ -270,8 +270,8 @@ test('warns when rigs declare resources with empty down lifecycle and no cleanup
 
   const result = runLint(directory);
 
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stderr, /declared resources and empty pipeline\.down should declare lifecycle\.cleanup intent/);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /declared resources and empty pipeline\.down must declare lifecycle\.cleanup intent/);
 });
 
 test('accepts explicit cleanup policy for rigs with resources and empty down lifecycle', () => {
