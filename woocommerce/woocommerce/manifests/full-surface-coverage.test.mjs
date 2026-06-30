@@ -124,7 +124,9 @@ test('Woo Composer prep declares dependency materialization for plugin vendor ou
   const composerStep = dependencySteps.find((step) => step.id === 'woocommerce-php-package-dependencies');
 
   assert.ok(composerStep, 'expected WooCommerce PHP dependency materialization step');
-  assert.equal(composerStep.command, 'XDEBUG_MODE=off homeboy deps install --path "${components.woocommerce.path}/plugins/woocommerce"');
+  assert.equal(composerStep.command, 'homeboy deps install --path "${components.woocommerce.path}/plugins/woocommerce"');
+  assert.deepEqual(composerStep.env, { XDEBUG_MODE: 'off' });
+  assert.doesNotMatch(composerStep.command, /^[A-Za-z_][A-Za-z0-9_]*=/);
   assert.equal(composerStep.inputs.recipe, 'wordpress-php-package-dependencies');
   assert.doesNotMatch(composerStep.command, /prepare-runtime-dependency\.sh/);
   assert.doesNotMatch(composerStep.command, /\$\{components\.woocommerce\.path\}\/tools\//);

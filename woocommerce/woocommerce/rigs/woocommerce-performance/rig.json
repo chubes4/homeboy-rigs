@@ -67,7 +67,10 @@
     "dependency_materialization": [
       {
         "id": "woocommerce-php-package-dependencies",
-        "command": "XDEBUG_MODE=off homeboy deps install --path \"${components.woocommerce.path}/plugins/woocommerce\"",
+        "command": "homeboy deps install --path \"${components.woocommerce.path}/plugins/woocommerce\"",
+        "env": {
+          "XDEBUG_MODE": "off"
+        },
         "component": "woocommerce",
         "cwd": "${components.woocommerce.path}/plugins/woocommerce",
         "inputs": {
