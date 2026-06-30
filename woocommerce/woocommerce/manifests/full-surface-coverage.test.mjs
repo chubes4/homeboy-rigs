@@ -125,7 +125,7 @@ test('Woo Composer prep declares dependency materialization for plugin vendor ou
   assert.equal(wordpressExtension.wp_codebox_source_subdir, 'plugins/woocommerce');
   assert.equal(wordpressExtension.wp_codebox_mount_slug, 'woocommerce');
   assert.equal(wordpressExtension.wp_codebox_source_subpath, 'plugins/woocommerce');
-  assert.equal(wordpressExtension.wp_codebox_plugin_file, 'plugins/woocommerce/woocommerce.php');
+  assert.equal(wordpressExtension.wp_codebox_plugin_file, 'woocommerce/woocommerce.php');
 
   const dependencySteps = performanceRig.requirements?.dependency_materialization || [];
   const composerStep = dependencySteps.find((step) => step.id === 'woocommerce-php-package-dependencies');
