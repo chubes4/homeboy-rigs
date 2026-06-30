@@ -104,7 +104,6 @@ export function buildFixtureMatrixRecipe(input = {}) {
   const importer = normalizeStaticSiteImporterPlugin(input);
   const dependencyOverrideSetup = buildDependencyOverrideSetup(input, importer);
   const mounts = normalizeArray(input.mounts);
-  mounts.push(...dependencyOverrideSetup.mounts);
   const extraPlugins = [importer.extraPlugin, ...normalizeArray(input.extraPlugins || input.extra_plugins)];
   const editorValidationEnabled = input.editorValidation !== false && input.editor_validation !== false;
   // Real-content validation options forwarded to the editor-validate-blocks step.
@@ -156,13 +155,15 @@ export function buildFixtureMatrixRecipe(input = {}) {
     inputs: {
       mounts,
       extra_plugins: extraPlugins,
+      ...(dependencyOverrideSetup.dependencyOverlays.length
+        ? { dependency_overlays: dependencyOverrideSetup.dependencyOverlays }
+        : {}),
     },
     ...(Object.keys(dependencyOverrideSetup.metadata).length
       ? { metadata: { dependency_overrides: dependencyOverrideSetup.metadata } }
       : {}),
     workflow: {
       steps: [
-        ...dependencyOverrideSetup.steps,
         importer.activationStep,
         ...matrix.fixtures.flatMap((fixture) => [
           {
@@ -188,7 +189,7 @@ function buildDependencyOverrideSetup(input, importer) {
   const blocksEnginePhpTransformer = overrides.blocks_engine_php_transformer || overrides.blocksEnginePhpTransformer;
   const rawPackagePath = blocksEnginePhpTransformer?.path || '';
   if (!rawPackagePath) {
-    return { mounts: [], steps: [], metadata: {} };
+    return { dependencyOverlays: [], metadata: {} };
   }
 
   const packagePath = path.resolve(rawPackagePath);
@@ -205,33 +206,21 @@ function buildDependencyOverrideSetup(input, importer) {
     throw new Error(`SSI dependency override path must contain ${packageName}: ${packagePath}`);
   }
 
-  const sandboxPackagePath = '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer';
-  const sandboxPluginPath = `/wordpress/wp-content/plugins/${importer.slug}`;
   return {
-    mounts: [
+    dependencyOverlays: [
       {
+        kind: 'composer-package',
+        package: packageName,
+        consumer: importer.slug,
         source: packagePath,
-        target: sandboxPackagePath,
-        mode: 'readonly',
-      },
-    ],
-    steps: [
-      {
-        command: 'wordpress.run-php',
-        args: [`code=${dependencyOverrideComposerSetupPhp({
-          pluginPath: sandboxPluginPath,
-          packagePath: sandboxPackagePath,
-          packageName,
-        })}`],
       },
     ],
     metadata: {
       blocks_engine_php_transformer: {
         package: packageName,
         source_path: packagePath,
-        sandbox_path: sandboxPackagePath,
-        applied_by: 'composer_path_repository_recipe_setup',
-        setup_command: 'wordpress.run-php',
+        applied_by: 'wp_codebox_dependency_overlay',
+        consumer: importer.slug,
       },
     },
   };
