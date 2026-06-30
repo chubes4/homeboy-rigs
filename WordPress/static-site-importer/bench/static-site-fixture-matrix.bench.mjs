@@ -129,6 +129,11 @@ export async function runFixtureMatrix(options) {
   });
   const recipeFile = path.join(outputDirectory, 'wp-codebox-static-site-fixture-matrix-recipe.json');
   fs.writeFileSync(recipeFile, `${JSON.stringify(recipe, null, 2)}\n`);
+  const replay = wpCodeboxReplayCommand({
+    recipeFile,
+    artifactsDir: replayArtifactsDirectory(outputDirectory),
+    wpCodeboxBin: options.wpCodeboxBin,
+  });
 
   let runtime = null;
   let runtimeError = null;
@@ -191,6 +196,7 @@ export async function runFixtureMatrix(options) {
     dependency_overrides: dependencyOverrides,
     output_directory: outputDirectory,
     recipe_file: recipeFile,
+    replay,
     artifact_refs: written.artifact_refs,
     ...(runtime?.childCommandFailures?.length ? { child_command_failures: runtime.childCommandFailures } : {}),
     result_file: path.join(outputDirectory, 'static-site-fixture-matrix-result.json'),
@@ -500,6 +506,32 @@ function wpCodeboxRecipeRunCommand({ recipeFile, artifactsDir, outputFile, wpCod
   return { argv };
 }
 
+function wpCodeboxReplayCommand({ recipeFile, artifactsDir, wpCodeboxBin: bin }) {
+  const base = safeWpCodeboxCommand(bin);
+  const argv = [
+    base.command,
+    ...(base.args || []),
+    'recipe-run',
+    '--recipe', recipeFile,
+    '--artifacts', artifactsDir,
+    '--json',
+  ];
+  return {
+    artifacts_directory: artifactsDir,
+    argv,
+    command: argv.map(shellArg).join(' '),
+  };
+}
+
+function safeWpCodeboxCommand(bin) {
+  return { command: bin || process.env.HOMEBOY_WP_CODEBOX_BIN || 'wp-codebox', args: [] };
+}
+
+function replayArtifactsDirectory(outputDirectory) {
+  const resolved = path.resolve(outputDirectory);
+  return path.join(path.dirname(resolved), `${path.basename(resolved)}-wp-codebox-replay-artifacts`);
+}
+
 function batchArtifactRefs({ outputDirectory, batchSuffix, batchRecipeFile, outputFile }) {
   return {
     artifacts_directory: outputDirectory,
@@ -537,6 +569,10 @@ function parseArgs(args) {
     }
     if (arg === '--run') {
       options.run = true;
+      continue;
+    }
+    if (arg.startsWith('--no-')) {
+      options[camelCase(arg.slice(5))] = false;
       continue;
     }
     if (arg.startsWith('--')) {
@@ -704,8 +740,13 @@ function camelCase(value) {
   return value.replace(/-([a-z])/g, (_match, letter) => letter.toUpperCase());
 }
 
+function shellArg(value) {
+  const text = String(value);
+  return /^[A-Za-z0-9_/:=.,+@%-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
+}
+
 function printHelp() {
-  process.stdout.write(`Usage: static-site-fixture-matrix [fixture-root] [options]\n\nOptions:\n  --fixture-root <path>              Static-site fixture root. Defaults to this package's fixtures directory.\n  --output-directory <path>          Artifact output directory.\n  --static-site-importer-path <path> Static Site Importer checkout/plugin directory.\n  --static-site-importer-slug <slug> Plugin slug. Defaults to static-site-importer.\n  --static-site-importer-plugin <p>  Plugin activation file. Defaults to static-site-importer/static-site-importer.php.\n  --artifact-root <path>             Generated artifact root to normalize into fixtures.\n  --blocks-engine-php-transformer-path <path>\n                                     Blocks Engine repo root or php-transformer package path for Composer.\n  --entrypoint <file>                Fixture entrypoint. Defaults to index.html.\n  --max-depth <n>                    Fixture discovery depth. Defaults to 2.\n  --wordpress-version <version>      WP Codebox WordPress version. Defaults to latest.\n  --batch-size <n>                   Fixtures per WP Codebox run when --run is used. Defaults to 10.\n  --concurrency <n>                  Batches (WP Codebox sandboxes) to run in parallel. Defaults to ${DEFAULT_BATCH_CONCURRENCY}, hard-capped at ${MAX_BATCH_CONCURRENCY}.\n  --run                             Execute WP Codebox recipes. Omit locally to only materialize artifacts.\n`);
+  process.stdout.write(`Usage: static-site-fixture-matrix [fixture-root] [options]\n\nOptions:\n  --fixture-root <path>              Static-site fixture root. Defaults to this package's fixtures directory.\n  --output-directory <path>          Artifact output directory.\n  --static-site-importer-path <path> Static Site Importer checkout/plugin directory.\n  --static-site-importer-slug <slug> Plugin slug. Defaults to static-site-importer.\n  --static-site-importer-plugin <p>  Plugin activation file. Defaults to static-site-importer/static-site-importer.php.\n  --artifact-root <path>             Generated artifact root to normalize into fixtures.\n  --blocks-engine-php-transformer-path <path>\n                                     Blocks Engine repo root or php-transformer package path for Composer.\n  --entrypoint <file>                Fixture entrypoint. Defaults to index.html.\n  --max-depth <n>                    Fixture discovery depth. Defaults to 2.\n  --wordpress-version <version>      WP Codebox WordPress version. Defaults to latest.\n  --batch-size <n>                   Fixtures per WP Codebox run when --run is used. Defaults to 10.\n  --concurrency <n>                  Batches (WP Codebox sandboxes) to run in parallel. Defaults to ${DEFAULT_BATCH_CONCURRENCY}, hard-capped at ${MAX_BATCH_CONCURRENCY}.\n  --no-editor-validation            Skip browser editor block validation.\n  --no-visual-parity                Skip wordpress.visual-compare recipe steps. Same as SSI_FIXTURE_MATRIX_VISUAL_PARITY=0.\n  --run                             Execute WP Codebox recipes. Omit locally to only materialize artifacts.\n`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -933,6 +934,49 @@ module.exports = { wpCodeboxBin, wpCodeboxCommand, runWpCodeboxRecipe };
     restoreEnv('SSI_FIXTURE_MATRIX_RUN', previousRun);
     restoreEnv('SSI_FIXTURE_MATRIX_BATCH_SIZE', previousBatchSize);
   }
+});
+
+test('CLI --no-visual-parity disables visual steps and records a safe WP Codebox replay command', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-focused-codebox-replay-'));
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  const cliFixtureRoot = path.join(root, 'fixtures');
+  const outputDirectory = path.join(root, 'artifacts');
+  mkdirSync(staticSiteImporter, { recursive: true });
+  mkdirSync(path.join(cliFixtureRoot, 'fixture-a'), { recursive: true });
+  writeFileSync(path.join(cliFixtureRoot, 'fixture-a', 'index.html'), '<h1>Focused replay fixture</h1>');
+
+  const result = spawnSync(process.execPath, [
+    path.join(packageRoot, 'bench', 'static-site-fixture-matrix.bench.mjs'),
+    '--fixture-root', cliFixtureRoot,
+    '--output-directory', outputDirectory,
+    '--static-site-importer-path', staticSiteImporter,
+    '--max-depth', '1',
+    '--no-visual-parity',
+  ], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOMEBOY_WP_CODEBOX_RECIPE_HELPER: '',
+    },
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.match(result.stdout, /"replay"/);
+
+  const recipeFile = path.join(outputDirectory, 'wp-codebox-static-site-fixture-matrix-recipe.json');
+  const recipe = JSON.parse(readFileSync(recipeFile, 'utf8'));
+  const summary = JSON.parse(readFileSync(path.join(outputDirectory, 'cli-run.json'), 'utf8'));
+  assert.equal(recipe.workflow.steps.some((step) => step.command === 'wordpress.visual-compare'), false);
+  assert.equal(summary.replay.artifacts_directory, path.join(root, 'artifacts-wp-codebox-replay-artifacts'));
+  assert.equal(summary.replay.artifacts_directory.startsWith(`${outputDirectory}${path.sep}`), false);
+  assert.deepEqual(summary.replay.argv, [
+    'wp-codebox',
+    'recipe-run',
+    '--recipe', recipeFile,
+    '--artifacts', summary.replay.artifacts_directory,
+    '--json',
+  ]);
+  assert.match(summary.replay.command, /wp-codebox recipe-run --recipe .* --artifacts .* --json/);
 });
 
 function fakeGitRunner(stateByPath) {
