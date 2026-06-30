@@ -1,6 +1,6 @@
 import { createWriteStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -11,7 +11,10 @@ const HELPER_DIR = process.env.HOMEBOY_TRACE_HELPER_DIR;
 if (!HELPER_DIR) {
 	throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
 }
-const PLAYGROUND_PATH = process.env.PLAYGROUND_WEB_TRACE_PLAYGROUND_PATH || path.join(homedir(), 'Developer/wordpress-playground');
+const PLAYGROUND_PATH = process.env.PLAYGROUND_WEB_TRACE_PLAYGROUND_PATH || process.env.HOMEBOY_COMPONENT_PATH;
+if (!PLAYGROUND_PATH) {
+	throw new Error('PLAYGROUND_WEB_TRACE_PLAYGROUND_PATH or HOMEBOY_COMPONENT_PATH is required and must point to the wordpress-playground component checkout.');
+}
 const BASE_URL = process.env.PLAYGROUND_WEB_TRACE_BASE_URL || 'http://127.0.0.1:5400/website-server/';
 const WP_VERSION = process.env.PLAYGROUND_WEB_TRACE_WP_VERSION || '6.8';
 const PHP_VERSION = process.env.PLAYGROUND_WEB_TRACE_PHP_VERSION || '8.3';
