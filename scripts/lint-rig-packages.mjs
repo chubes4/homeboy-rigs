@@ -35,6 +35,7 @@ const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-
 const personalPathPrefix = '/Users/' + 'chubes/';
 const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
+const cleanupIntents = new Set(['none', 'external', 'manual', 'pipeline']);
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -134,10 +135,44 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
   }
 
   lintSharedPaths(rel, rig);
+  lintLifecycleCleanup(rel, rig);
 
   lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot);
   lintFuzzProfiles(rel, rig);
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
+}
+
+function hasDeclaredResources(resources) {
+  if (!resources || typeof resources !== 'object' || Array.isArray(resources)) {
+    return false;
+  }
+
+  return Object.values(resources).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value));
+}
+
+function lifecycleCleanupPolicy(rig) {
+  const cleanup = rig.lifecycle?.cleanup;
+  return cleanup && typeof cleanup === 'object' && !Array.isArray(cleanup) ? cleanup : null;
+}
+
+function lintLifecycleCleanup(rel, rig) {
+  const cleanup = lifecycleCleanupPolicy(rig);
+
+  if (cleanup) {
+    if (!cleanupIntents.has(cleanup.intent)) {
+      failures.push(`${rel}: lifecycle.cleanup.intent must be one of ${[...cleanupIntents].join(', ')}`);
+    }
+
+    if (typeof cleanup.reason !== 'string' || cleanup.reason.trim() === '') {
+      failures.push(`${rel}: lifecycle.cleanup.reason must explain the cleanup boundary`);
+    }
+  }
+
+  if (!hasDeclaredResources(rig.resources) || !Array.isArray(rig.pipeline?.down) || rig.pipeline.down.length > 0 || cleanup) {
+    return;
+  }
+
+  warnings.push(`${rel}: rigs with declared resources and empty pipeline.down should declare lifecycle.cleanup intent`);
 }
 
 function lintSharedPaths(rel, rig) {
