@@ -154,6 +154,30 @@
       "contract": "wp-codebox/mutation-isolation-artifact/v1",
       "required_before_execution": true,
       "artifact": "wp_codebox_mutation_isolation_artifact_v1"
+    },
+    {
+      "id": "homeboy_extensions_generate_database_observations_v1",
+      "contract": "homeboy-extensions/generate-database-observations/v1",
+      "required_before_proven": true,
+      "artifact": "database_observations"
+    },
+    {
+      "id": "homeboy_extensions_generate_admin_observations_v1",
+      "contract": "homeboy-extensions/generate-admin-observations/v1",
+      "required_before_proven": true,
+      "artifact": "admin_observations"
+    },
+    {
+      "id": "homeboy_extensions_generate_browser_observations_v1",
+      "contract": "homeboy-extensions/generate-browser-observations/v1",
+      "required_before_proven": true,
+      "artifact": "browser_observations"
+    },
+    {
+      "id": "homeboy_extensions_generate_editor_observations_v1",
+      "contract": "homeboy-extensions/generate-editor-observations/v1",
+      "required_before_proven": true,
+      "artifact": "editor_observations"
     }
   ],
   "planned_artifact_expectations": [
@@ -208,7 +232,17 @@
     {
       "id": "relative_hotspot_taxonomy",
       "schema": "homeboy/relative-hotspot-taxonomy/v1",
+      "contract_id": "homeboy/relative-hotspot-taxonomy/v1",
       "semantic_key": "fuzz.relative_hotspot_taxonomy",
+      "product_label_groups": [
+        "sequence",
+        "route",
+        "action",
+        "query",
+        "table",
+        "page",
+        "block"
+      ],
       "required_before_proven": true
     },
     {
@@ -220,31 +254,92 @@
     {
       "id": "database_observations",
       "schema": "homeboy-extensions/generate-database-observations/v1",
+      "contract_id": "homeboy-extensions/generate-database-observations/v1",
       "semantic_key": "wordpress.database_observations",
+      "required_sections": [
+        "query_fingerprints",
+        "cache_transient_churn",
+        "db_write_sets",
+        "duplicate_query_groups",
+        "option_autoload_churn"
+      ],
+      "product_label_groups": [
+        "query",
+        "table"
+      ],
       "required_before_proven": true
     },
     {
       "id": "admin_observations",
       "schema": "homeboy-extensions/generate-admin-observations/v1",
+      "contract_id": "homeboy-extensions/generate-admin-observations/v1",
       "semantic_key": "wordpress.admin_observations",
+      "required_sections": [
+        "admin_action_steps"
+      ],
+      "product_label_groups": [
+        "action",
+        "page"
+      ],
       "required_before_proven": true
     },
     {
       "id": "browser_observations",
       "schema": "homeboy-extensions/generate-browser-observations/v1",
+      "contract_id": "homeboy-extensions/generate-browser-observations/v1",
       "semantic_key": "wordpress.browser_observations",
+      "required_sections": [
+        "browser_action_steps"
+      ],
+      "product_label_groups": [
+        "action",
+        "page",
+        "block"
+      ],
       "required_before_proven": true
     },
     {
       "id": "editor_observations",
       "schema": "homeboy-extensions/generate-editor-observations/v1",
+      "contract_id": "homeboy-extensions/generate-editor-observations/v1",
       "semantic_key": "wordpress.editor_observations",
       "required_before_proven": true
     },
     {
       "id": "relative_hotspots",
       "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "contract_id": "homeboy/woocommerce-performance-hotspots-summary/v1",
       "semantic_key": "fuzz.relative_hotspots",
+      "required_sections": [
+        "relative_hotspot_outputs",
+        "relative_hotspot_convergence"
+      ],
+      "product_label_groups": [
+        "sequence",
+        "route",
+        "action",
+        "query",
+        "table",
+        "page",
+        "block"
+      ],
+      "proof_policy": "relative_ranking_only",
+      "required_before_proven": true
+    },
+    {
+      "id": "convergence_summary",
+      "schema": "homeboy/fuzz-exploration-policy/v1",
+      "contract_id": "homeboy/fuzz-exploration-policy/v1",
+      "semantic_key": "fuzz.convergence_summary",
+      "required_sections": [
+        "relative_convergence_outputs",
+        "replay_minimize_refs"
+      ],
+      "product_label_groups": [
+        "sequence",
+        "route",
+        "action"
+      ],
       "required_before_proven": true
     },
     {
@@ -262,7 +357,11 @@
     {
       "id": "destructive_case_ledger",
       "schema": "homeboy/destructive-case-ledger/v1",
+      "contract_id": "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
       "semantic_key": "fuzz.destructive_case_ledger",
+      "required_sections": [
+        "replay_minimize_refs"
+      ],
       "required_before_proven": true
     },
     {
@@ -604,7 +703,11 @@
       "wp-codebox/fuzz-artifact-bundle/v1",
       "wp-codebox/sandbox-isolation-proof/v1",
       "wp-codebox/delete-boundary-artifact/v1",
-      "wp-codebox/mutation-isolation-artifact/v1"
+      "wp-codebox/mutation-isolation-artifact/v1",
+      "homeboy-extensions/generate-database-observations/v1",
+      "homeboy-extensions/generate-admin-observations/v1",
+      "homeboy-extensions/generate-browser-observations/v1",
+      "homeboy-extensions/generate-editor-observations/v1"
     ],
     "missing_upstream_contracts": [],
     "coverage_contract": "Aggressive isolated firehose execution is contract-backed by Homeboy isolation/action/exploration contracts, HBEX WordPress runtime workload operation mapping, and WP Codebox fuzz artifact/sandbox isolation contracts."

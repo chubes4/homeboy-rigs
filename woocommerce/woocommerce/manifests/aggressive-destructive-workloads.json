@@ -24,7 +24,11 @@
     "wp-codebox/fuzz-artifact-bundle/v1",
     "wp-codebox/sandbox-isolation-proof/v1",
     "wp-codebox/delete-boundary-artifact/v1",
-    "wp-codebox/mutation-isolation-artifact/v1"
+    "wp-codebox/mutation-isolation-artifact/v1",
+    "homeboy-extensions/generate-database-observations/v1",
+    "homeboy-extensions/generate-admin-observations/v1",
+    "homeboy-extensions/generate-browser-observations/v1",
+    "homeboy-extensions/generate-editor-observations/v1"
   ],
   "readiness": {
     "level": "executable",
@@ -42,7 +46,11 @@
       "wp-codebox/fuzz-artifact-bundle/v1",
       "wp-codebox/sandbox-isolation-proof/v1",
       "wp-codebox/delete-boundary-artifact/v1",
-      "wp-codebox/mutation-isolation-artifact/v1"
+      "wp-codebox/mutation-isolation-artifact/v1",
+      "homeboy-extensions/generate-database-observations/v1",
+      "homeboy-extensions/generate-admin-observations/v1",
+      "homeboy-extensions/generate-browser-observations/v1",
+      "homeboy-extensions/generate-editor-observations/v1"
     ],
     "missing_upstream_contracts": [],
     "proof_bundle_requirements": {
@@ -56,6 +64,12 @@
         "reviewer-facing fixture dynamic ID artifact ref",
         "reviewer-facing side-effect policy evidence artifact ref",
         "reviewer-facing destructive case ledger artifact ref",
+        "reviewer-facing database observation artifact ref",
+        "reviewer-facing admin action observation artifact ref",
+        "reviewer-facing browser action observation artifact ref",
+        "reviewer-facing editor observation artifact ref",
+        "reviewer-facing replay/minimize artifact refs",
+        "reviewer-facing relative hotspot and convergence artifact refs",
         "reviewer-facing sandbox teardown/discard evidence artifact ref",
         "reviewer-facing fuzz artifact bundle ref"
       ],
@@ -66,6 +80,12 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref"
       ]
@@ -174,6 +194,12 @@
     "fixture_dynamic_id_manifest",
     "side_effect_policy_evidence",
     "destructive_case_ledger",
+    "database_observations",
+    "admin_observations",
+    "browser_observations",
+    "editor_observations",
+    "relative_hotspots",
+    "convergence_summary",
     "sandbox_teardown_evidence",
     "artifact_bundle_ref"
   ],
@@ -215,6 +241,12 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
         "delete_boundary_artifact"
@@ -263,6 +295,12 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
         "delete_boundary_artifact"
@@ -317,6 +355,12 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
         "delete_boundary_artifact"
@@ -365,6 +409,12 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
         "delete_boundary_artifact"
@@ -415,6 +465,12 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
         "delete_boundary_artifact"
@@ -464,10 +520,15 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
-        "delete_boundary_artifact",
-        "database_observations"
+        "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [
         "payment",
@@ -512,10 +573,15 @@
         "fixture_dynamic_id_manifest",
         "side_effect_policy_evidence",
         "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
         "sandbox_teardown_evidence",
         "artifact_bundle_ref",
-        "delete_boundary_artifact",
-        "database_observations"
+        "delete_boundary_artifact"
       ],
       "side_effect_surfaces": [
         "webhook",
