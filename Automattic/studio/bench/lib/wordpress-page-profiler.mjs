@@ -78,14 +78,15 @@ export function pageProfilerPath(options = {}) {
     return explicit;
   }
 
-  const manifestPath = wordpressLibHelperPath(PAGE_PROFILER_FILENAME, options);
-  if (manifestPath) {
-    return manifestPath;
-  }
-
   const profiler = options.profilerPath || requestProfilerPath();
   if (!profiler) {
     return '';
+  }
+  if (!options.profilerPath) {
+    const manifestPath = wordpressLibHelperPath(PAGE_PROFILER_FILENAME, options);
+    if (manifestPath) {
+      return manifestPath;
+    }
   }
   return path.join(path.dirname(profiler), PAGE_PROFILER_FILENAME);
 }
@@ -96,14 +97,15 @@ export function adminPageScenariosPath(options = {}) {
     return explicit;
   }
 
-  const manifestPath = wordpressLibHelperPath(ADMIN_PAGE_SCENARIOS_FILENAME, options);
-  if (manifestPath) {
-    return manifestPath;
-  }
-
   const profiler = options.pageProfilerPath || pageProfilerPath(options);
   if (!profiler) {
     return '';
+  }
+  if (!options.pageProfilerPath && !options.profilerPath) {
+    const manifestPath = wordpressLibHelperPath(ADMIN_PAGE_SCENARIOS_FILENAME, options);
+    if (manifestPath) {
+      return manifestPath;
+    }
   }
   return path.join(path.dirname(profiler), ADMIN_PAGE_SCENARIOS_FILENAME);
 }

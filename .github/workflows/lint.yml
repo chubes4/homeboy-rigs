@@ -10,7 +10,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     env:
-      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/wordpress-fuzz-manifest-validator.js
+      HOMEBOY_WORDPRESS_HELPER_MANIFEST: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/helper-manifest.js
     steps:
       - uses: actions/checkout@v4
         with:

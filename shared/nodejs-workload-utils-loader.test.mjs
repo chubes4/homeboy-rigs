@@ -46,3 +46,10 @@ test('Node workload-utils loader imports the module named by HOMEBOY_NODEJS_WORK
   assert.equal(module.marker, 'explicit-env');
   assert.equal(module.metric(2.5), 2.5);
 });
+
+test('Node workload-utils loader requires the injected source env', async () => {
+  await assert.rejects(
+    () => withEnv({ HOMEBOY_NODEJS_WORKLOAD_UTILS: undefined }, () => loadNodeWorkloadUtils()),
+    /Homeboy Extensions Node workload utilities are unavailable[\s\S]*HOMEBOY_NODEJS_WORKLOAD_UTILS/
+  );
+});

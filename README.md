@@ -47,6 +47,14 @@ mark feature-not-needed and feature-needed phases, count feature/third-party
 requests before and after the trigger, and emit assertions proving no early
 initialization plus post-trigger success.
 
+Shared Homeboy Extensions helpers must be injected explicitly by the caller.
+WordPress helper consumers should set `HOMEBOY_WORDPRESS_HELPER_MANIFEST` to the
+absolute path for the Homeboy Extensions `wordpress/lib/helper-manifest.js`, or
+set the specific helper env named by the workload. Node.js bench workloads should set
+`HOMEBOY_NODEJS_WORKLOAD_UTILS` to the absolute path for the Homeboy Extensions
+`nodejs/scripts/bench/lib/workload-utils.mjs` source file. The rig package does
+not guess sibling checkout paths, default install locations, or package imports.
+
 `shared/wordpress-plugin-performance-template/` documents the reusable
 full-surface performance rig shape for WordPress plugins: discovery, safe admin,
 frontend, and REST coverage, readiness checks, fixtures, metrics, artifacts,

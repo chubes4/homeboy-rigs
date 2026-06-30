@@ -49,15 +49,21 @@ export function requestProfilerPath() {
  * @returns {string}
  */
 export function timingCorrelatorPath(options = {}) {
-  const explicit = options.override ?? (setting('wordpress_timing_correlator_path') || wordpressHelperPath('timingCorrelator', {
-    envVar: 'HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER',
-  }));
+  const explicit = options.override ?? (setting('wordpress_timing_correlator_path') || process.env.HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER);
   if (explicit) {
     return explicit;
   }
   const profiler = options.profilerPath ?? requestProfilerPath();
   if (!profiler) {
     return '';
+  }
+  if (!options.profilerPath) {
+    const manifestPath = wordpressHelperPath('timingCorrelator', {
+      envVar: 'HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER',
+    });
+    if (manifestPath) {
+      return manifestPath;
+    }
   }
   return path.join(path.dirname(profiler), TIMING_CORRELATOR_FILENAME);
 }

@@ -15,7 +15,6 @@ function loadGenericFuzzManifestValidator() {
     helperName: 'wordpress-fuzz-manifest-validator',
     envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
     manifestFileName: 'wordpress-fuzz-manifest-validator.js',
-    packageImport: 'homeboy-extension-wordpress/wordpress-fuzz-manifest-validator',
   });
 }
 

@@ -1,37 +1,14 @@
-import { createRequire } from 'node:module';
 import path from 'node:path';
-
-const require = createRequire(import.meta.url);
-
-function resolveManifestPath(options = {}) {
-  return options.manifestPath || process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST || '';
-}
+import { loadWordPressHelperModule } from '../../../../shared/wordpress-helper-loader.mjs';
 
 function loadWordPressHelperConsumerModule(options = {}) {
-  const explicit = options.consumerPath || process.env.HOMEBOY_WORDPRESS_HELPER_CONSUMER;
-  if (explicit) {
-    return require(explicit);
-  }
-
-  const manifestPath = resolveManifestPath(options);
-  if (manifestPath) {
-    const manifestModule = require(manifestPath);
-    const manifest = typeof manifestModule.getWordPressHelperManifest === 'function'
-      ? manifestModule.getWordPressHelperManifest()
-      : manifestModule.WORDPRESS_HELPER_MANIFEST;
-    if (manifest?.extensionRoot) {
-      return require(path.join(manifest.extensionRoot, 'lib', 'wordpress-helper-consumer.js'));
-    }
-  }
-
-  try {
-    return require('homeboy-extension-wordpress/wordpress-helper-consumer');
-  } catch (error) {
-    if (error?.code !== 'MODULE_NOT_FOUND') {
-      throw error;
-    }
-    return null;
-  }
+  return loadWordPressHelperModule({
+    helperName: 'wordpress-helper-consumer',
+    envVar: 'HOMEBOY_WORDPRESS_HELPER_CONSUMER',
+    manifestFileName: 'wordpress-helper-consumer.js',
+    helperPath: options.consumerPath,
+    manifestPath: options.manifestPath,
+  });
 }
 
 function missingHandle(resolvedPath = '', reason = 'WordPress helper consumer is unavailable') {

@@ -5,6 +5,94 @@ import path from 'node:path';
 import test from 'node:test';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
+if (!process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS) {
+  const workloadUtilsFixtureDir = await mkdtemp(path.join(os.tmpdir(), 'homeboy-node-workload-utils-'));
+  const workloadUtilsFixture = path.join(workloadUtilsFixtureDir, 'workload-utils.mjs');
+  await writeFile(workloadUtilsFixture, `
+export function artifactDir(name, { sharedState = '/tmp' } = {}) { return sharedState + '/' + name; }
+export function expandHome(value) { const text = String(value || ''); return text === '~' || text.startsWith('~/') ? (process.env.HOME || '') + text.slice(1) : text; }
+export function metric(value, fallback = 0) { const number = Number(value ?? fallback); return Number.isFinite(number) ? number : fallback; }
+export function redactText(value) { return String(value || '').replace(/(token|nonce)=([^&\\s]+)/g, '$1=[redacted]'); }
+export async function runNode() { return { code: 0, stdout: '', stderr: '', elapsedMs: 0 }; }
+export function safeResult(value) { return value || {}; }
+export async function sanitizeArtifactFile() {}
+export function setting(key, fallback = '') { const settings = process.env.HOMEBOY_SETTINGS_JSON ? JSON.parse(process.env.HOMEBOY_SETTINGS_JSON) : {}; return settings[key] ?? process.env['HOMEBOY_SETTINGS_' + String(key).toUpperCase()] ?? fallback; }
+`);
+  process.env.HOMEBOY_NODEJS_WORKLOAD_UTILS = workloadUtilsFixture;
+}
+
+if (!process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST && !process.env.HOMEBOY_WORDPRESS_HELPER_CONSUMER) {
+  const wordpressHelperFixtureRoot = await mkdtemp(path.join(os.tmpdir(), 'homeboy-wordpress-helper-'));
+  const wordpressHelperLib = path.join(wordpressHelperFixtureRoot, 'lib');
+  await mkdir(wordpressHelperLib, { recursive: true });
+  await writeFile(path.join(wordpressHelperLib, 'helper-manifest.js'), `
+const path = require('node:path');
+function getWordPressHelperManifest() { return { extensionRoot: path.resolve(__dirname, '..') }; }
+module.exports = { getWordPressHelperManifest };
+`);
+  await writeFile(path.join(wordpressHelperLib, 'wordpress-helper-consumer.js'), `
+const path = require('node:path');
+function loadWordPressHelperManifest() { return { path: path.join(__dirname, 'helper-manifest.js'), manifest: { extensionRoot: path.resolve(__dirname, '..') }, found: true }; }
+function wordpressLibHelperPath(fileName) { return path.join(__dirname, fileName); }
+function loadWordPressLibHelper(fileName) { const resolved = wordpressLibHelperPath(fileName); return { path: resolved, module: require(resolved), found: true }; }
+module.exports = { loadWordPressHelperManifest, wordpressLibHelperPath, loadWordPressLibHelper };
+`);
+  await writeFile(path.join(wordpressHelperLib, 'materialized-site-quality.js'), `
+const VISUAL_PIXEL_DIFF_THRESHOLD = 0.05;
+function number(value) { const parsed = Number(value || 0); return Number.isFinite(parsed) ? parsed : 0; }
+function importerBlockQualityMetrics(importReport = {}) {
+  const quality = importReport.report?.quality || {};
+  return {
+    importerCoreHtmlBlockCount: number(quality.core_html_block_count),
+    importerFreeformBlockCount: number(quality.freeform_block_count),
+    importerFallbackCount: number(quality.fallback_count),
+  };
+}
+function importerBlockQualityFailureDetails(metrics) {
+  return metrics.importerCoreHtmlBlockCount || metrics.importerFreeformBlockCount || metrics.importerFallbackCount
+    ? [\`importer block quality: core/html=\${metrics.importerCoreHtmlBlockCount}, freeform=\${metrics.importerFreeformBlockCount}, fallback=\${metrics.importerFallbackCount}\`]
+    : [];
+}
+function visualEditorParityMetrics(visualComparison = {}) {
+  return {
+    visualEditorVsSourcePixelDiffRatio: number(visualComparison.visual_editor_vs_source_pixel_diff_ratio),
+    visualEditorVsFrontendPixelDiffRatio: number(visualComparison.visual_editor_vs_frontend_pixel_diff_ratio),
+    visualSourceVsFrontendPixelDiffRatio: number(visualComparison.visual_source_vs_frontend_pixel_diff_ratio_diagnostic),
+    visualEditorParityErrorCount: 0,
+  };
+}
+function visualEditorParityFailureDetails(parity) {
+  if (parity.visualEditorVsSourcePixelDiffRatio <= VISUAL_PIXEL_DIFF_THRESHOLD) {
+    return [];
+  }
+  if (parity.visualSourceVsFrontendPixelDiffRatio > VISUAL_PIXEL_DIFF_THRESHOLD) {
+    return [\`editor and frontend both diverge from source (editor: \${parity.visualEditorVsSourcePixelDiffRatio}, frontend: \${parity.visualSourceVsFrontendPixelDiffRatio}) - conversion failed before editor concern\`];
+  }
+  return [\`editor render diverges from frontend (editor diff: \${parity.visualEditorVsSourcePixelDiffRatio}, frontend diff: \${parity.visualSourceVsFrontendPixelDiffRatio}) - likely block-validation or unscoped CSS\`];
+}
+function visualPixelDiffFailureDetails(visualComparison = {}) {
+  const ratio = number(visualComparison.pixel_diff_ratio);
+  return ratio > VISUAL_PIXEL_DIFF_THRESHOLD ? [\`visual pixel diff: \${ratio.toFixed(3)} (threshold: 0.050)\`] : [];
+}
+function evaluateMaterializedSiteQuality({ result = {}, semanticComparison = {}, importReport = {}, visualComparison = {} }) {
+  const semanticMismatchCount = number(semanticComparison.mismatch_count);
+  const importerBlockQuality = importerBlockQualityMetrics(importReport);
+  const visualEditorParity = visualEditorParityMetrics(visualComparison);
+  const visualPixelDiffRatio = number(visualComparison.pixel_diff_ratio);
+  const failed = !result.success || semanticMismatchCount > 0 || importerBlockQualityFailureDetails(importerBlockQuality).length > 0 || visualEditorParityFailureDetails(visualEditorParity).length > 0 || visualPixelDiffFailureDetails(visualComparison).length > 0;
+  return {
+    passed: !failed,
+    semanticMismatchCount,
+    importerBlockQuality,
+    visualEditorParity,
+    visualPixelDiffRatio,
+    metrics: { success_rate: failed ? 0 : 1, agent_error_rate: failed ? 1 : 0 },
+  };
+}
+module.exports = { evaluateMaterializedSiteQuality, importerBlockQualityMetrics, importerBlockQualityFailureDetails, visualEditorParityMetrics, visualEditorParityFailureDetails, visualPixelDiffFailureDetails };
+`);
+  process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = path.join(wordpressHelperLib, 'helper-manifest.js');
+}
 
 const {
   agentSuccessGate,
