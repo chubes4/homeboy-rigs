@@ -14,11 +14,23 @@ function now() {
 }
 
 function normalizeBaseUrl(value) {
-  const url = new URL(value || 'http://studio-native-local-runtime.local/');
+  if (!value) {
+    throw new Error('Studio Native runtime URL is required. Pass --url or set STUDIO_NATIVE_RUNTIME_URL.');
+  }
+
+  const url = new URL(value);
   url.pathname = url.pathname.replace(/\/+$/, '/');
   url.search = '';
   url.hash = '';
   return url;
+}
+
+function defaultOutDir(name) {
+  const artifactRoot = process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR
+    || process.env.HOMEBOY_TRACE_ARTIFACT_DIR
+    || process.env.HOMEBOY_BENCH_ARTIFACT_DIR;
+
+  return path.join(artifactRoot || os.tmpdir(), `${name}-${process.pid}`);
 }
 
 async function fetchText(url) {
@@ -46,7 +58,7 @@ function assert(condition, message) {
 
 async function main() {
   const baseUrl = normalizeBaseUrl(argValue('--url') || process.env.STUDIO_NATIVE_RUNTIME_URL);
-  const outDir = path.resolve(argValue('--out') || path.join(os.tmpdir(), `studio-native-live-runtime-open-${process.pid}`));
+  const outDir = path.resolve(argValue('--out') || defaultOutDir('studio-native-live-runtime-open'));
   await mkdir(outDir, { recursive: true });
 
   const homepage = await fetchText(baseUrl);

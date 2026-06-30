@@ -427,9 +427,9 @@ Express Checkout Element browser waterfall trace against a local WooCommerce
 Stripe checkout plus a packaged WooCommerce dependency.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
+homeboy rig install /path/to/homeboy-rigs/woocommerce/woocommerce-gateway-stripe
 homeboy rig check woocommerce-stripe-ece-product-page
-homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall --output /tmp/wc-stripe-ece-waterfall.json
+homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall
 ```
 
 Additional trace scenarios cover post-load interactions for scrolling to the ECE

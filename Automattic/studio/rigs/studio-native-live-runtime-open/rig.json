@@ -17,7 +17,7 @@
       {
         "kind": "check",
         "label": "studio native live runtime opens",
-        "command": "node ${package.root}/proofs/studio-native-live-runtime-open.mjs --url ${env.STUDIO_NATIVE_RUNTIME_URL} --out /tmp/studio-native-live-runtime-open-rig-check",
+        "command": "node ${package.root}/proofs/studio-native-live-runtime-open.mjs --url ${env.STUDIO_NATIVE_RUNTIME_URL}",
         "expect_exit": 0
       }
     ]

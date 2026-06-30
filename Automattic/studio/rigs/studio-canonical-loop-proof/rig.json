@@ -49,7 +49,7 @@
       {
         "kind": "check",
         "label": "canonical loop contract harness passes",
-        "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --out /tmp/studio-canonical-loop-proof-rig-check",
+        "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs",
         "expect_exit": 0
       }
     ]

@@ -18,16 +18,16 @@ The first real runtime proof is `studio-native-live-runtime-open.mjs`: it opens 
 
 ```bash
 node Automattic/studio/proofs/studio-canonical-loop-proof.mjs --check
-node Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
-  --out /tmp/studio-canonical-loop-proof
+HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
+  node Automattic/studio/proofs/studio-canonical-loop-proof.mjs
 node scripts/lint-rig-packages.mjs Automattic/studio
 ```
 
 ## Run The Contract Harness
 
 ```bash
-node Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
-  --out /tmp/studio-canonical-loop-proof
+HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
+  node Automattic/studio/proofs/studio-canonical-loop-proof.mjs
 ```
 
 ## Run The Local WordPress Harness
@@ -35,21 +35,21 @@ node Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
 Run this from a Studio site directory that has Static Site Importer active:
 
 ```bash
-node /path/to/homeboy-rigs/Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
-  --mode local-wp \
-  --out /tmp/studio-canonical-loop-local-wp-proof
+HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
+  node /path/to/homeboy-rigs/Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
+    --mode local-wp
 ```
 
 `local-wp` mode writes the same artifacts as stub mode, but the initial materialization and reimport materialization are performed through `static_site_importer_ability_import_website_artifact()` via `studio wp eval-file`.
 
 ## Run The Live Runtime Open Proof
 
-Run this against the purpose-built local Studio Native runtime:
+Run this against an explicit Studio Native runtime URL:
 
 ```bash
-node Automattic/studio/proofs/studio-native-live-runtime-open.mjs \
-  --url http://studio-native-local-runtime.local/ \
-  --out /tmp/studio-native-live-runtime-open
+STUDIO_NATIVE_RUNTIME_URL=https://your-studio-native-runtime.example \
+HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
+  node Automattic/studio/proofs/studio-native-live-runtime-open.mjs
 ```
 
 This proof opens the site, opens the WordPress REST index, reaches `/wp-json/studio-native/v1/status` even when auth-protected, and fails unless the real routes for chat, run events, Codebox artifact handoff, Codebox artifact session, contained-site open/create, and WP Codebox browser endpoints are present.
