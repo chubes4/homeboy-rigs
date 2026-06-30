@@ -26,6 +26,12 @@
       "${components.jetpack.path}"
     ]
   },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "external",
+      "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; the Jetpack component checkout is user-owned."
+    }
+  },
   "bench": {
     "default_component": "jetpack",
     "warmup_iterations": 0
