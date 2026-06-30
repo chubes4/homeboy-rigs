@@ -75,7 +75,29 @@ test('discovers SSI fixtures and writes Blocks Engine site artifacts', () => {
   assert.ok(indexFile);
   assert.ok(Buffer.from(indexFile.content_base64, 'base64').toString('utf8').includes('Simple SSI Fixture'));
   assert.ok(artifact.files.some((file) => file.path === 'website/style.css'));
+  assert.equal(written.result.summary.generation_status, 'succeeded');
+  assert.equal(written.result.summary.execution_status, 'not_requested');
+  assert.equal(written.result.summary.succeeded, 0);
+  assert.equal(written.result.summary.failed, 0);
   assert.equal(written.result.summary.not_run, 1);
+  assert.equal(written.result.summary.finding_count, 0);
+  assert.equal(written.result.summary.unacceptable_finding_count, 0);
+  assert.equal(written.result.summary.unacceptable_loss_classes.fixture_not_run, undefined);
+  assert.equal(written.result.findings.some((finding) => finding.loss_class === 'fixture_not_run'), false);
+});
+
+test('execution-requested fixture matrices still fail missing validation results', () => {
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'missing-run-result-test' });
+  const result = normalizeFixtureMatrixResult({ matrix, execution_status: 'requested' });
+
+  assert.equal(result.summary.generation_status, 'succeeded');
+  assert.equal(result.summary.execution_status, 'requested');
+  assert.equal(result.summary.succeeded, 0);
+  assert.equal(result.summary.failed, 1);
+  assert.equal(result.summary.not_run, 1);
+  assert.equal(result.summary.unacceptable_finding_count, 1);
+  assert.equal(result.summary.unacceptable_loss_classes.fixture_not_run, 1);
+  assert.equal(result.findings.some((finding) => finding.loss_class === 'fixture_not_run'), true);
 });
 
 test('matrix artifacts use the product base64 encoding for EVERY payload, including text', () => {

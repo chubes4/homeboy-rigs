@@ -51,13 +51,16 @@ import { buildFixtureArtifact, stageFixtureSource } from './steps/recipe-builder
 
 export function normalizeFixtureMatrixResult(input = {}) {
   const matrix = input.matrix || createFixtureMatrix(input);
+  const generationStatus = input.generationStatus || input.generation_status || 'succeeded';
+  const executionStatus = normalizeExecutionStatus(input);
+  const executionRequested = executionStatus !== 'not_requested';
   const results = normalizeArray(input.results || input.fixture_results || input.fixtureResults).map(normalizeFixtureResult);
   const resultByFixture = new Map(results.map((result) => [result.fixture_id, result]));
   const fixtureResults = matrix.fixtures.map((fixture) => attachFixtureTaxonomy(
     resultByFixture.get(fixture.id) || normalizeFixtureResult({ fixture_id: fixture.id, fixture_path: fixture.fixture_path, status: 'not_run' }),
     fixture,
   ));
-  const baseFindings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix })));
+  const baseFindings = dedupeFindings(fixtureResults.flatMap((result) => findingsForFixtureResult(result, { matrix, executionRequested })));
   // Editor-quality metrics are computed from generic block-composition data plus
   // the #537 editor-invalid findings. Scoring always runs; gating is opt-in.
   const nativeRateGate = normalizeNativeRateGateOptions(input.editorQuality || input.editor_quality || input);
@@ -70,7 +73,7 @@ export function normalizeFixtureMatrixResult(input = {}) {
   const grouped = groupFindings(actionableFindings);
   const acceptableActionableFindings = actionableFindings.filter((finding) => finding.loss_acceptance === 'acceptable');
   const unacceptableActionableFindings = actionableFindings.filter((finding) => finding.loss_acceptance !== 'acceptable');
-  const gatedFixtureResults = fixtureResults.map((result) => attachFixtureEditorQuality(applyFixtureQualityGate(result, findings), editorQualityByFixture.get(result.fixture_id)));
+  const gatedFixtureResults = fixtureResults.map((result) => attachFixtureEditorQuality(applyFixtureQualityGate(result, findings, { executionRequested }), editorQualityByFixture.get(result.fixture_id)));
   const lossClassCounts = countBy(findings, (finding) => finding.loss_class || 'unsupported_loss');
   const acceptanceCounts = countBy(findings, (finding) => finding.loss_acceptance || 'unacceptable');
   const classRollups = fixtureClassRollups(gatedFixtureResults, findings);
@@ -81,6 +84,8 @@ export function normalizeFixtureMatrixResult(input = {}) {
     matrix_id: matrix.id,
     fixture_root: matrix.fixture_root,
     summary: {
+      generation_status: generationStatus,
+      execution_status: executionStatus,
       fixture_count: matrix.fixtures.length,
       succeeded: gatedFixtureResults.filter((result) => result.status === 'passed').length,
       failed: gatedFixtureResults.filter((result) => result.status === 'failed').length,
@@ -112,7 +117,32 @@ export function normalizeFixtureMatrixResult(input = {}) {
   };
 }
 
-function applyFixtureQualityGate(result, findings) {
+function normalizeExecutionStatus(input = {}) {
+  const explicit = input.executionStatus || input.execution_status;
+  if (explicit) {
+    return String(explicit);
+  }
+  if (input.executionRequested === false || input.execution_requested === false || input.run === false) {
+    return 'not_requested';
+  }
+  return 'requested';
+}
+
+function applyFixtureQualityGate(result, findings, options = {}) {
+  if (options.executionRequested === false && result.status === 'not_run') {
+    return {
+      ...result,
+      raw_status: result.status,
+      success: false,
+      quality_gate: {
+        status: 'not_run',
+        acceptable_finding_count: 0,
+        unacceptable_finding_count: 0,
+        loss_classes: {},
+      },
+    };
+  }
+
   const fixtureFindings = findings.filter((finding) => finding.fixture_id === result.fixture_id);
   const unacceptableFindings = fixtureFindings.filter((finding) => finding.loss_acceptance === 'unacceptable');
   const status = unacceptableFindings.length > 0 ? 'failed' : 'passed';
@@ -203,7 +233,7 @@ export function normalizeFixtureResult(input) {
 export function writeFixtureMatrixArtifacts(input = {}) {
   const outputDirectory = requiredString(input.outputDirectory || input.output_directory, 'outputDirectory');
   const matrix = input.matrix || createFixtureMatrix(input);
-  const result = input.result || normalizeFixtureMatrixResult({ ...input, matrix });
+  const result = input.result || normalizeFixtureMatrixResult({ ...input, matrix, execution_status: input.execution_status || input.executionStatus || 'not_requested' });
 
   fs.mkdirSync(outputDirectory, { recursive: true });
   for (const fixture of matrix.fixtures) {

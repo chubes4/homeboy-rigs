@@ -45,7 +45,7 @@ export function findingsForFixtureResult(result, context = {}) {
   if (result.status === 'failed' && findings.length === 0) {
     findings.push(normalizeDiagnosticFinding({ kind: 'fixture_failed', message: result.error || 'Static-site fixture validation failed without a structured diagnostic.' }, result, 0));
   }
-  if (context.matrix?.fixtures?.some((fixture) => fixture.id === result.fixture_id) && result.status === 'not_run') {
+  if (context.executionRequested !== false && context.matrix?.fixtures?.some((fixture) => fixture.id === result.fixture_id) && result.status === 'not_run') {
     findings.push(normalizeDiagnosticFinding({ kind: 'fixture_not_run', message: 'Static-site fixture was discovered but did not produce a validation result.' }, result, 0));
   }
   return findings;
