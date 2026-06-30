@@ -637,6 +637,50 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     assert.ok(artifact.required_before_execution === true || artifact.required_before_proven === true, `aggressive planned artifact ${artifact.id} must block execution or proof`);
   }
 
+  const expectedCampaignInputGroups = new Set([
+    'sequence_packs',
+    'rest_fixture_families',
+    'admin_action_surfaces',
+    'browser_action_corpus_hooks',
+    'observation_groups',
+    'side_effect_policy',
+    'hotspot_convergence',
+  ]);
+  assert.deepEqual(new Set(Object.keys(campaign.campaign_input_groups || {})), expectedCampaignInputGroups, 'aggressive campaign input groups drifted');
+  assert.equal(campaign.campaign_input_groups.sequence_packs.manifest, 'manifests/product-chaos-sequence-packs.json', 'aggressive campaign must consume sequence packs');
+  assert.ok(campaign.campaign_input_groups.rest_fixture_families.manifests.includes('manifests/rest-crud-payload-fixtures.json'), 'aggressive campaign must consume REST fixture family fixtures');
+  assert.ok(campaign.campaign_input_groups.rest_fixture_families.manifests.includes('manifests/rest-crud-fixture-plan.json'), 'aggressive campaign must consume REST fixture plan inputs');
+  assert.equal(campaign.campaign_input_groups.admin_action_surfaces.manifest, 'manifests/admin-action-inventory.json', 'aggressive campaign must consume admin action surfaces');
+  assert.deepEqual(new Set(campaign.campaign_input_groups.browser_action_corpus_hooks.scenario_paths), new Set([
+    'browser-scenarios/shop.json',
+    'browser-scenarios/product.json',
+    'browser-scenarios/cart.json',
+    'browser-scenarios/checkout.json',
+    'browser-scenarios/products_admin.json',
+    'browser-scenarios/orders_admin.json',
+    'browser-scenarios/analytics_admin.json',
+  ]), 'aggressive campaign browser action corpus hooks drifted');
+  assert.deepEqual(new Set(campaign.campaign_input_groups.observation_groups.groups), new Set([
+    'db',
+    'write',
+    'cache',
+    'query',
+    'block',
+    'page',
+    'admin',
+    'workflow',
+  ]), 'aggressive campaign observation groups drifted');
+  assert.equal(campaign.campaign_input_groups.side_effect_policy.manifest, 'manifests/aggressive-destructive-workloads.json#side_effect_policy', 'aggressive campaign must consume side-effect policy evidence contract');
+  assert.equal(campaign.campaign_input_groups.hotspot_convergence.manifest, 'manifests/db-api-hotspot-artifact-io.json', 'aggressive campaign must consume hotspot artifact IO contract');
+
+  const plannedArtifactIds = new Set((campaign.planned_artifact_expectations || []).map((artifact) => artifact.id));
+  for (const [groupName, group] of Object.entries(campaign.campaign_input_groups || {})) {
+    assert.ok(Array.isArray(group.required_artifacts) && group.required_artifacts.length > 0, `aggressive campaign input group ${groupName} requires artifact expectations`);
+    for (const artifact of group.required_artifacts) {
+      assert.ok(plannedArtifactIds.has(artifact), `aggressive campaign input group ${groupName} requires undeclared artifact expectation ${artifact}`);
+    }
+  }
+
   const taxonomySurfaces = new Set(Object.keys(productSurfaceTaxonomy));
   assert.deepEqual(new Set((campaign.fixture_families || []).map((family) => family.surface)), taxonomySurfaces, 'aggressive fixture families must cover the product surface taxonomy');
   for (const family of campaign.fixture_families || []) {
@@ -645,7 +689,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
     assert.ok(Array.isArray(family.planned_operations) && family.planned_operations.length > 0, `${family.id} requires planned operations`);
   }
 
-  assert.deepEqual(new Set(Object.keys(campaign.planned_case_groups || {})), new Set(['sequence', 'route', 'action', 'query', 'table', 'page', 'block']), 'aggressive planned case groups drifted');
+  assert.deepEqual(new Set(Object.keys(campaign.planned_case_groups || {})), new Set(['sequence', 'route', 'action', 'query', 'db', 'write', 'cache', 'table', 'page', 'admin', 'block', 'workflow']), 'aggressive planned case groups drifted');
   for (const [group, labels] of Object.entries(campaign.planned_case_groups || {})) {
     assert.ok(Array.isArray(labels) && labels.length > 0, `aggressive case group ${group} requires labels`);
   }
@@ -682,6 +726,21 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   for (const item of requestItems) {
     assert.ok(item.command_argv.includes('--allow-destructive'), `${item.purpose} must opt into destructive fuzzing`);
     assert.ok(item.command_argv.includes('--isolation-proof'), `${item.purpose} must provide explicit Homeboy isolation proof`);
+    assert.equal(item.campaign_inputs?.campaign_manifest, 'manifests/aggressive-isolated-fuzz-campaign.json', `${item.purpose} must link the campaign manifest`);
+    assert.equal(item.campaign_inputs?.target_inventory_manifest, 'manifests/target-inventory.json', `${item.purpose} must link the target inventory manifest`);
+    assert.equal(item.campaign_inputs?.groups?.sequence_packs?.manifest, 'manifests/product-chaos-sequence-packs.json', `${item.purpose} must pass sequence pack inputs`);
+    assert.ok(item.campaign_inputs?.groups?.rest_fixture_families?.manifests?.includes('manifests/rest-crud-payload-fixtures.json'), `${item.purpose} must pass REST fixture family inputs`);
+    assert.equal(item.campaign_inputs?.groups?.admin_action_surfaces?.manifest, 'manifests/admin-action-inventory.json', `${item.purpose} must pass admin action surfaces`);
+    assert.ok(item.campaign_inputs?.groups?.browser_action_corpus_hooks?.scenario_paths?.includes('browser-scenarios/checkout.json'), `${item.purpose} must pass browser action corpus hooks`);
+    assert.ok(item.campaign_inputs?.groups?.side_effect_policy?.required_artifacts?.includes('side_effect_policy_evidence'), `${item.purpose} must require side-effect policy evidence`);
+    assert.ok(item.campaign_inputs?.groups?.hotspot_convergence?.required_artifacts?.includes('relative_hotspots'), `${item.purpose} must require hotspot/convergence artifacts`);
+    assert.deepEqual(new Set(item.campaign_inputs?.groups?.observation_groups?.groups || []), new Set(['db', 'write', 'cache', 'query', 'block', 'page', 'admin', 'workflow']), `${item.purpose} observation groups drifted`);
+    assert.deepEqual(new Set((item.artifact_expectations || []).map((artifact) => artifact.id)), expectedPlannedArtifacts, `${item.purpose} artifact expectations must mirror campaign expectations`);
+  }
+  const collectRefsCommand = generatedPlanItems.find((entry) => entry.purpose === 'collect_reviewer_facing_artifact_refs')?.command_argv || [];
+  const plannedSemanticKeys = new Set((campaign.planned_artifact_expectations || []).map((artifact) => artifact.semantic_key));
+  for (const semanticKey of plannedSemanticKeys) {
+    assert.ok(collectRefsCommand.includes(semanticKey), `aggressive artifact ref collection must request ${semanticKey}`);
   }
   assertNoLocalOnlyRefs(campaign, 'aggressive-isolated-fuzz-campaign');
   assertNoProofPlaceholders(campaign, 'aggressive-isolated-fuzz-campaign');
