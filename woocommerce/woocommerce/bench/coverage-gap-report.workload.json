@@ -45,9 +45,13 @@
     "runner": "wp-codebox",
     "workload": "coverage-gap-report",
     "runner_support_status": "supported",
+    "generic_primitive": {
+      "status": "supported",
+      "contract": "homeboy/artifact-postprocess-plan/v1"
+    },
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Artifact-postprocess can execute the coverage gap report over an approved offloaded Woo DB/API campaign artifact root, but proven status requires reviewer-facing run and coverage_gap_report artifact refs.",
+      "coverage_contract": "Coverage gap report contract over an approved offloaded Woo DB/API campaign artifact root through Homeboy's artifact-postprocess runner primitive. Proven status requires reviewer-facing run and coverage_gap_report artifact refs.",
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -59,11 +63,12 @@
         ]
       },
       "proven_when": [
+        "Homeboy executes the artifact-postprocess plan against a persisted artifact root.",
         "An approved offloaded campaign run provides a reviewer-facing artifact root for prior workload outputs.",
         "The runner collects the declared coverage_gap_report fuzz.report JSON artifact as reviewer-facing evidence."
       ]
     },
-    "coverage_shape": "Executable coverage gap report over available WooCommerce DB/API fuzzer artifacts",
+    "coverage_shape": "Executable coverage gap report over available WooCommerce DB/API fuzzer artifacts through Homeboy artifact-postprocess",
     "manifest": "manifests/db-api-performance-fuzzer-gap-report.json"
   }
 }

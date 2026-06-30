@@ -194,6 +194,57 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
   })), false);
 });
 
+test('assertArtifactPostprocessWorkloadContract accepts explicit upstream-blocked declarations', async () => {
+  const { assertArtifactPostprocessWorkloadContract } = await import('./fuzz-manifest-helpers.mjs');
+  const workload = {
+    schema: 'wp-codebox/wordpress-workload-run/v1',
+    id: 'coverage-gap-report',
+    steps: [{
+      command: 'homeboy.artifact-postprocess',
+      args: {
+        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
+        action: 'coverage-gap-report',
+        input: { type: 'artifact-root', path: '${artifacts.root}', artifact_globs: ['**/*.json'], max_bytes: 1048576 },
+        output: {
+          artifact: 'coverage_gap_report',
+          path: 'coverage-gap-report/coverage_gap_report.json',
+          kind: 'json',
+          contentType: 'application/json',
+          schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+          semantic_key: 'fuzz.report',
+        },
+      },
+    }],
+    artifacts: [{
+      name: 'coverage_gap_report',
+      path: 'coverage-gap-report/coverage_gap_report.json',
+      kind: 'json',
+      contentType: 'application/json',
+      required: true,
+      metadata: { schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1', semantic_key: 'fuzz.report' },
+    }],
+    metadata: {
+      runner_support_status: 'blocked',
+      generic_primitive: { status: 'blocked' },
+      missing_upstream_contract: 'homeboy artifact-postprocess runner primitive for persisted artifact roots',
+      readiness: {
+        level: 'declared',
+        proven_when: ['reviewer-facing artifact root is available', 'reviewer-facing evidence is collected'],
+      },
+    },
+  };
+
+  assert.doesNotThrow(() => assertArtifactPostprocessWorkloadContract(workload, {
+    id: 'coverage-gap-report',
+    action: 'coverage-gap-report',
+    artifact: 'coverage_gap_report',
+    outputPath: 'coverage-gap-report/coverage_gap_report.json',
+    schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+    runnerSupportStatus: 'blocked',
+    readinessLevel: 'declared',
+  }));
+});
+
 test('assertFuzzReadinessMetadata accepts declared CRUD and disposable mutation contracts', () => {
   assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
     metadata: {

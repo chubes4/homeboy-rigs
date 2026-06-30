@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const coverageGapSchema = 'homeboy-rigs/wordpress-coverage-gap-report/v1';
-export const hotspotSummarySchema = 'homeboy/woocommerce-performance-hotspots-summary/v1';
+export const hotspotSummarySchema = 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1';
 export const artifactPostprocessCommand = 'homeboy.artifact-postprocess';
 const supportedCommands = new Set(['coverage-gap-report', 'performance-hotspots-summary']);
 

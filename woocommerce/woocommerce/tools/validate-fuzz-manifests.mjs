@@ -465,7 +465,7 @@ assertArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
   action: 'performance-hotspots-summary',
   artifact: 'performance_hotspots_summary',
   outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
-  schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+  schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
 });
 
 for (const workloadId of fullSurfaceFuzzIds) {
@@ -660,7 +660,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
       product_label_groups: ['action', 'page', 'block'],
     }],
     ['relative_hotspots', {
-      contract_id: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+      contract_id: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
       required_sections: ['relative_hotspot_outputs', 'relative_hotspot_convergence'],
       product_label_groups: ['sequence', 'route', 'action', 'query', 'table', 'page', 'block'],
     }],
@@ -1072,21 +1072,18 @@ assert.equal(dbApiPerformanceFuzzerGapReport.schema, 'homeboy-rigs/wordpress-cov
 assert.equal(dbApiPerformanceFuzzerGapReport.id, 'woocommerce-db-api-performance-fuzzer-gap-report', 'DB/API gap report workload id drifted');
 assert.equal(dbApiPerformanceFuzzerGapReport.profile_id, 'db-api-performance-fuzzer', 'DB/API gap report workload must target the DB/API fuzzer profile');
 assert.equal(dbApiPerformanceFuzzerGapReport.source_gap_report, 'manifests/full-surface-coverage.json#gap_report', 'DB/API gap report workload must point at the full-surface gap report source');
-assert.equal(dbApiPerformanceFuzzerGapReport.workload, 'fuzz/coverage-gap-report.json', 'DB/API gap report workload must link the executable fuzz workload');
+assert.equal(dbApiPerformanceFuzzerGapReport.workload, 'fuzz/coverage-gap-report.json', 'DB/API gap report workload must link the declared fuzz workload');
 assert.deepEqual(dbApiPerformanceFuzzerGapReport.inputs, dbApiPerformanceFuzzerGapReportInputIds, 'DB/API gap report workload inputs drifted');
-assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'executable', 'DB/API gap report workload readiness must be executable through artifact-postprocess');
-assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'artifact_aggregation', 'DB/API gap report workload must use artifact aggregation execution');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.level, 'executable', 'DB/API gap report workload readiness must use Homeboy artifact-postprocess');
+assert.equal(dbApiPerformanceFuzzerGapReport.readiness?.execution, 'homeboy_artifact_postprocess', 'DB/API gap report workload execution mode drifted');
 assert.deepEqual(dbApiPerformanceFuzzerGapReport.generic_upstream_contracts, [
   'homeboy.artifact-postprocess',
   'wp-codebox/wordpress-workload-run/v1',
   'homeboy-rigs/wordpress-coverage-gap-report/v1',
 ], 'DB/API gap report must link generic upstream artifact contracts');
-assert.match(dbApiPerformanceFuzzerGapReport.boundary_note || '', /temporary local bridge/, 'DB/API gap report must document the temporary local postprocess boundary');
+assert.match(dbApiPerformanceFuzzerGapReport.boundary_note || '', /Homeboy owns the generic artifact-postprocess runner contract/, 'DB/API gap report must document the Homeboy postprocess boundary');
 assertFuzzProofBundleRequirements(dbApiPerformanceFuzzerGapReport.readiness?.proof_bundle_requirements, { file: 'db-api-performance-fuzzer-gap-report readiness' });
-assert.ok(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers?.length > 0, 'DB/API gap report declaration must name upstream blockers');
-assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('generic artifact-postprocess primitive')), 'DB/API gap report declaration must list the remaining generic artifact-postprocess blocker');
-assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('generic hotspot aggregation')), 'DB/API gap report declaration must list the remaining generic hotspot blocker');
-assert.ok(dbApiPerformanceFuzzerGapReport.readiness.upstream_blockers.some((blocker) => blocker.includes('fuzz-suite-result')), 'DB/API gap report declaration must list the remaining fuzz-suite proof blocker');
+assert.deepEqual(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers, [], 'DB/API gap report must not claim upstream blockers after Homeboy primitive adoption');
 assert.equal(dbApiFuzzCampaign.schema, 'homeboy-rigs/woocommerce-db-api-fuzz-campaign/v1', 'DB/API fuzz campaign schema drifted');
 assert.equal(dbApiFuzzCampaign.id, 'woocommerce-db-api-fuzz-campaign', 'DB/API fuzz campaign id drifted');
 assert.equal(dbApiFuzzCampaign.profile_id, 'db-api-performance-fuzzer', 'DB/API fuzz campaign profile id drifted');
@@ -1102,11 +1099,9 @@ assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assertNoProofPlaceholders(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assertDbApiCampaignPromotionContract(dbApiFuzzCampaign);
 assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
-assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'product_local_temporary_bridge', 'DB/API fuzz campaign postprocess must be marked as product-local temporary bridge');
-assert.match(dbApiFuzzCampaign.postprocess?.boundary_note || '', /upstream Homeboy generic artifact-postprocess/, 'DB/API fuzz campaign postprocess must document the upstream artifact-postprocess boundary');
+assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'supported', 'DB/API fuzz campaign postprocess must use the upstream artifact-postprocess primitive');
+assert.match(dbApiFuzzCampaign.postprocess?.boundary_note || '', /generic primitive/, 'DB/API fuzz campaign postprocess must document the upstream artifact-postprocess boundary');
 assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.every((condition) => !condition.includes('args.helper')), 'DB/API fuzz campaign postprocess blockers must not claim missing helper/action/input/output/parameters binding');
-assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('generic artifact-postprocess primitive')), 'DB/API fuzz campaign postprocess blockers must include the generic artifact-postprocess primitive');
-assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('generic hotspot aggregation primitive')), 'DB/API fuzz campaign postprocess blockers must include the generic hotspot aggregation primitive');
 assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('reviewer-facing evidence')), 'DB/API fuzz campaign postprocess blockers must include reviewer-facing evidence collection before proven readiness');
 assert.deepEqual(dbApiFuzzCampaign.postprocess?.artifact_roots, [
   {
@@ -1137,7 +1132,7 @@ assertCampaignPostprocessOutput(
   'DB/API campaign performance-hotspots postprocess output'
 );
 assert.equal(dbApiFuzzCampaign.operator_commands?.offload_required, true, 'DB/API fuzz campaign must require offloaded execution');
-assert.equal(dbApiFuzzCampaign.operator_commands?.status, 'executable_pending_offloaded_artifacts', 'DB/API fuzz campaign operator commands must be executable but pending offloaded artifacts for proof');
+assert.equal(dbApiFuzzCampaign.operator_commands?.status, 'artifact_postprocess_supported_pending_reviewer_artifacts', 'DB/API fuzz campaign operator command status drifted');
 assert.equal(dbApiFuzzCampaign.operator_commands?.tracker_ref_placeholder, '$WC_TRACKER_REF', 'DB/API fuzz campaign must declare the tracker ref placeholder');
 assert.match(dbApiFuzzCampaign.operator_commands?.reviewer_evidence_refs_command || '', /homeboy runs refs/, 'DB/API fuzz campaign must declare the reviewer evidence refs command');
 assert.match(dbApiFuzzCampaign.operator_commands?.reviewer_evidence_refs_command || '', /--tracker-ref "\$WC_TRACKER_REF"/, 'DB/API reviewer evidence refs command must be tracker-scoped');
@@ -1146,13 +1141,13 @@ assert.match(dbApiFuzzCampaign.operator_commands?.postprocess_note || '', /\$\{a
 assert.ok(dbApiFuzzCampaign.operator_commands?.commands?.every((command) => command.startsWith('homeboy ')), 'DB/API fuzz campaign commands must use Homeboy rig/fuzz commands');
 assert.ok(dbApiFuzzCampaign.operator_commands.commands.filter((command) => command.startsWith('homeboy fuzz run ')).every((command) => command.includes('--tracker-ref "$WC_TRACKER_REF"')), 'DB/API fuzz campaign run commands must include the reviewer-facing tracker ref');
 assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload codebox-fuzz-suite-contract')), 'DB/API fuzz campaign must include Codebox fuzz-suite workload command');
-assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload coverage-gap-report')), 'DB/API fuzz campaign must include coverage gap postprocess workload command');
-assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload performance-hotspots-artifact-summary')), 'DB/API fuzz campaign must include hotspot summary postprocess workload command');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload coverage-gap-report')), 'DB/API fuzz campaign must offer coverage gap postprocess as an executable command');
+assert.ok(dbApiFuzzCampaign.operator_commands.commands.some((command) => command.includes('--workload performance-hotspots-artifact-summary')), 'DB/API fuzz campaign must offer hotspot postprocess as an executable command');
 const requiredCampaignSchemas = new Set([
   'wp-codebox/fuzz-suite-result/v1',
   'wp-codebox/wordpress-hotspots/v1',
   'homeboy/fuzz-coverage/v1',
-  'homeboy/woocommerce-performance-hotspots-summary/v1',
+  'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
   'homeboy-rigs/wordpress-coverage-gap-report/v1',
 ]);
 assert.deepEqual(new Set(dbApiFuzzCampaign.required_upstream_artifact_refs.map((artifact) => artifact.schema)), requiredCampaignSchemas, 'DB/API fuzz campaign required artifact schemas drifted');
@@ -1162,18 +1157,18 @@ for (const artifact of dbApiFuzzCampaign.required_upstream_artifact_refs) {
 }
 assert.equal(dbApiHotspotArtifactIo.schema, 'homeboy-rigs/woocommerce-db-api-hotspot-artifact-io/v1', 'DB/API hotspot artifact IO schema drifted');
 assert.equal(dbApiHotspotArtifactIo.postprocess_command, 'homeboy.artifact-postprocess', 'DB/API hotspot artifact IO must use upstream artifact-postprocess');
-assert.equal(dbApiHotspotArtifactIo.readiness?.level, 'executable', 'DB/API hotspot artifact IO must be executable through artifact-postprocess');
+assert.equal(dbApiHotspotArtifactIo.readiness?.level, 'executable', 'DB/API hotspot artifact IO must use upstream artifact-postprocess');
 assert.deepEqual(dbApiHotspotArtifactIo.generic_upstream_contracts, [
   'homeboy.artifact-postprocess',
   'wp-codebox/wordpress-workload-run/v1',
-  'homeboy/woocommerce-performance-hotspots-summary/v1',
+  'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
 ], 'DB/API hotspot artifact IO must link generic upstream artifact contracts');
 assertFuzzProofBundleRequirements(dbApiHotspotArtifactIo.readiness?.proof_bundle_requirements, { file: 'db-api-hotspot-artifact-io readiness' });
 assert.deepEqual(new Set(dbApiHotspotArtifactIo.expected_inputs.map((input) => input.workload_id)), new Set(dbApiPerformanceFuzzerGapReportInputIds), 'DB/API hotspot artifact IO inputs drifted');
-assert.equal(dbApiHotspotArtifactIo.sample_output?.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1', 'DB/API hotspot sample output schema drifted');
+assert.equal(dbApiHotspotArtifactIo.sample_output?.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1', 'DB/API hotspot sample output schema drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.threshold_policy, 'relative_ranking_only', 'DB/API hotspot sample output must use relative ranking');
-assertExecutableReadinessNeedsProofRequirements(coverageGapReportWorkload.metadata?.readiness, 'coverage-gap-report workload readiness');
-assertExecutableReadinessNeedsProofRequirements(performanceHotspotsWorkload.metadata?.readiness, 'performance-hotspots-artifact-summary workload readiness');
+assert.equal(coverageGapReportWorkload.metadata?.generic_primitive?.status, 'supported', 'coverage-gap-report workload must mark artifact-postprocess as supported');
+assert.equal(performanceHotspotsWorkload.metadata?.generic_primitive?.status, 'supported', 'performance-hotspots workload must mark artifact-postprocess as supported');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.read?.level, 'executable', 'DB/API rig profile read CRUD boundary must be executable');
 for (const operation of ['create', 'update', 'delete']) {
   assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.readiness?.crud?.[operation]?.level, 'executable', `DB/API rig profile ${operation} CRUD boundary must be executable`);

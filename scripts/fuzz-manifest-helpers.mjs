@@ -267,7 +267,7 @@ export function assertRequiredFuzzProofContracts(manifest, {
   }
 }
 
-export function assertArtifactPostprocessWorkloadContract(workload, { id, action, artifact, outputPath, schema }) {
+export function assertArtifactPostprocessWorkloadContract(workload, { id, action, artifact, outputPath, schema, runnerSupportStatus = 'supported', readinessLevel = 'executable' }) {
   assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} workload must use the generic workload-run contract`);
   assert.equal(workload.id, id, `${id} workload id drifted`);
   assert.equal(workload.steps?.length, 1, `${id} must declare one artifact postprocess step`);
@@ -303,11 +303,16 @@ export function assertArtifactPostprocessWorkloadContract(workload, { id, action
     },
   }, `${id} collected artifact declaration drifted`);
 
-  assert.equal(workload.metadata?.runner_support_status, 'supported', `${id} must use the supported artifact-postprocess runner binding`);
-  assert.equal(workload.metadata?.readiness?.level, 'executable', `${id} readiness must be executable through the generic artifact-postprocess command`);
+  assert.equal(workload.metadata?.runner_support_status, runnerSupportStatus, `${id} artifact-postprocess runner support status drifted`);
+  assert.equal(workload.metadata?.readiness?.level, readinessLevel, `${id} artifact-postprocess readiness level drifted`);
   assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('artifact root')), `${id} readiness must describe the artifact-root proof condition`);
   assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('reviewer-facing evidence')), `${id} readiness must describe the reviewer-facing artifact proof condition`);
-  assert.equal(workload.metadata?.missing_upstream_contract, undefined, `${id} must not claim missing upstream artifact-postprocess fields`);
+  if (runnerSupportStatus === 'blocked') {
+    assert.equal(workload.metadata?.generic_primitive?.status, 'blocked', `${id} blocked workload must mark the generic primitive as blocked`);
+    assert.ok(workload.metadata?.missing_upstream_contract?.includes('artifact-postprocess'), `${id} blocked workload must name the missing upstream artifact-postprocess contract`);
+  } else {
+    assert.equal(workload.metadata?.missing_upstream_contract, undefined, `${id} must not claim missing upstream artifact-postprocess fields`);
+  }
 }
 
 function collectRequiredArtifactNames(manifest) {

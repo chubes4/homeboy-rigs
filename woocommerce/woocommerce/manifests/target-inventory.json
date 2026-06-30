@@ -388,6 +388,7 @@
       "owner_profile": "db-api-performance-fuzzer",
       "readiness": {
         "level": "executable",
+        "contract": "homeboy/artifact-postprocess-plan/v1 plus homeboy/performance-hotspots-summary/v1",
         "proof_bundle_requirements": {
           "status": "required_before_proven",
           "required_refs": [
@@ -549,7 +550,7 @@
     "performance_hotspots": {
       "command": "wordpress.summarize-performance-hotspots",
       "status": "preferred",
-      "artifact_schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "artifact_schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
       "workload_ids": [
         "performance-hotspots-artifact-summary"
       ]

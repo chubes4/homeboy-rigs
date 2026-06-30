@@ -71,11 +71,11 @@ test('coverage matrix reflects Jetpack mutation manifests as executable rows wit
 
 test('coverage matrix keeps performance proof tied to relative hotspot artifacts, not smoke output', () => {
   const artifactSchema = wooPerformanceHotspots.metadata.artifact_schema;
-  assert.equal(artifactSchema.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1');
+  assert.equal(artifactSchema.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1');
   assert.equal(artifactSchema.ranking.mode, 'relative');
   assert.equal(artifactSchema.threshold_policy, 'relative_ranking_only');
 
-  assert.ok(matrix.includes('Relative hotspot output (`homeboy/woocommerce-performance-hotspots-summary/v1`) is the primary performance evidence'));
+  assert.ok(matrix.includes('Relative hotspot output (`homeboy-rigs/woocommerce-performance-hotspots-summary/v1`) is the primary performance evidence'));
   assert.ok(matrix.includes('smoke output are not proof'));
   assert.ok(!matrix.toLowerCase().includes('rollback'), 'matrix must avoid stale rollback proof language');
 });
