@@ -173,7 +173,8 @@ test('builds WP Codebox recipe setup for SSI Composer dependency overrides', () 
     mode: 'readonly',
   });
   assert.equal(recipe.workflow.steps[0].command, 'wordpress.run-php');
-  assert.match(recipe.workflow.steps[0].args[0], /^code=\s*\n\$pluginPath =/);
+  assert.match(recipe.workflow.steps[0].args[0], /^code=\s*\nif \(!defined\('STDERR'\)\)/);
+  assert.match(recipe.workflow.steps[0].args[0], /\$pluginPath =/);
   assert.doesNotMatch(recipe.workflow.steps[0].args[0], /^command=eval/);
   assert.match(recipe.workflow.steps[0].args[0], /composer/);
   assert.match(recipe.workflow.steps[0].args[0], /automattic\/blocks-engine-php-transformer/);

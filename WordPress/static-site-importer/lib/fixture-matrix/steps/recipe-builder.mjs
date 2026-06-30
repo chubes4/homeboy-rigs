@@ -239,6 +239,12 @@ function buildDependencyOverrideSetup(input, importer) {
 
 function dependencyOverrideComposerSetupPhp({ pluginPath, packagePath, packageName }) {
   return `
+if (!defined('STDERR')) {
+    define('STDERR', fopen('php://stderr', 'wb'));
+}
+if (!defined('STDOUT')) {
+    define('STDOUT', fopen('php://stdout', 'wb'));
+}
 $pluginPath = ${phpString(pluginPath)};
 $packagePath = ${phpString(packagePath)};
 $packageName = ${phpString(packageName)};
