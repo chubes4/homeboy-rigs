@@ -36,7 +36,8 @@ const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-
 const personalPathPrefix = '/Users/' + 'chubes/';
 const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
-const cleanupIntents = new Set(['none', 'external', 'manual', 'pipeline']);
+const resourceCleanupIntentSchema = 'homeboy/resource-cleanup-intent/v1';
+const cleanupIntents = new Set(['dry_run', 'apply']);
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -188,12 +189,20 @@ function lintLifecycleCleanup(rel, rig) {
   const cleanup = lifecycleCleanupPolicy(rig);
 
   if (cleanup) {
+    if (cleanup.schema !== resourceCleanupIntentSchema) {
+      failures.push(`${rel}: lifecycle.cleanup.schema must be ${resourceCleanupIntentSchema}`);
+    }
+
     if (!cleanupIntents.has(cleanup.intent)) {
       failures.push(`${rel}: lifecycle.cleanup.intent must be one of ${[...cleanupIntents].join(', ')}`);
     }
 
-    if (typeof cleanup.reason !== 'string' || cleanup.reason.trim() === '') {
-      failures.push(`${rel}: lifecycle.cleanup.reason must explain the cleanup boundary`);
+    lintCleanupOwnershipMetadata(rel, 'lifecycle.cleanup.ownership.dry_run', cleanup.ownership?.dry_run);
+
+    if (cleanup.intent === 'apply') {
+      lintCleanupOwnershipMetadata(rel, 'lifecycle.cleanup.ownership.apply', cleanup.ownership?.apply);
+    } else if (cleanup.ownership?.apply) {
+      lintCleanupOwnershipMetadata(rel, 'lifecycle.cleanup.ownership.apply', cleanup.ownership.apply);
     }
   }
 
@@ -201,7 +210,20 @@ function lintLifecycleCleanup(rel, rig) {
     return;
   }
 
-  failures.push(`${rel}: rigs with declared resources and empty pipeline.down must declare lifecycle.cleanup intent`);
+  failures.push(`${rel}: packages with declared resources and empty pipeline.down must declare lifecycle.cleanup resource cleanup intent`);
+}
+
+function lintCleanupOwnershipMetadata(rel, field, metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    failures.push(`${rel}: ${field} must declare cleanup ownership metadata`);
+    return;
+  }
+
+  for (const key of ['owner', 'declared_by', 'reason']) {
+    if (typeof metadata[key] !== 'string' || metadata[key].trim() === '') {
+      failures.push(`${rel}: ${field}.${key} must not be blank`);
+    }
+  }
 }
 
 function lintSharedPaths(rel, rig) {

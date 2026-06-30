@@ -316,7 +316,7 @@ export function validatePortableSource({ rel, contents }) {
   assert.match(result.stderr, /Woo Stripe ECE workload must use the declared WooCommerce component\/env path/);
 });
 
-test('rejects rigs with resources, empty down lifecycle, and no cleanup policy', () => {
+test('rejects packages with resources, empty down lifecycle, and no cleanup contract', () => {
   const directory = createRigPackage({
     rig: {
       resources: {
@@ -334,16 +334,23 @@ test('rejects rigs with resources, empty down lifecycle, and no cleanup policy',
   const result = runLint(directory);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /declared resources and empty pipeline\.down must declare lifecycle\.cleanup intent/);
+  assert.match(result.stderr, /declared resources and empty pipeline\.down must declare lifecycle\.cleanup resource cleanup intent/);
 });
 
-test('accepts explicit cleanup policy for rigs with resources and empty down lifecycle', () => {
+test('accepts explicit cleanup contract for packages with resources and empty down lifecycle', () => {
   const directory = createRigPackage({
     rig: {
       lifecycle: {
         cleanup: {
-          intent: 'external',
-          reason: 'The runner owns the declared resource boundary.',
+          schema: 'homeboy/resource-cleanup-intent/v1',
+          intent: 'dry_run',
+          ownership: {
+            dry_run: {
+              owner: 'runner',
+              declared_by: 'homeboy-rigs',
+              reason: 'The runner owns the declared resource boundary.',
+            },
+          },
         },
       },
       resources: {
@@ -364,7 +371,7 @@ test('accepts explicit cleanup policy for rigs with resources and empty down lif
   assert.doesNotMatch(result.stderr, /declared resources and empty pipeline\.down/);
 });
 
-test('rejects invalid explicit cleanup policy', () => {
+test('rejects invalid explicit cleanup contract', () => {
   const directory = createRigPackage({
     rig: {
       lifecycle: {
@@ -381,8 +388,9 @@ test('rejects invalid explicit cleanup policy', () => {
   const result = runLint(directory);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /lifecycle\.cleanup\.intent must be one of none, external, manual, pipeline/);
-  assert.match(result.stderr, /lifecycle\.cleanup\.reason must explain the cleanup boundary/);
+  assert.match(result.stderr, /lifecycle\.cleanup\.schema must be homeboy\/resource-cleanup-intent\/v1/);
+  assert.match(result.stderr, /lifecycle\.cleanup\.intent must be one of dry_run, apply/);
+  assert.match(result.stderr, /lifecycle\.cleanup\.ownership\.dry_run must declare cleanup ownership metadata/);
 });
 
 test('rejects committed local Developer checkout paths in stacks', () => {

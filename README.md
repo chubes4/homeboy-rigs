@@ -83,6 +83,26 @@ node scripts/lint-rig-packages.mjs
 
 GitHub Actions runs the package lint with PHP installed.
 
+## Resource Cleanup Intent
+
+Packages that declare resources and leave `pipeline.down` empty must declare `lifecycle.cleanup` using Homeboy's resource cleanup intent contract:
+
+```json
+{
+  "schema": "homeboy/resource-cleanup-intent/v1",
+  "intent": "dry_run",
+  "ownership": {
+    "dry_run": {
+      "owner": "wp-codebox-runner-namespace",
+      "declared_by": "homeboy-rigs",
+      "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; component checkouts are user-owned."
+    }
+  }
+}
+```
+
+Use `intent: "dry_run"` when metadata records ownership without asking Homeboy to delete resources. Use `intent: "apply"` only when cleanup should be applied and include matching `ownership.apply` metadata.
+
 ## Automattic/studio
 
 `rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.

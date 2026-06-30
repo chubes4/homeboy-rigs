@@ -59,8 +59,15 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "external",
-      "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; the WooCommerce component checkout is user-owned."
+      "schema": "homeboy/resource-cleanup-intent/v1",
+      "intent": "dry_run",
+      "ownership": {
+        "dry_run": {
+          "owner": "wp-codebox-runner-namespace",
+          "declared_by": "homeboy-rigs",
+          "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; the WooCommerce component checkout is user-owned."
+        }
+      }
     }
   },
   "requirements": {

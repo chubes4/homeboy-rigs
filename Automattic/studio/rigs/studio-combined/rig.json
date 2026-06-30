@@ -20,8 +20,15 @@
 
   "lifecycle": {
     "cleanup": {
-      "intent": "pipeline",
-      "reason": "pipeline.down stops the Studio daemon and tarball server; component checkouts remain user-owned resources."
+      "schema": "homeboy/resource-cleanup-intent/v1",
+      "intent": "dry_run",
+      "ownership": {
+        "dry_run": {
+          "owner": "pipeline.down",
+          "declared_by": "homeboy-rigs",
+          "reason": "pipeline.down stops the Studio daemon and tarball server; component checkouts remain user-owned resources."
+        }
+      }
     }
   },
 

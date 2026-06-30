@@ -15,8 +15,15 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "manual",
-      "reason": "The rig runs a repo-local fixture matrix against a user-owned Blocks Engine checkout and does not create separate runtime resources."
+      "schema": "homeboy/resource-cleanup-intent/v1",
+      "intent": "dry_run",
+      "ownership": {
+        "dry_run": {
+          "owner": "operator",
+          "declared_by": "homeboy-rigs",
+          "reason": "The workload runs a repo-local fixture matrix against a user-owned Blocks Engine checkout and does not create separate runtime resources."
+        }
+      }
     }
   },
   "pipeline": {

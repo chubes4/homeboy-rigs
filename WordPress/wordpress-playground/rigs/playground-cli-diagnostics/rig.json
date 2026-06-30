@@ -20,8 +20,15 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "manual",
-      "reason": "The rig may install dependencies into the user-owned Playground checkout; removing that checkout state is an operator decision."
+      "schema": "homeboy/resource-cleanup-intent/v1",
+      "intent": "dry_run",
+      "ownership": {
+        "dry_run": {
+          "owner": "operator",
+          "declared_by": "homeboy-rigs",
+          "reason": "The workload may install dependencies into the user-owned Playground checkout; removing that checkout state is an operator decision."
+        }
+      }
     }
   },
   "bench_workloads": {
