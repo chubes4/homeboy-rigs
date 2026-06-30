@@ -31,6 +31,24 @@ const payload = {
   plan_kind: executionSupported ? (runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan') : 'declared_offloaded_command_plan',
   run_id_prefix: runIdPrefix,
   workload_ids: profileWorkloads,
+  upstream_contract_artifact_sources: [
+    {
+      contract: 'homeboy/isolation-proof/v1',
+      source: 'homeboy fuzz run Lab/offloaded runner metadata',
+      persisted_artifact_kind: 'fuzz_result_envelope',
+      persisted_fields: [
+        'results.planner.isolation_proof_source',
+        'results.isolation.proof_source',
+      ],
+      required_command_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated', '--require-result-envelope'],
+    },
+    {
+      contract: 'wp-codebox/sandbox-isolation-proof/v1',
+      source: 'WP Codebox fuzz artifact bundle emitted by the offloaded runtime',
+      persisted_artifact_kind: 'fuzz_artifacts',
+      semantic_key: 'fuzz.disposable_sandbox_boundary',
+    },
+  ],
   blockers: executionSupported ? [] : [
     'manifest.readiness.execution_enabled is false because REST CRUD fixture-plan mutations are disabled',
   ],
@@ -53,6 +71,8 @@ const payload = {
           '--status', 'completed',
           '--tracker-ref', options.trackerRef,
           '--artifact-kind', 'fuzz.execution_request',
+          '--artifact-kind', 'fuzz_result_envelope',
+          '--artifact-kind', 'fuzz_artifacts',
           '--artifact-kind', 'fuzz.coverage_reconciliation',
           '--artifact-kind', 'fuzz.payload_family_coverage',
           '--artifact-kind', 'fuzz.chaos_sequence_packs',
@@ -168,7 +188,7 @@ function fuzzRunCommandForWorkload(workloadId, index, options) {
     '--tracker-ref', options.trackerRef,
     '--allow-destructive',
     '--isolation', 'isolated',
-    '--isolation-proof', '${artifact.root}/isolation-proof.json',
+    '--require-result-envelope',
   ];
 
   if (options.runner) {
