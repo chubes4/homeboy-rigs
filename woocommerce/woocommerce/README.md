@@ -188,6 +188,15 @@ The Woo DB/API fuzz progression is split into two focused profiles:
   represented by the fixture-plan/delete-boundary contracts and remains
   not-proven until reviewer-facing artifact refs exist.
 
+Woo scale profiles live in `manifests/scale-profiles.json`. They declare
+product-owned values for large catalogs, variation-heavy catalogs, HPOS order
+history, customers, coupons, layered-nav attributes, shipping/tax zones, Action
+Scheduler backlog, polluted options/transients, admin list tables, and REST
+pagination/search/filter collection scale. Each profile feeds the Homeboy
+Extensions generic WordPress workload scale profile schema through
+`workload_scale_profile`; this rig does not implement generic fixture generation
+or claim local benchmark/fuzz proof for those declarations.
+
 The aggressive isolated firehose, product chaos sequence packs, and generated REST
 CRUD fixture-plan handoff are executable contract surfaces, not proof claims.
 Every operation in `manifests/rest-crud-fixture-plan.json` is contract-backed by

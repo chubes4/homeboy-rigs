@@ -1,0 +1,420 @@
+{
+  "schema": "homeboy-rigs/woocommerce-scale-profiles/v1",
+  "id": "woocommerce-scale-profiles",
+  "label": "WooCommerce scale profiles",
+  "description": "Product-owned WooCommerce workload scale profiles that feed Homeboy Extensions generic WordPress workload scale dimensions. These declarations provide Woo-specific targets and values only; generic fixture generation remains owned by Homeboy Extensions.",
+  "hbex_scale_profile_schema": "homeboy/wordpress-workload-scale-profile/v1",
+  "profiles": [
+    {
+      "id": "woo-large-catalog",
+      "label": "Large WooCommerce catalog",
+      "intent": "Exercise catalog and product collection surfaces with a high product count and common Woo product mix.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-large-catalog",
+        "label": "Large WooCommerce catalog",
+        "dimensions": [
+          {
+            "id": "woo-products-volume",
+            "dimension_id": "catalog-content-volume",
+            "category": "catalog-content-volume",
+            "label": "Woo product catalog volume",
+            "target": {
+              "post_type": "product",
+              "rest_routes": ["/wc/v3/products", "/wc/store/v1/products"],
+              "admin_pages": ["/wp-admin/edit.php?post_type=product"]
+            },
+            "values": {
+              "products": 100000,
+              "simple_products": 70000,
+              "variable_products": 20000,
+              "external_products": 5000,
+              "grouped_products": 5000,
+              "published_ratio": 0.96,
+              "products_per_page": 100
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-many-variations",
+      "label": "High-variation WooCommerce catalog",
+      "intent": "Exercise variation-heavy product storage, parent/child lookup, and variation REST/admin surfaces.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-many-variations",
+        "label": "High-variation WooCommerce catalog",
+        "dimensions": [
+          {
+            "id": "woo-variation-resource-volume",
+            "dimension_id": "resource-volume",
+            "category": "resource-volume",
+            "label": "Woo product variation resource volume",
+            "target": {
+              "post_type": "product_variation",
+              "parent_post_type": "product",
+              "rest_routes": ["/wc/v3/products/<product_id>/variations"],
+              "admin_pages": ["/wp-admin/post.php?post=<product_id>&action=edit"]
+            },
+            "values": {
+              "variable_products": 25000,
+              "variations": 750000,
+              "variations_per_variable_product": 30,
+              "default_attributes_per_variable_product": 3,
+              "variation_stock_rows": 750000
+            },
+            "executable_state": "plan-only"
+          },
+          {
+            "id": "woo-variation-meta-density",
+            "dimension_id": "meta-density",
+            "category": "meta-density",
+            "label": "Woo variation metadata density",
+            "target": {
+              "tables": ["wp_postmeta"],
+              "meta_object_type": "product_variation"
+            },
+            "values": {
+              "meta_rows": 9000000,
+              "meta_keys_per_variation": 12,
+              "hot_keys": ["_price", "_regular_price", "_stock", "_stock_status", "attribute_pa_size", "attribute_pa_color"]
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-hpos-high-order-history",
+      "label": "HPOS high order history",
+      "intent": "Exercise HPOS order tables, order item tables, and order admin/API collections with large retained history.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-hpos-high-order-history",
+        "label": "HPOS high order history",
+        "dimensions": [
+          {
+            "id": "woo-hpos-order-resource-volume",
+            "dimension_id": "resource-volume",
+            "category": "resource-volume",
+            "label": "Woo HPOS order resource volume",
+            "target": {
+              "resource": "shop_order",
+              "tables": ["wp_wc_orders", "wp_wc_order_addresses", "wp_wc_order_operational_data"],
+              "rest_routes": ["/wc/v3/orders"],
+              "admin_pages": ["/wp-admin/admin.php?page=wc-orders"]
+            },
+            "values": {
+              "orders": 2000000,
+              "orders_per_customer_p95": 25,
+              "retention_years": 7,
+              "completed_ratio": 0.82,
+              "refunded_ratio": 0.08,
+              "failed_ratio": 0.03
+            },
+            "executable_state": "plan-only"
+          },
+          {
+            "id": "woo-hpos-order-item-meta-density",
+            "dimension_id": "meta-density",
+            "category": "meta-density",
+            "label": "Woo HPOS order item metadata density",
+            "target": {
+              "tables": ["wp_woocommerce_order_items", "wp_woocommerce_order_itemmeta"]
+            },
+            "values": {
+              "order_items": 12000000,
+              "order_itemmeta_rows": 72000000,
+              "line_items_per_order_p95": 8,
+              "meta_keys_per_line_item": 6
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-customer-volume",
+      "label": "Large WooCommerce customer base",
+      "intent": "Exercise customer lookup, account order history, and customer REST/admin collections at high account volume.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-customer-volume",
+        "label": "Large WooCommerce customer base",
+        "dimensions": [
+          {
+            "id": "woo-customer-account-volume",
+            "dimension_id": "account-volume",
+            "category": "account-volume",
+            "label": "Woo customer account volume",
+            "target": {
+              "roles": ["customer"],
+              "tables": ["wp_users", "wp_usermeta", "wp_wc_customer_lookup"],
+              "rest_routes": ["/wc/v3/customers"],
+              "admin_pages": ["/wp-admin/users.php?role=customer"]
+            },
+            "values": {
+              "customers": 1200000,
+              "registered_customer_ratio": 0.7,
+              "guest_customer_lookup_rows": 500000,
+              "usermeta_rows_per_registered_customer": 18
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-coupon-volume",
+      "label": "Large WooCommerce coupon set",
+      "intent": "Exercise coupon lookup, validation, list-table, and REST collection surfaces with large coupon volume.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-coupon-volume",
+        "label": "Large WooCommerce coupon set",
+        "dimensions": [
+          {
+            "id": "woo-coupon-resource-volume",
+            "dimension_id": "resource-volume",
+            "category": "resource-volume",
+            "label": "Woo coupon resource volume",
+            "target": {
+              "post_type": "shop_coupon",
+              "rest_routes": ["/wc/v3/coupons"],
+              "admin_pages": ["/wp-admin/edit.php?post_type=shop_coupon"]
+            },
+            "values": {
+              "coupons": 250000,
+              "active_ratio": 0.35,
+              "expired_ratio": 0.55,
+              "usage_restricted_ratio": 0.4,
+              "coupon_meta_rows_per_coupon": 14
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-layered-nav-attributes",
+      "label": "Layered navigation attribute density",
+      "intent": "Exercise Woo layered navigation term counts, product attribute lookup, and high-cardinality product filters.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-layered-nav-attributes",
+        "label": "Layered navigation attribute density",
+        "dimensions": [
+          {
+            "id": "woo-product-attribute-taxonomy-density",
+            "dimension_id": "taxonomy-density",
+            "category": "taxonomy-density",
+            "label": "Woo product attribute taxonomy density",
+            "target": {
+              "taxonomies": ["pa_color", "pa_size", "pa_brand", "pa_material"],
+              "tables": ["wp_terms", "wp_term_taxonomy", "wp_term_relationships", "wp_wc_product_attributes_lookup"],
+              "frontend_widgets": ["woocommerce_layered_nav"]
+            },
+            "values": {
+              "attribute_taxonomies": 60,
+              "attribute_terms": 30000,
+              "terms_per_product_p95": 18,
+              "lookup_rows": 1800000,
+              "filter_combinations_p95": 6
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-shipping-tax-zones",
+      "label": "Shipping and tax zone density",
+      "intent": "Exercise Woo shipping zone/method/rate and tax lookup surfaces with dense regional configuration.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-shipping-tax-zones",
+        "label": "Shipping and tax zone density",
+        "dimensions": [
+          {
+            "id": "woo-shipping-tax-resource-volume",
+            "dimension_id": "resource-volume",
+            "category": "resource-volume",
+            "label": "Woo shipping and tax configuration volume",
+            "target": {
+              "resources": ["shipping_zone", "shipping_method", "tax_rate"],
+              "tables": ["wp_woocommerce_shipping_zones", "wp_woocommerce_shipping_zone_methods", "wp_woocommerce_shipping_zone_locations", "wp_woocommerce_tax_rates", "wp_woocommerce_tax_rate_locations"],
+              "admin_pages": ["/wp-admin/admin.php?page=wc-settings&tab=shipping", "/wp-admin/admin.php?page=wc-settings&tab=tax"]
+            },
+            "values": {
+              "shipping_zones": 1500,
+              "shipping_zone_locations": 75000,
+              "shipping_methods": 6000,
+              "tax_rates": 50000,
+              "tax_rate_locations": 250000
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-action-scheduler-backlog",
+      "label": "Action Scheduler backlog",
+      "intent": "Exercise Action Scheduler queue lookup and Woo background processing with large pending/failed/completed action history.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-action-scheduler-backlog",
+        "label": "Action Scheduler backlog",
+        "dimensions": [
+          {
+            "id": "woo-action-scheduler-queue-backlog",
+            "dimension_id": "queue-backlog",
+            "category": "queue-backlog",
+            "label": "Woo Action Scheduler queue backlog",
+            "target": {
+              "tables": ["wp_actionscheduler_actions", "wp_actionscheduler_claims", "wp_actionscheduler_groups", "wp_actionscheduler_logs"],
+              "hooks": ["woocommerce_deliver_webhook_async", "woocommerce_cleanup_sessions", "wc_admin_unsnooze_admin_notes"],
+              "admin_pages": ["/wp-admin/tools.php?page=action-scheduler"]
+            },
+            "values": {
+              "pending_actions": 250000,
+              "failed_actions": 20000,
+              "complete_actions_retained": 2000000,
+              "logs": 8000000,
+              "groups": 40,
+              "stale_claims": 500
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-polluted-options-transients",
+      "label": "Polluted Woo options and transients",
+      "intent": "Exercise Woo option/transient lookup, autoload pressure, and stale cache cleanup surfaces with polluted runtime state.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-polluted-options-transients",
+        "label": "Polluted Woo options and transients",
+        "dimensions": [
+          {
+            "id": "woo-option-pollution",
+            "dimension_id": "option-pollution",
+            "category": "option-pollution",
+            "label": "Woo option pollution",
+            "target": {
+              "table": "wp_options",
+              "option_prefixes": ["woocommerce_", "wc_", "_wc_", "action_scheduler_"]
+            },
+            "values": {
+              "options": 150000,
+              "autoloaded_options": 2500,
+              "autoloaded_bytes": 67108864,
+              "large_option_bytes_p95": 131072
+            },
+            "executable_state": "plan-only"
+          },
+          {
+            "id": "woo-transient-pollution",
+            "dimension_id": "transient-pollution",
+            "category": "transient-pollution",
+            "label": "Woo transient pollution",
+            "target": {
+              "table": "wp_options",
+              "transient_prefixes": ["_transient_wc_", "_transient_timeout_wc_", "_site_transient_wc_"]
+            },
+            "values": {
+              "transients": 500000,
+              "expired_ratio": 0.65,
+              "timeout_rows": 500000,
+              "largest_transient_bytes_p95": 262144
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-admin-list-table-scale",
+      "label": "Woo admin list-table scale",
+      "intent": "Exercise high-row Woo admin list tables for products, orders, coupons, customers, and scheduled actions.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-admin-list-table-scale",
+        "label": "Woo admin list-table scale",
+        "dimensions": [
+          {
+            "id": "woo-admin-list-table-products-orders",
+            "dimension_id": "admin-list-table-scale",
+            "category": "admin-list-table-scale",
+            "label": "Woo admin list-table rows",
+            "target": {
+              "admin_pages": [
+                "/wp-admin/edit.php?post_type=product",
+                "/wp-admin/admin.php?page=wc-orders",
+                "/wp-admin/edit.php?post_type=shop_coupon",
+                "/wp-admin/users.php?role=customer",
+                "/wp-admin/tools.php?page=action-scheduler"
+              ]
+            },
+            "values": {
+              "product_rows": 100000,
+              "order_rows": 2000000,
+              "coupon_rows": 250000,
+              "customer_rows": 1200000,
+              "scheduled_action_rows": 2270000,
+              "page_size": 100,
+              "search_terms": 50
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    },
+    {
+      "id": "woo-rest-pagination-search-filter-scale",
+      "label": "Woo REST pagination, search, and filter scale",
+      "intent": "Exercise Woo REST and Store API collection pagination/search/filter behavior against large Woo-owned collections.",
+      "workload_scale_profile": {
+        "schema": "homeboy/wordpress-workload-scale-profile/v1",
+        "id": "woo-rest-pagination-search-filter-scale",
+        "label": "Woo REST pagination, search, and filter scale",
+        "dimensions": [
+          {
+            "id": "woo-rest-collection-scale",
+            "dimension_id": "rest-collection-scale",
+            "category": "rest-collection-scale",
+            "label": "Woo REST collection scale",
+            "target": {
+              "rest_routes": [
+                "/wc/v3/products",
+                "/wc/v3/products/<product_id>/variations",
+                "/wc/v3/orders",
+                "/wc/v3/customers",
+                "/wc/v3/coupons",
+                "/wc/store/v1/products"
+              ],
+              "methods": ["GET"]
+            },
+            "values": {
+              "per_page": 100,
+              "page_depth_p95": 1000,
+              "products": 100000,
+              "variations": 750000,
+              "orders": 2000000,
+              "customers": 1200000,
+              "coupons": 250000,
+              "search_terms": 100,
+              "filter_combinations": 80,
+              "sort_orders": ["date", "modified", "title", "price", "popularity", "rating"]
+            },
+            "executable_state": "plan-only"
+          }
+        ]
+      }
+    }
+  ]
+}
