@@ -218,7 +218,7 @@ function buildDependencyOverrideSetup(input, importer) {
     steps: [
       {
         command: 'wordpress.wp-cli',
-        args: [`command=eval ${shellToken(dependencyOverrideComposerSetupPhp({
+        args: [`command=eval ${wpCliDoubleQuotedToken(dependencyOverrideComposerSetupPhp({
           pluginPath: sandboxPluginPath,
           packagePath: sandboxPackagePath,
           packageName,
@@ -300,6 +300,11 @@ if ($exitCode !== 0) {
 
 function phpString(value) {
   return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function wpCliDoubleQuotedToken(value) {
+  const text = String(value || '');
+  return `"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 // Convert an in-sandbox WordPress filesystem path into its web-served path by
