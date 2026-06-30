@@ -102,7 +102,9 @@ const runtimePrepFiles = new Set([
 const composerDependencyStep = (rig.requirements?.dependency_materialization || []).find((step) => step.id === 'woocommerce-php-package-dependencies');
 
 assert.ok(composerDependencyStep, 'WooCommerce Composer dependency materialization step must be declared');
-assert.equal(composerDependencyStep.command, 'XDEBUG_MODE=off homeboy deps install --path "${components.woocommerce.path}/plugins/woocommerce"');
+assert.equal(composerDependencyStep.command, 'homeboy deps install --path "${components.woocommerce.path}/plugins/woocommerce"');
+assert.deepEqual(composerDependencyStep.env, { XDEBUG_MODE: 'off' });
+assert.doesNotMatch(composerDependencyStep.command, /^[A-Za-z_][A-Za-z0-9_]*=/);
 assert.equal(composerDependencyStep.inputs?.recipe, 'wordpress-php-package-dependencies');
 assert.ok(!/prepare-runtime-dependency\.sh/.test(composerDependencyStep.command), 'Composer dependency materialization must not depend on a rig script path in Lab');
 assert.ok(!/\$\{components\.woocommerce\.path\}\/tools\//.test(composerDependencyStep.command), 'Composer dependency materialization must not reference a Woo checkout tools script unless the component supplies it');
