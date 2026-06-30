@@ -39,7 +39,7 @@ log. The reviewer-facing proof bundle must contain artifacts with these schemas:
 - `wp-codebox/fuzz-suite-result/v1` for the runtime-backed Codebox fuzz-suite result.
 - `wp-codebox/wordpress-hotspots/v1` for WordPress hotspot discovery from the same campaign.
 - `homeboy/fuzz-coverage/v1` for Homeboy fuzz coverage.
-- `homeboy/woocommerce-performance-hotspots-summary/v1` for hotspot ranking output.
+- `homeboy-rigs/woocommerce-performance-hotspots-summary/v1` for rig-owned hotspot ranking output.
 - `homeboy-rigs/wordpress-coverage-gap-report/v1` for the coverage gap report.
 
 Every proof ref must be durable and reviewer-facing, using one of the accepted
@@ -176,10 +176,10 @@ For a candidate comparison, repeat the same plan commands with `candidate` in th
 
 ## Run
 
-Run the whole campaign in the same approved offloaded environment so the
-postprocess workloads can consume the same persisted artifact root. Use the
-selected WooCommerce checkout through `--path` when the runner is validating a
-specific baseline or candidate worktree.
+Run the executable campaign workloads in the same approved offloaded environment
+so a future postprocess primitive can consume the same persisted artifact root.
+Use the selected WooCommerce checkout through `--path` when the runner is
+validating a specific baseline or candidate worktree.
 
 Baseline:
 
@@ -190,8 +190,6 @@ homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseli
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload db-inventory --run-id wc-db-api-db-inventory-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report-baseline --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary-baseline --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 ```
 
 Candidate:
@@ -203,9 +201,12 @@ homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candid
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload db-inventory --run-id wc-db-api-db-inventory-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report-candidate --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary-candidate --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 ```
+
+`coverage-gap-report` and `performance-hotspots-artifact-summary` are declared
+data-only artifact-postprocess contracts. Do not run them as proof until Homeboy
+ships a real artifact-postprocess runner primitive for persisted artifact roots
+and generic hotspot aggregation semantics.
 
 Use `homeboy runner job logs` to follow detached jobs when the selected runner
 accepts the handoff. Keep the tracker updated with the accepted job ids and final
@@ -244,7 +245,7 @@ not local files. Required proof refs:
 - `wordpress_hotspots` with schema `wp-codebox/wordpress-hotspots/v1`.
 - `homeboy_fuzz_coverage` with schema `homeboy/fuzz-coverage/v1`.
 - `coverage_gap_report` with schema `homeboy-rigs/wordpress-coverage-gap-report/v1`.
-- `performance_hotspots_summary` with schema `homeboy/woocommerce-performance-hotspots-summary/v1`.
+- `performance_hotspots_summary` with schema `homeboy-rigs/woocommerce-performance-hotspots-summary/v1`.
 
 ## Compare
 
@@ -292,7 +293,7 @@ Required artifacts:
 - `wp-codebox/wordpress-hotspots/v1`: durable artifact ref from `homeboy runs refs`
 - `homeboy/fuzz-coverage/v1`: durable artifact ref from `homeboy runs refs`
 - `homeboy-rigs/wordpress-coverage-gap-report/v1`: durable artifact ref from `homeboy runs refs`
-- `homeboy/woocommerce-performance-hotspots-summary/v1`: durable artifact ref from `homeboy runs refs`
+- `homeboy-rigs/woocommerce-performance-hotspots-summary/v1`: durable artifact ref from `homeboy runs refs`
 
 Compare: <compare-artifact-ref>
 Result: <pass/fail/partial with the concrete gap or hotspot delta>

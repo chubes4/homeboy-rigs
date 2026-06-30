@@ -101,7 +101,7 @@ test('performance hotspot summary ranks available artifacts relatively', () => {
     classifySurface: classifyWooCommercePerformanceSurface,
   });
 
-  assert.equal(summary.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1');
+  assert.equal(summary.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1');
   assert.equal(summary.threshold_policy, 'relative_ranking_only');
   assert.equal(summary.ranking[0].rank, 1);
   assert.equal(summary.ranking[0].surface, 'checkout');
@@ -224,7 +224,7 @@ test('generic artifact postprocess contract rejects drifted hotspot ranking sche
           path: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
           kind: 'json',
           contentType: 'application/json',
-          schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+          schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
           semantic_key: 'fuzz.report',
           ranking: { mode: 'absolute', required_fields: ['rank'] },
         },

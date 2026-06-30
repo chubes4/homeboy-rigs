@@ -151,7 +151,7 @@
     "performance_hotspots": {
       "coverage_goal": "checkout, cart/session, catalog, admin, API, cache invalidation, transient growth, gateway, and HTTP guardrail summary artifacts",
       "workload": "fuzz/performance-hotspots-artifact-summary.json",
-      "coverage_artifact": "homeboy/woocommerce-performance-hotspots-summary/v1"
+      "coverage_artifact": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1"
     }
   },
   "coverage_profiles": {

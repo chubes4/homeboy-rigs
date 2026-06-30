@@ -150,7 +150,6 @@ homeboy fuzz run --rig woocommerce-performance --workload action-scheduler-looku
 homeboy fuzz run --rig woocommerce-performance --workload options-transients-coverage --run-id wc-options-transients-coverage --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload rollback-safe-options-transients-mutations --run-id wc-rollback-safe-options-transients-mutations --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload frontend-rendering-request-coverage --run-id wc-frontend-rendering-request-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-performance-hotspots-summary --seed 1 --max-duration 15m
 homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
 ```
 
@@ -203,29 +202,23 @@ Every operation in `manifests/rest-crud-fixture-plan.json` is contract-backed by
 the upstream offloaded runner stack and still requires reviewer-facing isolation,
 delete-boundary, and fuzz-suite artifact refs before any `proven` claim.
 
-The hotspot and coverage aggregation workloads execute through
-`homeboy.artifact-postprocess` when the approved offloaded runner provides the
-campaign artifact root. Do not shim aggregation in the rig: Homeboy/Homeboy
-Extensions must bind `args.helper`, `args.action`, `args.input`, `args.output`,
-and `args.parameters`, then collect the declared `fuzz.report` artifact before
-those contracts can become proven.
+The hotspot and coverage aggregation workloads are data-only declarations for
+the intended `homeboy.artifact-postprocess` shape. Do not shim aggregation in the
+rig: Homeboy must first ship a real artifact-postprocess runner primitive for
+persisted artifact roots, then collect the declared `fuzz.report` artifact before
+those contracts can execute or become proven.
 
 The DB/API campaign manifest wires those two aggregation workloads to generic
 postprocess metadata instead of abstract proof placeholders:
 
-```bash
-homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m
-```
-
-Both commands must run in the same approved offloaded campaign environment as
-the upstream Codebox fuzz-suite, REST route inventory, generated cases, DB query
-profile, DB inventory, and schema/query attribution workloads. Their
-`homeboy.artifact-postprocess` steps consume the offloaded `${artifacts.root}`
-JSON artifact root and emit required reviewer-facing `coverage_gap_report` and
-`performance_hotspots_summary` JSON artifacts. The manifest records the exact
-`helper`, `action`, `input`, `output`, and `parameters` contract for each output;
-it does not contain live proof refs yet.
+`coverage-gap-report` and `performance-hotspots-artifact-summary` are not listed
+as runnable operator commands while upstream artifact-postprocess is missing.
+Their declared `homeboy.artifact-postprocess` steps will consume the offloaded
+`${artifacts.root}` JSON artifact root and emit reviewer-facing
+`coverage_gap_report` and `performance_hotspots_summary` JSON artifacts after the
+upstream primitive exists. The manifest records the exact `helper`, `action`,
+`input`, `output`, and `parameters` contract for each output; it does not contain
+live proof refs yet.
 
 The DB/API campaign contract lives in `manifests/db-api-fuzz-campaign.json` and
 requires reviewer-facing refs for `wp-codebox/fuzz-suite-result/v1`,

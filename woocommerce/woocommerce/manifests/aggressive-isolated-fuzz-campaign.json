@@ -307,8 +307,8 @@
     },
     {
       "id": "relative_hotspots",
-      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
-      "contract_id": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
+      "contract_id": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
       "semantic_key": "fuzz.relative_hotspots",
       "required_sections": [
         "relative_hotspot_outputs",

@@ -166,7 +166,7 @@ test('generated REST request cases are driven by route inventory coverage semant
 test('performance hotspot summary contract uses relative ranking instead of hard thresholds', () => {
   const artifactSchema = performanceHotspots.metadata.artifact_schema;
 
-  assert.equal(artifactSchema.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1');
+  assert.equal(artifactSchema.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1');
   assert.equal(artifactSchema.ranking.mode, 'relative');
   assert.deepEqual(
     new Set(artifactSchema.ranking.surfaces),
@@ -222,7 +222,7 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
     action: 'performance-hotspots-summary',
     artifact: 'performance_hotspots_summary',
     outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
-    schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+    schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
   });
 });
 

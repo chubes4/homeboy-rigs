@@ -61,7 +61,7 @@
     },
     {
       "id": "homeboy_hotspot_summary",
-      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
       "semantic_key": "fuzz.report",
       "readiness": "required_before_proven"
     },
@@ -74,8 +74,8 @@
   ],
   "postprocess": {
     "command": "homeboy.artifact-postprocess",
-    "runner_support_status": "product_local_temporary_bridge",
-    "boundary_note": "The Woo helper declares the intended artifact-postprocess IO shape locally while upstream Homeboy generic artifact-postprocess and hotspot aggregation primitives are still pending. These outputs are not proof until collected as reviewer-facing Homeboy artifact refs from an approved offloaded run.",
+    "runner_support_status": "blocked",
+    "boundary_note": "The Woo helper is data-only policy for the intended artifact-postprocess IO shape. Upstream Homeboy does not yet provide an artifact-postprocess runner primitive for persisted artifact roots, and hotspot aggregation remains rig-owned. These outputs are not executable or proof until upstream ships the primitive and the runner collects reviewer-facing Homeboy artifact refs from an approved offloaded run.",
     "blocked_until": [
       "Homeboy owns a generic artifact-postprocess primitive for persisted run artifact roots.",
       "Homeboy owns a generic hotspot aggregation primitive instead of Woo-specific ranking labels in rig tooling.",
@@ -138,7 +138,7 @@
           "path": "performance-hotspots-artifact-summary/performance_hotspots_summary.json",
           "kind": "json",
           "contentType": "application/json",
-          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
           "semantic_key": "fuzz.report",
           "ranking": {
             "mode": "relative",
@@ -155,11 +155,11 @@
   },
   "operator_commands": {
     "offload_required": true,
-    "status": "executable_pending_offloaded_artifacts",
+    "status": "blocked_pending_upstream_artifact_postprocess",
     "note": "Run these through an approved Homeboy Lab/runner/offloaded environment. Do not use local benchmark execution as proof for this campaign.",
     "tracker_ref_placeholder": "$WC_TRACKER_REF",
     "reviewer_evidence_refs_command": "homeboy runs refs --rig woocommerce-performance --kind fuzz --status completed --tracker-ref \"$WC_TRACKER_REF\" --artifact-kind canonical_fuzz_envelope --artifact-kind codebox_fuzz_suite_result --artifact-kind wordpress_hotspots --artifact-kind homeboy_fuzz_coverage --artifact-kind coverage_gap_report --artifact-kind performance_hotspots_summary",
-    "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads use the product-local Woo helper to mirror the intended homeboy.artifact-postprocess contract against the offloaded ${artifacts.root}; their helper/action/input/output/parameters contracts are declared in postprocess.outputs and must be collected as reviewer-facing artifacts before proven readiness.",
+    "postprocess_note": "The coverage-gap-report and performance-hotspots-artifact-summary workloads are data-only declarations for the intended homeboy.artifact-postprocess contract against the offloaded ${artifacts.root}; Homeboy must ship the artifact-postprocess runner primitive before these can execute, and outputs must be collected as reviewer-facing artifacts before proven readiness.",
     "commands": [
       "homeboy rig up woocommerce-performance",
       "homeboy fuzz run --rig woocommerce-performance --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
@@ -167,9 +167,7 @@
       "homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-db-api-generated-cases --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
       "homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-db-api-query-profile --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
       "homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-api-db-inventory --seed 1 --max-duration 10m --tracker-ref \"$WC_TRACKER_REF\"",
-      "homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\"",
-      "homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m --tracker-ref \"$WC_TRACKER_REF\"",
-      "homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m --tracker-ref \"$WC_TRACKER_REF\""
+      "homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution --seed 1 --max-duration 20m --tracker-ref \"$WC_TRACKER_REF\""
     ]
   },
   "readiness": {
@@ -218,7 +216,7 @@
         },
         {
           "id": "homeboy_hotspot_summary",
-          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
           "semantic_key": "fuzz.report"
         },
         {

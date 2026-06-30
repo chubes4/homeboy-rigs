@@ -27,8 +27,12 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "Summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs through the supported homeboy.artifact-postprocess command shape. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "level": "declared",
+      "coverage_contract": "Data-only contract to summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. Execution is blocked until Homeboy owns an artifact-postprocess runner primitive for persisted artifact roots and a generic hotspot aggregation schema. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "upstream_blockers": [
+        "Homeboy must own a real artifact-postprocess runner primitive for persisted artifact roots before this workload is executable.",
+        "Homeboy must own generic hotspot aggregation semantics before Woo ranking labels can move out of rig-owned schema."
+      ],
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -40,6 +44,10 @@
         ]
       }
     },
+    "generic_primitive": {
+      "status": "blocked",
+      "blocked_by": "missing Homeboy artifact-postprocess runner primitive for persisted artifact roots and generic hotspot aggregation schema"
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
@@ -47,7 +55,7 @@
       "activation": "woocommerce/woocommerce.php"
     },
     "artifact_schema": {
-      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
       "ranking": {
         "mode": "relative",
         "surfaces": ["checkout", "cart", "catalog", "admin", "api"],

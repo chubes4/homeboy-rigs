@@ -1,7 +1,7 @@
 {
   "schema": "homeboy-rigs/wordpress-coverage-gap-report-workload/v1",
   "id": "woocommerce-db-api-performance-fuzzer-gap-report",
-  "description": "Executable WooCommerce DB/API performance fuzzer gap report workload over available fuzz/run artifacts using product-local temporary glue that mirrors the intended generic artifact-postprocess contract.",
+  "description": "Data-only WooCommerce DB/API performance fuzzer gap report workload contract over available fuzz/run artifacts. Execution is blocked until Homeboy owns the generic artifact-postprocess primitive.",
   "profile_id": "db-api-performance-fuzzer",
   "workload": "fuzz/coverage-gap-report.json",
   "workload_config": "bench/coverage-gap-report.workload.json",
@@ -11,7 +11,7 @@
     "wp-codebox/wordpress-workload-run/v1",
     "homeboy-rigs/wordpress-coverage-gap-report/v1"
   ],
-  "boundary_note": "The Woo helper is a temporary local bridge pending upstream Homeboy artifact-postprocess and hotspot primitives. This workload stays executable/declarative until reviewer-facing artifact refs are collected from an approved offloaded run.",
+  "boundary_note": "The Woo helper is data-only local policy pending upstream Homeboy artifact-postprocess and hotspot primitives. This workload stays declared and non-executable until that primitive exists and reviewer-facing artifact refs are collected from an approved offloaded run.",
   "semantic_key": "fuzz.report",
   "inputs": [
     "woocommerce-rest-route-inventory",
@@ -35,8 +35,8 @@
     "performance_hotspots": "declared WooCommerce performance hotspot focus areas minus hotspot summary evidence refs"
   },
   "readiness": {
-    "level": "executable",
-    "execution": "artifact_aggregation",
+    "level": "declared",
+    "execution": "blocked_artifact_aggregation",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [
