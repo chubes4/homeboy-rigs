@@ -7,7 +7,7 @@ import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 
 const packageRoot = process.env.HOMEBOY_COMPONENT_PATH;
 const componentPluginPath = path.join( packageRoot || '', 'plugins/woocommerce' );
-const woocommercePath = process.env.HOMEBOY_WOOCOMMERCE_CART_RACE_WOOCOMMERCE_PATH || process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_CART_RACE_WOOCOMMERCE_PATH || ( existsSync( path.join( componentPluginPath, 'woocommerce.php' ) ) ? componentPluginPath : path.join( process.env.HOME || '', 'Developer/woocommerce/plugins/woocommerce' ) );
+const woocommercePath = process.env.HOMEBOY_WOOCOMMERCE_CART_RACE_WOOCOMMERCE_PATH || process.env.HOMEBOY_SETTINGS_WOOCOMMERCE_CART_RACE_WOOCOMMERCE_PATH || componentPluginPath;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'woocommerce';
 const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || 'cart-session-overwrite-race';
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
@@ -25,7 +25,7 @@ if ( ! resultsFile ) {
 	throw new Error( 'HOMEBOY_TRACE_RESULTS_FILE is required' );
 }
 if ( ! existsSync( path.join( woocommercePath, 'woocommerce.php' ) ) ) {
-	throw new Error( `Missing WooCommerce plugin entrypoint at ${ woocommercePath }/woocommerce.php` );
+	throw new Error( `Missing WooCommerce plugin entrypoint at ${ woocommercePath }/woocommerce.php. Set HOMEBOY_COMPONENT_PATH to the woocommerce repository checkout or HOMEBOY_WOOCOMMERCE_CART_RACE_WOOCOMMERCE_PATH to the WooCommerce plugin directory.` );
 }
 
 await mkdir( artifactDir, { recursive: true } );

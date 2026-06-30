@@ -24,16 +24,6 @@ const FATAL_BLUEPRINT = {
   ],
 };
 
-function expandHome(value) {
-  if (!value || value === '~') {
-    return os.homedir();
-  }
-  if (value.startsWith('~/')) {
-    return path.join(os.homedir(), value.slice(2));
-  }
-  return value;
-}
-
 function artifactRoot() {
   return (
     process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR ||
@@ -43,7 +33,10 @@ function artifactRoot() {
 }
 
 function componentPath() {
-  return expandHome(process.env.HOMEBOY_COMPONENT_PATH || '~/Developer/wordpress-playground');
+  if (!process.env.HOMEBOY_COMPONENT_PATH) {
+    throw new Error('HOMEBOY_COMPONENT_PATH is required and must point to the wordpress-playground component checkout.');
+  }
+  return process.env.HOMEBOY_COMPONENT_PATH;
 }
 
 function cliArgs(blueprintPath) {
