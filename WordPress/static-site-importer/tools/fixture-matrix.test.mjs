@@ -124,6 +124,63 @@ test('builds a generic WP Codebox recipe with SSI-owned plugin defaults', () => 
   assert.match(recipe.workflow.steps[1].args[0], /--allow-failure/);
 });
 
+test('builds WP Codebox recipe setup for SSI Composer dependency overrides', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-recipe-dependency-override-'));
+  const transformerPath = path.join(root, 'blocks-engine', 'php-transformer');
+  mkdirSync(transformerPath, { recursive: true });
+  writeFileSync(path.join(transformerPath, 'composer.json'), JSON.stringify({
+    name: 'automattic/blocks-engine-php-transformer',
+  }));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'recipe-dependency-override-test' });
+
+  const recipe = buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+    dependencyOverrides: {
+      blocks_engine_php_transformer: {
+        package: 'automattic/blocks-engine-php-transformer',
+        path: transformerPath,
+      },
+    },
+  });
+
+  assert.deepEqual(recipe.inputs.mounts[0], {
+    source: transformerPath,
+    target: '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer',
+    mode: 'readonly',
+  });
+  assert.equal(recipe.workflow.steps[0].command, 'wordpress.wp-cli');
+  assert.match(recipe.workflow.steps[0].args[0], /^command=eval /);
+  assert.match(recipe.workflow.steps[0].args[0], /composer/);
+  assert.match(recipe.workflow.steps[0].args[0], /automattic\/blocks-engine-php-transformer/);
+  assert.equal(recipe.workflow.steps[1].args[0], 'command=plugin activate static-site-importer/static-site-importer.php');
+  assert.deepEqual(recipe.metadata.dependency_overrides.blocks_engine_php_transformer, {
+    package: 'automattic/blocks-engine-php-transformer',
+    source_path: transformerPath,
+    sandbox_path: '/tmp/homeboy-rigs-dependency-overrides/blocks-engine-php-transformer',
+    applied_by: 'composer_path_repository_recipe_setup',
+    setup_command: 'wordpress.wp-cli eval',
+  });
+});
+
+test('fails recipe generation for invalid SSI dependency override paths', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-invalid-dependency-override-'));
+  const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'recipe-invalid-dependency-override-test' });
+
+  assert.throws(() => buildFixtureMatrixRecipe({
+    matrix,
+    artifactsDirectory: '/tmp/artifacts',
+    staticSiteImporterPath: '/tmp/static-site-importer',
+    dependencyOverrides: {
+      blocks_engine_php_transformer: {
+        package: 'automattic/blocks-engine-php-transformer',
+        path: root,
+      },
+    },
+  }), /composer\.json not found/);
+});
+
 test('normalizes SSI diagnostics into product repair groups', () => {
   const matrix = createFixtureMatrix({ fixture_root: fixtureRoot, id: 'diagnostic-test' });
   const result = normalizeFixtureMatrixResult({
