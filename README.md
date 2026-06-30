@@ -39,7 +39,9 @@ missing upstream fuzz primitives.
 `metadata.readiness.level: proven` is gated by proof-bundle linkage: reviewer-
 facing artifact refs, run IDs, gap reports, and required fuzz result artifact
 names. Keep rows at declared/executable until those links exist; local paths,
-localhost URLs, and optional artifacts are not proof.
+localhost URLs, and optional artifacts are not proof. Reviewer-facing artifact
+refs follow Homeboy's shared semantics: non-local `http://` or `https://` URLs,
+`homeboy://` refs, and `runner-artifact://` refs.
 
 Reusable helper patterns live under `shared/`. The first shared web performance
 pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads

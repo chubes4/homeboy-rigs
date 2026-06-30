@@ -176,11 +176,8 @@ function assertFuzzReadinessLevel(level, label) {
 }
 
 function assertReviewerFacingRef(value, context) {
-  if (!/^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|artifact:|run:)/.test(value)) {
+  if (!reviewerFacingRef(value)) {
     throw new Error(`${context} entries must be reviewer-facing refs`);
-  }
-  if (localOnlyReviewerFacingRef(value)) {
-    throw new Error(`${context} entries must not use local evidence`);
   }
 }
 
@@ -188,11 +185,8 @@ function assertReviewerFacingArtifactRef(value, context) {
   if (typeof value !== 'string' || value.trim() === '') {
     throw new Error(`${context} must be a reviewer-facing artifact ref string`);
   }
-  if (!/^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value)) {
+  if (!reviewerFacingRef(value)) {
     throw new Error(`${context} must be a reviewer-facing artifact ref`);
-  }
-  if (localOnlyReviewerFacingRef(value)) {
-    throw new Error(`${context} must not use local evidence`);
   }
 }
 
@@ -201,21 +195,23 @@ function localOnlyReviewerFacingRef(value) {
     return false;
   }
   const ref = value.trim();
-  return localOnlyRefValue(ref) || localOnlySchemePayload(ref);
+  return localOnlyRefValue(ref);
 }
 
-function localOnlySchemePayload(ref) {
-  const match = /^(?:artifact:|run:|homeboy-runs:|homeboy-artifact:\/\/)(.*)$/i.exec(ref);
-  return Boolean(match && localOnlyRefValue(match[1]));
+function reviewerFacingRef(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const ref = value.trim();
+  return /^(https?:\/\/|homeboy:\/\/|runner-artifact:\/\/)/i.test(ref)
+    && !localOnlyReviewerFacingRef(ref);
 }
 
 function localOnlyRefValue(ref) {
   return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(ref)
     || /^file:\/\//i.test(ref)
-    || /^\/Users\//.test(ref)
-    || /^\/private\//.test(ref)
-    || /^\/tmp(?:\/|$)/.test(ref)
-    || /^\.\.?(?:\/|$)/.test(ref);
+    || /^\//.test(ref)
+    || /^[a-z]:[\\/]/i.test(ref);
 }
 
 function assertStringArray(value, label, options = {}) {

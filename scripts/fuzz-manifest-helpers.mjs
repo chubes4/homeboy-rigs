@@ -189,12 +189,8 @@ export function assertReviewerFacingFuzzRef(value, context) {
   assert.equal(typeof value, 'string', `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(value.trim().length > 0, `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(
-    /^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value),
+    reviewerFacingFuzzRef(value),
     `${context} must be a reviewer-facing artifact ref`
-  );
-  assert.ok(
-    !localOnlyReviewerFacingRef(value),
-    `${context} must not use local evidence`
   );
 }
 
@@ -203,21 +199,20 @@ export function localOnlyReviewerFacingRef(value) {
     return false;
   }
   const ref = value.trim();
-  return localOnlyRefValue(ref) || localOnlySchemePayload(ref);
+  return localOnlyRefValue(ref);
 }
 
-function localOnlySchemePayload(ref) {
-  const match = /^(?:artifact:|run:|homeboy-runs:|homeboy-artifact:\/\/)(.*)$/i.exec(ref);
-  return Boolean(match && localOnlyRefValue(match[1]));
+function reviewerFacingFuzzRef(value) {
+  const ref = value.trim();
+  return /^(https?:\/\/|homeboy:\/\/|runner-artifact:\/\/)/i.test(ref)
+    && !localOnlyReviewerFacingRef(ref);
 }
 
 function localOnlyRefValue(ref) {
   return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(ref)
     || /^file:\/\//i.test(ref)
-    || /^\/Users\//.test(ref)
-    || /^\/private\//.test(ref)
-    || /^\/tmp(?:\/|$)/.test(ref)
-    || /^\.\.?(?:\/|$)/.test(ref);
+    || /^\//.test(ref)
+    || /^[a-z]:[\\/]/i.test(ref);
 }
 
 function assertOptionalFuzzResultArtifacts(proofBundle, manifest, { file = manifest.id } = {}) {

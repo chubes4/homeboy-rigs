@@ -288,7 +288,7 @@ test('assertGenericFuzzManifest can require readiness metadata', () => {
 test('assertFuzzProofBundle accepts a canonical fuzz envelope artifact ref as the primary proof pointer', () => {
   assert.ok(fuzzProofBundleFields.has('canonical_fuzz_envelope_ref'));
   assert.doesNotThrow(() => assertFuzzProofBundle({
-    canonical_fuzz_envelope_ref: 'homeboy-runs:product-fuzz/artifacts/fuzz-envelope.json',
+    canonical_fuzz_envelope_ref: 'runner-artifact://lab/product-fuzz/fuzz-envelope.json',
   }, fuzzManifest(), { file: 'product-fuzz.json' }));
 });
 
@@ -310,9 +310,7 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
     'file:///tmp/fuzz-envelope.json',
     '/tmp/fuzz-envelope.json',
     '/Users/chris/fuzz-envelope.json',
-    './fuzz-envelope.json',
-    '../fuzz-envelope.json',
-    'homeboy-artifact:///tmp/fuzz-envelope.json',
+    'C:\\Users\\chris\\fuzz-envelope.json',
     'artifact:./fuzz-envelope.json',
   ]) {
     assert.throws(
@@ -330,15 +328,27 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
 });
 
 test('reviewer-facing fuzz refs accept durable refs and reject placeholders/local refs', () => {
+  assert.doesNotThrow(() => assertReviewerFacingFuzzRef('http://example.test/report.json', 'proof ref'));
+  assert.doesNotThrow(() => assertReviewerFacingFuzzRef('https://example.test/report.json', 'proof ref'));
   assert.doesNotThrow(() => assertReviewerFacingFuzzRef('homeboy://run/product-fuzz/artifact/report', 'proof ref'));
-  assert.equal(localOnlyReviewerFacingRef('artifact:./report.json'), true);
-  assert.equal(localOnlyReviewerFacingRef('homeboy-artifact:///tmp/report.json'), true);
+  assert.doesNotThrow(() => assertReviewerFacingFuzzRef('runner-artifact://lab/product-fuzz/report.json', 'proof ref'));
+  assert.equal(localOnlyReviewerFacingRef('http://localhost:8881/report.json'), true);
+  assert.equal(localOnlyReviewerFacingRef('/tmp/report.json'), true);
+  assert.equal(localOnlyReviewerFacingRef('file:///tmp/report.json'), true);
   assert.throws(
     () => assertReviewerFacingFuzzRef('<artifact-ref>', 'proof ref'),
     /must be a reviewer-facing artifact ref/
   );
   assert.throws(
     () => assertReviewerFacingFuzzRef('artifact:./report.json', 'proof ref'),
-    /must not use local evidence/
+    /must be a reviewer-facing artifact ref/
+  );
+  assert.throws(
+    () => assertReviewerFacingFuzzRef('https://localhost:8881/report.json', 'proof ref'),
+    /must be a reviewer-facing artifact ref/
+  );
+  assert.throws(
+    () => assertReviewerFacingFuzzRef('/tmp/report.json', 'proof ref'),
+    /must be a reviewer-facing artifact ref/
   );
 });

@@ -30,10 +30,12 @@ optional `proof_refs`, optional `upstream_blockers`, optional CRUD operation
 levels for `create`, `read`, `update`, and `delete`, and optional mutation
 safety fields (`safety_boundary`, `mutation_artifacts`). `level: proven`
 requires a `proof_bundle` with reviewer-facing `canonical_fuzz_envelope_ref` as
-the primary proof pointer, or legacy `artifact_refs`, `run_ids`, `gap_reports`,
-and `fuzz_result_artifacts` for manifests that have not yet migrated. Product
-packages can use this shared shape to distinguish planned CRUD/mutation coverage
-from executable workloads and reviewer-facing proof artifacts.
+the primary proof pointer. Reviewer-facing artifact refs use Homeboy's shared ref
+semantics: non-local `http://` or `https://` URLs, `homeboy://` refs, or
+`runner-artifact://` refs. Localhost URLs, `file://` URLs, and absolute local
+paths are not proof. Product packages can use this shared shape to distinguish
+planned CRUD/mutation coverage from executable workloads and reviewer-facing
+proof artifacts.
 
 The repo-wide package linter reports missing `metadata.readiness` on fuzz
 manifests as a warning. Use `node scripts/lint-rig-packages.mjs
