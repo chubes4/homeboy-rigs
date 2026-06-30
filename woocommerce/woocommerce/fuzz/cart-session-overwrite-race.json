@@ -46,7 +46,7 @@
         "destructive_case_ledgers": ["destructive_case_ledger"],
         "teardown_discard_evidence": ["sandbox_teardown_evidence"],
         "artifact_bundle_refs": ["artifact_bundle_ref"],
-        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
+        "isolation_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

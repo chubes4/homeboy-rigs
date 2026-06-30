@@ -1085,7 +1085,7 @@ assert.equal(rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer']?.readiness?
 const productRestCrudProfile = rig.fuzz_profile_metadata?.['product-rest-crud-fuzzer'];
 assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.level, 'executable', 'product REST CRUD delete readiness must be executable through delete-boundary artifacts');
 assert.equal(productRestCrudProfile?.readiness?.crud?.delete?.safety_class, 'isolated_mutation', 'product REST CRUD delete must declare isolated mutation safety');
-assert.equal(productRestCrudProfile?.readiness?.mutation?.rollback_artifacts?.includes('delete_boundary_artifact'), true, 'product REST CRUD mutation readiness must require delete_boundary_artifact when delete is executable');
+assert.equal(productRestCrudProfile?.readiness?.mutation?.isolation_artifacts?.includes('delete_boundary_artifact'), true, 'product REST CRUD mutation readiness must require delete_boundary_artifact when delete is executable');
 assert.ok(productRestCrudProfile?.readiness?.mutation?.delete_boundary_artifacts?.includes('delete_boundary_artifact'), 'product REST CRUD mutation readiness must require delete-boundary artifacts');
 
 const productBatchManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'rest-product-batch-import')?.manifest;

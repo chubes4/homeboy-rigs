@@ -24,14 +24,14 @@
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [
-        "reviewer-facing generic REST mutation runner run id",
+        "reviewer-facing WP Codebox fuzz-suite run id",
         "reviewer-facing mutation isolation artifact ref",
         "reviewer-facing mutation isolation contract artifact ref",
         "reviewer-facing delete-boundary artifact ref for proven delete execution"
       ],
       "required_artifacts": [
         "mutation_isolation_artifact",
-        "rest_mutation_rollback_contract",
+        "rest_mutation_isolation_contract",
         "delete_boundary_artifact"
       ]
     }

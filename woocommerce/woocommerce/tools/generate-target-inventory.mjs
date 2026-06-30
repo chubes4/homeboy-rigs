@@ -58,8 +58,10 @@ const inventory = {
       manifest: 'manifests/rest-crud-route-family-catalog.json',
       owner_profile: restCrudRouteFamilyCatalog.owner_profile,
       readiness: {
-        level: 'declared',
-        coverage_contract: 'REST route-family discovery is a Woo-owned inventory contract; executable/proven status requires the owning fuzz workloads to emit reviewer-facing artifacts.',
+        level: 'executable',
+        execution_enabled: true,
+        local_execution_enabled: false,
+        coverage_contract: 'REST route-family discovery is a Woo-owned inventory contract consumed by executable WP Codebox fixture-plan and REST opt-in contracts. Proven status requires reviewer-facing artifacts.',
       },
       route_family_ids: restCrudRouteFamilyCatalog.route_families.map((family) => family.id),
       payload_fixture_manifest: restCrudRouteFamilyCatalog.payload_fixture_manifest,
@@ -178,7 +180,7 @@ const inventory = {
     options_transients: {
       option_prefixes: ['woocommerce_', 'woocommerce-', 'wc_', '_wc_', '_woocommerce_'],
       transient_prefixes: ['_transient_wc_', '_transient_timeout_wc_', '_site_transient_wc_', '_site_transient_timeout_wc_', '_transient_woocommerce_', '_transient_timeout_woocommerce_'],
-      required_sections: ['options', 'transients', 'autoloaded_options', 'action_scheduler', 'lookup_tables', 'rollback_mutations'],
+      required_sections: ['options', 'transients', 'autoloaded_options', 'action_scheduler', 'lookup_tables', 'isolated_mutations'],
     },
     performance_hotspots: {
       workloads: coverage.coverage_profiles['full-surface'].performance_hotspots,

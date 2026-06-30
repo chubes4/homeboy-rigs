@@ -179,20 +179,20 @@ The Woo DB/API fuzz progression is split into two focused profiles:
 
 - `db-api-performance-fuzzer` groups read-only REST route inventory, generated
   safe request cases, REST DB query profiling, DB inventory, schema/query
-  attribution, gap reporting, and hotspot summary declarations. Create, update,
-  and delete stay declared until upstream isolated REST mutation primitives
-  emit mutation artifacts.
+  attribution, gap reporting, hotspot summary declarations, and contract-backed
+  REST CRUD fixture artifacts. Create, update, and delete are executable through
+  the upstream WP Codebox/Homeboy/HBEX contracts and require reviewer-facing
+  artifacts before proven status.
 - `product-rest-crud-fuzzer` makes product and variation batch create/update plus
-  readback executable through `rest-product-batch-import`. Delete remains blocked
-  on the same upstream delete-boundary primitive and delete-boundary artifact
-  contract.
+  readback executable through `rest-product-batch-import`; delete execution is
+  represented by the fixture-plan/delete-boundary contracts and remains
+  not-proven until reviewer-facing artifact refs exist.
 
 The aggressive isolated firehose, product chaos sequence packs, and generated REST
-CRUD fixture-plan handoff are declared inventory/contracts, not executable proof.
-Every operation in `manifests/rest-crud-fixture-plan.json` currently has
-`execute:false`, so manifests must not advertise generic isolated/destructive
-execution until the offloaded runner emits rollback, isolation, delete-boundary,
-and reviewer-facing artifact refs.
+CRUD fixture-plan handoff are executable contract surfaces, not proof claims.
+Every operation in `manifests/rest-crud-fixture-plan.json` is contract-backed by
+the upstream offloaded runner stack and still requires reviewer-facing isolation,
+delete-boundary, and fuzz-suite artifact refs before any `proven` claim.
 
 The hotspot and coverage aggregation workloads execute through
 `homeboy.artifact-postprocess` when the approved offloaded runner provides the
