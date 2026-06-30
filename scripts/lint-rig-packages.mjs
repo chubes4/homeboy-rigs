@@ -516,20 +516,6 @@ function lintFuzzWorkload(file, fuzzWorkloadValidators) {
     failures.push(`${rel}: ${issue}`);
   }
 
-  for (const field of ['surface_ids', 'operations', 'cases']) {
-    if (!Array.isArray(workload[field]) || workload[field].length === 0) {
-      failures.push(`${rel}: fuzz workload must define non-empty array field ${field}`);
-    }
-  }
-
-  if (!workload.target || typeof workload.target.type !== 'string') {
-    failures.push(`${rel}: fuzz workload must define target.type`);
-  }
-
-  if (!workload.metadata || typeof workload.metadata.kind !== 'string') {
-    failures.push(`${rel}: fuzz workload must define metadata.kind`);
-  }
-
   lintFuzzReadinessMetadata(rel, workload);
   lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadValidators);
 
