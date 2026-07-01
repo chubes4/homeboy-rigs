@@ -9,11 +9,15 @@ import {
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   fuzzProofBundleFields,
-  localOnlyReviewerFacingRef,
+  normalizeReviewerFacingFuzzRef,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
 
 process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
+process.env.HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND = JSON.stringify([
+  process.execPath,
+  new URL('./fixtures/homeboy-artifact-ref-normalizer.mjs', import.meta.url).pathname,
+]);
 delete process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR;
 
 function fuzzManifest(overrides = {}) {
@@ -331,8 +335,7 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
 
 test('reviewer-facing fuzz refs accept durable refs and reject placeholders/local refs', () => {
   assert.doesNotThrow(() => assertReviewerFacingFuzzRef('homeboy://run/product-fuzz/artifact/report', 'proof ref'));
-  assert.equal(localOnlyReviewerFacingRef('artifact:./report.json'), true);
-  assert.equal(localOnlyReviewerFacingRef('homeboy-artifact:///tmp/report.json'), true);
+  assert.equal(normalizeReviewerFacingFuzzRef('homeboy://run/product-fuzz/artifact/report').status, 'normalized');
   assert.throws(
     () => assertReviewerFacingFuzzRef('<artifact-ref>', 'proof ref'),
     /must be a reviewer-facing artifact ref/
