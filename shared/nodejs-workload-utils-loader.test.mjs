@@ -46,3 +46,13 @@ test('Node workload-utils loader imports the module named by HOMEBOY_NODEJS_WORK
   assert.equal(module.marker, 'explicit-env');
   assert.equal(module.metric(2.5), 2.5);
 });
+
+test('Node workload-utils loader reports actionable setup when no helper path is injected', async () => {
+  await assert.rejects(
+    () => withEnv(
+      { HOMEBOY_NODEJS_WORKLOAD_UTILS: undefined },
+      () => loadNodeWorkloadUtils()
+    ),
+    /homeboy extension setup nodejs[\s\S]*HOMEBOY_NODEJS_WORKLOAD_UTILS[\s\S]*does not discover local sibling checkouts/
+  );
+});
