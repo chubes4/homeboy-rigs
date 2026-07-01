@@ -78,6 +78,7 @@ homeboy rig check studio-combined
 `homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a lightweight package lint for PHP syntax, portable source paths, generated rig drift, `fuzz_profiles` references that drift from `fuzz_workloads`, and WordPress plugin fuzz workload IDs accidentally reappearing in `bench_workloads` or `bench_profiles`:
 
 ```bash
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extension-wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs
 ```
 
@@ -349,6 +350,7 @@ performance-observation contracts without adding a `homeboy bench` fallback.
 ```bash
 homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress-develop
 homeboy rig check wordpress-core-fuzz-coverage
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extension-wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
 ```
 
@@ -445,6 +447,8 @@ Use Homeboy's visual compare hook with the WP Codebox provider when collecting
 reviewer-facing parity proof for a PR:
 
 ```bash
+wp_codebox_visual_compare_provider="$(node -e 'const path = require("node:path"); const loaded = require(process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST); const manifest = typeof loaded.getWordPressHelperManifest === "function" ? loaded.getWordPressHelperManifest() : loaded.WORDPRESS_HELPER_MANIFEST; process.stdout.write(path.join(manifest.extensionRoot, "lib", "wp-codebox-visual-compare.js"));')"
+
 homeboy trace compare \
   --rig woocommerce-stripe-ece-product-page \
   --baseline-target origin/develop \
@@ -454,7 +458,7 @@ homeboy trace compare \
   --report markdown \
   --visual-compare \
   --visual-compare-provider node \
-  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
+  --visual-provider-arg "$wp_codebox_visual_compare_provider" \
   --visual-threshold 0.1 \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-product-page-proof.md
