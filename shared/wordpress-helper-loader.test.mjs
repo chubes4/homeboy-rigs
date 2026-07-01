@@ -28,22 +28,20 @@ function withEnv(env, callback) {
   }
 }
 
-test('WordPress helper loader reports actionable setup when fallback package is unavailable', () => {
+test('WordPress helper loader reports actionable setup when no helper contract is injected', () => {
   const isolatedHome = path.join(tmpdir(), 'wordpress-helper-loader-missing-home');
 
   assert.throws(
     () => withEnv({
       HOME: isolatedHome,
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: undefined,
-      HOMEBOY_WORDPRESS_EXTENSION_ROOT: undefined,
       HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: undefined,
     }, () => loadWordPressHelperModule({
       helperName: 'wordpress-fuzz-manifest-validator',
       envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
       manifestFileName: 'wordpress-fuzz-manifest-validator.js',
-      packageImport: 'homeboy-extension-wordpress/wordpress-fuzz-manifest-validator',
     })),
-    /homeboy extension setup wordpress[\s\S]*HOMEBOY_WORDPRESS_HELPER_MANIFEST[\s\S]*HOMEBOY_WORDPRESS_EXTENSION_ROOT[\s\S]*HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR/
+    /homeboy extension setup wordpress[\s\S]*HOMEBOY_WORDPRESS_HELPER_MANIFEST[\s\S]*HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR/
   );
 });
 
@@ -65,13 +63,11 @@ module.exports = { getWordPressHelperManifest };
 
   const helper = withEnv({
     HOMEBOY_WORDPRESS_HELPER_MANIFEST: manifestPath,
-    HOMEBOY_WORDPRESS_EXTENSION_ROOT: undefined,
     HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: undefined,
   }, () => loadWordPressHelperModule({
     helperName: 'example-helper',
     envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
     manifestFileName: 'example-helper.js',
-    packageImport: 'homeboy-extension-wordpress/example-helper',
   }));
 
   assert.equal(helper.loaded, true);

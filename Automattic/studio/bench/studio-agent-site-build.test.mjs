@@ -5,6 +5,10 @@ import path from 'node:path';
 import test from 'node:test';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
+process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST ||= path.join(
+  process.cwd(),
+  'scripts/fixtures/homeboy-extension-wordpress/lib/helper-manifest.js'
+);
 
 const {
   agentSuccessGate,

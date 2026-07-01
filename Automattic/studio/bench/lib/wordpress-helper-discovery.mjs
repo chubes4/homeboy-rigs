@@ -24,14 +24,7 @@ function loadWordPressHelperConsumerModule(options = {}) {
     }
   }
 
-  try {
-    return require('homeboy-extension-wordpress/wordpress-helper-consumer');
-  } catch (error) {
-    if (error?.code !== 'MODULE_NOT_FOUND') {
-      throw error;
-    }
-    return null;
-  }
+  return null;
 }
 
 function missingHandle(resolvedPath = '', reason = 'WordPress helper consumer is unavailable') {

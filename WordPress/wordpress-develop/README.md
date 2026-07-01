@@ -14,6 +14,7 @@ Validate the rig package without running workloads:
 
 ```sh
 homeboy rig check wordpress-core-fuzz-coverage
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extension-wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
 ```
 

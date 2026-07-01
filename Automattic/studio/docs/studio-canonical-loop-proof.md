@@ -20,6 +20,7 @@ The first real runtime proof is `studio-native-live-runtime-open.mjs`: it opens 
 node Automattic/studio/proofs/studio-canonical-loop-proof.mjs --check
 HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
   node Automattic/studio/proofs/studio-canonical-loop-proof.mjs
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extension-wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs Automattic/studio
 ```
 
