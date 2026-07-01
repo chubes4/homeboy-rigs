@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { assertFuzzReadinessMetadata } from './fuzz-manifest-helpers.mjs';
@@ -33,6 +34,7 @@ const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-
 const personalPathPrefix = '/Users/' + 'chubes/';
 const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
+const cleanupIntentContractSchema = 'homeboy/resource-cleanup-intent/v1';
 const cleanupIntents = new Set(['none', 'external', 'manual', 'pipeline']);
 const homeboyBin = process.env.HOMEBOY_BIN || 'homeboy';
 
@@ -186,6 +188,8 @@ function lintLifecycleCleanup(rel, rig) {
   const cleanup = lifecycleCleanupPolicy(rig);
 
   if (cleanup) {
+    validateHomeboyCleanupIntentContract(rel, cleanup);
+
     if (!cleanupIntents.has(cleanup.intent)) {
       failures.push(`${rel}: lifecycle.cleanup.intent must be one of ${[...cleanupIntents].join(', ')}`);
     }
@@ -200,6 +204,73 @@ function lintLifecycleCleanup(rel, rig) {
   }
 
   failures.push(`${rel}: rigs with declared resources and empty pipeline.down must declare lifecycle.cleanup intent`);
+}
+
+function cleanupContractForRigPolicy(rel, cleanup) {
+  const owner = typeof cleanup.intent === 'string' ? cleanup.intent : '';
+  const reason = typeof cleanup.reason === 'string' ? cleanup.reason : '';
+  const metadata = {
+    owner,
+    declared_by: rel,
+    reason,
+  };
+  const contract = {
+    schema: cleanupIntentContractSchema,
+    intent: cleanup.intent === 'pipeline' ? 'apply' : 'dry_run',
+    ownership: {
+      dry_run: metadata,
+    },
+  };
+
+  if (cleanup.intent === 'pipeline') {
+    contract.ownership.apply = metadata;
+  }
+
+  return contract;
+}
+
+function validateHomeboyCleanupIntentContract(rel, cleanup) {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-cleanup-intent-'));
+  const contractFile = join(temporaryDirectory, 'cleanup-intent.json');
+
+  try {
+    writeFileSync(contractFile, `${JSON.stringify(cleanupContractForRigPolicy(rel, cleanup), null, 2)}\n`);
+    const result = spawnSync(homeboyBin, ['contract', 'validate', cleanupIntentContractSchema, '--file', contractFile], {
+      encoding: 'utf8',
+    });
+
+    if (result.error) {
+      failures.push(`${rel}: failed to run Homeboy cleanup intent contract validator: ${result.error.message}`);
+      return;
+    }
+
+    if (result.status === 0) {
+      return;
+    }
+
+    failures.push(`${rel}: lifecycle.cleanup failed Homeboy cleanup intent contract validation: ${formatHomeboyValidationFailure(result)}`);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
+function formatHomeboyValidationFailure(result) {
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
+
+  if (!output) {
+    return `validator exited with status ${result.status}`;
+  }
+
+  try {
+    const payload = JSON.parse(output);
+    const details = payload.error?.details || {};
+    const path = details.path || details.field;
+    const error = details.error || payload.error?.message;
+
+    return [path, error].filter(Boolean).join(': ') || output;
+  } catch {
+    return output;
+  }
 }
 
 function lintSharedPaths(rel, rig) {
