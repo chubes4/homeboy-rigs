@@ -2634,6 +2634,13 @@ return function (): array {
 		);
 	}
 
+	if ( in_array( 'product_transients_deferrer_shutdown_flushes_before_parent_sync', $invariant_failure_names, true ) ) {
+		throw new RuntimeException(
+			'WooCommerce issue #65686 guardrail failed: ProductTransientsDeferrer shutdown flush ran after deferred parent sync. Probe: '
+			. wp_json_encode( $shutdown_deferral_probe )
+		);
+	}
+
 	return array(
 		'metrics'   => $summary,
 		'hotspots'  => $hotspots,
