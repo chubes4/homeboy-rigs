@@ -4,10 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import {
-  assertFuzzReadinessMetadata,
-  collectGenericFuzzWorkloadIssues,
-} from './fuzz-manifest-helpers.mjs';
+import { assertFuzzReadinessMetadata } from './fuzz-manifest-helpers.mjs';
 
 const args = process.argv.slice(2);
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
@@ -37,6 +34,7 @@ const personalPathPrefix = '/Users/' + 'chubes/';
 const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
 const cleanupIntents = new Set(['none', 'external', 'manual', 'pipeline']);
+const homeboyBin = process.env.HOMEBOY_BIN || 'homeboy';
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -324,10 +322,8 @@ function collectFuzzWorkloads() {
   return fuzzWorkloadsByPackageRoot;
 }
 
-function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
-  for (const issue of collectGenericFuzzWorkloadIssues(workload, { context })) {
-    failures.push(`${rel}: ${issue}`);
-  }
+function validateFuzzWorkloadShape(rel, workloadFile, workload, context, packageRoot) {
+  validateGenericFuzzWorkloadContract(rel, workloadFile, context);
 
   if (workload.workload && typeof workload.workload === 'object' && !Array.isArray(workload.workload) && typeof workload.workload.path === 'string' && workload.workload.path.trim() !== '') {
     const workloadPath = resolvePackagePath(workload.workload.path, packageRoot);
@@ -337,6 +333,17 @@ function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
       failures.push(`${rel}: ${context} workload path ${relative(root, workloadPath)} does not exist`);
     }
   }
+}
+
+function validateGenericFuzzWorkloadContract(rel, file, context) {
+  const result = spawnSync(homeboyBin, ['contract', 'validate', '--file', file, 'homeboy/fuzz-workload/v1'], { encoding: 'utf8' });
+  if (result.status === 0) {
+    return;
+  }
+
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+  const detail = output ? `: ${output}` : '';
+  failures.push(`${rel}: ${context} failed homeboy/fuzz-workload/v1 contract validation${detail}`);
 }
 
 function fuzzWorkloadId(workload, path) {
@@ -380,7 +387,7 @@ function lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot) {
         continue;
       }
 
-      validateFuzzWorkloadShape(rel, workload, `fuzz workload ${declarationRel}`, packageRoot);
+      validateFuzzWorkloadShape(rel, resolvedPath, workload, `fuzz workload ${declarationRel}`, packageRoot);
 
       const workloadId = fuzzWorkloadId(workload, resolvedPath);
       const packageWorkload = packageWorkloads.get(workloadId);
@@ -512,36 +519,9 @@ function lintFuzzWorkload(file, fuzzWorkloadValidators) {
     return;
   }
 
-  for (const issue of collectGenericFuzzWorkloadIssues(workload, { context: 'fuzz workload' })) {
-    failures.push(`${rel}: ${issue}`);
-  }
-
-  for (const field of ['surface_ids', 'operations', 'cases']) {
-    if (!Array.isArray(workload[field]) || workload[field].length === 0) {
-      failures.push(`${rel}: fuzz workload must define non-empty array field ${field}`);
-    }
-  }
-
-  if (!workload.target || typeof workload.target.type !== 'string') {
-    failures.push(`${rel}: fuzz workload must define target.type`);
-  }
-
-  if (!workload.metadata || typeof workload.metadata.kind !== 'string') {
-    failures.push(`${rel}: fuzz workload must define metadata.kind`);
-  }
-
+  validateGenericFuzzWorkloadContract(rel, file, 'fuzz workload');
   lintFuzzReadinessMetadata(rel, workload);
   lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadValidators);
-
-  if (workload.limits) {
-    if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
-      failures.push(`${rel}: limits.max_cases must be a positive integer`);
-    }
-
-    if (!Number.isInteger(workload.limits.max_duration_seconds) || workload.limits.max_duration_seconds < 1) {
-      failures.push(`${rel}: limits.max_duration_seconds must be a positive integer`);
-    }
-  }
 }
 
 function lintFuzzReadinessMetadata(rel, workload) {

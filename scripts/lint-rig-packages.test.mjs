@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -64,6 +64,69 @@ export function validateFuzzWorkload({ rel, root, workload }) {
 
 function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeFakeHomeboyBin(directory) {
+  const bin = join(directory, 'fake-homeboy.mjs');
+  writeFileSync(bin, `#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+
+const [command, subcommand, flag, file, schema] = process.argv.slice(2);
+if (command !== 'contract' || subcommand !== 'validate' || flag !== '--file' || schema !== 'homeboy/fuzz-workload/v1') {
+  console.error(\`unexpected homeboy args: ${'${process.argv.slice(2).join(" ")}'}\`);
+  process.exit(64);
+}
+
+const workload = JSON.parse(readFileSync(file, 'utf8'));
+const issues = [];
+if (workload.schema !== 'homeboy/fuzz-workload/v1') {
+  issues.push('must use schema homeboy/fuzz-workload/v1');
+}
+if (typeof workload.label !== 'string' || workload.label.trim() === '') {
+  issues.push('must declare a non-empty string label');
+}
+if (!['read_only', 'idempotent', 'isolated_mutation', 'destructive'].includes(workload.safety_class)) {
+  issues.push('safety_class must be one of read_only, idempotent, isolated_mutation, destructive');
+}
+for (const testCase of workload.cases || []) {
+  if (testCase.metadata?.safety_class && testCase.metadata.safety_class !== workload.safety_class) {
+    issues.push(\`case ${'${testCase.case_id}'} metadata.safety_class must match workload safety_class ${'${workload.safety_class}'}\`);
+  }
+  if (testCase.intent && testCase.phases) {
+    issues.push('runner-neutral case intent must not embed runner command phases');
+  }
+}
+for (const field of ['surface_ids', 'operations', 'cases']) {
+  if (!Array.isArray(workload[field]) || workload[field].length === 0) {
+    issues.push(\`must define non-empty array field ${'${field}'}\`);
+  }
+}
+if (!workload.target || typeof workload.target.type !== 'string') {
+  issues.push('must define target.type');
+}
+if (!workload.metadata || typeof workload.metadata.kind !== 'string') {
+  issues.push('must define metadata.kind');
+}
+if (workload.limits) {
+  if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
+    issues.push('limits.max_cases must be a positive integer');
+  }
+  if (!Number.isInteger(workload.limits.max_duration_seconds) || workload.limits.max_duration_seconds < 1) {
+    issues.push('limits.max_duration_seconds must be a positive integer');
+  }
+}
+if (workload.intent) {
+  issues.push('top-level intent is not supported');
+}
+if (issues.length > 0) {
+  console.error(issues.join('\\n'));
+  process.exit(1);
+}
+
+console.log(JSON.stringify({ success: true, data: { file, schema, valid: true } }));
+`);
+  chmodSync(bin, 0o755);
+  return bin;
 }
 
 function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, benchProfiles = {}, fuzzProfiles = {} } = {}) {
@@ -142,6 +205,7 @@ function runLint(directory) {
     encoding: 'utf8',
     env: {
       ...process.env,
+      HOMEBOY_BIN: writeFakeHomeboyBin(directory),
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: wordpressHelperManifest,
       HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: '',
     },
@@ -166,6 +230,20 @@ test('rejects missing declared fuzz workload files', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /declares missing file/);
+});
+
+test('delegates generic fuzz workload contract validation to Homeboy', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload({ schema: 'legacy/fuzz-workload' }),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /failed homeboy\/fuzz-workload\/v1 contract validation/);
+  assert.match(result.stderr, /must use schema homeboy\/fuzz-workload\/v1/);
 });
 
 test('rejects committed local Developer checkout paths in rigs', () => {

@@ -363,10 +363,6 @@ export function assertFuzzMutationReadiness(mutation, { file } = {}) {
   return loadGenericFuzzManifestValidator().assertFuzzMutationReadiness(mutation, { file });
 }
 
-export function collectGenericFuzzWorkloadIssues(manifest, options = {}) {
-  return loadGenericFuzzManifestValidator().collectGenericFuzzWorkloadIssues(manifest, options);
-}
-
 export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.property } = {}) {
   assert.equal(manifest.schema, 'homeboy-rigs/wordpress-full-surface-coverage/v1', `${file} schema mismatch`);
   assert.equal(typeof manifest.property, 'string', `${file} requires property`);
