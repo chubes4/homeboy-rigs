@@ -41,7 +41,28 @@ test('WordPress helper loader reports actionable setup when no helper contract i
       envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
       manifestFileName: 'wordpress-fuzz-manifest-validator.js',
     })),
-    /homeboy extension setup wordpress[\s\S]*HOMEBOY_WORDPRESS_HELPER_MANIFEST[\s\S]*HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR/
+    /homeboy extension setup wordpress[\s\S]*HOMEBOY_WORDPRESS_HELPER_MANIFEST[\s\S]*HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR[\s\S]*does not discover local sibling checkouts/
+  );
+});
+
+test('WordPress helper loader rejects manifest contracts without extensionRoot', async () => {
+  const extensionRoot = await mkdtemp(path.join(tmpdir(), 'wordpress-helper-extension-invalid-'));
+  const libRoot = path.join(extensionRoot, 'lib');
+  const manifestPath = path.join(libRoot, 'helper-manifest.js');
+
+  await mkdir(libRoot, { recursive: true });
+  await writeFile(manifestPath, `module.exports = { WORDPRESS_HELPER_MANIFEST: {} };\n`, 'utf8');
+
+  assert.throws(
+    () => withEnv({
+      HOMEBOY_WORDPRESS_HELPER_MANIFEST: manifestPath,
+      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: undefined,
+    }, () => loadWordPressHelperModule({
+      helperName: 'example-helper',
+      envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
+      manifestFileName: 'example-helper.js',
+    })),
+    /HOMEBOY_WORDPRESS_HELPER_MANIFEST[\s\S]*extensionRoot string[\s\S]*homeboy extension setup wordpress/
   );
 });
 

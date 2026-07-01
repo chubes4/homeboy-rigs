@@ -78,11 +78,12 @@ homeboy rig check studio-combined
 `homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a lightweight package lint for PHP syntax, portable source paths, generated rig drift, `fuzz_profiles` references that drift from `fuzz_workloads`, and WordPress plugin fuzz workload IDs accidentally reappearing in `bench_workloads` or `bench_profiles`:
 
 ```bash
-export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extension-wordpress/lib/helper-manifest.js
+export HOMEBOY_NODEJS_WORKLOAD_UTILS=/path/to/homeboy-extensions/nodejs/scripts/bench/lib/workload-utils.mjs
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs
 ```
 
-GitHub Actions runs the package lint with PHP installed.
+GitHub Actions runs the package lint with PHP installed and injects Homeboy Extensions helper paths explicitly. Shared loaders fail with setup guidance when those paths are absent; they do not guess local sibling checkouts.
 
 ## Automattic/studio
 
@@ -264,8 +265,8 @@ Mixed-source prompt variants such as `astro-docs-content-collection`, `markdown-
 Keep the Studio bench harness layered so each repo owns the smallest stable surface it can support:
 
 - `homeboy-rigs` owns Studio-specific workloads, prompts, and experimental harness wiring while APIs are still moving.
-- `homeboy-extensions/nodejs` owns generic Node benchmark settings, command, artifact, and redaction helpers used by Studio workloads.
-- `homeboy-extensions/wordpress` owns generic WordPress helper discovery, WP Codebox recipe execution, and block quality probes once their contracts are stable.
+- `homeboy-extensions/nodejs` owns generic Node benchmark settings, command, artifact, and redaction helpers used by Studio workloads. Rigs consume those helpers through the injected `HOMEBOY_NODEJS_WORKLOAD_UTILS` path.
+- `homeboy-extensions/wordpress` owns generic WordPress helper manifests, WP Codebox recipe execution, and block quality probes once their contracts are stable. Rigs consume those helpers through `HOMEBOY_WORDPRESS_HELPER_MANIFEST` or a helper-specific injected env path.
 - `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
 
 Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block quality probes from `Extra-Chill/homeboy-extensions#1009`; target post metrics remain tracked in `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.
@@ -350,7 +351,7 @@ performance-observation contracts without adding a `homeboy bench` fallback.
 ```bash
 homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress-develop
 homeboy rig check wordpress-core-fuzz-coverage
-export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extension-wordpress/lib/helper-manifest.js
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
 ```
 
