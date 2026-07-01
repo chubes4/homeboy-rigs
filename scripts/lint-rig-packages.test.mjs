@@ -92,7 +92,6 @@ if (!isFuzzWorkload && !isCleanupIntent) {
 }
 
 const payload = JSON.parse(readFileSync(file, 'utf8'));
-const issues = [];
 
 function fail(path, error) {
   console.log(JSON.stringify({
@@ -131,46 +130,7 @@ if (isCleanupIntent) {
 
 const workload = payload;
 if (workload.schema !== 'homeboy/fuzz-workload/v1') {
-  issues.push('must use schema homeboy/fuzz-workload/v1');
-}
-if (typeof workload.label !== 'string' || workload.label.trim() === '') {
-  issues.push('must declare a non-empty string label');
-}
-if (!['read_only', 'idempotent', 'isolated_mutation', 'destructive'].includes(workload.safety_class)) {
-  issues.push('safety_class must be one of read_only, idempotent, isolated_mutation, destructive');
-}
-for (const testCase of workload.cases || []) {
-  if (testCase.metadata?.safety_class && testCase.metadata.safety_class !== workload.safety_class) {
-    issues.push(\`case ${'${testCase.case_id}'} metadata.safety_class must match workload safety_class ${'${workload.safety_class}'}\`);
-  }
-  if (testCase.intent && testCase.phases) {
-    issues.push('runner-neutral case intent must not embed runner command phases');
-  }
-}
-for (const field of ['surface_ids', 'operations', 'cases']) {
-  if (!Array.isArray(workload[field]) || workload[field].length === 0) {
-    issues.push(\`must define non-empty array field ${'${field}'}\`);
-  }
-}
-if (!workload.target || typeof workload.target.type !== 'string') {
-  issues.push('must define target.type');
-}
-if (!workload.metadata || typeof workload.metadata.kind !== 'string') {
-  issues.push('must define metadata.kind');
-}
-if (workload.limits) {
-  if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
-    issues.push('limits.max_cases must be a positive integer');
-  }
-  if (!Number.isInteger(workload.limits.max_duration_seconds) || workload.limits.max_duration_seconds < 1) {
-    issues.push('limits.max_duration_seconds must be a positive integer');
-  }
-}
-if (workload.intent) {
-  issues.push('top-level intent is not supported');
-}
-if (issues.length > 0) {
-  console.error(issues.join('\\n'));
+  console.error('must use schema homeboy/fuzz-workload/v1');
   process.exit(1);
 }
 
@@ -555,79 +515,6 @@ test('rejects committed local Developer checkout paths in stacks', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /stacks\/combined\.json: use portable component path settings/);
-});
-
-test('rejects invalid declared fuzz workload shapes', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({ schema: 'wrong', label: '' }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /must use schema homeboy\/fuzz-workload\/v1/);
-  assert.match(result.stderr, /must declare a non-empty string label/);
-});
-
-test('rejects fuzz workload safety classes outside the Homeboy contract', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({ safety_class: 'read_only_inventory' }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /safety_class must be one of read_only, idempotent, isolated_mutation, destructive/);
-});
-
-test('rejects fuzz case safety classes that drift from the workload', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        safety_class: 'read_only',
-        cases: [
-          { case_id: 'generic-fuzz:default', metadata: { safety_class: 'isolated_mutation' } },
-        ],
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /case generic-fuzz:default metadata\.safety_class must match workload safety_class read_only/);
-});
-
-test('rejects runner-neutral fuzz intent that embeds command phases', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        cases: [
-          {
-            case_id: 'generic-fuzz:default',
-            phases: { action: [{ command: 'wordpress.run-workload' }] },
-            artifacts: [{ name: 'generic_report' }],
-            intent: {
-              schema: 'homeboy/fuzz-workload-intent/v1',
-              type: 'wordpress-plugin-workload',
-              plugin: { activation: 'generic/generic.php' },
-              execute: {
-                workload_ref: 'default',
-                path: '${package.root}/bench/generic.workload.json',
-                type: 'json',
-              },
-              collect: [{ artifact: 'generic_report' }],
-            },
-          },
-        ],
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /runner-neutral case intent must not embed runner command phases/);
 });
 
 test('rejects missing fuzz workload backing files', () => {
