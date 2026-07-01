@@ -66,6 +66,65 @@ function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function createHomeboyContractValidator() {
+  const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-homeboy-bin-'));
+  const bin = join(directory, 'homeboy');
+
+  writeFileSync(bin, `#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+
+const [, , command, subcommand, schema, fileFlag, file] = process.argv;
+
+function fail(path, error) {
+  console.log(JSON.stringify({
+    success: false,
+    error: {
+      code: 'validation.invalid_json',
+      message: 'Contract validation failed',
+      details: { path, error, schema, valid: false },
+    },
+  }));
+  process.exit(1);
+}
+
+if (command !== 'contract' || subcommand !== 'validate' || schema !== 'homeboy/resource-cleanup-intent/v1' || fileFlag !== '--file') {
+  fail('.', 'unexpected homeboy contract validate invocation');
+}
+
+const payload = JSON.parse(readFileSync(file, 'utf8'));
+
+if (payload.schema !== 'homeboy/resource-cleanup-intent/v1') {
+  fail('schema', 'unexpected schema');
+}
+
+if (!['dry_run', 'apply'].includes(payload.intent)) {
+  fail('intent', 'unknown cleanup intent');
+}
+
+if (!payload.ownership?.dry_run?.owner?.trim()) {
+  fail('ownership.dry_run.owner', 'must not be blank');
+}
+
+if (!payload.ownership?.dry_run?.declared_by?.trim()) {
+  fail('ownership.dry_run.declared_by', 'must not be blank');
+}
+
+if (payload.ownership.dry_run.reason !== undefined && !payload.ownership.dry_run.reason.trim()) {
+  fail('ownership.dry_run.reason', 'must not be blank');
+}
+
+if (payload.intent === 'apply' && !payload.ownership?.apply?.owner?.trim()) {
+  fail('ownership.apply', 'apply cleanup intent requires explicit apply ownership metadata');
+}
+
+console.log(JSON.stringify({ success: true }));
+`, { mode: 0o755 });
+
+  return bin;
+}
+
+const homeboyContractValidator = createHomeboyContractValidator();
+
 function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, benchProfiles = {}, fuzzProfiles = {} } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-lint-'));
   const packageRoot = join(directory, 'Vendor', 'product');
@@ -137,13 +196,15 @@ function fuzzWorkload(overrides = {}) {
   };
 }
 
-function runLint(directory) {
+function runLint(directory, env = {}) {
   return spawnSync(process.execPath, [script, directory], {
     encoding: 'utf8',
     env: {
       ...process.env,
+      HOMEBOY_BIN: homeboyContractValidator,
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: wordpressHelperManifest,
       HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: '',
+      ...env,
     },
   });
 }
@@ -362,6 +423,28 @@ test('accepts explicit cleanup policy for rigs with resources and empty down lif
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.doesNotMatch(result.stderr, /declared resources and empty pipeline\.down/);
+});
+
+test('validates cleanup policy metadata through the Homeboy cleanup intent contract', () => {
+  const directory = createRigPackage({
+    rig: {
+      lifecycle: {
+        cleanup: {
+          intent: 'external',
+          reason: '   ',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /lifecycle\.cleanup failed Homeboy cleanup intent contract validation/);
+  assert.match(result.stderr, /ownership\.dry_run\.reason: must not be blank/);
 });
 
 test('rejects invalid explicit cleanup policy', () => {
