@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadWordPressHelperModule } from '../shared/wordpress-helper-loader.mjs';
@@ -187,17 +188,74 @@ export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workl
 export function assertReviewerFacingFuzzRef(value, context) {
   assert.equal(typeof value, 'string', `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(value.trim().length > 0, `${context} must be a reviewer-facing artifact ref string`);
-  assert.ok(
-    /^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value),
-    `${context} must be a reviewer-facing artifact ref`
-  );
-  assert.ok(
-    !localOnlyReviewerFacingRef(value),
-    `${context} must not use local evidence`
-  );
+
+  const result = normalizeReviewerFacingFuzzRef(value);
+  if (!result.ok) {
+    assert.fail(`${context} ${result.message}`);
+  }
 }
 
-export function localOnlyReviewerFacingRef(value) {
+export function normalizeReviewerFacingFuzzRef(value) {
+  const cliResult = normalizeReviewerFacingFuzzRefWithHomeboy(value);
+  if (cliResult.status !== 'unavailable') {
+    return cliResult;
+  }
+
+  return normalizeReviewerFacingFuzzRefWithTransitionalFallback(value);
+}
+
+function normalizeReviewerFacingFuzzRefWithHomeboy(value) {
+  const command = homeboyArtifactRefNormalizerCommand();
+  const result = spawnSync(command[0], [...command.slice(1), value], {
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
+  });
+
+  if (result.error?.code === 'ENOENT') {
+    return { status: 'unavailable', ok: false, message: 'homeboy artifact ref normalizer is unavailable' };
+  }
+
+  const stderr = (result.stderr || '').trim();
+  if (result.status === 0) {
+    return { status: 'normalized', ok: true, value: (result.stdout || '').trim() || value };
+  }
+
+  if (/unrecognized subcommand 'normalize'|unrecognized subcommand 'artifact-ref'|Usage: homeboy contract\b/.test(stderr)) {
+    return { status: 'unavailable', ok: false, message: 'homeboy artifact ref normalizer is unavailable' };
+  }
+
+  return { status: 'rejected', ok: false, message: stderr || 'must be a reviewer-facing artifact ref' };
+}
+
+function homeboyArtifactRefNormalizerCommand() {
+  if (process.env.HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND) {
+    const command = JSON.parse(process.env.HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND);
+    assert.ok(Array.isArray(command) && command.length > 0, 'HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND must be a JSON command array');
+    return command;
+  }
+
+  return ['homeboy', 'contract', 'normalize', 'artifact-ref'];
+}
+
+// Transitional only: local Studio machines may still have a pre-normalizer
+// Homeboy release on PATH. Remove when the released CLI is ubiquitous.
+function normalizeReviewerFacingFuzzRefWithTransitionalFallback(value) {
+  if (!reviewerFacingArtifactRefScheme(value)) {
+    return { status: 'fallback', ok: false, message: 'must be a reviewer-facing artifact ref' };
+  }
+
+  if (localOnlyReviewerFacingRef(value)) {
+    return { status: 'fallback', ok: false, message: 'must not use local evidence' };
+  }
+
+  return { status: 'fallback', ok: true, value };
+}
+
+function reviewerFacingArtifactRefScheme(value) {
+  return /^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value);
+}
+
+function localOnlyReviewerFacingRef(value) {
   if (typeof value !== 'string' || value.trim() === '') {
     return false;
   }
