@@ -102,7 +102,18 @@
   },
   "bench": {
     "default_component": "woocommerce",
-    "warmup_iterations": 0
+    "warmup_iterations": 0,
+    "check_groups": [
+      "runtime"
+    ],
+    "scenario_check_groups": {
+      "rest-product-batch-import": [
+        "rest-runtime"
+      ],
+      "admin-dashboard-physical-products-query": [
+        "admin-assets"
+      ]
+    }
   },
   "fuzz": {
     "default_component": "woocommerce"
@@ -557,24 +568,36 @@
         "kind": "requirement",
         "label": "WooCommerce runner checkout exists",
         "file": "${components.woocommerce.path}/plugins/woocommerce/woocommerce.php",
+        "groups": [
+          "runtime"
+        ],
         "remediation": "Pass homeboy bench --path /path/to/woocommerce-monorepo or update components.woocommerce.path before running woocommerce-performance."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce cart class exists",
         "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-cart.php",
+        "groups": [
+          "runtime"
+        ],
         "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce shipping class exists",
         "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-shipping.php",
+        "groups": [
+          "runtime"
+        ],
         "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
       },
       {
         "kind": "requirement",
         "label": "WooCommerce Composer package autoloader exists or can be prepared",
         "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
+        "groups": [
+          "runtime"
+        ],
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "up",
@@ -586,6 +609,9 @@
         "kind": "requirement",
         "label": "WooCommerce generated feature config exists or can be prepared",
         "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
+        "groups": [
+          "runtime"
+        ],
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "up",
@@ -597,6 +623,9 @@
         "kind": "requirement",
         "label": "WooCommerce admin script asset registry exists or can be built",
         "file": "${components.woocommerce.path}/plugins/woocommerce/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
+        "groups": [
+          "admin-assets"
+        ],
         "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" admin-assets \"${components.woocommerce.path}/plugins/woocommerce\"",
         "prepare_phases": [
           "up",
@@ -608,6 +637,9 @@
         "kind": "command",
         "label": "WooCommerce admin assets are built",
         "command": "bash \"${package.root}/tools/check-admin-assets.sh\" \"${components.woocommerce.path}\"",
+        "groups": [
+          "admin-assets"
+        ],
         "remediation": "Use a packaged WooCommerce plugin checkout or build the WooCommerce admin assets before running admin-page-coverage fuzz workloads."
       }
     ],

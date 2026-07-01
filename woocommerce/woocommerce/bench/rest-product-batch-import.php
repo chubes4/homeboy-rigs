@@ -73,6 +73,7 @@ return function (): array {
 		'https://github.com/chubes4/homeboy-rigs/issues/245',
 		'https://github.com/chubes4/homeboy-rigs/issues/246',
 		'https://github.com/Extra-Chill/homeboy-extensions/issues/1298',
+		'https://github.com/woocommerce/woocommerce/issues/65686',
 	);
 
 	update_option( 'woocommerce_currency', 'USD' );
@@ -1033,6 +1034,75 @@ return function (): array {
 	}
 	$variation_update_result = $dispatch_batch( $variation_route, array( 'update' => $variation_update ) );
 
+	$shutdown_deferral_probe = array(
+		'enabled'                              => 0,
+		'parent_id'                            => 0,
+		'existing_variation_id'                => 0,
+		'new_variation_id'                     => 0,
+		'new_variation_price'                  => '66',
+		'children_transient_warmed'            => 0,
+		'children_transient_stale_before_shutdown' => 0,
+		'product_sync_shutdown_priority'       => null,
+		'deferrer_shutdown_priority'           => null,
+		'simulated_order'                      => '',
+		'parent_price_rows_after_shutdown'      => array(),
+		'parent_price_includes_new_variation'   => 0,
+	);
+	if ( class_exists( Automattic\WooCommerce\Internal\Caches\ProductTransientsDeferrer::class ) ) {
+		$shutdown_deferral_probe['enabled'] = 1;
+		$probe_parent                       = new WC_Product_Variable();
+		$probe_parent->set_name( 'Homeboy Shutdown Deferral Parent ' . $run_id );
+		$probe_parent->set_sku( 'homeboy-shutdown-deferral-parent-' . $run_id );
+		$probe_parent_id = (int) $probe_parent->save();
+
+		$probe_existing_variation = new WC_Product_Variation();
+		$probe_existing_variation->set_parent_id( $probe_parent_id );
+		$probe_existing_variation->set_regular_price( '11' );
+		$probe_existing_variation->set_status( 'publish' );
+		$probe_existing_variation_id = (int) $probe_existing_variation->save();
+
+		$probe_parent = wc_get_product( $probe_parent_id );
+		if ( $probe_parent instanceof WC_Product_Variable ) {
+			$probe_parent->get_visible_children();
+		}
+
+		$children_transient_name = 'wc_product_children_' . $probe_parent_id;
+		$shutdown_deferral_probe['parent_id']                 = $probe_parent_id;
+		$shutdown_deferral_probe['existing_variation_id']     = $probe_existing_variation_id;
+		$shutdown_deferral_probe['children_transient_warmed'] = false === get_transient( $children_transient_name ) ? 0 : 1;
+
+		$transients_deferrer = wc_get_container()->get( Automattic\WooCommerce\Internal\Caches\ProductTransientsDeferrer::class );
+		$transients_deferrer->start_deferring();
+
+		$probe_new_variation = new WC_Product_Variation();
+		$probe_new_variation->set_parent_id( $probe_parent_id );
+		$probe_new_variation->set_regular_price( $shutdown_deferral_probe['new_variation_price'] );
+		$probe_new_variation->set_status( 'publish' );
+		$probe_new_variation_id = (int) $probe_new_variation->save();
+
+		$shutdown_deferral_probe['new_variation_id'] = $probe_new_variation_id;
+		$shutdown_deferral_probe['children_transient_stale_before_shutdown'] = false === get_transient( $children_transient_name ) ? 0 : 1;
+		$shutdown_deferral_probe['product_sync_shutdown_priority'] = has_action( 'shutdown', array( 'WC_Post_Data', 'do_deferred_product_sync' ) );
+		$shutdown_deferral_probe['deferrer_shutdown_priority']     = has_action( 'shutdown', array( $transients_deferrer, 'handle_shutdown' ) );
+
+		$product_sync_priority = false === $shutdown_deferral_probe['product_sync_shutdown_priority'] ? PHP_INT_MAX : (int) $shutdown_deferral_probe['product_sync_shutdown_priority'];
+		$deferrer_priority     = false === $shutdown_deferral_probe['deferrer_shutdown_priority'] ? PHP_INT_MAX : (int) $shutdown_deferral_probe['deferrer_shutdown_priority'];
+		if ( $deferrer_priority < $product_sync_priority ) {
+			$shutdown_deferral_probe['simulated_order'] = 'deferrer_before_product_sync';
+			$transients_deferrer->handle_shutdown();
+			WC_Post_Data::do_deferred_product_sync();
+		} else {
+			$shutdown_deferral_probe['simulated_order'] = 'product_sync_before_deferrer';
+			WC_Post_Data::do_deferred_product_sync();
+			$transients_deferrer->handle_shutdown();
+		}
+		remove_action( 'shutdown', array( $transients_deferrer, 'handle_shutdown' ) );
+
+		$parent_price_rows = array_map( 'strval', get_post_meta( $probe_parent_id, '_price', false ) );
+		$shutdown_deferral_probe['parent_price_rows_after_shutdown']    = $parent_price_rows;
+		$shutdown_deferral_probe['parent_price_includes_new_variation'] = in_array( $shutdown_deferral_probe['new_variation_price'], $parent_price_rows, true ) ? 1 : 0;
+	}
+
 	$retry_duplicate_sku_product_id       = (int) ( $simple_ids[0] ?? 0 );
 	$retry_duplicate_sku                  = $retry_duplicate_sku_product_id ? $sku_for( 'simple', 0 ) : '';
 	if ( 'catalog_duplicate_retry' === $sku_shape && ! empty( $catalog_seed_skus ) ) {
@@ -1678,6 +1748,21 @@ return function (): array {
 	$record_invariant( 'grouped_lookup_rows_exist', 0 === $count_missing_lookup_rows( $grouped_ids ) );
 	$record_invariant( 'variation_lookup_rows_exist', 0 === $count_missing_lookup_rows( $variation_ids ) );
 	$record_invariant( 'variation_attribute_lookup_rows_exist_after_callbacks', 0 === $attribute_lookup_missing_rows, array( 'missing_rows' => $attribute_lookup_missing_rows, 'expected_rows' => count( $expected_attribute_lookup_rows ), 'actual_variation_rows' => $attribute_lookup_variation_rows ) );
+	$record_invariant(
+		'product_transients_deferrer_shutdown_flushes_before_parent_sync',
+		0 === (int) $shutdown_deferral_probe['enabled'] || 1 === (int) $shutdown_deferral_probe['parent_price_includes_new_variation'],
+		array(
+			'parent_id'                      => (int) $shutdown_deferral_probe['parent_id'],
+			'new_variation_id'               => (int) $shutdown_deferral_probe['new_variation_id'],
+			'new_variation_price'            => (string) $shutdown_deferral_probe['new_variation_price'],
+			'children_transient_warmed'      => (int) $shutdown_deferral_probe['children_transient_warmed'],
+			'children_transient_stale_before_shutdown' => (int) $shutdown_deferral_probe['children_transient_stale_before_shutdown'],
+			'product_sync_shutdown_priority' => $shutdown_deferral_probe['product_sync_shutdown_priority'],
+			'deferrer_shutdown_priority'     => $shutdown_deferral_probe['deferrer_shutdown_priority'],
+			'simulated_order'                => (string) $shutdown_deferral_probe['simulated_order'],
+			'parent_price_rows_after_shutdown' => $shutdown_deferral_probe['parent_price_rows_after_shutdown'],
+		)
+	);
 
 	$retry_duplicate_sku_create_items = array_values( (array) ( $retry_duplicate_sku_result['data']['create'] ?? array() ) );
 	$summarize_response_item = static function ( $item ): array {
@@ -2176,6 +2261,7 @@ return function (): array {
 		'scenario_third_party_meta_hooks'      => 1,
 		'scenario_variation_parent_sync_guardrail' => 1,
 		'scenario_duplicate_sku_retry'         => 1,
+		'scenario_transient_deferrer_shutdown_order_guardrail' => (int) $shutdown_deferral_probe['enabled'],
 		'variable_parent_create_ms'            => (float) $variable_parent_create_result['elapsed_ms'],
 		'variable_parent_update_ms'            => (float) $variable_parent_update_result['elapsed_ms'],
 		'simple_create_ms'                     => (float) $simple_create_result['elapsed_ms'],
@@ -2364,6 +2450,12 @@ return function (): array {
 		'side_effect_duplicate_sku_retry_create_item_has_id_count' => count( array_filter( $retry_duplicate_sku_create_items, static fn( $item ): bool => is_array( $item ) && isset( $item['id'] ) ) ),
 		'side_effect_duplicate_sku_retry_create_item_summaries' => wp_json_encode( array_slice( $retry_duplicate_sku_create_item_summaries, 0, 5 ) ),
 		'side_effect_invariant_failure_names' => implode( ',', $invariant_failure_names ),
+		'side_effect_transient_deferrer_shutdown_probe_enabled' => (int) $shutdown_deferral_probe['enabled'],
+		'side_effect_transient_deferrer_shutdown_product_sync_priority' => false === $shutdown_deferral_probe['product_sync_shutdown_priority'] ? -1 : (int) $shutdown_deferral_probe['product_sync_shutdown_priority'],
+		'side_effect_transient_deferrer_shutdown_deferrer_priority' => false === $shutdown_deferral_probe['deferrer_shutdown_priority'] ? -1 : (int) $shutdown_deferral_probe['deferrer_shutdown_priority'],
+		'side_effect_transient_deferrer_shutdown_order_product_sync_first' => 'product_sync_before_deferrer' === $shutdown_deferral_probe['simulated_order'] ? 1 : 0,
+		'side_effect_transient_deferrer_shutdown_stale_children_before_shutdown' => (int) $shutdown_deferral_probe['children_transient_stale_before_shutdown'],
+		'side_effect_transient_deferrer_shutdown_parent_price_includes_new_variation' => (int) $shutdown_deferral_probe['parent_price_includes_new_variation'],
 		'side_effect_duplicate_sku_retry_internal_meta_row_delta' => $retry_internal_meta_row_delta,
 		'side_effect_duplicate_sku_retry_internal_meta_rows_before' => $retry_internal_meta_rows_before,
 		'side_effect_duplicate_sku_retry_internal_meta_rows_after' => $retry_internal_meta_rows_after,
@@ -2513,6 +2605,7 @@ return function (): array {
 							'third_party_internal_meta_hook_adjacent_writes',
 							'variation_parent_sync_under_reentrant_save',
 							'duplicate_sku_retry_guardrail',
+							'transient_deferrer_shutdown_order_guardrail',
 							'opt_in_media_image_readback_guardrail',
 						),
 						'reentrant_save_post_product_ids'              => array_values( array_unique( $reentrant_save_post_product_ids ) ),
@@ -2533,6 +2626,7 @@ return function (): array {
 						'variation_attribute_lookup_actions'          => $variation_attribute_lookup_actions,
 						'attribute_lookup_actions_after_callbacks'    => $pending_attribute_lookup_actions_after_callbacks,
 						'expected_attribute_lookup_rows'              => $expected_attribute_lookup_rows,
+						'transient_deferrer_shutdown_probe'           => $shutdown_deferral_probe,
 					),
 				),
 				JSON_PRETTY_PRINT
