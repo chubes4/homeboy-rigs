@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HOMEBOY_VERSION: v0.275.0
-      HOMEBOY_BIN: ${{ runner.temp }}/homeboy/homeboy-x86_64-unknown-linux-gnu/homeboy
+      HOMEBOY_BIN: ${{ github.workspace }}/homeboy/homeboy-x86_64-unknown-linux-gnu/homeboy
       HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/wordpress-fuzz-manifest-validator.js
     steps:
       - uses: actions/checkout@v4
@@ -30,9 +30,9 @@ jobs:
           coverage: none
       - name: Install Homeboy
         run: |
-          mkdir -p "${RUNNER_TEMP}/homeboy"
-          gh release download "${HOMEBOY_VERSION}" --repo Extra-Chill/homeboy --pattern homeboy-x86_64-unknown-linux-gnu.tar.xz --dir "${RUNNER_TEMP}/homeboy"
-          tar -xJf "${RUNNER_TEMP}/homeboy/homeboy-x86_64-unknown-linux-gnu.tar.xz" -C "${RUNNER_TEMP}/homeboy"
+          mkdir -p "${GITHUB_WORKSPACE}/homeboy"
+          gh release download "${HOMEBOY_VERSION}" --repo Extra-Chill/homeboy --pattern homeboy-x86_64-unknown-linux-gnu.tar.xz --dir "${GITHUB_WORKSPACE}/homeboy"
+          tar -xJf "${GITHUB_WORKSPACE}/homeboy/homeboy-x86_64-unknown-linux-gnu.tar.xz" -C "${GITHUB_WORKSPACE}/homeboy"
           "${HOMEBOY_BIN}" contract validate --help
       - run: node scripts/lint-rig-packages.mjs
         working-directory: homeboy-rigs
