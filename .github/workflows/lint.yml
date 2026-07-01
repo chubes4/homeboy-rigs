@@ -10,6 +10,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     env:
+      HOMEBOY_VERSION: v0.275.0
       HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/wordpress-fuzz-manifest-validator.js
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +27,12 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
+      - name: Install released Homeboy
+        run: |
+          curl -fsSL -o /tmp/homeboy.tar.xz "https://github.com/Extra-Chill/homeboy/releases/download/${HOMEBOY_VERSION}/homeboy-x86_64-unknown-linux-gnu.tar.xz"
+          tar -xJf /tmp/homeboy.tar.xz -C /tmp
+          sudo install -m 0755 /tmp/homeboy-x86_64-unknown-linux-gnu/homeboy /usr/local/bin/homeboy
+          homeboy --version
       - run: node scripts/lint-rig-packages.mjs
         working-directory: homeboy-rigs
       - name: Test fuzz contracts
