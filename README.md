@@ -340,7 +340,7 @@ homeboy rig show studio-agent-claude-trunk
 ```bash
 homeboy rig install --all ./WordPress/wordpress-playground
 homeboy rig check playground-cli-diagnostics
-homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1 --shared-state /tmp/playground-cli-diagnostics
+homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1
 ```
 
 ## WordPress/wordpress-develop

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -111,13 +111,10 @@ export default async function playgroundCliRunphpErrorsBench() {
   const blueprintsDir = path.join(artifactsDir, 'blueprints');
   await mkdir(blueprintsDir, { recursive: true });
 
-  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'playground-cli-runphp-errors-'));
-  const controlBlueprint = path.join(tmpDir, 'control.json');
-  const fatalBlueprint = path.join(tmpDir, 'fatal-runphp.json');
+  const controlBlueprint = path.join(blueprintsDir, 'control.json');
+  const fatalBlueprint = path.join(blueprintsDir, 'fatal-runphp.json');
   await writeFile(controlBlueprint, JSON.stringify(CONTROL_BLUEPRINT, null, 2));
   await writeFile(fatalBlueprint, JSON.stringify(FATAL_BLUEPRINT, null, 2));
-  await writeFile(path.join(blueprintsDir, 'control.json'), JSON.stringify(CONTROL_BLUEPRINT, null, 2));
-  await writeFile(path.join(blueprintsDir, 'fatal-runphp.json'), JSON.stringify(FATAL_BLUEPRINT, null, 2));
 
   const playgroundPath = componentPath();
   const control = await runCliProbe(playgroundPath, controlBlueprint);
@@ -171,8 +168,8 @@ export default async function playgroundCliRunphpErrorsBench() {
       report: reportPath,
       control_output: controlOutputPath,
       fatal_output: fatalOutputPath,
-      control_blueprint: path.join(blueprintsDir, 'control.json'),
-      fatal_blueprint: path.join(blueprintsDir, 'fatal-runphp.json'),
+      control_blueprint: controlBlueprint,
+      fatal_blueprint: fatalBlueprint,
     },
     metadata: {
       fatal_error_line: fatalAnalysis.errorLine,
