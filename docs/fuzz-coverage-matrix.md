@@ -30,10 +30,9 @@ optional `proof_refs`, optional `upstream_blockers`, optional CRUD operation
 levels for `create`, `read`, `update`, and `delete`, and optional mutation
 safety fields (`safety_boundary`, `mutation_artifacts`). `level: proven`
 requires a `proof_bundle` with reviewer-facing `canonical_fuzz_envelope_ref` as
-the primary proof pointer, or legacy `artifact_refs`, `run_ids`, `gap_reports`,
-and `fuzz_result_artifacts` for manifests that have not yet migrated. Product
-packages can use this shared shape to distinguish planned CRUD/mutation coverage
-from executable workloads and reviewer-facing proof artifacts.
+the primary proof pointer. Product packages can use this shared shape to
+distinguish planned CRUD/mutation coverage from executable workloads and
+reviewer-facing proof artifacts.
 
 The repo-wide package linter reports missing `metadata.readiness` on fuzz
 manifests as a warning. Run it with `HOMEBOY_WORDPRESS_HELPER_MANIFEST` pointing

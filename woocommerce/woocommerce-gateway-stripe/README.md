@@ -234,10 +234,6 @@ homeboy trace compare-bundle \
   --candidate your-branch-or-worktree
 ```
 
-`tools/real-wallet-ece-compare.sh` remains as a compatibility shim for older
-operator notes. It delegates to the same Homeboy profile and only maps legacy
-flags such as `--public-url` and `--preview-port` into environment variables.
-
 Defaults:
 
 - Baseline: `origin/develop`

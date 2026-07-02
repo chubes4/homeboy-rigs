@@ -305,7 +305,6 @@
     "aggressive-isolated-firehose": {
       "description": "WooCommerce aggressive randomized destructive firehose profile for offloaded Codebox/Homeboy/HBEX isolated sandbox execution. Rigs supplies product manifests; execution is contract-backed by upstream fuzz/isolation contracts.",
       "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
-      "command_plan_generator": "tools/aggressive-firehose-command-plan.mjs",
       "target_inventory_manifest": "manifests/target-inventory.json",
       "sequence_pack_manifest": "manifests/product-chaos-sequence-packs.json",
       "source_profile": "full-surface",
