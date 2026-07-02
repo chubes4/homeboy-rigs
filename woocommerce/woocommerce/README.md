@@ -215,10 +215,8 @@ The aggressive isolated firehose campaign shape is declared in
 `manifests/aggressive-isolated-fuzz-campaign.json`. Change that manifest when
 adding product surfaces, artifact expectations, isolation proof requirements,
 HBEX flags, or reviewer-facing ref collection semantics. Command execution is
-owned by the Homeboy/HBEX fuzz runner; this rig package does not render or carry
-manifest-owned `homeboy fuzz run` argv arrays. The command-plan helper delegates
-workload requests to core `homeboy fuzz plan` and validates that installed planner
-surface before emitting offloaded handoff plans.
+owned by the Homeboy/HBEX fuzz runner; this rig package does not preserve
+consumer-side command-array renderers as product proof.
 
 The hotspot and coverage aggregation workloads are data-only declarations for
 the intended `homeboy.artifact-postprocess` shape. Do not shim aggregation in the
