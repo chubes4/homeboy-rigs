@@ -22,6 +22,12 @@
       "${components.wp-codebox.path}"
     ]
   },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "manual",
+      "reason": "The proof harness reads user-owned component checkouts and does not create a separate runtime resource; checkout cleanup remains an operator decision."
+    }
+  },
   "pipeline": {
     "check": [
       {

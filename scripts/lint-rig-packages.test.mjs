@@ -365,7 +365,115 @@ test('rejects rigs with resources, empty down lifecycle, and no cleanup policy',
   const result = runLint(directory);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /declared resources and empty pipeline\.down must declare lifecycle\.cleanup intent/);
+  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
+});
+
+test('rejects rigs with resources, missing down lifecycle, and no cleanup policy', () => {
+  const directory = createRigPackage({
+    rig: {
+      resources: {
+        ports: [8080],
+      },
+      pipeline: {
+        up: [
+          {
+            kind: 'check',
+            label: 'generic check',
+            command: 'true',
+          },
+        ],
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
+});
+
+test('rejects inherited resources with missing down lifecycle and no cleanup policy', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  writeJson(join(packageRoot, 'rigs', 'base.json'), {
+    resources: {
+      paths: ['${components.product.path}'],
+    },
+    pipeline: {
+      up: [
+        {
+          kind: 'check',
+          label: 'generic check',
+          command: 'true',
+        },
+      ],
+    },
+  });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    extends: '../base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [
+        { path: '${package.root}/fuzz/generic-fuzz.json' },
+      ],
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
+});
+
+test('accepts inherited cleanup policy for inherited resources with missing down lifecycle', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  writeJson(join(packageRoot, 'rigs', 'base.json'), {
+    lifecycle: {
+      cleanup: {
+        intent: 'manual',
+        reason: 'The inherited rig resources are user-owned checkout state.',
+      },
+    },
+    resources: {
+      paths: ['${components.product.path}'],
+    },
+    pipeline: {
+      up: [
+        {
+          kind: 'check',
+          label: 'generic check',
+          command: 'true',
+        },
+      ],
+    },
+  });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    extends: '../base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [
+        { path: '${package.root}/fuzz/generic-fuzz.json' },
+      ],
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
 test('accepts explicit cleanup policy for rigs with resources and empty down lifecycle', () => {
@@ -392,7 +500,7 @@ test('accepts explicit cleanup policy for rigs with resources and empty down lif
   const result = runLint(directory);
 
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  assert.doesNotMatch(result.stderr, /declared resources and empty pipeline\.down/);
+  assert.doesNotMatch(result.stderr, /declared resources and empty or missing pipeline\.down/);
 });
 
 test('validates cleanup policy metadata through the Homeboy cleanup intent contract', () => {
