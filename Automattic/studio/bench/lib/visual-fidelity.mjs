@@ -35,12 +35,7 @@ function visualProbeGroups(target) {
 }
 
 function wpCodeboxCliPath() {
-  return expandHome(
-    setting('studio_wp_codebox_cli_path') ||
-      process.env.HOMEBOY_WP_CODEBOX_CLI ||
-      process.env.WP_CODEBOX_CLI_PATH ||
-      ''
-  );
+  return expandHome(setting('studio_wp_codebox_cli_path') || '');
 }
 
 function loadEditorCanvasProbes() {
@@ -97,7 +92,7 @@ function explainSelectors(groups) {
 async function runWpCodeboxRecipe(recipePath, artifactsDir) {
   const cliPath = wpCodeboxCliPath();
   if (!cliPath) {
-    throw new Error('Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.');
+    throw new Error('Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path to the WP Codebox CLI entrypoint.');
   }
 
   const result = await runWordPressRecipe({
@@ -263,7 +258,7 @@ export async function compareVisualFidelity(importReport, artifactDir, sitePath)
   if (!wpCodeboxCliPath()) {
     return emptyVisualComparison(
       artifactDir,
-      'Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path, HOMEBOY_WP_CODEBOX_CLI, or WP_CODEBOX_CLI_PATH to the WP Codebox CLI entrypoint.'
+      'Studio visual fidelity requires WP Codebox browser evidence. Set studio_wp_codebox_cli_path to the WP Codebox CLI entrypoint.'
     );
   }
 

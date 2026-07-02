@@ -256,7 +256,7 @@ wait
 
 The workload reads `eval/workflow-bench/scenarios/*.json` and `eval/workflow-bench/corpora/*.json` from the configured Studio Web checkout. The default scenario is `homeboy-plain-site-restaurant`.
 
-Source-vs-frontend visual fidelity evidence is captured through WP Codebox `wordpress.visual-compare`. Set `studio_wp_codebox_cli_path`, `HOMEBOY_WP_CODEBOX_CLI`, or `WP_CODEBOX_CLI_PATH` to the WP Codebox CLI entrypoint before running `studio-agent-site-build`; the bench keeps Studio-specific targets and thresholds, while WP Codebox owns screenshots, pixel diffs, DOM/style explanations, and visual evidence artifacts.
+Source-vs-frontend visual fidelity evidence is captured through WP Codebox `wordpress.visual-compare`. Set `studio_wp_codebox_cli_path` to the WP Codebox CLI entrypoint before running `studio-agent-site-build`; the bench keeps Studio-specific targets and thresholds, while WP Codebox owns screenshots, pixel diffs, DOM/style explanations, and visual evidence artifacts.
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 
