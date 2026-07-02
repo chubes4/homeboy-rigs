@@ -102,6 +102,8 @@ Useful settings:
 
 `studio-combined` declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
 
+`studio-combined` rewires selected Studio package manifests to local Playground tarballs during `up`. Before that rewrite, the rig refuses dirty package manifests and stores backups under `${components.studio.path}/.homeboy-rig/studio-combined/package-backups`; `down` restores those files when they still look like rig-owned local tarball rewrites. The rig no longer deletes Studio `node_modules` scopes during setup. Remaining manual remediation: ordinary symlinks declared by the rig are not cleaned by a typed Homeboy symlink lifecycle primitive, so remove `~/.local/bin/studio` or `${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds` manually if you want to undo those links after `homeboy rig down studio-combined`.
+
 ```bash
 homeboy rig check studio-combined
 homeboy rig up studio-combined
