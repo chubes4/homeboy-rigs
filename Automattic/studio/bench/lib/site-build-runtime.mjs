@@ -44,10 +44,10 @@ export async function createInvocationRuntime({ namespace, sharedState = SHARED_
 
   const { resolveHomeboyInvocationRuntime } = await import(helperPath);
   const invocationRuntime = resolveHomeboyInvocationRuntime({ namespace });
-  const stateDir = invocationRuntime.dirs.state || '';
+  const stateDir = invocationRuntime.dirs?.state || '';
   const artifactDir =
-    invocationRuntime.baseDirs.artifact || path.join(sharedState, `${namespace}-artifacts`);
-  const tmpDir = invocationRuntime.dirs.tmp || (stateDir ? path.join(stateDir, 'tmp') : '');
+    invocationRuntime.dirs?.artifact || path.join(sharedState, `${namespace}-artifacts`);
+  const tmpDir = invocationRuntime.dirs?.tmp || (stateDir ? path.join(stateDir, 'tmp') : '');
 
   return {
     invocationId: invocationRuntime.invocationId || '',
@@ -56,7 +56,7 @@ export async function createInvocationRuntime({ namespace, sharedState = SHARED_
     tmpDir,
     portBase: invocationRuntime.portRange?.base ?? null,
     portMax: invocationRuntime.portRange?.max ?? null,
-    childEnv: (extra = {}) => (invocationRuntime.isolated ? invocationRuntime.childEnv(extra) : {}),
+    childEnv: (extra = {}) => invocationRuntime.childEnv(extra),
     prepareDirs: () => invocationRuntime.prepareDirs(),
     assertPort: invocationRuntime.assertPort,
   };
