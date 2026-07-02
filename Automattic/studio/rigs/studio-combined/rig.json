@@ -21,7 +21,7 @@
   "lifecycle": {
     "cleanup": {
       "intent": "pipeline",
-      "reason": "pipeline.down stops the Studio daemon and tarball server and restores package manifests saved before local tarball rewrites; component checkouts, dependencies, and ordinary symlinks remain user-owned resources."
+      "reason": "pipeline.down stops the Studio daemon and tarball server, removes shared-path links created by this rig, and restores package manifests saved before local tarball rewrites; component checkouts and dependencies remain user-owned resources."
     }
   },
 
@@ -55,7 +55,7 @@
     ]
   },
 
-  "symlinks": [
+  "shared_paths": [
     {
       "link": "~/.local/bin/studio",
       "target": "~/.local/bin/studio-dev"
@@ -525,7 +525,7 @@
         "op": "health"
       },
       {
-        "kind": "symlink",
+        "kind": "shared-path",
         "op": "verify"
       },
       {
@@ -648,7 +648,7 @@
         "cwd": "${components.wordpress-playground.path}"
       },
       {
-        "kind": "symlink",
+        "kind": "shared-path",
         "op": "ensure"
       },
       {
@@ -708,6 +708,10 @@
         "kind": "service",
         "id": "tarball-server",
         "op": "stop"
+      },
+      {
+        "kind": "shared-path",
+        "op": "cleanup"
       },
       {
         "kind": "command",
