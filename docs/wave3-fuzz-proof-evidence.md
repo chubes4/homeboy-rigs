@@ -5,11 +5,10 @@ reviewer-facing evidence without using local-only proof. It covers the complete
 chain:
 
 1. Campaign manifest.
-2. Core fuzz plan.
-3. Lab handoff.
-4. Resources indexed.
-5. Artifacts and result envelope.
-6. Cleanup inspection.
+2. Campaign dispatch through Homeboy's fuzz campaign primitive.
+3. Resource lifecycle index inspection.
+4. Artifacts and canonical outcome envelope.
+5. Cleanup inspection.
 
 The recipe is deterministic, but this repository does not claim the campaigns
 are proven until the commands produce durable Homeboy run and artifact refs from
@@ -33,49 +32,45 @@ Core-owned manifest before layering product-specific assertions on top.
 export HOMEBOY_RUNNER_ID=<approved-runner-id>
 export WAVE3_TRACKER_REF=github:owner/repo#issue-or-pr
 export WAVE3_OUT=./wave3-core-proof
+export WAVE3_CORE_RESOURCE_INDEX=<resource-lifecycle-index-artifact-json>
 
-homeboy rig show wordpress-core-fuzz-coverage \
-  --output "$WAVE3_OUT/resources-index.json"
-
-homeboy fuzz plan \
+homeboy fuzz run-campaign \
   --rig wordpress-core-fuzz-coverage \
-  --workload rest-api \
-  --run-id wave3-core-rest-api-plan \
-  --request-id wave3-core-rest-api-plan \
+  --campaign-workload rest-api \
+  --request-id wave3-core-rest-api-campaign \
   --strategy read-only \
   --case-budget 25 \
   --duration-budget-seconds 300 \
   --max-duration 5m \
   --seed 3 \
   --tracker-ref "$WAVE3_TRACKER_REF" \
-  --lab-only \
-  --runner "$HOMEBOY_RUNNER_ID" \
-  --output "$WAVE3_OUT/core-fuzz-plan.json"
-
-homeboy fuzz run \
-  --rig wordpress-core-fuzz-coverage \
-  --workload rest-api \
-  --run-id wave3-core-rest-api \
-  --seed 3 \
-  --max-duration 5m \
-  --require-result-envelope \
-  --require-coverage-summary \
-  --tracker-ref "$WAVE3_TRACKER_REF" \
+  --required-artifact canonical_fuzz_envelope \
+  --required-artifact homeboy_fuzz_coverage \
   --lab-only \
   --runner "$HOMEBOY_RUNNER_ID" \
   --detach-after-handoff \
-  --output "$WAVE3_OUT/lab-handoff.json"
+  --output "$WAVE3_OUT/campaign-dispatch.json"
 
-homeboy runs evidence wave3-core-rest-api \
+homeboy runs watch wave3-core-rest-api-campaign-rest-api \
+  --output "$WAVE3_OUT/terminal-run.json"
+
+homeboy runs resources \
+  --file "$WAVE3_CORE_RESOURCE_INDEX" \
+  --run-id wave3-core-rest-api-campaign-rest-api \
+  --output "$WAVE3_OUT/resources-index.json"
+
+homeboy runs evidence wave3-core-rest-api-campaign-rest-api \
   --output "$WAVE3_OUT/evidence.json"
 
-homeboy runs artifacts wave3-core-rest-api \
+homeboy runs artifacts wave3-core-rest-api-campaign-rest-api \
   --output "$WAVE3_OUT/artifacts.json"
 
 homeboy runs refs \
   --rig wordpress-core-fuzz-coverage \
   --kind fuzz \
   --tracker-ref "$WAVE3_TRACKER_REF" \
+  --artifact-kind canonical_fuzz_envelope \
+  --artifact-kind homeboy_fuzz_coverage \
   --output "$WAVE3_OUT/reviewer-refs.json"
 
 homeboy cleanup worktrees \
@@ -92,44 +87,39 @@ generic loop plus WooCommerce-owned campaign/artifact contracts.
 export HOMEBOY_RUNNER_ID=<approved-runner-id>
 export WC_TRACKER_REF=github:woocommerce/woocommerce#issue-or-pr
 export WC_OUT=./wave3-woo-db-api-proof
+export WC_RESOURCE_INDEX=<resource-lifecycle-index-artifact-json>
 
-homeboy rig show woocommerce-performance \
-  --output "$WC_OUT/resources-index.json"
-
-homeboy fuzz plan \
+homeboy fuzz run-campaign \
   --rig woocommerce-performance \
-  --workload generated-rest-request-cases \
-  --run-id wave3-woo-generated-rest-plan \
-  --request-id wave3-woo-generated-rest-plan \
+  --campaign-manifest woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json \
+  --request-id wave3-woo-db-api-campaign \
   --strategy read-only \
   --case-budget 80 \
   --duration-budget-seconds 1200 \
   --max-duration 20m \
   --seed 3 \
   --tracker-ref "$WC_TRACKER_REF" \
-  --lab-only \
-  --runner "$HOMEBOY_RUNNER_ID" \
-  --output "$WC_OUT/core-fuzz-plan.json"
-
-homeboy fuzz run \
-  --rig woocommerce-performance \
-  --workload generated-rest-request-cases \
-  --run-id wave3-woo-generated-rest \
-  --seed 3 \
-  --max-duration 20m \
-  --require-case-log \
-  --require-result-envelope \
-  --require-coverage-summary \
-  --tracker-ref "$WC_TRACKER_REF" \
+  --required-artifact canonical_fuzz_envelope \
+  --required-artifact homeboy_fuzz_coverage \
+  --required-artifact coverage_gap_report \
+  --required-artifact performance_hotspots_summary \
   --lab-only \
   --runner "$HOMEBOY_RUNNER_ID" \
   --detach-after-handoff \
-  --output "$WC_OUT/lab-handoff.json"
+  --output "$WC_OUT/campaign-dispatch.json"
 
-homeboy runs evidence wave3-woo-generated-rest \
+homeboy runs watch wave3-woo-db-api-campaign-generated-rest-request-cases \
+  --output "$WC_OUT/terminal-run.json"
+
+homeboy runs resources \
+  --file "$WC_RESOURCE_INDEX" \
+  --run-id wave3-woo-db-api-campaign-generated-rest-request-cases \
+  --output "$WC_OUT/resources-index.json"
+
+homeboy runs evidence wave3-woo-db-api-campaign-generated-rest-request-cases \
   --output "$WC_OUT/evidence.json"
 
-homeboy runs artifacts wave3-woo-generated-rest \
+homeboy runs artifacts wave3-woo-db-api-campaign-generated-rest-request-cases \
   --output "$WC_OUT/artifacts.json"
 
 homeboy runs refs \
@@ -145,20 +135,18 @@ homeboy cleanup worktrees \
   --output "$WC_OUT/cleanup-inspection.json"
 ```
 
-For the broader Woo DB/API campaign, repeat the same `fuzz plan` and `fuzz run`
-shape for every workload named in
-`woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json`, then collect the
-postprocess `coverage_gap_report` and `performance_hotspots_summary` refs listed
-by that manifest before promoting the campaign to proven.
+For the broader Woo DB/API campaign, `fuzz run-campaign` expands every workload
+named in `woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json`. Do not
+promote the campaign to proven until the resulting persisted run set includes
+reviewer-facing `coverage_gap_report` and `performance_hotspots_summary` refs.
 
 ## Blocker Matrix
 
 | Requirement | Current status | Promotion blocker |
 |---|---|---|
 | Campaign manifest | Present for Core and WooCommerce. | None for planning. |
-| Core fuzz plan | `homeboy fuzz plan` is available and accepts deterministic seed, strategy, budgets, tracker ref, Lab runner, and JSON output. | Plan output is intent only; it is not execution proof. |
-| Lab handoff | `homeboy fuzz run --lab-only --detach-after-handoff` is available. | Requires an approved connected runner and accepted job id. |
-| Resources indexed | `homeboy rig show --output` records rig-declared resources before execution. | Any runtime-created resources must also appear in persisted run evidence or cleanup inspection. |
-| Artifacts/result envelope | `homeboy runs evidence`, `homeboy runs artifacts`, and `homeboy runs refs` are available. | Proven status requires durable refs for `canonical_fuzz_envelope`, coverage summary, and required product artifacts. |
+| Campaign dispatch | `homeboy fuzz run-campaign` consumes `--campaign-manifest` or repeatable `--campaign-workload`, expands entry run IDs, records required artifacts, and offloads with `--lab-only --detach-after-handoff`. | Requires an approved connected runner, accepted handoff job IDs, and terminal entry runs. |
+| Resources indexed | `homeboy runs resources --file <resource-lifecycle-index> --run-id <run-id>` filters the persisted resource lifecycle index from the run artifact set. | The resource lifecycle index must be a durable artifact from the approved run, not a local-only file. |
+| Artifacts/outcome envelope | `homeboy runs evidence`, `homeboy runs artifacts`, and `homeboy runs refs` are available; terminal runs must expose `homeboy/run-outcome-envelope/v1`. | Proven status requires durable refs for `canonical_fuzz_envelope`, coverage summary, and required product artifacts. |
 | Cleanup inspection | `homeboy cleanup worktrees` can preview cleanup across configured providers without `--apply`. | Reviewer proof must include the inspection output; destructive cleanup is a separate approved action. |
 | Woo postprocess reports | Woo campaign manifest declares `coverage_gap_report` and `performance_hotspots_summary`. | The campaign remains unproven until those report artifacts have reviewer-facing refs from the offloaded run set. |
