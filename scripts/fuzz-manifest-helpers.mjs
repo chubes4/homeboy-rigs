@@ -276,7 +276,7 @@ export function assertRequiredFuzzProofContracts(manifest, {
   }
 }
 
-export function assertArtifactPostprocessWorkloadContract(workload, { id, action, artifact, outputPath, schema, runnerSupportStatus = 'supported', readinessLevel = 'executable' }) {
+export function assertGenericArtifactPostprocessWorkloadContract(workload, { id, helper, action, artifact, outputPath, schema, runnerSupportStatus = 'supported', readinessLevel = 'executable' }) {
   assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} workload must use the generic workload-run contract`);
   assert.equal(workload.id, id, `${id} workload id drifted`);
   assert.equal(workload.steps?.length, 1, `${id} must declare one artifact postprocess step`);
@@ -285,7 +285,9 @@ export function assertArtifactPostprocessWorkloadContract(workload, { id, action
   assert.equal(workload.steps[0].runner_support_status, undefined, `${id} runner support status belongs in metadata, not the executable step`);
 
   const args = workload.steps[0].args;
-  assert.equal(args.helper, '${package.root}/tools/db-api-fuzzer-artifacts.mjs', `${id} helper drifted`);
+  assert.equal(typeof args.helper, 'string', `${id} helper must be a package-relative helper path`);
+  assert.ok(args.helper.startsWith('${package.root}/'), `${id} helper must be package-relative`);
+  assert.equal(args.helper, helper, `${id} helper drifted`);
   assert.equal(args.action, action, `${id} action drifted`);
   assert.deepEqual(args.input, {
     type: 'artifact-root',

@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  assertArtifactPostprocessWorkloadContract,
+  assertGenericArtifactPostprocessWorkloadContract,
   assertExecutableCrudMutationSafety,
   assertFullSurfaceCoverageManifest,
   assertFuzzProofBundleRequirements,
@@ -49,6 +49,7 @@ const stableWorkloads = readJson(packageRoot, 'manifests/stable-workloads.json')
 const coverageGapReportWorkload = readJson(packageRoot, 'bench/coverage-gap-report.workload.json');
 const performanceHotspotsWorkload = readJson(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json');
 const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
+const wooArtifactPostprocessHelper = '${package.root}/tools/db-api-fuzzer-artifacts.mjs';
 
 assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
 
@@ -461,7 +462,7 @@ function assertRestMutationFixtureOptInsContract(optIns, payloadFixtures, routeC
   }
 }
 
-assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
+assertWooArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
   id: 'coverage-gap-report',
   action: 'coverage-gap-report',
   artifact: 'coverage_gap_report',
@@ -469,13 +470,20 @@ assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
   schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
 });
 
-assertArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
+assertWooArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
   id: 'performance-hotspots-artifact-summary',
   action: 'performance-hotspots-summary',
   artifact: 'performance_hotspots_summary',
   outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
   schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
 });
+
+function assertWooArtifactPostprocessWorkloadContract(workload, contract) {
+  assertGenericArtifactPostprocessWorkloadContract(workload, {
+    ...contract,
+    helper: wooArtifactPostprocessHelper,
+  });
+}
 
 for (const workloadId of fullSurfaceFuzzIds) {
   assert.ok(declaredIds.has(workloadId), `${workloadId} full-surface coverage is not backed by a fuzz workload`);
