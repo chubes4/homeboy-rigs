@@ -113,7 +113,45 @@ async function withEnv(values, callback) {
   }
 }
 
-const { createFreshSite, siteStatus } = await import('./lib/site-build-runtime.mjs');
+const { INVOCATION_NAMESPACE, createFreshSite, createInvocationRuntime, siteStatus } = await import(
+  './lib/site-build-runtime.mjs'
+);
+
+test('invocation runtime seam exposes generic isolated state only', async () => {
+  await withEnv(
+    {
+      HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER: invocationRuntimeHelper,
+      HOMEBOY_INVOCATION_ID: 'inv-seam-test',
+      HOMEBOY_INVOCATION_STATE_DIR: '/tmp/inv-seam/state',
+      HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv-seam/artifacts',
+      HOMEBOY_INVOCATION_TMP_DIR: '/tmp/inv-seam/tmp',
+      HOMEBOY_INVOCATION_PORT_BASE: '22000',
+      HOMEBOY_INVOCATION_PORT_MAX: '22009',
+    },
+    async () => {
+      const runtime = await createInvocationRuntime({ namespace: INVOCATION_NAMESPACE });
+
+      assert.equal(runtime.invocationId, 'inv-seam-test');
+      assert.equal(runtime.stateDir, '/tmp/inv-seam/state/studio-agent-site-build');
+      assert.equal(runtime.artifactDir, '/tmp/inv-seam/artifacts');
+      assert.equal(runtime.tmpDir, '/tmp/inv-seam/tmp/studio-agent-site-build');
+      assert.equal(runtime.portBase, 22000);
+      assert.equal(runtime.portMax, 22009);
+      assert.equal(runtime.cliConfigDir, undefined);
+      assert.equal(runtime.appDataDir, undefined);
+      assert.equal(runtime.processManagerHome, undefined);
+
+      assert.deepEqual(runtime.childEnv({ EXTRA_ENV: 'extra-value' }), {
+        HOMEBOY_INVOCATION_NAMESPACE: 'studio-agent-site-build',
+        HOMEBOY_INVOCATION_STATE_DIR: '/tmp/inv-seam/state/studio-agent-site-build',
+        HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv-seam/artifacts/studio-agent-site-build',
+        HOMEBOY_INVOCATION_TMP_DIR: '/tmp/inv-seam/tmp/studio-agent-site-build',
+        TMPDIR: '/tmp/inv-seam/tmp/studio-agent-site-build',
+        EXTRA_ENV: 'extra-value',
+      });
+    }
+  );
+});
 
 test('site-build CLI wrappers pass resolved invocation env objects', async () => {
   await withEnv(
