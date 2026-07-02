@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -22,10 +22,14 @@ let helperSeq = 0;
 
 function installFakeRecipeHelper(body) {
   const dir = mkdtempSync(path.join(tmpdir(), 'wp-codebox-recipe-contract-'));
+  const libDir = path.join(dir, 'lib');
   helperSeq += 1;
-  const helperPath = path.join(dir, `helper-${helperSeq}.cjs`);
+  mkdirSync(libDir, { recursive: true });
+  const helperPath = path.join(libDir, 'wp-codebox-recipe-helper.js');
+  const manifestPath = path.join(libDir, `helper-manifest-${helperSeq}.cjs`);
   writeFileSync(helperPath, body, 'utf8');
-  process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = helperPath;
+  writeFileSync(manifestPath, `module.exports = { getWordPressHelperManifest: () => ({ extensionRoot: ${JSON.stringify(dir)} }) };\n`, 'utf8');
+  process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = manifestPath;
 }
 
 function walk(directory, files = []) {
@@ -45,7 +49,7 @@ function walk(directory, files = []) {
 }
 
 test('WP Codebox recipe adapter delegates duplicate concurrent runs upstream without Rigs dedupe', async () => {
-  const previous = process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
+  const previous = process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST;
   const counter = path.join(mkdtempSync(path.join(tmpdir(), 'recipe-contract-')), 'count.txt');
   writeFileSync(counter, '0', 'utf8');
   installFakeRecipeHelper(`
@@ -72,9 +76,9 @@ module.exports = {
     assert.deepEqual(second, { invoked: 2 });
   } finally {
     if (previous === undefined) {
-      delete process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER;
+      delete process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST;
     } else {
-      process.env.HOMEBOY_WP_CODEBOX_RECIPE_HELPER = previous;
+      process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = previous;
     }
   }
 });

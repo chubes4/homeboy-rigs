@@ -14,7 +14,6 @@ export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', '
 function loadGenericFuzzManifestValidator() {
   return loadWordPressHelperModule({
     helperName: 'wordpress-fuzz-manifest-validator',
-    envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
     manifestFileName: 'wordpress-fuzz-manifest-validator.js',
   });
 }

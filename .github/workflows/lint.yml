@@ -12,7 +12,6 @@ jobs:
     env:
       HOMEBOY_VERSION: v0.275.0
       HOMEBOY_NODEJS_WORKLOAD_UTILS: ${{ github.workspace }}/homeboy-extensions/nodejs/scripts/bench/lib/workload-utils.mjs
-      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/wordpress-fuzz-manifest-validator.js
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/helper-manifest.js
     steps:
       - uses: actions/checkout@v4

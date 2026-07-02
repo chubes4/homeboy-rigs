@@ -223,7 +223,6 @@ function runLint(directory, env = {}) {
       ...process.env,
       HOMEBOY_BIN: writeFakeHomeboyBin(directory),
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: wordpressHelperManifest,
-      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: '',
       ...env,
     },
   });

@@ -14,7 +14,6 @@ import {
 } from './fuzz-manifest-helpers.mjs';
 
 process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
-delete process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR;
 
 function fuzzManifest(overrides = {}) {
   return {
