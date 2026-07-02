@@ -165,12 +165,12 @@ homeboy fuzz run --rig woocommerce-performance --workload <workload> --run-id <r
 `homeboy fuzz list --rig woocommerce-performance` resolves the rig's
 WooCommerce component and `fuzz_workloads.wordpress` declarations before any
 focused `homeboy fuzz run` proof command. Fuzz workloads are not
-registered through `bench_workloads`, so there is no legacy bench fallback path
-for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
-  admin coverage, REST coverage, namespace generated cases, permission
-  boundaries, schema/query attribution, DB inventory, Action Scheduler, lookup
-  tables, isolated options/transients, frontend rendering, performance
-summaries, or external HTTP guardrails.
+registered through `bench_workloads`; checkout atomicity, shipping cache
+guardrails, layered-nav cache coverage, admin coverage, REST coverage, namespace
+generated cases, permission boundaries, schema/query attribution, DB inventory,
+Action Scheduler, lookup tables, isolated options/transients, frontend
+rendering, performance summaries, and external HTTP guardrails all run through
+`homeboy fuzz`.
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;
@@ -211,14 +211,12 @@ Every operation in `manifests/rest-crud-fixture-plan.json` is contract-backed by
 the upstream offloaded runner stack and still requires reviewer-facing isolation,
 delete-boundary, and fuzz-suite artifact refs before any `proven` claim.
 
-The aggressive firehose command shape is declared in
-`manifests/aggressive-isolated-fuzz-campaign.json#command_plan`. The
-`tools/aggressive-firehose-command-plan.mjs` script validates that manifest section
-and renders operator-facing JSON or shell commands from its templates. Change the
-campaign manifest when adding product surfaces, artifact expectations, isolation
-proof requirements, HBEX flags, or ref collection semantics; keep the script as a
-thin renderer so product campaign data does not drift into imperative planning
-code.
+The aggressive isolated firehose campaign shape is declared in
+`manifests/aggressive-isolated-fuzz-campaign.json`. Change that manifest when
+adding product surfaces, artifact expectations, isolation proof requirements,
+HBEX flags, or reviewer-facing ref collection semantics. Command execution is
+owned by the Homeboy/HBEX fuzz runner; this rig package does not render or carry
+operator command arrays.
 
 The hotspot and coverage aggregation workloads are data-only declarations for
 the intended `homeboy.artifact-postprocess` shape. Do not shim aggregation in the
