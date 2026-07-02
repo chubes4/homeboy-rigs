@@ -61,12 +61,13 @@ The declared source contracts live in:
 - `manifests/db-api-performance-fuzzer-gap-report.json`.
 - `bench/coverage-gap-report.workload.json`.
 - `bench/performance-hotspots-artifact-summary.workload.json`.
-- `tools/db-api-fuzzer-artifacts.mjs`.
+- `tools/db-api-fuzzer-artifacts.mjs` for Woo report interpretation, schemas,
+  and performance surface classification.
 
-The generic artifact IO used by `tools/db-api-fuzzer-artifacts.mjs` lives in
-`shared/artifact-postprocess-io.mjs` as rig-local temporary glue. The Woo helper
-owns only Woo report interpretation, schemas, and performance surface
-classification until Homeboy exposes the upstream artifact-postprocess primitive.
+Generic artifact root scanning, output writing, path confinement, and declared
+JSON output validation belong upstream in Homeboy core or Extensions. The Woo
+helper consumes artifact records and emits Woo-owned report payloads; it does not
+implement generic artifact-postprocess IO.
 Treat the coverage-gap and hotspot-summary postprocess outputs as declared
 campaign artifacts only; they become proof only after Homeboy collects
 reviewer-facing refs from an approved offloaded run.
@@ -74,7 +75,7 @@ reviewer-facing refs from an approved offloaded run.
 Blocked upstream extraction points:
 
 - A generic Homeboy artifact-postprocess primitive for scanning persisted run
-  artifact trees and emitting declared JSON outputs.
+  artifact trees, enforcing path confinement, and emitting declared JSON outputs.
 - A generic hotspot aggregation primitive that owns ranking fields, evidence refs,
   and threshold policy without WooCommerce-specific labels.
 - WP Codebox/Homeboy fuzz artifacts that expose durable fuzz-suite, hotspot, and

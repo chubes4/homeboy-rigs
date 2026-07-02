@@ -27,9 +27,12 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "Contract to summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs through Homeboy artifact-postprocess and the generic hotspot schema. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
-      "upstream_blockers": [],
+      "level": "declared",
+      "coverage_contract": "Contract to summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. Execution requires Homeboy or Extensions artifact-postprocess IO and generic hotspot schema handling. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "upstream_blockers": [
+        "homeboy/artifact-postprocess-plan/v1 runner for persisted artifact root scanning, output path confinement, and declared JSON artifact writing",
+        "homeboy/performance-hotspots-summary/v1 generic hotspot aggregation schema handling"
+      ],
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
