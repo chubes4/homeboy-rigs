@@ -1,6 +1,10 @@
-# Studio Canonical Loop Contract Harness
+# Studio Canonical Loop Proof Guard
 
-This is a deterministic contract harness for the intended website artifact loop:
+This file documents the intended website artifact loop contract. It is not proof that the production Studio Native loop works.
+
+The retired harness used to synthesize Codebox fanout output, Studio Native canonical-store output, Static Site Importer materialization output, and reviewer evidence refs. That behavior was misleading because it could pass without executing the real runtime. The executable script now only validates the contract fixture with `--check`; runtime proof execution fails clearly until live mode has real runtime wiring and durable reviewer-facing artifact refs.
+
+## Intended Loop
 
 1. Host request arrives with prompt, fanout targets, artifact contract, and user-change intent.
 2. Codebox/fanout generation produces a website artifact.
@@ -8,74 +12,35 @@ This is a deterministic contract harness for the intended website artifact loop:
 4. Static Site Importer materializes the artifact into a block theme in an ephemeral Codebox/site.
 5. A user change mutates the original canonical artifact.
 6. Reimport materializes the updated artifact.
-7. Progress and diagnostics artifacts explain what happened.
+7. Progress and diagnostics artifacts explain what happened through durable reviewer-facing refs.
 
-Current status: the default harness verifies contract shape and writes a portable evidence bundle. It is not evidence that the production Studio Native loop works or produces valuable iteration PRs. Runtime execution for Codebox browser fanout, Studio Native persistence APIs, and ephemeral Codebox/WordPress remains explicitly marked as blocked rather than faked. A stronger `local-wp` mode exercises Static Site Importer through a local WordPress install with WP-CLI when that runtime is available.
-
-The first real runtime proof is `studio-native-live-runtime-open.mjs`: it opens a Studio Native runtime site and verifies that the real Studio Native, agentic UI, and WP Codebox REST surfaces are present. That is still only a runtime-open proof, not a generation-quality proof.
-
-## Safe Validation
+## Safe Fixture Validation
 
 ```bash
 node Automattic/studio/proofs/studio-canonical-loop-proof.mjs --check
-HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
-  node Automattic/studio/proofs/studio-canonical-loop-proof.mjs
 export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs Automattic/studio
 ```
 
-## Run The Contract Harness
+`--check` validates `Automattic/studio/fixtures/studio-canonical-loop/host-request.json` and does not execute a runtime proof or write proof artifacts.
+
+## Runtime Proof Status
+
+The runtime proof is intentionally blocked:
 
 ```bash
-HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
-  node Automattic/studio/proofs/studio-canonical-loop-proof.mjs
+node Automattic/studio/proofs/studio-canonical-loop-proof.mjs
 ```
 
-## Run The Local WordPress Harness
-
-Run this from a Studio site directory that has Static Site Importer active:
-
-```bash
-HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
-  node /path/to/homeboy-rigs/Automattic/studio/proofs/studio-canonical-loop-proof.mjs \
-    --mode local-wp
-```
-
-`local-wp` mode writes the same artifacts as stub mode, but the initial materialization and reimport materialization are performed through `static_site_importer_ability_import_website_artifact()` via `studio wp eval-file`.
-
-## Run The Live Runtime Open Proof
-
-Run this against an explicit Studio Native runtime URL:
+The script fails unless `--mode live` is used with a real Studio Native runtime URL and a durable evidence ref:
 
 ```bash
 STUDIO_NATIVE_RUNTIME_URL=https://your-studio-native-runtime.example \
-HOMEBOY_INVOCATION_ARTIFACT_DIR=/path/to/artifacts \
-  node Automattic/studio/proofs/studio-native-live-runtime-open.mjs
+STUDIO_CANONICAL_LOOP_DURABLE_EVIDENCE_REF=https://durable-artifact.example/run/123 \
+  node Automattic/studio/proofs/studio-canonical-loop-proof.mjs --mode live
 ```
 
-This proof opens the site, opens the WordPress REST index, reaches `/wp-json/studio-native/v1/status` even when auth-protected, and fails unless the real routes for chat, run events, Codebox artifact handoff, Codebox artifact session, contained-site open/create, and WP Codebox browser endpoints are present.
-
-The script writes:
-
-- `progress.json` for phase-by-phase evidence.
-- `diagnostics.json` for assertions, real/stubbed boundaries, and blockers.
-- `codebox-fanout-artifact.json` for the generated website artifact stub.
-- `studio-native-canonical-artifact.v1.json` and `.v2.json` for the stored artifact before and after user mutation.
-- `ssi-materialized-theme.initial.json` and `.reimport.json` for block-theme materialization stubs.
-- `evidence-bundle.json` with portable `homeboy-artifact://` refs for reviewer-facing artifacts.
-- `result.json` with the artifact index and success flag.
-
-## Contract Harness Acceptance Criteria
-
-The proof fails unless these user-facing outcomes are present:
-
-- The host request includes prompt/delegation, fanout targets, artifact contract, source-of-truth requirement, provenance requirement, and required evidence artifacts.
-- Codebox fanout output exists in the site-artifact shape and carries a fanout evidence ref.
-- Studio Native canonical artifact v1 is stored as the source of truth with revision/provenance metadata.
-- User edit mutates the original canonical artifact, producing revision v2 with parent provenance.
-- Reimport consumes the mutated canonical artifact and the materialized theme output contains the edited text.
-- SSI materialization diagnostics report zero fallback blocks in contract mode.
-- Progress, diagnostics, canonical artifacts, materialized themes, and the evidence bundle are preserved with portable reviewer-facing refs.
+Even with those values present, this harness fails until the live implementation drives real host request execution, Codebox fanout, Studio Native canonical persistence, SSI materialization, and durable artifact publication. It must not synthesize local artifacts as proof evidence.
 
 ## Rig Entry Point
 
@@ -83,11 +48,11 @@ The proof fails unless these user-facing outcomes are present:
 homeboy rig check studio-canonical-loop-proof
 ```
 
-The rig check validates the fixture and runs the deterministic contract harness. It intentionally does not claim live Codebox or Studio Native runtime execution.
+The rig validates the fixture and then attempts the live proof step. Without live-mode runtime wiring and durable refs, the rig fails rather than reporting a fake proof pass.
 
 ## Production Loop Acceptance Criteria
 
-The production proof still needs to drive the real runtime:
+The production proof needs to drive the real runtime:
 
 - Open the Studio Native runtime in a browser or through its real REST surfaces.
 - Submit a real host chat/generation request through `/studio-native-agentic-ui/v1/chat` or the UI.
@@ -99,30 +64,6 @@ The production proof still needs to drive the real runtime:
 - Verify the original stored artifact is mutated and reimported.
 - Verify the visible site output changes.
 - Produce reviewer-facing artifacts/screenshots/events that demonstrate the iteration has value.
-
-## Real vs Stubbed
-
-Contract-verified now:
-
-- Host request fixture schema validation.
-- Website artifact creation in the expected site-artifact shape.
-- Codebox fanout artifact provenance and evidence ref.
-- Studio Native canonical artifact source-of-truth metadata.
-- Canonical artifact versioning and parent revision provenance.
-- User mutation against the original canonical artifact.
-- Reimport proof that the updated artifact reaches the materialized theme output.
-- Progress, diagnostics, artifact, and evidence-bundle refs.
-- In `local-wp` mode, Static Site Importer website artifact materialization through local WordPress/WP-CLI.
-- In `local-wp` mode, reimport materialization through local WordPress/WP-CLI.
-
-Stubbed by the contract harness:
-
-- Codebox browser execution.
-- Studio Native canonical artifact persistence APIs.
-- Static Site Importer runtime execution in default contract mode.
-- Ephemeral Codebox browser/site runtime.
-- WordPress active-theme verification.
-- Reviewer-facing artifact bundle publication.
 
 ## Blockers To Make The Full Production Proof Executable
 
