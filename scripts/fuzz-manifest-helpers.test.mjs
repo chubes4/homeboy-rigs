@@ -193,15 +193,15 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
   })), false);
 });
 
-test('assertArtifactPostprocessWorkloadContract accepts explicit upstream-blocked declarations', async () => {
-  const { assertArtifactPostprocessWorkloadContract } = await import('./fuzz-manifest-helpers.mjs');
+test('assertGenericArtifactPostprocessWorkloadContract accepts explicit upstream-blocked declarations', async () => {
+  const { assertGenericArtifactPostprocessWorkloadContract } = await import('./fuzz-manifest-helpers.mjs');
   const workload = {
     schema: 'wp-codebox/wordpress-workload-run/v1',
     id: 'coverage-gap-report',
     steps: [{
       command: 'homeboy.artifact-postprocess',
       args: {
-        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
+        helper: '${package.root}/tools/generic-artifact-helper.mjs',
         action: 'coverage-gap-report',
         input: { type: 'artifact-root', path: '${artifacts.root}', artifact_globs: ['**/*.json'], max_bytes: 1048576 },
         output: {
@@ -233,8 +233,9 @@ test('assertArtifactPostprocessWorkloadContract accepts explicit upstream-blocke
     },
   };
 
-  assert.doesNotThrow(() => assertArtifactPostprocessWorkloadContract(workload, {
+  assert.doesNotThrow(() => assertGenericArtifactPostprocessWorkloadContract(workload, {
     id: 'coverage-gap-report',
+    helper: '${package.root}/tools/generic-artifact-helper.mjs',
     action: 'coverage-gap-report',
     artifact: 'coverage_gap_report',
     outputPath: 'coverage-gap-report/coverage_gap_report.json',

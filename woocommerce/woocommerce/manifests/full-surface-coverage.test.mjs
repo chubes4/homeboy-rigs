@@ -4,7 +4,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assertArtifactPostprocessWorkloadContract,
+  assertGenericArtifactPostprocessWorkloadContract,
   assertFullSurfaceCoverageManifest,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import {
@@ -38,6 +38,7 @@ const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/c
 const coverageGapReportWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/coverage-gap-report.workload.json'), 'utf8'));
 const performanceHotspotsWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json'), 'utf8'));
 const runtimePrepScript = readFileSync(path.join(packageRoot, 'tools/prepare-runtime-dependency.sh'), 'utf8');
+const wooArtifactPostprocessHelper = '${package.root}/tools/db-api-fuzzer-artifacts.mjs';
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
 const genericExecutableReadinessStates = new Set([
@@ -237,7 +238,7 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
   assert.equal(coverageGapReport.workload.type, 'json');
   assert.equal(coverageGapReport.safety_class, 'read_only');
   assert.equal(coverageGapReport.artifacts.expected[0].name, 'coverage_gap_report');
-  assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
+  assertWooArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
     id: 'coverage-gap-report',
     action: 'coverage-gap-report',
     artifact: 'coverage_gap_report',
@@ -250,7 +251,7 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
   assert.equal(performanceHotspots.workload.type, 'json');
   assert.equal(performanceHotspots.safety_class, 'read_only');
   assert.equal(performanceHotspots.artifacts.expected[0].name, 'performance_hotspots_summary');
-  assertArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
+  assertWooArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
     id: 'performance-hotspots-artifact-summary',
     action: 'performance-hotspots-summary',
     artifact: 'performance_hotspots_summary',
@@ -258,6 +259,13 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
     schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
   });
 });
+
+function assertWooArtifactPostprocessWorkloadContract(workload, contract) {
+  assertGenericArtifactPostprocessWorkloadContract(workload, {
+    ...contract,
+    helper: wooArtifactPostprocessHelper,
+  });
+}
 
 test('DB/API campaign consumes executable Codebox fixture contracts without proof refs', () => {
   assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-contract.json');
