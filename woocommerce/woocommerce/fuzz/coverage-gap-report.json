@@ -20,9 +20,11 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "Contract to read available WooCommerce DB/API fuzzer run artifacts and emit a coverage gap report with expected, covered, gaps, status, and evidence refs through Homeboy artifact-postprocess. Proven status requires reviewer-facing offloaded artifact refs. Mutating CRUD is represented by product-owned mutation isolation and delete-boundary artifacts.",
-      "upstream_blockers": [],
+      "level": "declared",
+      "coverage_contract": "Contract to read available WooCommerce DB/API fuzzer run artifacts and emit a coverage gap report with expected, covered, gaps, status, and evidence refs. Execution requires Homeboy or Extensions artifact-postprocess IO. Proven status requires reviewer-facing offloaded artifact refs. Mutating CRUD is represented by product-owned mutation isolation and delete-boundary artifacts.",
+      "upstream_blockers": [
+        "homeboy/artifact-postprocess-plan/v1 runner for persisted artifact root scanning, output path confinement, and declared JSON artifact writing"
+      ],
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -35,7 +37,7 @@
       }
     },
     "generic_primitive": {
-      "status": "supported",
+      "status": "required_upstream",
       "contract": "homeboy/artifact-postprocess-plan/v1"
     },
     "fixture": {

@@ -74,9 +74,10 @@
   ],
   "postprocess": {
     "command": "homeboy.artifact-postprocess",
-    "runner_support_status": "supported",
-    "boundary_note": "The Woo helper provides product policy for Homeboy's artifact-postprocess IO shape. These outputs are executable through the generic primitive and become proof only after the runner collects reviewer-facing Homeboy artifact refs from an approved offloaded run.",
+    "runner_support_status": "blocked_on_upstream_primitive",
+    "boundary_note": "The Woo helper provides product policy for Homeboy's artifact-postprocess IO shape. Execution requires the generic primitive in Homeboy or Extensions, and these outputs become proof only after the runner collects reviewer-facing Homeboy artifact refs from an approved offloaded run.",
     "blocked_until": [
+      "Homeboy or Extensions provides persisted artifact root scanning, output path confinement, and declared JSON artifact writing.",
       "The runner collects declared fuzz.report JSON artifacts as reviewer-facing evidence."
     ],
     "artifact_roots": [

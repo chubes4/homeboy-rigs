@@ -1,20 +1,8 @@
-#!/usr/bin/env node
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import {
-  normalizeArtifactRootInput,
-  normalizeJsonArtifactOutput,
-  readJsonArtifactTree,
-  writeJsonArtifact,
-} from '../../../shared/artifact-postprocess-io.mjs';
 
 export const coverageGapSchema = 'homeboy-rigs/wordpress-coverage-gap-report/v1';
 export const hotspotSummarySchema = 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1';
 export const artifactPostprocessCommand = 'homeboy.artifact-postprocess';
-const supportedCommands = new Set(['coverage-gap-report', 'performance-hotspots-summary']);
-
-export { readJsonArtifactTree as readArtifactTree, writeJsonArtifact };
 
 export function extractRestRequestCases(artifacts, { maxRouteCases = 80 } = {}) {
   return artifacts
@@ -148,110 +136,4 @@ export function classifyWooCommercePerformanceSurface(workload, json) {
   if (haystack.includes('catalog') || haystack.includes('layered')) return 'catalog';
   if (haystack.includes('admin')) return 'admin';
   return 'api';
-}
-
-export function normalizeArtifactPostprocessStep(step) {
-  if (!step || typeof step !== 'object' || Array.isArray(step)) {
-    throw new Error('Artifact postprocess step must be an object');
-  }
-  if (step.command !== artifactPostprocessCommand) {
-    throw new Error(`Unsupported artifact postprocess command: ${step.command}`);
-  }
-
-  const args = step.args;
-  if (!args || typeof args !== 'object' || Array.isArray(args)) {
-    throw new Error('Artifact postprocess step requires args');
-  }
-  if (typeof args.helper !== 'string' || args.helper.trim() === '') {
-    throw new Error('Artifact postprocess args.helper must be a non-empty string');
-  }
-  if (!supportedCommands.has(args.action)) {
-    throw new Error(`Unsupported artifact postprocess action: ${args.action}`);
-  }
-
-  const inputContract = normalizeArtifactRootInput(args.input);
-  const outputContract = normalizeJsonArtifactOutput(args.output);
-  const output = args.output;
-  if (output.schema === coverageGapSchema) {
-    const requiredFields = output.required_fields || [];
-    const expectedFields = ['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs'];
-    if (JSON.stringify(requiredFields) !== JSON.stringify(expectedFields)) {
-      throw new Error(`Coverage gap output required_fields must be ${expectedFields.join(', ')}`);
-    }
-  }
-  if (output.schema === hotspotSummarySchema) {
-    const requiredFields = output.ranking?.required_fields || [];
-    const expectedFields = ['rank', 'surface', 'relative_score', 'request_attribution', 'query_attribution', 'fixture_scale', 'run_refs'];
-    if (output.ranking?.mode !== 'relative') {
-      throw new Error('Performance hotspot output ranking.mode must be relative');
-    }
-    if (JSON.stringify(requiredFields) !== JSON.stringify(expectedFields)) {
-      throw new Error(`Performance hotspot output ranking.required_fields must be ${expectedFields.join(', ')}`);
-    }
-  }
-
-  return {
-    command: args.action,
-    ...inputContract,
-    ...outputContract,
-    maxQuerySamples: args.parameters?.maxQuerySamples ?? 50,
-  };
-}
-
-export function buildArtifactPostprocessPayload(step, { inputRoot } = {}) {
-  const contract = normalizeArtifactPostprocessStep(step);
-  const artifacts = readJsonArtifactTree(inputRoot || contract.inputRoot, {
-    maxArtifactBytes: contract.maxArtifactBytes,
-  });
-  const payload = contract.command === 'coverage-gap-report'
-    ? buildCoverageGapReport(artifacts)
-    : buildPerformanceHotspotsSummary(artifacts, {
-      maxQuerySamples: contract.maxQuerySamples,
-      classifySurface: classifyWooCommercePerformanceSurface,
-    });
-
-  if (payload.schema !== contract.outputSchema) {
-    throw new Error(`Artifact postprocess output schema mismatch: expected ${contract.outputSchema}, received ${payload.schema}`);
-  }
-
-  return payload;
-}
-
-export function writeArtifactPostprocessPayload(step, { inputRoot, outputPath } = {}) {
-  const contract = normalizeArtifactPostprocessStep(step);
-  const payload = buildArtifactPostprocessPayload(step, { inputRoot });
-  writeJsonArtifact(outputPath || contract.outputPath, payload);
-  return payload;
-}
-
-async function main() {
-  const [command, inputRoot, outputPath] = process.argv.slice(2);
-  if (command === 'artifact-postprocess') {
-    if (!inputRoot) {
-      throw new Error('Usage: db-api-fuzzer-artifacts.mjs artifact-postprocess <step-json> [input-root] [output-json]');
-    }
-    const step = JSON.parse(readFileSync(inputRoot, 'utf8'));
-    writeArtifactPostprocessPayload(step, { inputRoot: outputPath, outputPath: process.argv[5] });
-    return;
-  }
-
-  if (!command || !inputRoot || !outputPath) {
-    throw new Error('Usage: db-api-fuzzer-artifacts.mjs <coverage-gap-report|performance-hotspots-summary> <artifact-root> <output-json>');
-  }
-  if (!supportedCommands.has(command)) {
-    throw new Error(`Unsupported command: ${command}`);
-  }
-
-  const artifacts = readJsonArtifactTree(inputRoot);
-  const payload = command === 'coverage-gap-report'
-    ? buildCoverageGapReport(artifacts)
-    : buildPerformanceHotspotsSummary(artifacts, { classifySurface: classifyWooCommercePerformanceSurface });
-  writeJsonArtifact(outputPath, payload);
-}
-
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  });
 }

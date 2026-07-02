@@ -468,6 +468,8 @@ assertWooArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
   artifact: 'coverage_gap_report',
   outputPath: 'coverage-gap-report/coverage_gap_report.json',
   schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+  runnerSupportStatus: 'blocked_on_upstream_primitive',
+  readinessLevel: 'declared',
 });
 
 assertWooArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
@@ -476,6 +478,8 @@ assertWooArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
   artifact: 'performance_hotspots_summary',
   outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
   schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
+  runnerSupportStatus: 'blocked_on_upstream_primitive',
+  readinessLevel: 'declared',
 });
 
 function assertWooArtifactPostprocessWorkloadContract(workload, contract) {
@@ -1132,9 +1136,11 @@ assert.deepEqual(dbApiPerformanceFuzzerGapReport.generic_upstream_contracts, [
   'wp-codebox/wordpress-workload-run/v1',
   'homeboy-rigs/wordpress-coverage-gap-report/v1',
 ], 'DB/API gap report must link generic upstream artifact contracts');
-assert.match(dbApiPerformanceFuzzerGapReport.boundary_note || '', /Homeboy owns the generic artifact-postprocess runner contract/, 'DB/API gap report must document the Homeboy postprocess boundary');
+assert.match(dbApiPerformanceFuzzerGapReport.boundary_note || '', /Homeboy or Extensions owns the generic artifact-postprocess runner contract/, 'DB/API gap report must document the Homeboy postprocess boundary');
 assertFuzzProofBundleRequirements(dbApiPerformanceFuzzerGapReport.readiness?.proof_bundle_requirements, { file: 'db-api-performance-fuzzer-gap-report readiness' });
-assert.deepEqual(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers, [], 'DB/API gap report must not claim upstream blockers after Homeboy primitive adoption');
+assert.deepEqual(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers, [
+  'homeboy/artifact-postprocess-plan/v1 runner for persisted artifact root scanning, output path confinement, and declared JSON artifact writing',
+], 'DB/API gap report upstream blocker drifted');
 assert.equal(dbApiFuzzCampaign.schema, 'homeboy-rigs/woocommerce-db-api-fuzz-campaign/v1', 'DB/API fuzz campaign schema drifted');
 assert.equal(dbApiFuzzCampaign.id, 'woocommerce-db-api-fuzz-campaign', 'DB/API fuzz campaign id drifted');
 assert.equal(dbApiFuzzCampaign.profile_id, 'db-api-performance-fuzzer', 'DB/API fuzz campaign profile id drifted');
@@ -1150,7 +1156,7 @@ assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assertNoProofPlaceholders(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assertDbApiCampaignPromotionContract(dbApiFuzzCampaign);
 assert.equal(dbApiFuzzCampaign.postprocess?.command, 'homeboy.artifact-postprocess', 'DB/API fuzz campaign must route postprocess through generic artifact-postprocess');
-assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'supported', 'DB/API fuzz campaign postprocess must use the upstream artifact-postprocess primitive');
+assert.equal(dbApiFuzzCampaign.postprocess?.runner_support_status, 'blocked_on_upstream_primitive', 'DB/API fuzz campaign postprocess must wait for the upstream artifact-postprocess primitive');
 assert.match(dbApiFuzzCampaign.postprocess?.boundary_note || '', /generic primitive/, 'DB/API fuzz campaign postprocess must document the upstream artifact-postprocess boundary');
 assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.every((condition) => !condition.includes('args.helper')), 'DB/API fuzz campaign postprocess blockers must not claim missing helper/action/input/output/parameters binding');
 assert.ok(dbApiFuzzCampaign.postprocess?.blocked_until?.some((condition) => condition.includes('reviewer-facing evidence')), 'DB/API fuzz campaign postprocess blockers must include reviewer-facing evidence collection before proven readiness');

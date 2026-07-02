@@ -233,7 +233,7 @@ test('REST DB query profile consumes generated request case artifacts with caps'
 });
 
 test('coverage gap and hotspot reports declare the generic artifact postprocess contract', () => {
-  assert.equal(coverageGapReport.metadata.readiness.level, 'executable');
+  assert.equal(coverageGapReport.metadata.readiness.level, 'declared');
   assert.equal(coverageGapReport.workload.path, '${package.root}/bench/coverage-gap-report.workload.json');
   assert.equal(coverageGapReport.workload.type, 'json');
   assert.equal(coverageGapReport.safety_class, 'read_only');
@@ -244,9 +244,11 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
     artifact: 'coverage_gap_report',
     outputPath: 'coverage-gap-report/coverage_gap_report.json',
     schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+    runnerSupportStatus: 'blocked_on_upstream_primitive',
+    readinessLevel: 'declared',
   });
 
-  assert.equal(performanceHotspots.metadata.readiness.level, 'executable');
+  assert.equal(performanceHotspots.metadata.readiness.level, 'declared');
   assert.equal(performanceHotspots.workload.path, '${package.root}/bench/performance-hotspots-artifact-summary.workload.json');
   assert.equal(performanceHotspots.workload.type, 'json');
   assert.equal(performanceHotspots.safety_class, 'read_only');
@@ -257,6 +259,8 @@ test('coverage gap and hotspot reports declare the generic artifact postprocess 
     artifact: 'performance_hotspots_summary',
     outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
     schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
+    runnerSupportStatus: 'blocked_on_upstream_primitive',
+    readinessLevel: 'declared',
   });
 });
 

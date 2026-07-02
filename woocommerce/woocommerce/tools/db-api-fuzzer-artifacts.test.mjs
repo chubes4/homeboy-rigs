@@ -1,50 +1,39 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import {
-  artifactPostprocessCommand,
-  buildArtifactPostprocessPayload,
   buildCoverageGapReport,
   buildPerformanceHotspotsSummary,
   classifyGenericArtifactSurface,
   classifyWooCommercePerformanceSurface,
   extractRestRequestCases,
-  normalizeArtifactPostprocessStep,
-  readArtifactTree,
 } from './db-api-fuzzer-artifacts.mjs';
 
-function writeJson(root, relativePath, payload) {
-  const targetPath = path.join(root, relativePath);
-  mkdirSync(path.dirname(targetPath), { recursive: true });
-  writeFileSync(targetPath, `${JSON.stringify(payload, null, 2)}\n`);
-}
-
 test('coverage gap report is derived from route inventory and generated request case artifacts', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'woo-db-api-gap-'));
-
-  writeJson(root, 'woocommerce-rest-route-inventory/routes.json', {
-    routes: [
-      { path: '/wc/store/v1/products' },
-      { path: '/wc/store/v1/cart' },
-    ],
-  });
-  writeJson(root, 'generated-rest-request-cases/cases.json', {
-    schema: 'homeboy/wordpress-rest-request-cases/v1',
-    cases: [
-      { id: 'products', method: 'GET', path: '/wc/store/v1/products', params: { per_page: 1 } },
-    ],
-    coverage_gap: {
-      gaps: [
-        { path: '/wc/store/v1/cart', reason_code: 'dynamic_path_parameter' },
-      ],
+  const artifacts = [
+    {
+      path: '/artifacts/woocommerce-rest-route-inventory/routes.json',
+      json: {
+        routes: [
+          { path: '/wc/store/v1/products' },
+          { path: '/wc/store/v1/cart' },
+        ],
+      },
     },
-  });
-
-  const artifacts = readArtifactTree(root);
+    {
+      path: '/artifacts/generated-rest-request-cases/cases.json',
+      json: {
+        schema: 'homeboy/wordpress-rest-request-cases/v1',
+        cases: [
+          { id: 'products', method: 'GET', path: '/wc/store/v1/products', params: { per_page: 1 } },
+        ],
+        coverage_gap: {
+          gaps: [
+            { path: '/wc/store/v1/cart', reason_code: 'dynamic_path_parameter' },
+          ],
+        },
+      },
+    },
+  ];
   const report = buildCoverageGapReport(artifacts);
 
   assert.equal(report.schema, 'homeboy-rigs/wordpress-coverage-gap-report/v1');
@@ -126,123 +115,4 @@ test('generic artifact scanning does not bake in WooCommerce hotspot labels', ()
     classifyWooCommercePerformanceSurface('checkout-shipping-cache', { metadata: { coverage_shape: 'checkout shipping cache profile' } }),
     'checkout'
   );
-});
-
-test('generic artifact postprocess contract drives coverage gap output', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'woo-db-api-contract-gap-'));
-  writeJson(root, 'woocommerce-rest-route-inventory/routes.json', {
-    routes: [{ path: '/wc/store/v1/products' }],
-  });
-  writeJson(root, 'generated-rest-request-cases/cases.json', {
-    schema: 'homeboy/wordpress-rest-request-cases/v1',
-    cases: [{ id: 'products', method: 'GET', path: '/wc/store/v1/products' }],
-  });
-
-  const step = {
-    command: artifactPostprocessCommand,
-    args: {
-      helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
-      action: 'coverage-gap-report',
-      input: {
-        type: 'artifact-root',
-        path: root,
-        artifact_globs: ['**/*.json'],
-        max_bytes: 1048576,
-      },
-      output: {
-        artifact: 'coverage_gap_report',
-        path: 'coverage-gap-report/coverage_gap_report.json',
-        kind: 'json',
-        contentType: 'application/json',
-        schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
-        semantic_key: 'fuzz.report',
-        required_fields: ['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs'],
-      },
-      parameters: {
-        metric_prefix: 'coverage_gap_report',
-      },
-    },
-  };
-
-  assert.equal(normalizeArtifactPostprocessStep(step).command, 'coverage-gap-report');
-  assert.equal(buildArtifactPostprocessPayload(step).status, 'covered');
-});
-
-test('generic artifact postprocess contract rejects invented commands and incomplete output bindings', () => {
-  assert.throws(
-    () => normalizeArtifactPostprocessStep({ command: 'artifact-postprocess', args: {} }),
-    /Unsupported artifact postprocess command: artifact-postprocess/
-  );
-
-  assert.throws(
-    () => normalizeArtifactPostprocessStep({
-      command: artifactPostprocessCommand,
-      args: {
-        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
-        action: 'coverage-gap-report',
-        input: { type: 'artifact-root', path: '/tmp/artifacts', artifact_globs: ['**/*.json'] },
-        output: { artifact: 'coverage_gap_report', path: 'coverage-gap-report/coverage_gap_report.json', kind: 'json' },
-      },
-    }),
-    /args\.output\.contentType must be a non-empty string/
-  );
-});
-
-test('generic artifact postprocess contract rejects drifted coverage output schema', () => {
-  assert.throws(
-    () => normalizeArtifactPostprocessStep({
-      command: artifactPostprocessCommand,
-      args: {
-        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
-        action: 'coverage-gap-report',
-        input: { type: 'artifact-root', path: '/tmp/artifacts', artifact_globs: ['**/*.json'] },
-        output: {
-          artifact: 'coverage_gap_report',
-          path: 'coverage-gap-report/coverage_gap_report.json',
-          kind: 'json',
-          contentType: 'application/json',
-          schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
-          semantic_key: 'fuzz.report',
-          required_fields: ['surface_type'],
-        },
-      },
-    }),
-    /Coverage gap output required_fields/
-  );
-});
-
-test('generic artifact postprocess contract rejects drifted hotspot ranking schema', () => {
-  assert.throws(
-    () => normalizeArtifactPostprocessStep({
-      command: artifactPostprocessCommand,
-      args: {
-        helper: '${package.root}/tools/db-api-fuzzer-artifacts.mjs',
-        action: 'performance-hotspots-summary',
-        input: { type: 'artifact-root', path: '/tmp/artifacts', artifact_globs: ['**/*.json'] },
-        output: {
-          artifact: 'performance_hotspots_summary',
-          path: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
-          kind: 'json',
-          contentType: 'application/json',
-          schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
-          semantic_key: 'fuzz.report',
-          ranking: { mode: 'absolute', required_fields: ['rank'] },
-        },
-      },
-    }),
-    /ranking\.mode must be relative/
-  );
-});
-
-test('CLI rejects unsupported artifact commands', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'woo-db-api-cli-'));
-  const result = spawnSync(process.execPath, [
-    fileURLToPath(new URL('./db-api-fuzzer-artifacts.mjs', import.meta.url)),
-    'unknown-command',
-    root,
-    path.join(root, 'out.json'),
-  ], { encoding: 'utf8' });
-
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /Unsupported command: unknown-command/);
 });

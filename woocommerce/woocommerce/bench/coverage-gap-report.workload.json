@@ -44,14 +44,19 @@
   "metadata": {
     "runner": "wp-codebox",
     "workload": "coverage-gap-report",
-    "runner_support_status": "supported",
+    "runner_support_status": "blocked_on_upstream_primitive",
     "generic_primitive": {
-      "status": "supported",
-      "contract": "homeboy/artifact-postprocess-plan/v1"
+      "status": "required_upstream",
+      "contract": "homeboy/artifact-postprocess-plan/v1",
+      "required_capabilities": [
+        "persisted artifact root scanning",
+        "output path confinement",
+        "declared JSON artifact writing"
+      ]
     },
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "Coverage gap report contract over an approved offloaded Woo DB/API campaign artifact root through Homeboy's artifact-postprocess runner primitive. Proven status requires reviewer-facing run and coverage_gap_report artifact refs.",
+      "level": "declared",
+      "coverage_contract": "Coverage gap report contract over an approved offloaded Woo DB/API campaign artifact root. Execution requires Homeboy or Extensions to provide the generic artifact-postprocess runner primitive. Proven status requires reviewer-facing run and coverage_gap_report artifact refs.",
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -63,7 +68,7 @@
         ]
       },
       "proven_when": [
-        "Homeboy executes the artifact-postprocess plan against a persisted artifact root.",
+        "Homeboy or Extensions executes the artifact-postprocess plan against a persisted artifact root.",
         "An approved offloaded campaign run provides a reviewer-facing artifact root for prior workload outputs.",
         "The runner collects the declared coverage_gap_report fuzz.report JSON artifact as reviewer-facing evidence."
       ]
