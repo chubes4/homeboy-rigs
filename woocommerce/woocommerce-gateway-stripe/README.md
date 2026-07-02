@@ -96,13 +96,6 @@ be compared against a non-default base ref; set
 `HOMEBOY_WC_STRIPE_ECE_ASSET_CHECK=off` only for local diagnostics where stale
 asset measurements are intentionally acceptable.
 
-If `wp-codebox` is not installed on `PATH`, point Homeboy at a built WP Codebox
-CLI:
-
-```bash
-export HOMEBOY_WP_CODEBOX_BIN=/path/to/wp-codebox/packages/cli/dist/index.js
-```
-
 ## Install
 
 ```bash

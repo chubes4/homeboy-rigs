@@ -197,84 +197,37 @@ export function assertReviewerFacingFuzzRef(value, context) {
 
 export function normalizeReviewerFacingFuzzRef(value) {
   const cliResult = normalizeReviewerFacingFuzzRefWithHomeboy(value);
-  if (cliResult.status !== 'unavailable') {
-    return cliResult;
-  }
-
-  return normalizeReviewerFacingFuzzRefWithTransitionalFallback(value);
+  return cliResult;
 }
 
 function normalizeReviewerFacingFuzzRefWithHomeboy(value) {
   const command = homeboyArtifactRefNormalizerCommand();
-  const result = spawnSync(command[0], [...command.slice(1), value], {
+  const result = spawnSync(command[0], [...command.slice(1), '--input', JSON.stringify(value)], {
     encoding: 'utf8',
     maxBuffer: 1024 * 1024,
   });
 
   if (result.error?.code === 'ENOENT') {
-    return { status: 'unavailable', ok: false, message: 'homeboy artifact ref normalizer is unavailable' };
+    return { status: 'rejected', ok: false, message: 'requires Homeboy contract normalize artifact-ref support' };
   }
 
   const stderr = (result.stderr || '').trim();
+  const stdout = (result.stdout || '').trim();
   if (result.status === 0) {
-    return { status: 'normalized', ok: true, value: (result.stdout || '').trim() || value };
+    const payload = stdout ? JSON.parse(stdout) : null;
+    return { status: 'normalized', ok: true, value: payload?.data?.normalized || value };
   }
 
   if (/unrecognized subcommand 'normalize'|unrecognized subcommand 'artifact-ref'|Usage: homeboy contract\b/.test(stderr)) {
-    return { status: 'unavailable', ok: false, message: 'homeboy artifact ref normalizer is unavailable' };
+    return { status: 'rejected', ok: false, message: 'requires Homeboy contract normalize artifact-ref support' };
   }
 
-  return { status: 'rejected', ok: false, message: stderr || 'must be a reviewer-facing artifact ref' };
+  const payload = stdout ? JSON.parse(stdout) : null;
+  return { status: 'rejected', ok: false, message: payload?.error?.message || stderr || 'must be a reviewer-facing artifact ref' };
 }
 
 function homeboyArtifactRefNormalizerCommand() {
-  if (process.env.HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND) {
-    const command = JSON.parse(process.env.HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND);
-    assert.ok(Array.isArray(command) && command.length > 0, 'HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND must be a JSON command array');
-    return command;
-  }
-
-  return ['homeboy', 'contract', 'normalize', 'artifact-ref'];
-}
-
-// Transitional only: local Studio machines may still have a pre-normalizer
-// Homeboy release on PATH. Remove when the released CLI is ubiquitous.
-function normalizeReviewerFacingFuzzRefWithTransitionalFallback(value) {
-  if (!reviewerFacingArtifactRefScheme(value)) {
-    return { status: 'fallback', ok: false, message: 'must be a reviewer-facing artifact ref' };
-  }
-
-  if (localOnlyReviewerFacingRef(value)) {
-    return { status: 'fallback', ok: false, message: 'must not use local evidence' };
-  }
-
-  return { status: 'fallback', ok: true, value };
-}
-
-function reviewerFacingArtifactRefScheme(value) {
-  return /^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value);
-}
-
-function localOnlyReviewerFacingRef(value) {
-  if (typeof value !== 'string' || value.trim() === '') {
-    return false;
-  }
-  const ref = value.trim();
-  return localOnlyRefValue(ref) || localOnlySchemePayload(ref);
-}
-
-function localOnlySchemePayload(ref) {
-  const match = /^(?:artifact:|run:|homeboy-runs:|homeboy-artifact:\/\/)(.*)$/i.exec(ref);
-  return Boolean(match && localOnlyRefValue(match[1]));
-}
-
-function localOnlyRefValue(ref) {
-  return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(ref)
-    || /^file:\/\//i.test(ref)
-    || /^\/Users\//.test(ref)
-    || /^\/private\//.test(ref)
-    || /^\/tmp(?:\/|$)/.test(ref)
-    || /^\.\.?(?:\/|$)/.test(ref);
+  return [process.env.HOMEBOY_BIN || 'homeboy', 'contract', 'normalize', 'artifact-ref'];
 }
 
 function assertOptionalFuzzResultArtifacts(proofBundle, manifest, { file = manifest.id } = {}) {

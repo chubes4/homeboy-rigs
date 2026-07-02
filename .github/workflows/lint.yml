@@ -36,6 +36,7 @@ jobs:
           sudo install -m 0755 /tmp/homeboy-x86_64-unknown-linux-gnu/homeboy /usr/local/bin/homeboy
           homeboy --version
           homeboy contract validate --help
+          homeboy contract normalize artifact-ref --help
       - run: node scripts/lint-rig-packages.mjs
         working-directory: homeboy-rigs
       - name: Test lint harness

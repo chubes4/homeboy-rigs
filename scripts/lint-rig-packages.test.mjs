@@ -7,10 +7,6 @@ import test from 'node:test';
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
 const wordpressHelperManifest = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
-const artifactRefNormalizerCommand = JSON.stringify([
-  process.execPath,
-  new URL('./fixtures/homeboy-artifact-ref-normalizer.mjs', import.meta.url).pathname,
-]);
 const wordpressCoreFuzzValidatorSource = `
 export function validateFuzzWorkload({ rel, root, workload }) {
   const failures = [];
@@ -76,6 +72,16 @@ function writeFakeHomeboyBin(directory) {
 import { readFileSync } from 'node:fs';
 
 const [command, subcommand, first, second, third] = process.argv.slice(2);
+if (command === 'contract' && subcommand === 'normalize' && first === 'artifact-ref' && second === '--input') {
+  const value = JSON.parse(third);
+  if (typeof value === 'string' && /^homeboy:\\/\\//.test(value)) {
+    console.log(JSON.stringify({ success: true, data: { normalized: value } }));
+    process.exit(0);
+  }
+  console.log(JSON.stringify({ success: false, error: { message: "Invalid argument 'artifact-ref'" } }));
+  process.exit(1);
+}
+
 if (command !== 'contract' || subcommand !== 'validate') {
   console.error(\`unexpected homeboy args: ${'${process.argv.slice(2).join(" ")}'}\`);
   process.exit(64);
@@ -218,7 +224,6 @@ function runLint(directory, env = {}) {
       HOMEBOY_BIN: writeFakeHomeboyBin(directory),
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: wordpressHelperManifest,
       HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: '',
-      HOMEBOY_ARTIFACT_REF_NORMALIZER_COMMAND: artifactRefNormalizerCommand,
       ...env,
     },
   });
