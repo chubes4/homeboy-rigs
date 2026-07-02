@@ -12,10 +12,9 @@
   ],
   "required_phase_order": [
     "campaign_manifest",
-    "core_fuzz_plan",
-    "lab_handoff",
+    "campaign_dispatch",
     "resources_indexed",
-    "artifacts_result_envelope",
+    "artifacts_outcome_envelope",
     "cleanup_inspection"
   ],
   "recipes": [
@@ -25,7 +24,9 @@
       "rig": "wordpress-core-fuzz-coverage",
       "campaign_manifest": "WordPress/wordpress-develop/manifests/fuzzer-profile.json",
       "workload": "rest-api",
-      "run_id": "wave3-core-rest-api",
+      "run_id": "wave3-core-rest-api-campaign-rest-api",
+      "request_id": "wave3-core-rest-api-campaign",
+      "resource_index_placeholder": "$WAVE3_CORE_RESOURCE_INDEX",
       "tracker_ref_placeholder": "$WAVE3_TRACKER_REF",
       "proof_status": "not_proven_until_reviewer_refs_exist",
       "phases": [
@@ -35,28 +36,25 @@
           "artifacts": ["WordPress/wordpress-develop/manifests/fuzzer-profile.json"]
         },
         {
-          "id": "core_fuzz_plan",
-          "description": "Build a deterministic execution request without running fuzz locally.",
-          "command": "homeboy fuzz plan --rig wordpress-core-fuzz-coverage --workload rest-api --run-id wave3-core-rest-api-plan --request-id wave3-core-rest-api-plan --strategy read-only --case-budget 25 --duration-budget-seconds 300 --max-duration 5m --seed 3 --tracker-ref \"$WAVE3_TRACKER_REF\" --lab-only --runner \"$HOMEBOY_RUNNER_ID\" --output \"$WAVE3_OUT/core-fuzz-plan.json\""
-        },
-        {
-          "id": "lab_handoff",
-          "description": "Hand the run to an approved Lab runner and return after accepted handoff.",
-          "command": "homeboy fuzz run --rig wordpress-core-fuzz-coverage --workload rest-api --run-id wave3-core-rest-api --seed 3 --max-duration 5m --require-result-envelope --require-coverage-summary --tracker-ref \"$WAVE3_TRACKER_REF\" --lab-only --runner \"$HOMEBOY_RUNNER_ID\" --detach-after-handoff --output \"$WAVE3_OUT/lab-handoff.json\""
+          "id": "campaign_dispatch",
+          "description": "Build and dispatch the deterministic campaign through Homeboy's campaign primitive without executing fuzz locally.",
+          "command": "homeboy fuzz run-campaign --rig wordpress-core-fuzz-coverage --campaign-workload rest-api --request-id wave3-core-rest-api-campaign --strategy read-only --case-budget 25 --duration-budget-seconds 300 --max-duration 5m --seed 3 --tracker-ref \"$WAVE3_TRACKER_REF\" --required-artifact canonical_fuzz_envelope --required-artifact homeboy_fuzz_coverage --lab-only --runner \"$HOMEBOY_RUNNER_ID\" --detach-after-handoff --output \"$WAVE3_OUT/campaign-dispatch.json\""
         },
         {
           "id": "resources_indexed",
-          "description": "Capture rig-declared resource ownership before or alongside the handoff.",
-          "command": "homeboy rig show wordpress-core-fuzz-coverage --output \"$WAVE3_OUT/resources-index.json\""
+          "description": "Filter the persisted resource lifecycle index artifact for the accepted campaign entry run.",
+          "command": "homeboy runs resources --file \"$WAVE3_CORE_RESOURCE_INDEX\" --run-id wave3-core-rest-api-campaign-rest-api --output \"$WAVE3_OUT/resources-index.json\""
         },
         {
-          "id": "artifacts_result_envelope",
-          "description": "Collect persisted evidence, artifacts, and stable reviewer refs after the run reaches a terminal state.",
+          "id": "artifacts_outcome_envelope",
+          "description": "Collect persisted evidence, artifacts, and stable reviewer refs after the run reaches a terminal state, including the canonical outcome envelope.",
           "commands": [
-            "homeboy runs evidence wave3-core-rest-api --output \"$WAVE3_OUT/evidence.json\"",
-            "homeboy runs artifacts wave3-core-rest-api --output \"$WAVE3_OUT/artifacts.json\"",
-            "homeboy runs refs --rig wordpress-core-fuzz-coverage --kind fuzz --tracker-ref \"$WAVE3_TRACKER_REF\" --output \"$WAVE3_OUT/reviewer-refs.json\""
+            "homeboy runs watch wave3-core-rest-api-campaign-rest-api --output \"$WAVE3_OUT/terminal-run.json\"",
+            "homeboy runs evidence wave3-core-rest-api-campaign-rest-api --output \"$WAVE3_OUT/evidence.json\"",
+            "homeboy runs artifacts wave3-core-rest-api-campaign-rest-api --output \"$WAVE3_OUT/artifacts.json\"",
+            "homeboy runs refs --rig wordpress-core-fuzz-coverage --kind fuzz --tracker-ref \"$WAVE3_TRACKER_REF\" --artifact-kind canonical_fuzz_envelope --artifact-kind homeboy_fuzz_coverage --output \"$WAVE3_OUT/reviewer-refs.json\""
           ],
+          "required_outcome_schema": "homeboy/run-outcome-envelope/v1",
           "required_artifact_kinds": ["canonical_fuzz_envelope", "homeboy_fuzz_coverage"]
         },
         {
@@ -68,7 +66,7 @@
       "blockers_to_proven": [
         "approved Lab runner id",
         "accepted handoff job id",
-        "terminal persisted Homeboy run",
+        "terminal persisted Homeboy run with homeboy/run-outcome-envelope/v1",
         "reviewer-facing canonical_fuzz_envelope ref",
         "reviewer-facing coverage summary ref",
         "cleanup inspection artifact"
@@ -81,7 +79,9 @@
       "rig": "woocommerce-performance",
       "campaign_manifest": "woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json",
       "workload": "generated-rest-request-cases",
-      "run_id": "wave3-woo-generated-rest",
+      "run_id": "wave3-woo-db-api-campaign-generated-rest-request-cases",
+      "request_id": "wave3-woo-db-api-campaign",
+      "resource_index_placeholder": "$WC_RESOURCE_INDEX",
       "tracker_ref_placeholder": "$WC_TRACKER_REF",
       "proof_status": "not_proven_until_reviewer_refs_exist",
       "phases": [
@@ -91,28 +91,25 @@
           "artifacts": ["woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json"]
         },
         {
-          "id": "core_fuzz_plan",
-          "description": "Build a deterministic Woo execution request through the generic Homeboy fuzz planner.",
-          "command": "homeboy fuzz plan --rig woocommerce-performance --workload generated-rest-request-cases --run-id wave3-woo-generated-rest-plan --request-id wave3-woo-generated-rest-plan --strategy read-only --case-budget 80 --duration-budget-seconds 1200 --max-duration 20m --seed 3 --tracker-ref \"$WC_TRACKER_REF\" --lab-only --runner \"$HOMEBOY_RUNNER_ID\" --output \"$WC_OUT/core-fuzz-plan.json\""
-        },
-        {
-          "id": "lab_handoff",
-          "description": "Hand the Woo workload to an approved Lab runner with result envelope, coverage summary, and case-log requirements.",
-          "command": "homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wave3-woo-generated-rest --seed 3 --max-duration 20m --require-case-log --require-result-envelope --require-coverage-summary --tracker-ref \"$WC_TRACKER_REF\" --lab-only --runner \"$HOMEBOY_RUNNER_ID\" --detach-after-handoff --output \"$WC_OUT/lab-handoff.json\""
+          "id": "campaign_dispatch",
+          "description": "Build and dispatch the Woo DB/API campaign manifest through Homeboy's campaign primitive without executing fuzz locally.",
+          "command": "homeboy fuzz run-campaign --rig woocommerce-performance --campaign-manifest woocommerce/woocommerce/manifests/db-api-fuzz-campaign.json --request-id wave3-woo-db-api-campaign --strategy read-only --case-budget 80 --duration-budget-seconds 1200 --max-duration 20m --seed 3 --tracker-ref \"$WC_TRACKER_REF\" --required-artifact canonical_fuzz_envelope --required-artifact homeboy_fuzz_coverage --required-artifact coverage_gap_report --required-artifact performance_hotspots_summary --lab-only --runner \"$HOMEBOY_RUNNER_ID\" --detach-after-handoff --output \"$WC_OUT/campaign-dispatch.json\""
         },
         {
           "id": "resources_indexed",
-          "description": "Capture Woo rig resource ownership before or alongside the handoff.",
-          "command": "homeboy rig show woocommerce-performance --output \"$WC_OUT/resources-index.json\""
+          "description": "Filter the persisted resource lifecycle index artifact for the accepted campaign entry run.",
+          "command": "homeboy runs resources --file \"$WC_RESOURCE_INDEX\" --run-id wave3-woo-db-api-campaign-generated-rest-request-cases --output \"$WC_OUT/resources-index.json\""
         },
         {
-          "id": "artifacts_result_envelope",
-          "description": "Collect persisted evidence, artifacts, and stable reviewer refs after the run reaches a terminal state.",
+          "id": "artifacts_outcome_envelope",
+          "description": "Collect persisted evidence, artifacts, and stable reviewer refs after the run reaches a terminal state, including the canonical outcome envelope.",
           "commands": [
-            "homeboy runs evidence wave3-woo-generated-rest --output \"$WC_OUT/evidence.json\"",
-            "homeboy runs artifacts wave3-woo-generated-rest --output \"$WC_OUT/artifacts.json\"",
+            "homeboy runs watch wave3-woo-db-api-campaign-generated-rest-request-cases --output \"$WC_OUT/terminal-run.json\"",
+            "homeboy runs evidence wave3-woo-db-api-campaign-generated-rest-request-cases --output \"$WC_OUT/evidence.json\"",
+            "homeboy runs artifacts wave3-woo-db-api-campaign-generated-rest-request-cases --output \"$WC_OUT/artifacts.json\"",
             "homeboy runs refs --rig woocommerce-performance --kind fuzz --tracker-ref \"$WC_TRACKER_REF\" --artifact-kind canonical_fuzz_envelope --artifact-kind homeboy_fuzz_coverage --output \"$WC_OUT/reviewer-refs.json\""
           ],
+          "required_outcome_schema": "homeboy/run-outcome-envelope/v1",
           "required_artifact_kinds": ["canonical_fuzz_envelope", "homeboy_fuzz_coverage"]
         },
         {
@@ -124,7 +121,7 @@
       "blockers_to_proven": [
         "approved Lab runner id",
         "accepted handoff job id",
-        "terminal persisted Homeboy run",
+        "terminal persisted Homeboy run with homeboy/run-outcome-envelope/v1",
         "reviewer-facing canonical_fuzz_envelope ref",
         "reviewer-facing case log ref",
         "reviewer-facing Homeboy fuzz coverage ref",

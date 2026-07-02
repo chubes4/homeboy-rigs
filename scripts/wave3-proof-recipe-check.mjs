@@ -10,10 +10,9 @@ const recipePath = join(root, 'docs/wave3-fuzz-proof-recipes.json');
 const localOnlyPattern = /(?:localhost|127\.0\.0\.1|file:\/\/|\/Users\/|https?:\/\/localhost|https?:\/\/127\.0\.0\.1)/i;
 const requiredPhases = [
   'campaign_manifest',
-  'core_fuzz_plan',
-  'lab_handoff',
+  'campaign_dispatch',
   'resources_indexed',
-  'artifacts_result_envelope',
+  'artifacts_outcome_envelope',
   'cleanup_inspection',
 ];
 
@@ -51,42 +50,42 @@ for (const recipe of recipes.recipes) {
   const serialized = JSON.stringify(recipe);
   assert.ok(!localOnlyPattern.test(serialized), `${recipe.id} contains local-only reviewer evidence`);
 
-  const plan = recipe.phases.find((phase) => phase.id === 'core_fuzz_plan');
-  assertCommandContains(plan.command, [
-    'homeboy fuzz plan',
+  const dispatch = recipe.phases.find((phase) => phase.id === 'campaign_dispatch');
+  assertCommandContains(dispatch.command, [
+    'homeboy fuzz run-campaign',
     `--rig ${recipe.rig}`,
-    `--workload ${recipe.workload}`,
+    '--request-id',
     '--seed 3',
     '--tracker-ref',
-    '--lab-only',
-    '--runner',
-    '--output',
-  ], `${recipe.id} plan command`);
-
-  const handoff = recipe.phases.find((phase) => phase.id === 'lab_handoff');
-  assertCommandContains(handoff.command, [
-    'homeboy fuzz run',
-    `--rig ${recipe.rig}`,
-    `--workload ${recipe.workload}`,
-    `--run-id ${recipe.run_id}`,
-    '--require-result-envelope',
-    '--require-coverage-summary',
-    '--tracker-ref',
+    '--required-artifact canonical_fuzz_envelope',
+    '--required-artifact homeboy_fuzz_coverage',
     '--lab-only',
     '--runner',
     '--detach-after-handoff',
     '--output',
-  ], `${recipe.id} handoff command`);
+  ], `${recipe.id} campaign dispatch command`);
+  assert.ok(
+    dispatch.command.includes(`--campaign-workload ${recipe.workload}`) ||
+      dispatch.command.includes(`--campaign-manifest ${recipe.campaign_manifest}`),
+    `${recipe.id} campaign dispatch command must consume a campaign workload or manifest`,
+  );
+  assert.ok(!dispatch.command.includes('homeboy fuzz plan'), `${recipe.id} must not use plan-only proof`);
+  assert.ok(!dispatch.command.includes('homeboy fuzz run --'), `${recipe.id} must use run-campaign`);
 
   const resources = recipe.phases.find((phase) => phase.id === 'resources_indexed');
   assertCommandContains(resources.command, [
-    'homeboy rig show',
-    recipe.rig,
+    'homeboy runs resources',
+    '--file',
+    `--run-id ${recipe.run_id}`,
     '--output',
   ], `${recipe.id} resources command`);
+  assert.ok(!resources.command.includes('homeboy rig show'), `${recipe.id} resources must use persisted run resources`);
 
-  const artifactCommands = commandsForPhase(recipe.phases.find((phase) => phase.id === 'artifacts_result_envelope')).join('\n');
+  const artifactPhase = recipe.phases.find((phase) => phase.id === 'artifacts_outcome_envelope');
+  assert.equal(artifactPhase.required_outcome_schema, 'homeboy/run-outcome-envelope/v1');
+  const artifactCommands = commandsForPhase(artifactPhase).join('\n');
   assertCommandContains(artifactCommands, [
+    `homeboy runs watch ${recipe.run_id}`,
     `homeboy runs evidence ${recipe.run_id}`,
     `homeboy runs artifacts ${recipe.run_id}`,
     'homeboy runs refs',

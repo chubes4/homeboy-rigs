@@ -59,8 +59,8 @@ difference between declared, executable, and proven coverage.
 
 Wave 3 fuzz proof recipes are tracked in
 [`docs/wave3-fuzz-proof-evidence.md`](docs/wave3-fuzz-proof-evidence.md). They
-show the deterministic chain from campaign manifest to core fuzz plan, Lab
-handoff, resource indexing, persisted artifacts/result envelope, and cleanup
+show the deterministic chain from campaign manifest to campaign dispatch,
+resource lifecycle indexing, persisted artifacts/outcome envelope, and cleanup
 inspection. Validate the machine-readable recipe contract with
 `node scripts/wave3-proof-recipe-check.mjs`; the recipes remain blocked from
 `proven` status until durable reviewer-facing Homeboy run and artifact refs
