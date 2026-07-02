@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import {
+import runFixtureMatrixBench, {
   composerPathRepositoryConfig,
   resolveBlocksEnginePhpTransformerPath,
 } from '../bench/static-site-fixture-matrix.bench.mjs';
@@ -23,6 +23,14 @@ import { materializeGeneratedArtifactFixtures } from '../lib/artifact-intake.mjs
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const fixtureRoot = path.join(packageRoot, 'fixtures');
+
+function restoreEnv(key, value) {
+  if (value === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = value;
+  }
+}
 
 test('discovers SSI fixtures and writes Blocks Engine site artifacts', () => {
   const outputDirectory = mkdtempSync(path.join(tmpdir(), 'ssi-fixture-matrix-'));
@@ -137,6 +145,63 @@ test('builds Composer path repository override matching SSI constraints', () => 
       },
     },
   });
+});
+
+test('runFixtureMatrixBench reads workload args from context.args when imported', async () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'ssi-bench-context-args-'));
+  const contextFixtureRoot = path.join(root, 'context-fixtures');
+  const argvFixtureRoot = path.join(root, 'argv-fixtures');
+  const outputDirectory = path.join(root, 'context-artifacts');
+  const argvOutputDirectory = path.join(root, 'argv-artifacts');
+  const staticSiteImporter = path.join(root, 'static-site-importer');
+  mkdirSync(path.join(contextFixtureRoot, 'context-fixture'), { recursive: true });
+  mkdirSync(path.join(argvFixtureRoot, 'argv-fixture'), { recursive: true });
+  mkdirSync(staticSiteImporter, { recursive: true });
+  writeFileSync(path.join(contextFixtureRoot, 'context-fixture', 'index.html'), '<h1>Context fixture</h1>');
+  writeFileSync(path.join(argvFixtureRoot, 'argv-fixture', 'index.html'), '<h1>Argv fixture</h1>');
+
+  const previousArgv = process.argv;
+  const benchEnvKeys = [
+    'SSI_FIXTURE_MATRIX_FIXTURE_ROOT',
+    'SSI_FIXTURE_MATRIX_OUTPUT_DIRECTORY',
+    'SSI_FIXTURE_MATRIX_STATIC_SITE_IMPORTER_PATH',
+    'SSI_FIXTURE_MATRIX_RUN',
+    'HOMEBOY_BENCH_ARTIFACTS_DIR',
+  ];
+  const benchEnvSnapshot = Object.fromEntries(benchEnvKeys.map((key) => [key, process.env[key]]));
+
+  for (const key of benchEnvKeys) {
+    delete process.env[key];
+  }
+  process.argv = [
+    'node',
+    'homeboy-nodejs-bench-runner',
+    '--fixture-root', argvFixtureRoot,
+    '--output-directory', argvOutputDirectory,
+    '--static-site-importer-path', staticSiteImporter,
+  ];
+
+  try {
+    const benchResult = await runFixtureMatrixBench({
+      args: [
+        '--fixture-root', contextFixtureRoot,
+        '--output-directory', outputDirectory,
+        '--static-site-importer-path', staticSiteImporter,
+      ],
+    });
+
+    assert.equal(benchResult.metrics.fixture_count, 1);
+    assert.equal(benchResult.metadata.fixture_root, path.resolve(contextFixtureRoot));
+    assert.equal(benchResult.metadata.output_directory, path.resolve(outputDirectory));
+    const matrix = JSON.parse(readFileSync(benchResult.artifacts.matrix.path, 'utf8'));
+    assert.deepEqual(matrix.fixtures.map((fixture) => fixture.id), ['context-fixture']);
+    assert.equal(existsSync(path.join(argvOutputDirectory, 'matrix.json')), false);
+  } finally {
+    process.argv = previousArgv;
+    for (const key of benchEnvKeys) {
+      restoreEnv(key, benchEnvSnapshot[key]);
+    }
+  }
 });
 
 test('compares finding packet deltas by repair dimensions', () => {
