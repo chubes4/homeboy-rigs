@@ -585,6 +585,20 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(campaign.target_inventory_manifest, 'manifests/target-inventory.json', 'aggressive campaign target inventory ref drifted');
   assert.equal(campaign.product_surface_taxonomy_ref, 'manifests/target-inventory.json#discovery_manifests/product_surface_taxonomy', 'aggressive campaign product taxonomy ref drifted');
   assert.equal(campaign.command_plan_generator, 'tools/aggressive-firehose-command-plan.mjs', 'aggressive campaign command generator drifted');
+  assert.equal(campaign.command_plan?.schema, 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1', 'aggressive campaign command plan schema drifted');
+  assert.equal(campaign.command_plan?.manifest, 'manifests/aggressive-isolated-fuzz-campaign.json', 'aggressive command plan manifest ref drifted');
+  assert.equal(campaign.command_plan?.rig_id, 'woocommerce-performance', 'aggressive command plan rig id drifted');
+  assert.equal(campaign.command_plan?.local_execution, false, 'aggressive command plan must not enable local execution');
+  assert.equal(campaign.command_plan?.defaults?.run_id_prefix, 'woo-firehose-$YYYYMMDD', 'aggressive command plan run id default drifted');
+  assert.equal(campaign.command_plan?.defaults?.isolation_proof_path, 'artifacts/woocommerce-aggressive-firehose/isolation-proof/homeboy-isolation-proof.json', 'aggressive command plan isolation proof default path drifted');
+  assert.deepEqual(Object.keys(campaign.command_plan?.plan_items || {}), [
+    'validate_disposable_rig',
+    'write_homeboy_isolation_proof',
+    'request_aggressive_isolated_firehose',
+    'collect_reviewer_facing_artifact_refs',
+  ], 'aggressive command plan must declare the renderer item templates');
+  assert.ok(campaign.command_plan?.plan_items?.request_aggressive_isolated_firehose?.command_argv?.includes('--hbex-aggressive-isolated-mode'), 'aggressive command plan manifest must declare HBEX aggressive mode handoff');
+  assert.ok(campaign.command_plan?.plan_items?.collect_reviewer_facing_artifact_refs?.command_argv?.includes('$planned_artifact_semantic_keys'), 'aggressive command plan manifest must declare semantic artifact ref collection');
   assert.ok(Array.isArray(rig.fuzz_profiles?.[campaign.profile_id]) && rig.fuzz_profiles[campaign.profile_id].length > 0, 'aggressive firehose must declare planned fuzz workload ids');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.campaign_manifest, 'manifests/aggressive-isolated-fuzz-campaign.json', 'aggressive profile metadata must link the campaign manifest');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.command_plan_generator, 'tools/aggressive-firehose-command-plan.mjs', 'aggressive profile metadata must link the command generator');

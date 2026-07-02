@@ -11,13 +11,16 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const rig = JSON.parse(readFileSync(rigPath, 'utf8'));
 
 const options = parseArgs(process.argv.slice(2));
-const runIdPrefix = options.runIdPrefix || 'woo-firehose-$YYYYMMDD';
+const commandPlan = manifest.command_plan;
+validateCommandPlan(commandPlan);
+
+const runIdPrefix = options.runIdPrefix || commandPlan.defaults.run_id_prefix;
 const executionSupported = manifest.readiness?.execution_enabled === true;
 const runnableCommandsEnabled = executionSupported && !options.planOnly;
 const profileWorkloads = rig.fuzz_profiles?.[manifest.profile_id] || [];
 const plannedArtifactSemanticKeys = (manifest.planned_artifact_expectations || []).map((artifact) => artifact.semantic_key);
 const campaignInputs = buildCampaignInputs(manifest);
-const isolationProofPath = options.isolationProofPath || defaultIsolationProofPath(options);
+const isolationProofPath = options.isolationProofPath || defaultIsolationProofPath(options, commandPlan);
 
 if (!Array.isArray(profileWorkloads) || profileWorkloads.length === 0) {
   throw new Error(`Rig fuzz profile ${manifest.profile_id} must declare at least one workload`);
@@ -29,73 +32,20 @@ if (options.writeIsolationProof) {
 }
 
 const payload = {
-  schema: 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1',
-  manifest: 'manifests/aggressive-isolated-fuzz-campaign.json',
-  rig_id: 'woocommerce-performance',
+  schema: commandPlan.schema,
+  manifest: commandPlan.manifest,
+  rig_id: commandPlan.rig_id,
   profile_id: manifest.profile_id,
-  local_execution: false,
+  local_execution: commandPlan.local_execution,
   execution_enabled: executionSupported,
   runnable_commands_enabled: runnableCommandsEnabled,
-  plan_kind: executionSupported ? (runnableCommandsEnabled ? 'runnable_offloaded_commands' : 'offloaded_command_plan') : 'declared_offloaded_command_plan',
+  plan_kind: planKind(commandPlan, executionSupported, runnableCommandsEnabled),
   run_id_prefix: runIdPrefix,
   workload_ids: profileWorkloads,
-  upstream_contract_artifact_sources: [
-    {
-      contract: 'homeboy/isolation-proof/v1',
-      source: 'preflight command-plan artifact describing the disposable Homeboy Lab/WP Codebox boundary',
-      generated_artifact_path: isolationProofPath,
-      required_command_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated', '--isolation-proof', isolationProofPath, '--require-result-envelope'],
-    },
-    {
-      contract: 'wp-codebox/sandbox-isolation-proof/v1',
-      source: 'WP Codebox fuzz artifact bundle emitted by the offloaded runtime',
-      persisted_artifact_kind: 'fuzz_artifacts',
-      semantic_key: 'fuzz.disposable_sandbox_boundary',
-    },
-  ],
-  blockers: executionSupported ? [] : [
-    'manifest.readiness.execution_enabled is false because REST CRUD fixture-plan mutations are disabled',
-  ],
+  upstream_contract_artifact_sources: renderArtifactSources(commandPlan.upstream_contract_artifact_sources, { isolationProofPath }),
+  blockers: executionSupported ? [] : commandPlan.blockers_when_execution_disabled,
   generated_isolation_proof: buildIsolationProof(),
-  plan_items: [
-    {
-      purpose: 'validate_disposable_rig',
-      command_argv: withOptionalLabArgs(['homeboy', 'rig', 'check', 'woocommerce-performance'], options),
-    },
-    ...(executionSupported ? [
-      {
-        purpose: 'write_homeboy_isolation_proof',
-        command_argv: [
-          'node', 'tools/aggressive-firehose-command-plan.mjs',
-          '--write-isolation-proof', isolationProofPath,
-        ],
-        artifact: {
-          path: isolationProofPath,
-          schema: 'homeboy/isolation-proof/v1',
-          semantic_key: 'fuzz.homeboy_isolation_proof',
-          required_before_execution: true,
-        },
-      },
-      ...profileWorkloads.map((workloadId, index) => ({
-        purpose: `request_aggressive_isolated_firehose:${workloadId}`,
-        command_argv: fuzzRunCommandForWorkload(workloadId, index, options),
-        campaign_inputs: campaignInputs,
-        artifact_expectations: manifest.planned_artifact_expectations,
-      })),
-      {
-        purpose: 'collect_reviewer_facing_artifact_refs',
-        command_argv: withOptionalLabArgs([
-          'homeboy', 'runs', 'refs',
-          '--rig', 'woocommerce-performance',
-          '--kind', 'fuzz',
-          '--status', 'completed',
-          '--artifact-kind', 'fuzz_result_envelope',
-          '--artifact-kind', 'fuzz_artifacts',
-          ...plannedArtifactSemanticKeys.flatMap((semanticKey) => ['--artifact-kind', semanticKey]),
-        ], options),
-      },
-    ] : []),
-  ],
+  plan_items: buildPlanItems(commandPlan, { executionSupported, profileWorkloads, plannedArtifactSemanticKeys, campaignInputs, options, isolationProofPath }),
 };
 
 if (runnableCommandsEnabled) {
@@ -193,49 +143,64 @@ function parseArgs(argv) {
   return parsed;
 }
 
-function fuzzRunCommandForWorkload(workloadId, index, options) {
-  const command = [
-    'homeboy', 'fuzz', 'run',
-    '--lab-only',
-    '--rig', 'woocommerce-performance',
-    '--workload', workloadId,
-    '--run-id', `${runIdPrefix}-${String(index + 1).padStart(2, '0')}-${workloadId}`,
-    '--tracker-ref', options.trackerRef,
-    '--allow-destructive',
-    '--isolation', 'isolated',
-    '--isolation-proof', isolationProofPath,
-    '--require-result-envelope',
-  ];
+function buildPlanItems(plan, context) {
+  const items = [renderPlanItem(plan.plan_items.validate_disposable_rig, context)];
 
-  if (options.runner) {
-    command.push('--runner', options.runner);
-  }
-  if (options.artifactRoot) {
-    command.push('--artifact-root', options.artifactRoot);
-  }
-  if (options.detachAfterHandoff) {
-    command.push('--detach-after-handoff');
+  if (!context.executionSupported) {
+    return items;
   }
 
-  command.push(
-    '--',
-    '--profile', manifest.profile_id,
-    '--fuzz-execution-request-artifact',
-    '--coverage-reconciliation',
-    '--wp-codebox-destructive-fuzz-suite-metadata',
-    '--rest-payload-families',
-    '--chaos-sequence-packs',
-    '--payload-size-depth-families',
-    '--relative-hotspot-taxonomy',
-    '--disposable-sandbox-boundary',
-    '--hbex-aggressive-isolated-mode',
-    '--hbex-admin-generation',
-    '--hbex-database-generation',
-    '--hbex-browser-generation',
-    '--hbex-editor-generation',
-  );
+  items.push(renderPlanItem(plan.plan_items.write_homeboy_isolation_proof, context));
+  context.profileWorkloads.forEach((workloadId, index) => {
+    items.push(renderPlanItem(plan.plan_items.request_aggressive_isolated_firehose, {
+      ...context,
+      workloadId,
+      runId: `${runIdPrefix}-${String(index + 1).padStart(2, '0')}-${workloadId}`,
+    }));
+  });
+  items.push(renderPlanItem(plan.plan_items.collect_reviewer_facing_artifact_refs, context));
 
-  return command;
+  return items;
+}
+
+function renderPlanItem(item, context) {
+  const rendered = {
+    purpose: renderTemplate(item.purpose, context),
+    command_argv: renderCommand(item.command_argv, context),
+  };
+
+  if (item.artifact) {
+    rendered.artifact = renderObject(item.artifact, context);
+  }
+  if (item.include_campaign_inputs) {
+    rendered.campaign_inputs = context.campaignInputs;
+  }
+  if (item.include_artifact_expectations) {
+    rendered.artifact_expectations = manifest.planned_artifact_expectations;
+  }
+
+  return rendered;
+}
+
+function renderCommand(command, context) {
+  const rendered = command.flatMap((entry) => {
+    if (entry === '$planned_artifact_semantic_keys') {
+      return context.plannedArtifactSemanticKeys.flatMap((semanticKey) => ['--artifact-kind', semanticKey]);
+    }
+    return [renderTemplate(entry, context)];
+  });
+
+  if (context.options.runner && command.includes('$optional_runner')) {
+    rendered.splice(rendered.indexOf('$optional_runner'), 1, '--runner', context.options.runner);
+  }
+  if (context.options.artifactRoot && command.includes('$optional_artifact_root')) {
+    rendered.splice(rendered.indexOf('$optional_artifact_root'), 1, '--artifact-root', context.options.artifactRoot);
+  }
+  if (context.options.detachAfterHandoff && command.includes('$optional_detach_after_handoff')) {
+    rendered.splice(rendered.indexOf('$optional_detach_after_handoff'), 1, '--detach-after-handoff');
+  }
+
+  return rendered.filter((entry) => !entry.startsWith('$optional_'));
 }
 
 function buildCampaignInputs(campaign) {
@@ -250,44 +215,14 @@ function buildCampaignInputs(campaign) {
 }
 
 function buildIsolationProof() {
-  return {
-    schema: 'homeboy/isolation-proof/v1',
-    id: 'woocommerce-aggressive-isolated-firehose-lab-codebox-boundary',
-    rig_id: 'woocommerce-performance',
-    profile_id: manifest.profile_id,
-    local_execution: false,
-    destructive_execution: {
-      allowed: true,
-      boundary: 'offloaded_homeboy_lab_wp_codebox_disposable_sandbox',
-    },
-    disposable_boundary: {
-      lab_runner_required: true,
-      wp_codebox_sandbox_required: true,
-      sandbox_lifetime: 'single offloaded fuzz run handoff',
-      host_wordpress_mutation_allowed: false,
-      component_checkout_mutation_allowed: false,
-    },
-    required_runner_flags: ['--lab-only', '--allow-destructive', '--isolation', 'isolated'],
-    workload_ids: profileWorkloads,
-    required_contracts: [
-      'homeboy/isolation-proof/v1',
-      'wp-codebox/sandbox-isolation-proof/v1',
-      'wp-codebox/mutation-isolation-artifact/v1',
-      'wp-codebox/delete-boundary-artifact/v1',
-    ],
-    evidence_semantics: {
-      runner_receives_artifact_with_flag: '--isolation-proof',
-      reviewer_facing_evidence_source: 'persisted Homeboy run artifacts emitted by the offloaded Lab runner',
-      operator_input_artifact: true,
-    },
-  };
+  return renderObject(commandPlan.generated_isolation_proof, { profileWorkloads });
 }
 
-function defaultIsolationProofPath(options) {
+function defaultIsolationProofPath(options, plan) {
   if (options.artifactRoot) {
-    return path.join(options.artifactRoot, 'isolation-proof/homeboy-isolation-proof.json');
+    return path.join(options.artifactRoot, plan.defaults.isolation_proof_artifact_root_relative_path);
   }
-  return 'artifacts/woocommerce-aggressive-firehose/isolation-proof/homeboy-isolation-proof.json';
+  return plan.defaults.isolation_proof_path;
 }
 
 function writeIsolationProof(targetPath, proof) {
@@ -295,15 +230,71 @@ function writeIsolationProof(targetPath, proof) {
   writeFileSync(targetPath, `${JSON.stringify(proof, null, 2)}\n`);
 }
 
-function withOptionalLabArgs(command, options) {
-  const withOptions = [...command, '--lab-only'];
-  if (options.runner) {
-    withOptions.push('--runner', options.runner);
+function planKind(plan, executionEnabled, runnableEnabled) {
+  if (!executionEnabled) {
+    return plan.plan_kinds.declared;
   }
-  if (options.artifactRoot) {
-    withOptions.push('--artifact-root', options.artifactRoot);
+  return runnableEnabled ? plan.plan_kinds.runnable : plan.plan_kinds.plan_only;
+}
+
+function renderArtifactSources(sources, context) {
+  return sources.map((source) => renderObject(source, context));
+}
+
+function renderObject(value, context) {
+  if (typeof value === 'string') {
+    return renderTemplate(value, context);
   }
-  return withOptions;
+  if (Array.isArray(value)) {
+    if (value.length === 1 && value[0] === '$profile_workloads') {
+      return context.profileWorkloads;
+    }
+    return value.map((entry) => renderObject(entry, context));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, renderObject(entry, context)]));
+  }
+  return value;
+}
+
+function renderTemplate(value, context) {
+  return value
+    .replaceAll('$rig_id', commandPlan.rig_id)
+    .replaceAll('$profile_id', manifest.profile_id)
+    .replaceAll('$workload_id', context.workloadId || '')
+    .replaceAll('$run_id', context.runId || '')
+    .replaceAll('$tracker_ref', context.options?.trackerRef || '')
+    .replaceAll('$isolation_proof_path', context.isolationProofPath || '')
+    .replaceAll('$command_plan_generator', manifest.command_plan_generator);
+}
+
+function validateCommandPlan(plan) {
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) {
+    throw new Error('Manifest must declare command_plan');
+  }
+
+  const requiredSections = ['defaults', 'plan_kinds', 'upstream_contract_artifact_sources', 'generated_isolation_proof', 'plan_items'];
+  for (const section of requiredSections) {
+    if (!plan[section]) {
+      throw new Error(`Manifest command_plan must declare ${section}`);
+    }
+  }
+
+  if (plan.schema !== 'homeboy-rigs/woocommerce-aggressive-firehose-command-plan/v1') {
+    throw new Error('Manifest command_plan schema drifted');
+  }
+  if (plan.rig_id !== 'woocommerce-performance') {
+    throw new Error('Manifest command_plan rig_id drifted');
+  }
+  if (plan.local_execution !== false) {
+    throw new Error('Aggressive command plan must not enable local execution');
+  }
+
+  for (const key of ['validate_disposable_rig', 'write_homeboy_isolation_proof', 'request_aggressive_isolated_firehose', 'collect_reviewer_facing_artifact_refs']) {
+    if (!Array.isArray(plan.plan_items[key]?.command_argv)) {
+      throw new Error(`Manifest command_plan plan_items.${key}.command_argv must be an array`);
+    }
+  }
 }
 
 function shellJoin(command) {

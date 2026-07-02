@@ -202,6 +202,15 @@ Every operation in `manifests/rest-crud-fixture-plan.json` is contract-backed by
 the upstream offloaded runner stack and still requires reviewer-facing isolation,
 delete-boundary, and fuzz-suite artifact refs before any `proven` claim.
 
+The aggressive firehose command shape is declared in
+`manifests/aggressive-isolated-fuzz-campaign.json#command_plan`. The
+`tools/aggressive-firehose-command-plan.mjs` script validates that manifest section
+and renders operator-facing JSON or shell commands from its templates. Change the
+campaign manifest when adding product surfaces, artifact expectations, isolation
+proof requirements, HBEX flags, or ref collection semantics; keep the script as a
+thin renderer so product campaign data does not drift into imperative planning
+code.
+
 The hotspot and coverage aggregation workloads are data-only declarations for
 the intended `homeboy.artifact-postprocess` shape. Do not shim aggregation in the
 rig: Homeboy must first ship a real artifact-postprocess runner primitive for
