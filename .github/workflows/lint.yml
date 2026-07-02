@@ -38,11 +38,10 @@ jobs:
           homeboy contract validate --help
       - run: node scripts/lint-rig-packages.mjs
         working-directory: homeboy-rigs
-      - name: Test shared helper loaders
+      - name: Test lint harness
         run: >-
           node --test
-          shared/nodejs-workload-utils-loader.test.mjs
-          shared/wordpress-helper-loader.test.mjs
+          scripts/lint-rig-packages.test.mjs
         working-directory: homeboy-rigs
       - name: Test fuzz contracts
         run: >-
