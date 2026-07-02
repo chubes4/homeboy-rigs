@@ -4,6 +4,12 @@
       "${components.studio.path}"
     ]
   },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "manual",
+      "reason": "The inherited Studio agent rigs install dependencies and build CLI artifacts inside a user-owned Studio checkout; removing that checkout state is an operator decision. Site-build runtime fixtures use their benchmark-owned cleanup hooks."
+    }
+  },
   "bench": {
     "default_component": "studio"
   },

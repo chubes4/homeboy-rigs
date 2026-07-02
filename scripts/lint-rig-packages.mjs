@@ -3,7 +3,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { assertFuzzReadinessMetadata } from './fuzz-manifest-helpers.mjs';
 
@@ -129,6 +129,8 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     return;
   }
 
+  const materializedRig = materializeRigSpec(file, rig);
+
   const pipelineCommands = Object.values(rig.pipeline || {})
     .flatMap((steps) => Array.isArray(steps) ? steps : [])
     .map((step) => step.command || '')
@@ -154,12 +156,75 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     failures.push(`${rel}: WP Codebox executable discovery belongs upstream; do not add rig-local CLI checks or fallback discovery`);
   }
 
-  lintSharedPaths(rel, rig);
-  lintLifecycleCleanup(rel, rig);
+  lintSharedPaths(rel, materializedRig);
+  lintLifecycleCleanup(rel, materializedRig);
 
   lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot);
   lintFuzzProfiles(rel, rig);
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
+}
+
+function materializeRigSpec(file, rig, seen = new Set()) {
+  const extendPath = typeof rig.extends === 'string' ? rig.extends.trim() : '';
+
+  if (!extendPath) {
+    return rig;
+  }
+
+  const parentFile = resolve(dirname(file), extendPath);
+  const parentRel = relative(root, parentFile);
+
+  if (seen.has(parentFile)) {
+    failures.push(`${relative(root, file)}: rig extends cycle includes ${parentRel}`);
+    return rig;
+  }
+
+  if (!existsSync(parentFile)) {
+    failures.push(`${relative(root, file)}: extends missing rig spec ${normalize(extendPath)}`);
+    return rig;
+  }
+
+  let parentRig;
+  try {
+    parentRig = JSON.parse(readFileSync(parentFile, 'utf8'));
+  } catch (error) {
+    failures.push(`${parentRel}: invalid JSON: ${error.message}`);
+    return rig;
+  }
+
+  seen.add(parentFile);
+  const materializedParent = materializeRigSpec(parentFile, parentRig, seen);
+  seen.delete(parentFile);
+
+  return deepMergeRigSpec(materializedParent, rig);
+}
+
+function deepMergeRigSpec(parent, child) {
+  if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
+    return child;
+  }
+
+  if (!child || typeof child !== 'object' || Array.isArray(child)) {
+    return child;
+  }
+
+  const merged = { ...parent };
+  for (const [key, value] of Object.entries(child)) {
+    if (key === 'extends') {
+      continue;
+    }
+
+    const parentValue = merged[key];
+    merged[key] = parentValue && value
+      && typeof parentValue === 'object'
+      && typeof value === 'object'
+      && !Array.isArray(parentValue)
+      && !Array.isArray(value)
+      ? deepMergeRigSpec(parentValue, value)
+      : value;
+  }
+
+  return merged;
 }
 
 function hasDeclaredResources(resources) {
@@ -190,11 +255,13 @@ function lintLifecycleCleanup(rel, rig) {
     }
   }
 
-  if (!hasDeclaredResources(rig.resources) || !Array.isArray(rig.pipeline?.down) || rig.pipeline.down.length > 0 || cleanup) {
+  const down = Array.isArray(rig.pipeline?.down) ? rig.pipeline.down : [];
+
+  if (!hasDeclaredResources(rig.resources) || down.length > 0 || cleanup) {
     return;
   }
 
-  failures.push(`${rel}: rigs with declared resources and empty pipeline.down must declare lifecycle.cleanup intent`);
+  failures.push(`${rel}: rigs with declared resources and empty or missing pipeline.down must declare lifecycle.cleanup intent`);
 }
 
 function cleanupContractForRigPolicy(rel, cleanup) {
