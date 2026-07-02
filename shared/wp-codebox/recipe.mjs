@@ -3,7 +3,6 @@ import { loadWordPressHelperModule } from '../wordpress-helper-loader.mjs';
 function loadRecipeHelper() {
   return loadWordPressHelperModule({
     helperName: 'wp-codebox-recipe-helper',
-    envVar: 'HOMEBOY_WP_CODEBOX_RECIPE_HELPER',
     manifestFileName: 'wp-codebox-recipe-helper.js',
   });
 }

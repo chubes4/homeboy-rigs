@@ -17,7 +17,6 @@ const packageRoot = path.join(__dirname, '..');
 const repoRoot = path.join(packageRoot, '..', '..');
 
 process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = path.join(repoRoot, 'scripts/fixtures/homeboy-extension-wordpress/lib/helper-manifest.js');
-delete process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR;
 
 const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-coverage.json'), 'utf8'));
 const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));

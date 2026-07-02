@@ -35,8 +35,8 @@ distinguish planned CRUD/mutation coverage from executable workloads and
 reviewer-facing proof artifacts.
 
 The repo-wide package linter reports missing `metadata.readiness` on fuzz
-manifests as a warning. Run it with `HOMEBOY_WORDPRESS_HELPER_MANIFEST` pointing
-at the injected Homeboy Extensions WordPress helper manifest, and use
+manifests as a warning. It resolves WordPress fuzz validators through the
+injected Homeboy Extensions WordPress helper manifest; use
 `node scripts/lint-rig-packages.mjs --strict-fuzz-readiness` when a package is
 ready to make readiness metadata a hard gate. Manifests that opt into `level: proven` must keep their proof
 artifacts required and linked through the proof bundle so proof claims cannot

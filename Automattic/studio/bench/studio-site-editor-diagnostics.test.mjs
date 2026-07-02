@@ -178,7 +178,6 @@ async function writeFakeWordPressManifest() {
   const fixtureSetup = path.join(libDir, 'fixture-setup.js');
   const fixtureSetupRestoreLog = path.join(tempDir, 'fixture-restore.json');
   const manifestPath = path.join(libDir, 'helper-manifest.js');
-  const helperConsumer = path.join(libDir, 'wordpress-helper-consumer.js');
 
   await writeFile(requestProfiler, "module.exports = { installWordPressRequestProfiler() {} };\n");
   await writeFile(timingCorrelator, "module.exports = { correlateBrowserAndWordPressTimings: () => ({ correlated: [], unmatchedBrowser: [], unmatchedWordPress: [] }) };\n");
@@ -260,40 +259,7 @@ module.exports = {
   }),
 };
 `);
-  await writeFile(helperConsumer, `
-const path = require('node:path');
-
-function loadWordPressHelperManifest() {
-  const manifestModule = require(${JSON.stringify(manifestPath)});
-  return {
-    path: ${JSON.stringify(manifestPath)},
-    manifest: manifestModule.getWordPressHelperManifest(),
-    found: true,
-    reason: '',
-  };
-}
-
-function wordpressHelperPath(name, options = {}) {
-  const explicit = options.override || (options.envVar ? process.env[options.envVar] : '');
-  if (explicit) return explicit;
-  return loadWordPressHelperManifest().manifest.helpers[name] || '';
-}
-
-function wordpressLibHelperPath(fileName, options = {}) {
-  const explicit = options.override || (options.envVar ? process.env[options.envVar] : '');
-  if (explicit) return explicit;
-  return path.join(loadWordPressHelperManifest().manifest.extensionRoot, 'lib', fileName);
-}
-
-function loadWordPressLibHelper(fileName, options = {}) {
-  const helperPath = wordpressLibHelperPath(fileName, options);
-  return { path: helperPath, module: require(helperPath), found: true, reason: '' };
-}
-
-module.exports = { loadWordPressHelperManifest, wordpressHelperPath, wordpressLibHelperPath, loadWordPressLibHelper };
-`);
-
-  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog, helperConsumer };
+  return { tempDir, manifestPath, requestProfiler, timingCorrelator, bootstrapTimeline, pageProfiler, adminPageScenarios, blockQuality, fixtureSetup, fixtureSetupRestoreLog };
 }
 
 // --- path resolution -------------------------------------------------------
@@ -360,7 +326,6 @@ test('requestProfilerPath uses the WordPress helper discovery contract', async (
       {
         HOMEBOY_SETTINGS_JSON: undefined,
         HOMEBOY_WORDPRESS_HELPER_MANIFEST: fixture.manifestPath,
-        HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER: undefined,
       },
       async () => {
         assert.equal(requestProfilerPath(), fixture.requestProfiler);
@@ -382,7 +347,6 @@ test('Studio WordPress fixture plugins delegate install and restore to Homeboy E
         ]),
         HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_PATHS: undefined,
         HOMEBOY_WORDPRESS_PAGE_PROFILE_PLUGIN_ACTIVATE_TIMEOUT_MS: '1234',
-        HOMEBOY_WORDPRESS_FIXTURE_SETUP_PATH: undefined,
       },
       async () => {
         const installed = await installStudioWordPressFixturePlugins('/tmp/site', {
@@ -468,16 +432,8 @@ test('Studio WordPress request summaries support diagnostics and admin scale sha
   assert.equal(admin[0].http_urls, undefined);
 });
 
-test('timingCorrelatorPath honors the direct WordPress helper env var', () => {
-  withEnv(
-    {
-      HOMEBOY_SETTINGS_JSON: undefined,
-      HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER: '/tmp/direct/timing-correlator.js',
-    },
-    () => {
-      assert.equal(timingCorrelatorPath(), '/tmp/direct/timing-correlator.js');
-    }
-  );
+test('timingCorrelatorPath honors the direct override option', () => {
+  assert.equal(timingCorrelatorPath({ override: '/tmp/direct/timing-correlator.js' }), '/tmp/direct/timing-correlator.js');
 });
 
 test('pageProfilerPath sits next to the request profiler by default', () => {
