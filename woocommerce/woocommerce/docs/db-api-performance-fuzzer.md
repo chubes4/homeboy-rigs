@@ -63,12 +63,13 @@ The declared source contracts live in:
 - `bench/performance-hotspots-artifact-summary.workload.json`.
 - `tools/db-api-fuzzer-artifacts.mjs`.
 
-The artifact aggregation in `tools/db-api-fuzzer-artifacts.mjs` is product-local
-temporary glue. It exists so the Woo DB/API campaign can declare the desired
-artifact shapes without copying that behavior into Homeboy core before the
-upstream generic primitives exist. Treat the coverage-gap and hotspot-summary
-postprocess outputs as declared campaign artifacts only; they become proof only
-after Homeboy collects reviewer-facing refs from an approved offloaded run.
+The generic artifact IO used by `tools/db-api-fuzzer-artifacts.mjs` lives in
+`shared/artifact-postprocess-io.mjs` as rig-local temporary glue. The Woo helper
+owns only Woo report interpretation, schemas, and performance surface
+classification until Homeboy exposes the upstream artifact-postprocess primitive.
+Treat the coverage-gap and hotspot-summary postprocess outputs as declared
+campaign artifacts only; they become proof only after Homeboy collects
+reviewer-facing refs from an approved offloaded run.
 
 Blocked upstream extraction points:
 

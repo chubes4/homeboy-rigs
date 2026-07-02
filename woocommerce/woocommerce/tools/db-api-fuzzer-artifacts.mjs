@@ -1,40 +1,20 @@
 #!/usr/bin/env node
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  normalizeArtifactRootInput,
+  normalizeJsonArtifactOutput,
+  readJsonArtifactTree,
+  writeJsonArtifact,
+} from '../../../shared/artifact-postprocess-io.mjs';
 
 export const coverageGapSchema = 'homeboy-rigs/wordpress-coverage-gap-report/v1';
 export const hotspotSummarySchema = 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1';
 export const artifactPostprocessCommand = 'homeboy.artifact-postprocess';
 const supportedCommands = new Set(['coverage-gap-report', 'performance-hotspots-summary']);
 
-export function readArtifactTree(root, { maxArtifactBytes = 1024 * 1024 } = {}) {
-  const artifacts = [];
-  const visit = (current) => {
-    for (const entry of readdirSync(current, { withFileTypes: true })) {
-      const entryPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        visit(entryPath);
-        continue;
-      }
-
-      if (!entry.isFile() || !entry.name.endsWith('.json')) {
-        continue;
-      }
-
-      const size = statSync(entryPath).size;
-      if (size > maxArtifactBytes) {
-        artifacts.push({ path: entryPath, skipped: true, reason: 'artifact_size_limit', size });
-        continue;
-      }
-
-      artifacts.push({ path: entryPath, size, json: JSON.parse(readFileSync(entryPath, 'utf8')) });
-    }
-  };
-
-  visit(root);
-  return artifacts;
-}
+export { readJsonArtifactTree as readArtifactTree, writeJsonArtifact };
 
 export function extractRestRequestCases(artifacts, { maxRouteCases = 80 } = {}) {
   return artifacts
@@ -170,11 +150,6 @@ export function classifyWooCommercePerformanceSurface(workload, json) {
   return 'api';
 }
 
-export function writeJsonArtifact(outputPath, payload) {
-  mkdirSync(path.dirname(outputPath), { recursive: true });
-  writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
-}
-
 export function normalizeArtifactPostprocessStep(step) {
   if (!step || typeof step !== 'object' || Array.isArray(step)) {
     throw new Error('Artifact postprocess step must be an object');
@@ -194,35 +169,9 @@ export function normalizeArtifactPostprocessStep(step) {
     throw new Error(`Unsupported artifact postprocess action: ${args.action}`);
   }
 
-  const input = args.input;
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('Artifact postprocess args.input must be an object');
-  }
-  if (input.type !== 'artifact-root') {
-    throw new Error(`Unsupported artifact postprocess input type: ${input.type}`);
-  }
-  if (typeof input.path !== 'string' || input.path.trim() === '') {
-    throw new Error('Artifact postprocess args.input.path must be a non-empty string');
-  }
-  if (!Array.isArray(input.artifact_globs) || input.artifact_globs.length === 0) {
-    throw new Error('Artifact postprocess args.input.artifact_globs must be a non-empty array');
-  }
-
+  const inputContract = normalizeArtifactRootInput(args.input);
+  const outputContract = normalizeJsonArtifactOutput(args.output);
   const output = args.output;
-  if (!output || typeof output !== 'object' || Array.isArray(output)) {
-    throw new Error('Artifact postprocess args.output must be an object');
-  }
-  for (const field of ['artifact', 'path', 'kind', 'contentType', 'schema', 'semantic_key']) {
-    if (typeof output[field] !== 'string' || output[field].trim() === '') {
-      throw new Error(`Artifact postprocess args.output.${field} must be a non-empty string`);
-    }
-  }
-  if (output.kind !== 'json') {
-    throw new Error(`Unsupported artifact postprocess output kind: ${output.kind}`);
-  }
-  if (output.contentType !== 'application/json') {
-    throw new Error(`Unsupported artifact postprocess output contentType: ${output.contentType}`);
-  }
   if (output.schema === coverageGapSchema) {
     const requiredFields = output.required_fields || [];
     const expectedFields = ['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs'];
@@ -243,17 +192,15 @@ export function normalizeArtifactPostprocessStep(step) {
 
   return {
     command: args.action,
-    inputRoot: input.path,
-    outputPath: output.path,
-    maxArtifactBytes: input.max_bytes ?? 1024 * 1024,
+    ...inputContract,
+    ...outputContract,
     maxQuerySamples: args.parameters?.maxQuerySamples ?? 50,
-    outputSchema: output.schema,
   };
 }
 
 export function buildArtifactPostprocessPayload(step, { inputRoot } = {}) {
   const contract = normalizeArtifactPostprocessStep(step);
-  const artifacts = readArtifactTree(inputRoot || contract.inputRoot, {
+  const artifacts = readJsonArtifactTree(inputRoot || contract.inputRoot, {
     maxArtifactBytes: contract.maxArtifactBytes,
   });
   const payload = contract.command === 'coverage-gap-report'
@@ -295,7 +242,7 @@ async function main() {
     throw new Error(`Unsupported command: ${command}`);
   }
 
-  const artifacts = readArtifactTree(inputRoot);
+  const artifacts = readJsonArtifactTree(inputRoot);
   const payload = command === 'coverage-gap-report'
     ? buildCoverageGapReport(artifacts)
     : buildPerformanceHotspotsSummary(artifacts, { classifySurface: classifyWooCommercePerformanceSurface });
