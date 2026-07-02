@@ -37,13 +37,21 @@ node woocommerce/woocommerce/tools/checkout-shipping-cache-matrix-report.mjs \
 ```bash
 homeboy rig up woocommerce-performance
 homeboy rig check woocommerce-performance
-
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id woocommerce-shipping-cache-40x1 --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id woocommerce-shipping-cache-40x8 --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id woocommerce-shipping-cache-200x8 --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id woocommerce-shipping-cache-200x40 --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id woocommerce-shipping-cache-1000x40 --seed 1 --max-duration 15m
 ```
+
+Run each matrix row with the shared shipping-cache command shape:
+
+```bash
+homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id <run-id> --seed 1 --max-duration 15m
+```
+
+| Matrix row | Run id |
+|---|---|
+| `40x1` | `woocommerce-shipping-cache-40x1` |
+| `40x8` | `woocommerce-shipping-cache-40x8` |
+| `200x8` | `woocommerce-shipping-cache-200x8` |
+| `200x40` | `woocommerce-shipping-cache-200x40` |
+| `1000x40` | `woocommerce-shipping-cache-1000x40` |
 
 ## Dependency Blockers
 

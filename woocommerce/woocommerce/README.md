@@ -132,26 +132,35 @@ WooCommerce plugin directory.
 ```bash
 homeboy rig up woocommerce-performance
 homeboy fuzz list --rig woocommerce-performance
-homeboy fuzz run --rig woocommerce-performance --workload cart-session-overwrite-race --run-id wc-cart-session-overwrite-race --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-atomicity --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-gateway-compatibility-matrix --run-id wc-gateway-matrix --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id wc-shipping-cache --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload layered-nav-count-cache --run-id wc-layered-nav-count-cache --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload layered-nav-catalog-crawl --run-id wc-layered-nav-catalog-crawl --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload admin-page-coverage --run-id wc-admin-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-rest-route-inventory --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-rest-generated-cases --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-rest-db-query-profile --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-inventory --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload rest-permission-boundary-matrix --run-id wc-rest-permission-boundary-matrix --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload rest-namespace-generated-cases --run-id wc-rest-namespace-generated-cases --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-rest-schema-query-attribution --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload action-scheduler-lookup-table-coverage --run-id wc-action-scheduler-lookup-table-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload options-transients-coverage --run-id wc-options-transients-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload rollback-safe-options-transients-mutations --run-id wc-rollback-safe-options-transients-mutations --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload frontend-rendering-request-coverage --run-id wc-frontend-rendering-request-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
 ```
+
+Run a focused workload from the table with the shared command shape:
+
+```bash
+homeboy fuzz run --rig woocommerce-performance --workload <workload> --run-id <run-id> --seed 1 --max-duration <duration>
+```
+
+| Workload | Example run id | Duration |
+|---|---|---|
+| `cart-session-overwrite-race` | `wc-cart-session-overwrite-race` | `10m` |
+| `checkout-concurrent-create-order` | `wc-checkout-atomicity` | `10m` |
+| `checkout-gateway-compatibility-matrix` | `wc-gateway-matrix` | `15m` |
+| `checkout-shipping-cache` | `wc-shipping-cache` | `15m` |
+| `layered-nav-count-cache` | `wc-layered-nav-count-cache` | `15m` |
+| `layered-nav-catalog-crawl` | `wc-layered-nav-catalog-crawl` | `15m` |
+| `admin-page-coverage` | `wc-admin-coverage` | `15m` |
+| `woocommerce-rest-route-inventory` | `wc-rest-route-inventory` | `10m` |
+| `generated-rest-request-cases` | `wc-rest-generated-cases` | `20m` |
+| `rest-db-query-profile` | `wc-rest-db-query-profile` | `20m` |
+| `db-inventory` | `wc-db-inventory` | `10m` |
+| `rest-permission-boundary-matrix` | `wc-rest-permission-boundary-matrix` | `20m` |
+| `rest-namespace-generated-cases` | `wc-rest-namespace-generated-cases` | `20m` |
+| `rest-schema-query-attribution` | `wc-rest-schema-query-attribution` | `20m` |
+| `action-scheduler-lookup-table-coverage` | `wc-action-scheduler-lookup-table-coverage` | `15m` |
+| `options-transients-coverage` | `wc-options-transients-coverage` | `15m` |
+| `rollback-safe-options-transients-mutations` | `wc-rollback-safe-options-transients-mutations` | `15m` |
+| `frontend-rendering-request-coverage` | `wc-frontend-rendering-request-coverage` | `15m` |
+| `woocommerce-external-http-guardrail` | `wc-external-http-guardrail` | `10m` |
 
 `homeboy fuzz list --rig woocommerce-performance` resolves the rig's
 WooCommerce component and `fuzz_workloads.wordpress` declarations before any
