@@ -50,7 +50,7 @@
     "workload": "performance-hotspots-artifact-summary",
     "runner_support_status": "blocked_on_upstream_primitive",
     "generic_primitive": {
-      "status": "required_upstream",
+      "status": "supported",
       "contract": "homeboy/artifact-postprocess-plan/v1",
       "hotspot_schema": "homeboy/performance-hotspots-summary/v1",
       "required_capabilities": [

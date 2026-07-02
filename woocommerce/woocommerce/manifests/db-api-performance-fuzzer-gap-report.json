@@ -35,8 +35,8 @@
     "performance_hotspots": "declared WooCommerce performance hotspot focus areas minus hotspot summary evidence refs"
   },
   "readiness": {
-    "level": "declared",
-    "execution": "blocked_on_upstream_artifact_postprocess",
+    "level": "executable",
+    "execution": "homeboy_artifact_postprocess",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [

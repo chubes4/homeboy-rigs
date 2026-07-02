@@ -37,7 +37,7 @@
       }
     },
     "generic_primitive": {
-      "status": "required_upstream",
+      "status": "supported",
       "contract": "homeboy/artifact-postprocess-plan/v1"
     },
     "fixture": {

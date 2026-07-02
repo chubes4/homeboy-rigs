@@ -46,7 +46,7 @@
     "workload": "coverage-gap-report",
     "runner_support_status": "blocked_on_upstream_primitive",
     "generic_primitive": {
-      "status": "required_upstream",
+      "status": "supported",
       "contract": "homeboy/artifact-postprocess-plan/v1",
       "required_capabilities": [
         "persisted artifact root scanning",
