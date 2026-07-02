@@ -18,12 +18,11 @@ Run the route inventory workload:
 homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
 ```
 
-Inspect the declared fuzz workloads and run an individual workload through
-Homeboy's generic fuzz command:
+Inspect the declared fuzz workloads and run focused examples through Homeboy's
+generic fuzz command using the command shape in `docs/fuzzer-profile.md`:
 
 ```sh
 homeboy fuzz list --rig gutenberg-api-route-inventory
-homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
 
 The coverage manifest lives at `manifests/rest-route-coverage.json`. It keeps
@@ -34,11 +33,10 @@ stay generic.
 
 `manifests/fuzzer-profile.json` defines a rig-owned Gutenberg fuzzer profile analogous to the Woo full-surface shape. It composes REST route coverage, safe `wp-admin` and editor page enumeration, block editor load/action probes, Site Editor probes, block rendering, frontend rendering/request coverage, DB query/profile hooks, hook/option/postmeta/runtime-state inventory, editor performance observation summaries, external HTTP guardrails, and coverage-gap reporting without moving Gutenberg-specific knowledge into Homeboy core or Homeboy Extensions.
 
-Inspect and run fuzzer manifests through Homeboy's generic fuzz command:
+Inspect fuzzer manifests through Homeboy's generic fuzz command:
 
 ```sh
 homeboy fuzz list --rig gutenberg-api-route-inventory
-homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet

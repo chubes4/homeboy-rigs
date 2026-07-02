@@ -33,8 +33,17 @@ Inspect and run fuzzer manifests through Homeboy's generic fuzz command:
 
 ```sh
 homeboy fuzz list --rig gutenberg-api-route-inventory
-homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 ```
+
+Run focused examples with the shared command shape:
+
+```sh
+homeboy fuzz run --rig gutenberg-api-route-inventory --workload <workload> --run-id <run-id> --seed 1 --max-duration <duration>
+```
+
+| Workload | Example run id | Duration |
+|---|---|---|
+| `gutenberg-rest-route-fuzz` | `gutenberg-rest-route-fuzz` | `10m` |
 
 Run heavy campaigns through the offloaded Lab path and use persisted `homeboy runs` artifacts as proof; listing workloads does not prove execution.
 

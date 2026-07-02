@@ -181,27 +181,24 @@ so a future postprocess primitive can consume the same persisted artifact root.
 Use the selected WooCommerce checkout through `--path` when the runner is
 validating a specific baseline or candidate worktree.
 
-Baseline:
+Use the same command shape for every baseline and candidate row:
 
 ```bash
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload generated-rest-request-cases --run-id wc-db-api-generated-cases-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload db-inventory --run-id wc-db-api-db-inventory-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
+homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-{baseline|candidate}-plugin-path> --workload <workload> --run-id <run-id> --seed 1 --max-duration <duration> <case-log-flag> --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 ```
 
-Candidate:
+| Workload | Baseline run id | Candidate run id | Duration | Extra flag |
+|---|---|---|---|---|
+| `codebox-fuzz-suite-contract` | `wc-db-api-codebox-suite-baseline` | `wc-db-api-codebox-suite-candidate` | `10m` |  |
+| `woocommerce-rest-route-inventory` | `wc-db-api-route-inventory-baseline` | `wc-db-api-route-inventory-candidate` | `10m` |  |
+| `generated-rest-request-cases` | `wc-db-api-generated-cases-baseline` | `wc-db-api-generated-cases-candidate` | `20m` | `--require-case-log` |
+| `rest-db-query-profile` | `wc-db-api-query-profile-baseline` | `wc-db-api-query-profile-candidate` | `20m` | `--require-case-log` |
+| `db-inventory` | `wc-db-api-db-inventory-baseline` | `wc-db-api-db-inventory-candidate` | `10m` |  |
+| `rest-schema-query-attribution` | `wc-db-api-schema-query-attribution-baseline` | `wc-db-api-schema-query-attribution-candidate` | `20m` | `--require-case-log` |
 
-```bash
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload generated-rest-request-cases --run-id wc-db-api-generated-cases-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload db-inventory --run-id wc-db-api-db-inventory-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-```
+Use the baseline plugin path with the baseline run ids, then repeat with the
+candidate plugin path and candidate run ids. Omit `<case-log-flag>` when the row
+does not list an extra flag.
 
 `coverage-gap-report` and `performance-hotspots-artifact-summary` are declared
 data-only artifact-postprocess contracts. Do not run them as proof until Homeboy
