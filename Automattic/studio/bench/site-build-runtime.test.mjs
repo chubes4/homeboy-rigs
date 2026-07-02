@@ -59,6 +59,20 @@ export function resolveHomeboyInvocationRuntime({ namespace }) {
   const state = process.env.HOMEBOY_INVOCATION_STATE_DIR ? process.env.HOMEBOY_INVOCATION_STATE_DIR + '/' + namespace : null;
   const artifact = process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR ? process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR + '/' + namespace : null;
   const tmp = process.env.HOMEBOY_INVOCATION_TMP_DIR ? process.env.HOMEBOY_INVOCATION_TMP_DIR + '/' + namespace : null;
+  const env = {
+    HOMEBOY_INVOCATION_NAMESPACE: namespace,
+    HOMEBOY_INVOCATION_STATE_DIR: state,
+    HOMEBOY_INVOCATION_ARTIFACT_DIR: artifact,
+    HOMEBOY_INVOCATION_TMP_DIR: tmp,
+    TMPDIR: tmp,
+    TMP: tmp,
+    TEMP: tmp,
+    HOME: state + '/home',
+    XDG_CONFIG_HOME: state + '/config',
+    XDG_CACHE_HOME: state + '/cache',
+    XDG_DATA_HOME: state + '/data',
+    XDG_STATE_HOME: state,
+  };
   return {
     isolated: true,
     namespace,
@@ -73,15 +87,9 @@ export function resolveHomeboyInvocationRuntime({ namespace }) {
       base: Number(process.env.HOMEBOY_INVOCATION_PORT_BASE),
       max: Number(process.env.HOMEBOY_INVOCATION_PORT_MAX),
     },
+    env,
     childEnv(extra = {}) {
-      return {
-        HOMEBOY_INVOCATION_NAMESPACE: namespace,
-        HOMEBOY_INVOCATION_STATE_DIR: state,
-        HOMEBOY_INVOCATION_ARTIFACT_DIR: artifact,
-        HOMEBOY_INVOCATION_TMP_DIR: tmp,
-        TMPDIR: tmp,
-        ...extra,
-      };
+      return { ...env, ...extra };
     },
     async prepareDirs() {},
     assertPort(port) { return Number(port); },
@@ -133,7 +141,7 @@ test('invocation runtime seam exposes generic isolated state only', async () => 
 
       assert.equal(runtime.invocationId, 'inv-seam-test');
       assert.equal(runtime.stateDir, '/tmp/inv-seam/state/studio-agent-site-build');
-      assert.equal(runtime.artifactDir, '/tmp/inv-seam/artifacts');
+      assert.equal(runtime.artifactDir, '/tmp/inv-seam/artifacts/studio-agent-site-build');
       assert.equal(runtime.tmpDir, '/tmp/inv-seam/tmp/studio-agent-site-build');
       assert.equal(runtime.portBase, 22000);
       assert.equal(runtime.portMax, 22009);
@@ -147,6 +155,13 @@ test('invocation runtime seam exposes generic isolated state only', async () => 
         HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv-seam/artifacts/studio-agent-site-build',
         HOMEBOY_INVOCATION_TMP_DIR: '/tmp/inv-seam/tmp/studio-agent-site-build',
         TMPDIR: '/tmp/inv-seam/tmp/studio-agent-site-build',
+        TMP: '/tmp/inv-seam/tmp/studio-agent-site-build',
+        TEMP: '/tmp/inv-seam/tmp/studio-agent-site-build',
+        HOME: '/tmp/inv-seam/state/studio-agent-site-build/home',
+        XDG_CONFIG_HOME: '/tmp/inv-seam/state/studio-agent-site-build/config',
+        XDG_CACHE_HOME: '/tmp/inv-seam/state/studio-agent-site-build/cache',
+        XDG_DATA_HOME: '/tmp/inv-seam/state/studio-agent-site-build/data',
+        XDG_STATE_HOME: '/tmp/inv-seam/state/studio-agent-site-build',
         EXTRA_ENV: 'extra-value',
       });
     }
@@ -194,6 +209,11 @@ test('site-build CLI wrappers pass resolved invocation env objects', async () =>
         assert.equal(call.options.env.HOMEBOY_INVOCATION_STATE_DIR, '/tmp/inv-env/state/studio-agent-site-build');
         assert.equal(call.options.env.HOMEBOY_INVOCATION_ARTIFACT_DIR, '/tmp/inv-env/artifacts/studio-agent-site-build');
         assert.equal(call.options.env.HOMEBOY_INVOCATION_TMP_DIR, '/tmp/inv-env/tmp/studio-agent-site-build');
+        assert.equal(call.options.env.HOME, '/tmp/inv-env/state/studio-agent-site-build/home');
+        assert.equal(call.options.env.XDG_CONFIG_HOME, '/tmp/inv-env/state/studio-agent-site-build/config');
+        assert.equal(call.options.env.XDG_CACHE_HOME, '/tmp/inv-env/state/studio-agent-site-build/cache');
+        assert.equal(call.options.env.XDG_DATA_HOME, '/tmp/inv-env/state/studio-agent-site-build/data');
+        assert.equal(call.options.env.XDG_STATE_HOME, '/tmp/inv-env/state/studio-agent-site-build');
         assert.equal(call.options.env.E2E, '1');
         assert.equal(call.options.env.E2E_CLI_CONFIG_PATH, '/tmp/inv-env/state/studio-agent-site-build/cli-config');
         assert.equal(call.options.env.E2E_APP_DATA_PATH, '/tmp/inv-env/state/studio-agent-site-build/appdata');
