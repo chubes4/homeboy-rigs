@@ -3,12 +3,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { resolveTestHomeboyWordPressHelperManifest } from '../../../scripts/test-homeboy-wordpress-helper-manifest.mjs';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
-process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST ||= path.join(
-  process.cwd(),
-  'scripts/fixtures/homeboy-extension-wordpress/lib/helper-manifest.js'
-);
+process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST ||= resolveTestHomeboyWordPressHelperManifest();
 
 const {
   agentSuccessGate,

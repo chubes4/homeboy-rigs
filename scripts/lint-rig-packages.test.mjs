@@ -4,9 +4,10 @@ import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { resolveTestHomeboyWordPressHelperManifest } from './test-homeboy-wordpress-helper-manifest.mjs';
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
-const wordpressHelperManifest = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
+const wordpressHelperManifest = resolveTestHomeboyWordPressHelperManifest();
 const wordpressCoreFuzzValidatorSource = `
 export function validateFuzzWorkload({ rel, root, workload }) {
   const failures = [];
@@ -662,7 +663,7 @@ test('rejects proven fuzz readiness without proof bundle linkage', () => {
   assert.match(result.stderr, /proven readiness requires proof_bundle/);
 });
 
-test('accepts proven fuzz readiness with canonical fuzz envelope proof linkage', () => {
+test('accepts proven fuzz readiness with helper-owned proof bundle linkage', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
       'generic-fuzz': fuzzWorkload({
@@ -671,11 +672,17 @@ test('accepts proven fuzz readiness with canonical fuzz envelope proof linkage',
           readiness: {
             level: 'proven',
             coverage_contract: 'Generic fuzz coverage is proven.',
+            proof_refs: ['https://github.com/example/product/issues/123'],
             proof_bundle: {
-              canonical_fuzz_envelope_ref: 'homeboy://run/product-fuzz/artifact/fuzz-envelope',
+              artifact_refs: ['https://github.com/example/product/actions/runs/123/artifacts/456'],
+              run_ids: ['run:product-fuzz'],
+              gap_reports: ['https://github.com/example/product/issues/124'],
+              fuzz_result_artifacts: ['report'],
             },
           },
         },
+        artifacts: { expected: [{ name: 'report', required: true }] },
+        cases: [{ case_id: 'generic-fuzz:default', artifacts: [{ name: 'report', required: true }] }],
       }),
     },
   });

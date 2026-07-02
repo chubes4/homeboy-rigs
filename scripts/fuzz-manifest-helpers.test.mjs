@@ -12,8 +12,9 @@ import {
   normalizeReviewerFacingFuzzRef,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
+import { resolveTestHomeboyWordPressHelperManifest } from './test-homeboy-wordpress-helper-manifest.mjs';
 
-process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
+process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = resolveTestHomeboyWordPressHelperManifest();
 
 function fuzzManifest(overrides = {}) {
   return {
@@ -245,7 +246,7 @@ test('assertGenericArtifactPostprocessWorkloadContract accepts explicit upstream
   }));
 });
 
-test('assertFuzzReadinessMetadata accepts declared CRUD and disposable mutation contracts', () => {
+test('assertFuzzReadinessMetadata accepts declared CRUD and rollback mutation contracts', () => {
   assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
     metadata: {
       workload_path: '${package.root}/bench/product.workload.json',
@@ -260,13 +261,8 @@ test('assertFuzzReadinessMetadata accepts declared CRUD and disposable mutation 
           delete: { level: 'declared', upstream_blocker: 'safe fixture delete primitive is not available upstream' },
         },
         mutation: {
-          safety_boundary: 'Runs in disposable WP Codebox with mutation isolated to fixture-owned options/transients.',
-          disposable_sandbox_boundary_artifacts: ['disposable_sandbox_boundary'],
-          mutation_isolation_artifacts: ['mutation_isolation_artifact'],
-          delete_boundary_artifacts: ['delete_boundary_artifact'],
-          destructive_case_ledgers: ['destructive_case_ledger'],
-          teardown_discard_evidence: ['sandbox_teardown_evidence'],
-          artifact_bundle_refs: ['artifact_bundle_ref'],
+          safety_boundary: 'Runs in disposable WP Codebox with rollback evidence for fixture-owned options/transients.',
+          rollback_artifacts: ['rollback_artifact'],
         },
       },
     },
