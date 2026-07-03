@@ -8,60 +8,8 @@ import { resolveTestHomeboyWordPressHelperManifest } from './test-homeboy-wordpr
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
 const wordpressHelperManifest = resolveTestHomeboyWordPressHelperManifest();
-const wordpressCoreFuzzValidatorSource = `
-export function validateFuzzWorkload({ rel, root, workload }) {
-  const failures = [];
-  const isWordPressDevelopFuzz = rel.startsWith('WordPress/wordpress-develop/fuzz/')
-    || (rel.startsWith('fuzz/') && root.endsWith('/WordPress/wordpress-develop'));
-  const surfaceIds = Array.isArray(workload.surface_ids) ? workload.surface_ids : [];
-  const isWordPressCoreFuzz = workload.target?.type === 'wordpress-core'
-    || workload.target?.component === 'wordpress-develop'
-    || workload.metadata?.kind === 'wordpress-core-fuzz'
-    || surfaceIds.some((surfaceId) => typeof surfaceId === 'string' && surfaceId.startsWith('wordpress-core-'));
-
-  if (isWordPressCoreFuzz && !isWordPressDevelopFuzz) {
-    failures.push(\`${'${rel}'}: WordPress Core fuzz workloads must live under WordPress/wordpress-develop/fuzz\`);
-  }
-
-  if (!isWordPressDevelopFuzz) {
-    return failures;
-  }
-
-  const semanticKeys = new Set((workload.artifacts?.expected || []).map((artifact) => artifact?.semantic_key).filter(Boolean));
-  if (workload.id === 'rest-api') {
-    for (const operation of ['rest-route-inventory', 'generated-rest-case-plan', 'request-case-execution', 'permission-boundary-classification', 'role-boundary-execution']) {
-      if (!workload.operations?.includes(operation)) {
-        failures.push(\`${'${rel}'}: rest-api must include ${'${operation}'} in operations\`);
-      }
-    }
-    for (const semanticKey of ['fuzz.rest.route_inventory', 'fuzz.rest.generated_cases', 'fuzz.rest.permission_boundaries']) {
-      if (!semanticKeys.has(semanticKey)) {
-        failures.push(\`${'${rel}'}: rest-api must declare expected artifact semantic key ${'${semanticKey}'}\`);
-      }
-    }
-  }
-
-  if (workload.id === 'db-inventory-query-profile') {
-    for (const surfaceId of ['wordpress-core-database', 'wordpress-core-rest-routes', 'wordpress-core-options', 'wordpress-core-postmeta', 'wordpress-core-rewrites']) {
-      if (!workload.surface_ids?.includes(surfaceId)) {
-        failures.push(\`${'${rel}'}: db-inventory-query-profile must include ${'${surfaceId}'} in surface_ids\`);
-      }
-    }
-    for (const operation of ['schema-inventory', 'rest-query-profile', 'options-query-attribution', 'postmeta-query-attribution', 'rewrite-query-attribution']) {
-      if (!workload.operations?.includes(operation)) {
-        failures.push(\`${'${rel}'}: db-inventory-query-profile must include ${'${operation}'} in operations\`);
-      }
-    }
-    for (const semanticKey of ['fuzz.db.schema_inventory', 'fuzz.db.rest_query_attribution', 'fuzz.db.options_postmeta_rewrite_attribution']) {
-      if (!semanticKeys.has(semanticKey)) {
-        failures.push(\`${'${rel}'}: db-inventory-query-profile must declare expected artifact semantic key ${'${semanticKey}'}\`);
-      }
-    }
-  }
-
-  return failures;
-}
-`;
+const wordpressCoreFuzzValidatorModule = new URL('../WordPress/wordpress-develop/tools/fuzz-workload-validator.mjs', import.meta.url).href;
+const wordpressCoreFuzzValidatorSource = `export { validateFuzzWorkload } from ${JSON.stringify(wordpressCoreFuzzValidatorModule)};\n`;
 
 function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);

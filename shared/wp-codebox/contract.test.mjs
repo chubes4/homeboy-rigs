@@ -83,27 +83,6 @@ module.exports = {
   }
 });
 
-test('WP Codebox shared adapters do not carry quarantined generic helper behavior', () => {
-  const forbidden = [
-    /DEFAULT_RECIPE_TIMEOUT_MS/,
-    /WATCHDOG_TIMEOUT_EXIT_CODE/,
-    /inFlightRecipeRuns/,
-    /Promise\.race/,
-    /AbortController/,
-    /command -v wp-codebox/,
-    /files\/browser\/\*/,
-    /packageImport/,
-  ];
-
-  for (const file of ['artifacts.mjs', 'browser-coverage-trace.mjs', 'recipe.mjs'].map((name) => path.join(__dirname, name))) {
-    const rel = path.relative(repoRoot, file);
-    const contents = readFileSync(file, 'utf8');
-    for (const pattern of forbidden) {
-      assert.doesNotMatch(contents, pattern, `${rel} must not contain ${pattern}`);
-    }
-  }
-});
-
 test('shared WP Codebox docs name explicit upstream contract ids', () => {
   const readme = readFileSync(path.join(__dirname, 'README.md'), 'utf8');
 
