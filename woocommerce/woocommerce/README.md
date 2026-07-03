@@ -272,6 +272,7 @@ Generate the Lab-only command plan without executing any workload:
 
 ```bash
 node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
+  --prefer-core-planner \
   --runner LAB_RUNNER_ID \
   --artifact-root ARTIFACT_ROOT \
   --run-id-prefix woo-stable-YYYYMMDD \
@@ -282,6 +283,7 @@ For a focused proof, pass one or more stable IDs:
 
 ```bash
 node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
+  --prefer-core-planner \
   --stable-id rest-db-query-profile,store-api-product-browse \
   --runner LAB_RUNNER_ID \
   --artifact-root ARTIFACT_ROOT \
@@ -295,6 +297,9 @@ generated `homeboy runs refs`, `homeboy runs compare`, and `homeboy runs
 hotspots --baseline-run BASELINE_RUN_ID --candidate-run CANDIDATE_RUN_ID`
 commands to compare persisted evidence over time. Keep reviewer-facing proof in
 Homeboy run/artifact refs; local paths and local-only URLs are not proof.
+When the installed Homeboy includes `homeboy fuzz stable-plan`, `--prefer-core-planner`
+delegates planning to core; otherwise the rig-local migration planner emits the
+same Lab-only command surface.
 
 Each Woo fuzz manifest declares the WP Codebox fixture contract in metadata:
 `wp-codebox` runtime, disposable WordPress scope, WooCommerce component, and

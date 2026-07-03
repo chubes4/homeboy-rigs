@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +7,12 @@ export function emitStableWorkloadLabCommands(config, argv = process.argv.slice(
   const scriptDir = path.dirname(fileURLToPath(config.moduleUrl));
   const packageRoot = path.join(scriptDir, '..');
   const manifestPath = path.join(packageRoot, 'manifests/stable-workloads.json');
+  const coreMode = corePlannerMode(argv);
+
+  if (coreMode && maybeEmitCoreStablePlan(config, manifestPath, argv, stdout, coreMode)) {
+    return;
+  }
+
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 
   const options = parseArgs(argv, config, stdout);
@@ -100,6 +107,8 @@ export function emitStableWorkloadLabCommands(config, argv = process.argv.slice(
     profile_id: manifest.profile_id,
     rig_id: config.rigId,
     local_execution: false,
+    planner: 'homeboy-rigs-local-compat',
+    migration_target: 'homeboy fuzz stable-plan',
     run_id_prefix: runIdPrefix,
     run_commands: runCommands,
     compare_commands: compareCommands,
@@ -151,6 +160,9 @@ function parseArgs(argv, config, stdout) {
       case '--detach-after-handoff':
         parsed.detachAfterHandoff = true;
         break;
+      case '--prefer-core-planner':
+      case '--use-core-planner':
+        break;
       case '--hotspot-limit':
         parsed.hotspotLimit = Number.parseInt(readValue(arg), 10);
         break;
@@ -192,6 +204,55 @@ function parseArgs(argv, config, stdout) {
   }
 
   return parsed;
+}
+
+function corePlannerMode(argv) {
+  if (argv.includes('--use-core-planner')) {
+    return 'required';
+  }
+  if (argv.includes('--prefer-core-planner')) {
+    return 'preferred';
+  }
+  return '';
+}
+
+function maybeEmitCoreStablePlan(config, manifestPath, argv, stdout, mode) {
+  const homeboyBin = process.env.HOMEBOY_BIN || 'homeboy';
+  const strippedArgs = argv.filter((arg) => !['--prefer-core-planner', '--use-core-planner'].includes(arg));
+  const help = spawnSync(homeboyBin, ['fuzz', 'help', 'stable-plan'], { encoding: 'utf8' });
+
+  if (help.status !== 0) {
+    if (mode === 'required') {
+      throw new Error('Homeboy core stable planner is unavailable; expected `homeboy fuzz stable-plan`');
+    }
+    return false;
+  }
+
+  const result = spawnSync(homeboyBin, [
+    'fuzz',
+    'stable-plan',
+    '--manifest',
+    manifestPath,
+    '--component',
+    config.component,
+    '--rig',
+    config.rigId,
+    ...strippedArgs,
+  ], { encoding: 'utf8' });
+
+  if (result.stdout) {
+    stdout.write(result.stdout);
+  }
+  if (result.stderr) {
+    process.stderr.write(result.stderr);
+  }
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    process.exit(result.status ?? 1);
+  }
+  return true;
 }
 
 function selectedContracts(contracts, stableIds) {
@@ -245,4 +306,6 @@ function printHelp(config, stdout) {
   stdout.write(`  --limit <n>                  Run-history limit for refs/compare. Default: 50.\n`);
   stdout.write(`  --hotspot-limit <n>          Hotspot compare row limit. Default: 20.\n`);
   stdout.write(`  --json                       Emit structured JSON instead of shell commands.\n`);
+  stdout.write(`  --prefer-core-planner        Use homeboy fuzz stable-plan when available; otherwise use the rig-local migration planner.\n`);
+  stdout.write(`  --use-core-planner           Require homeboy fuzz stable-plan and fail if the installed Homeboy does not expose it.\n`);
 }
