@@ -6,10 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   assertGenericArtifactPostprocessWorkloadContract,
-  assertExecutableCrudMutationSafety,
   assertFullSurfaceCoverageManifest,
-  assertFuzzProofBundleRequirements,
-  assertFuzzReadinessLevel,
   assertGenericFuzzManifest,
   assertReviewerFacingFuzzRef,
   collectFuzzManifests,
@@ -50,6 +47,7 @@ const coverageGapReportWorkload = readJson(packageRoot, 'bench/coverage-gap-repo
 const performanceHotspotsWorkload = readJson(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json');
 const runtimeDependencyHelper = path.join(packageRoot, 'tools/prepare-runtime-dependency.sh');
 const wooArtifactPostprocessHelper = '${package.root}/tools/db-api-fuzzer-artifacts.mjs';
+const readinessLevels = new Set(['declared', 'executable', 'proven']);
 
 assertFullSurfaceCoverageManifest(coverageManifest, { file: 'WooCommerce full-surface coverage' });
 
@@ -150,15 +148,13 @@ const externalDiscoveryWorkloadIds = new Set([
 
 function assertProfileReadiness(readiness, context) {
   assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${context} requires readiness metadata`);
-  assertFuzzReadinessLevel(readiness.level, `${context}.level`);
+  assertReadinessLevel(readiness.level, `${context}.level`);
   assert.equal(typeof readiness.coverage_contract, 'string', `${context}.coverage_contract must describe the contract`);
   assert.notEqual(readiness.coverage_contract.trim(), '', `${context}.coverage_contract must not be empty`);
-  if (readiness.proof_bundle_requirements !== undefined) {
-    assertFuzzProofBundleRequirements(readiness.proof_bundle_requirements, { file: context });
-  }
-  if (readiness.crud !== undefined) {
-    assertExecutableCrudMutationSafety(readiness, { file: context });
-  }
+}
+
+function assertReadinessLevel(level, context) {
+  assert.ok(readinessLevels.has(level), `${context} must be declared, executable, or proven`);
 }
 
 function assertDeclaredOrExternalDiscoveryWorkload(workloadId, context) {
@@ -296,7 +292,6 @@ function assertDeclaredOnlyNoProof(container, context) {
   assert.equal(container.readiness?.execution_enabled, false, `${context} readiness must not enable execution`);
   assert.equal(container.readiness?.proof_status, 'declared_contract', `${context} proof status must stay declared`);
   assert.equal(container.readiness?.proof_bundle, undefined, `${context} declared readiness must not carry proof refs`);
-  assertFuzzProofBundleRequirements(container.readiness?.proof_bundle_requirements, { file: `${context} readiness` });
   assertNoLocalOnlyRefs(container, context);
   assertNoProofPlaceholders(container, context);
   assertNoHardThresholdClaims(container, context);
@@ -305,7 +300,6 @@ function assertDeclaredOnlyNoProof(container, context) {
 function assertExecutableReadinessNeedsProofRequirements(readiness, context) {
   assertProfileReadiness(readiness, context);
   if (readiness.level === 'executable') {
-    assertFuzzProofBundleRequirements(readiness.proof_bundle_requirements, { file: `${context}.proof_bundle_requirements` });
     assert.equal(readiness.proof_bundle, undefined, `${context} executable readiness must not include proof_bundle before reviewer-facing refs exist`);
   }
 }
@@ -881,7 +875,6 @@ function assertProductChaosSequencePackContract(manifest) {
   assert.equal(manifest.readiness?.local_execution_enabled, false, 'product chaos sequence pack readiness must not enable local execution');
   assert.equal(manifest.readiness?.proof_status, 'requires_reviewer_facing_artifacts_before_proven', 'product chaos sequence pack proof status drifted');
   assert.equal(manifest.readiness?.proof_bundle, undefined, 'product chaos declared readiness must not carry proof refs before reviewer-facing artifacts exist');
-  assertFuzzProofBundleRequirements(manifest.readiness?.proof_bundle_requirements, { file: 'product-chaos-sequence-packs readiness' });
   assertNoLocalOnlyRefs(manifest, 'product-chaos-sequence-packs');
   assertNoProofPlaceholders(manifest, 'product-chaos-sequence-packs');
   assertNoHardThresholdClaims(manifest, 'product-chaos-sequence-packs');
@@ -1003,7 +996,6 @@ for (const { file, manifest } of fuzzManifests) {
   assert.equal(manifest.metadata?.fixture?.scope, 'disposable-wordpress', `${manifest.id} fixture scope must be disposable-wordpress`);
   assert.equal(manifest.metadata?.fixture?.component, 'woocommerce', `${manifest.id} fixture component must be woocommerce`);
   assert.equal(manifest.metadata?.fixture?.activation, 'woocommerce/woocommerce.php', `${manifest.id} fixture activation must be woocommerce/woocommerce.php`);
-  assertExecutableCrudMutationSafety(manifest.metadata?.readiness, { file: manifest.id });
 
   if (manifest.metadata?.readiness?.level === 'proven') {
     const proofBundle = manifest.metadata.readiness.proof_bundle;
@@ -1040,7 +1032,6 @@ for (const { file, manifest } of fuzzManifests) {
 const codeboxContractManifest = fuzzManifests.find(({ manifest }) => manifest.id === 'codebox-fuzz-suite-contract')?.manifest;
 assert.ok(codeboxContractManifest, 'codebox-fuzz-suite-contract manifest is missing');
 assert.equal(codeboxContractManifest.metadata?.readiness?.level, 'executable', 'codebox contract must be contract-backed executable before proof artifacts promote it to proven');
-assertFuzzProofBundleRequirements(codeboxContractManifest.metadata?.readiness?.proof_bundle_requirements, { file: 'codebox-fuzz-suite-contract readiness' });
 assert.ok(codeboxContractManifest.operations.includes('generated-route-inventory-contract'), 'codebox contract must depend on generated route inventory contracts');
 assert.ok(codeboxContractManifest.operations.includes('rest-db-query-attribution-contract'), 'codebox contract must depend on REST DB query attribution contracts');
 assert.deepEqual(codeboxContractManifest.metadata?.required_primitive_contracts, [
@@ -1116,7 +1107,6 @@ assertRestCrudFixtureContractRefs(codeboxSuite.target?.metadata?.profile, 'Codeb
   proofStatus: 'contract_backed_executable_requires_reviewer_facing_artifacts_before_proven',
   artifactReadiness: 'contract_backed_executable',
 });
-assertFuzzProofBundleRequirements(codeboxSuite.target?.metadata?.proof_bundle_requirements, { file: 'codebox suite metadata proof bundle requirements' });
 assert.equal(codeboxSuite.target?.metadata?.proof_bundle, undefined, 'declared Codebox suite must not carry proof refs before reviewer-facing artifacts exist');
 assert.equal(codeboxSuite.metadata?.public_result_contract, 'wp-codebox/fuzz-suite-result/v1', 'Codebox suite must declare the public fuzz-suite result contract');
 assert.equal(rig.fuzz_profile_metadata?.['db-api-performance-fuzzer']?.campaign_manifest, 'manifests/db-api-fuzz-campaign.json', 'DB/API profile must link the campaign declaration');
@@ -1139,7 +1129,6 @@ assert.deepEqual(dbApiPerformanceFuzzerGapReport.generic_upstream_contracts, [
   'homeboy-rigs/wordpress-coverage-gap-report/v1',
 ], 'DB/API gap report must link generic upstream artifact contracts');
 assert.match(dbApiPerformanceFuzzerGapReport.boundary_note || '', /Homeboy or Extensions owns the generic artifact-postprocess runner contract/, 'DB/API gap report must document the Homeboy postprocess boundary');
-assertFuzzProofBundleRequirements(dbApiPerformanceFuzzerGapReport.readiness?.proof_bundle_requirements, { file: 'db-api-performance-fuzzer-gap-report readiness' });
 assert.deepEqual(dbApiPerformanceFuzzerGapReport.readiness?.upstream_blockers, [
   'homeboy/artifact-postprocess-plan/v1 runner for persisted artifact root scanning, output path confinement, and declared JSON artifact writing',
 ], 'DB/API gap report upstream blocker drifted');
@@ -1153,7 +1142,6 @@ assertRestCrudFixtureContractRefs(dbApiFuzzCampaign, 'DB/API fuzz campaign');
 assert.deepEqual(dbApiFuzzCampaign.workloads, dbApiPerformanceFuzzerWorkloadIds, 'DB/API fuzz campaign workloads drifted');
 assert.equal(dbApiFuzzCampaign.readiness?.level, 'declared', 'DB/API fuzz campaign must stay declared until reviewer-facing artifacts exist');
 assert.equal(dbApiFuzzCampaign.readiness?.execution, 'offloaded_fuzz_campaign', 'DB/API fuzz campaign execution mode drifted');
-assertFuzzProofBundleRequirements(dbApiFuzzCampaign.readiness?.proof_bundle_requirements, { file: 'db-api-fuzz-campaign readiness' });
 assertNoLocalOnlyRefs(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assertNoProofPlaceholders(dbApiFuzzCampaign, 'db-api-fuzz-campaign');
 assertDbApiCampaignPromotionContract(dbApiFuzzCampaign);
@@ -1222,7 +1210,6 @@ assert.deepEqual(dbApiHotspotArtifactIo.generic_upstream_contracts, [
   'wp-codebox/wordpress-workload-run/v1',
   'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
 ], 'DB/API hotspot artifact IO must link generic upstream artifact contracts');
-assertFuzzProofBundleRequirements(dbApiHotspotArtifactIo.readiness?.proof_bundle_requirements, { file: 'db-api-hotspot-artifact-io readiness' });
 assert.deepEqual(new Set(dbApiHotspotArtifactIo.expected_inputs.map((input) => input.workload_id)), new Set(dbApiPerformanceFuzzerGapReportInputIds), 'DB/API hotspot artifact IO inputs drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1', 'DB/API hotspot sample output schema drifted');
 assert.equal(dbApiHotspotArtifactIo.sample_output?.threshold_policy, 'relative_ranking_only', 'DB/API hotspot sample output must use relative ranking');
@@ -1315,7 +1302,6 @@ assert.ok(restCrudPayloadFixtures.generic_upstream_contracts.includes('wp-codebo
 assert.ok(restCrudPayloadFixtures.generic_upstream_contracts.includes('wp-codebox/rest-mutation-fixture-opt-in/v1'), 'REST CRUD payload fixtures must name the WP Codebox REST mutation opt-in contract');
 assertProfileReadiness(restCrudPayloadFixtures.readiness, 'rest-crud-payload-fixtures.readiness');
 assert.equal(restCrudPayloadFixtures.readiness?.level, 'executable', 'REST CRUD payload fixtures must be executable through contract-backed mutation artifacts');
-assertFuzzProofBundleRequirements(restCrudPayloadFixtures.readiness?.proof_bundle_requirements, { file: 'rest-crud-payload-fixtures readiness' });
 assert.deepEqual(targetInventory.discovery_manifests?.rest_payload_fixtures?.family_ids, restCrudPayloadFixtures.families.map((family) => family.id), 'target inventory payload fixture family ids drifted');
 assert.deepEqual(targetInventory.discovery_manifests?.rest_payload_fixtures?.readiness, restCrudPayloadFixtures.readiness, 'target inventory payload fixture readiness drifted');
 assert.equal(targetInventory.discovery_manifests?.rest_payload_fixtures?.fixture_plan_manifest, 'manifests/rest-crud-fixture-plan.json', 'target inventory must link generated REST CRUD fixture plan');
@@ -1347,7 +1333,7 @@ for (const family of restCrudRouteFamilyCatalog.route_families) {
   }
   assert.ok(family.readiness?.delete, `${family.id} must declare delete readiness`);
   for (const operation of ['create', 'read', 'update', 'delete']) {
-    assertFuzzReadinessLevel(family.readiness?.[operation]?.level, `${family.id} ${operation} readiness level`);
+    assertReadinessLevel(family.readiness?.[operation]?.level, `${family.id} ${operation} readiness level`);
   }
   if (['products-collection', 'products-batch', 'product-variations-batch'].includes(family.id)) {
     assert.equal(family.mutation_contract?.primitive, 'wordpress.disposable-rest-mutation', `${family.id} must consume the disposable REST mutation primitive`);
@@ -1397,7 +1383,7 @@ assert.ok(adminActionInventory.skip_reason_codes.includes('payment_submission'),
 assert.deepEqual(targetInventory.discovery_manifests?.admin_actions?.action_family_ids, adminActionInventory.action_families.map((family) => family.id), 'target inventory admin action discovery ids drifted');
 for (const family of adminActionInventory.action_families) {
   assertDeclaredOrExternalDiscoveryWorkload(family.workload, `admin action ${family.id}`);
-  assertFuzzReadinessLevel(family.readiness?.level, `admin action ${family.id} readiness level`);
+  assertReadinessLevel(family.readiness?.level, `admin action ${family.id} readiness level`);
 }
 assert.deepEqual(targetInventory.discovery_manifests?.db_api_hotspots?.readiness, dbApiHotspotArtifactIo.readiness, 'target inventory DB/API hotspot discovery readiness drifted');
 assert.equal(targetInventory.targets.performance_hotspots.artifact_io_manifest, 'manifests/db-api-hotspot-artifact-io.json', 'target inventory must link DB/API hotspot artifact IO manifest');

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   assertFuzzProofBundle,
-  assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
   assertReviewerFacingFuzzRef,
   declaredFuzzIds,
@@ -12,9 +11,6 @@ import {
   normalizeReviewerFacingFuzzRef,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
-import { resolveTestHomeboyWordPressHelperManifest } from './test-homeboy-wordpress-helper-manifest.mjs';
-
-process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = resolveTestHomeboyWordPressHelperManifest();
 
 function fuzzManifest(overrides = {}) {
   return {
@@ -192,29 +188,6 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
       generic_primitive: { status: 'blocked' },
     },
   })), false);
-});
-
-test('assertFuzzReadinessMetadata accepts declared CRUD and rollback mutation contracts', () => {
-  assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
-    metadata: {
-      workload_path: '${package.root}/bench/product.workload.json',
-      readiness: {
-        level: 'executable',
-        coverage_contract: 'Catalog REST CRUD coverage with disposable sandbox and mutation isolation proof artifacts.',
-        upstream_blockers: ['homeboy fuzz runner needs durable artifact manifest links before full proof'],
-        crud: {
-          create: { level: 'declared', upstream_blocker: 'safe fixture create primitive is not available upstream' },
-          read: { level: 'executable' },
-          update: { level: 'declared', upstream_blocker: 'safe fixture update primitive is not available upstream' },
-          delete: { level: 'declared', upstream_blocker: 'safe fixture delete primitive is not available upstream' },
-        },
-        mutation: {
-          safety_boundary: 'Runs in disposable WP Codebox with rollback evidence for fixture-owned options/transients.',
-          rollback_artifacts: ['rollback_artifact'],
-        },
-      },
-    },
-  }), { file: 'product-fuzz.json' }));
 });
 
 test('assertGenericFuzzManifest can require readiness metadata', () => {

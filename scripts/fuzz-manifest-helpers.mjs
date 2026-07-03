@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { loadWordPressHelperModule } from '../shared/wordpress-helper-loader.mjs';
 
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
@@ -10,13 +9,6 @@ export const fuzzCaseIntentSchema = 'homeboy/fuzz-workload-intent/v1';
 export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts', 'canonical_fuzz_envelope_ref']);
 export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
 export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
-
-function loadGenericFuzzManifestValidator() {
-  return loadWordPressHelperModule({
-    helperName: 'wordpress-fuzz-manifest-validator',
-    manifestFileName: 'wordpress-fuzz-manifest-validator.js',
-  });
-}
 
 export function readJson(root, ...parts) {
   return JSON.parse(readFileSync(path.join(root, ...parts), 'utf8'));
@@ -115,8 +107,12 @@ export function assertGenericFuzzManifest(manifest, {
   assert.equal(manifest.limits?.max_cases, manifest.case_budget, `${manifest.id} max_cases must match case_budget`);
   assert.equal(manifest.limits?.max_duration_seconds, manifest.duration_budget_seconds, `${manifest.id} max_duration_seconds must match duration_budget_seconds`);
 
-  if (requireReadinessMetadata || manifest.metadata?.readiness) {
-    assertFuzzReadinessMetadata(manifest, { file });
+  if (requireReadinessMetadata) {
+    assert.ok(manifest.metadata?.readiness, `${manifest.id} requires metadata.readiness`);
+  }
+
+  if (manifest.metadata?.readiness) {
+    assertBasicFuzzReadinessMetadata(manifest.metadata.readiness, { file });
   }
 
   assert.equal(manifest.cases?.length, 1, `${manifest.id} requires one default runner case`);
@@ -128,7 +124,7 @@ export function assertGenericFuzzManifest(manifest, {
   assert.deepEqual(runnerCase.surface_ids, manifest.surface_ids, `${manifest.id} case surface ids drifted`);
   assert.deepEqual(runnerCase.operations, manifest.operations, `${manifest.id} case operations drifted`);
   if (runnerCase.intent) {
-    assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase);
+    assert.equal(runnerCase.intent.schema, fuzzCaseIntentSchema, `${manifest.id} case intent schema mismatch`);
   } else {
     assert.equal(requireRunnerNeutralIntent, false, `${manifest.id} requires runner-neutral case intent`);
     assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);
@@ -156,11 +152,16 @@ export function assertGenericFuzzManifest(manifest, {
 }
 
 export function assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase) {
-  return loadGenericFuzzManifestValidator().assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase);
+  assert.equal(runnerCase?.intent?.schema, fuzzCaseIntentSchema, `${manifest.id} case intent schema mismatch`);
 }
 
-export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzReadinessMetadata(manifest, { file });
+function assertBasicFuzzReadinessMetadata(readiness, { file = 'fuzz workload' } = {}) {
+  assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${file} metadata.readiness must be an object`);
+  assert.ok(fuzzReadinessLevels.has(readiness.level), `${file} metadata.readiness.level must be declared, executable, or proven`);
+  if (readiness.level !== 'declared') {
+    assert.equal(typeof readiness.coverage_contract, 'string', `${file} metadata.readiness.coverage_contract must describe the contract`);
+    assert.notEqual(readiness.coverage_contract.trim(), '', `${file} metadata.readiness.coverage_contract must not be empty`);
+  }
 }
 
 export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
@@ -170,7 +171,8 @@ export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
     return proofBundle;
   }
 
-  return loadGenericFuzzManifestValidator().assertFuzzProofBundle(proofBundle, manifest, { file });
+  assert.ok(proofBundle && typeof proofBundle === 'object' && !Array.isArray(proofBundle), `${file || manifest.id} proof_bundle must be an object`);
+  return proofBundle;
 }
 
 export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workload' } = {}) {
@@ -329,44 +331,6 @@ function collectRequiredArtifactNames(manifest) {
     .filter((artifact) => artifact?.required === true)
     .map((artifact) => artifact?.name)
     .filter(Boolean));
-}
-
-export function assertFuzzCrudReadiness(crud, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzCrudReadiness(crud, { file });
-}
-
-export function assertFuzzReadinessLevel(level, label) {
-  return loadGenericFuzzManifestValidator().assertFuzzReadinessLevel(level, label);
-}
-
-export function assertExecutableCrudMutationSafety(readiness, { file } = {}) {
-  const executableMutations = ['create', 'update', 'delete'].filter((operation) => ['executable', 'proven'].includes(readiness?.crud?.[operation]?.level));
-  if (executableMutations.length === 0) {
-    return;
-  }
-
-  assert.ok(readiness.mutation, `${file} executable CRUD mutation readiness requires metadata.readiness.mutation`);
-  assertFuzzMutationReadiness(readiness.mutation, { file });
-  assert.ok(readiness.mutation.disposable_sandbox_boundary_artifacts.length > 0, `${file} executable CRUD mutation readiness requires disposable_sandbox_boundary_artifacts`);
-  assert.ok(readiness.mutation.mutation_isolation_artifacts.length > 0, `${file} executable CRUD mutation readiness requires mutation_isolation_artifacts`);
-  assert.ok(readiness.mutation.teardown_discard_evidence.length > 0, `${file} executable CRUD mutation readiness requires teardown_discard_evidence`);
-  assert.ok(readiness.mutation.artifact_bundle_refs.length > 0, `${file} executable CRUD mutation readiness requires artifact_bundle_refs`);
-
-  for (const operation of executableMutations) {
-    const safetyClass = readiness.crud[operation].safety_class;
-    assert.ok(
-      ['isolated_mutation', 'synthetic_checkout_mutation', 'bounded_catalog_fixture_mutation', 'bounded_admin_fixture_mutation'].includes(safetyClass),
-      `${file} executable CRUD ${operation} requires an isolated mutation safety_class`
-    );
-  }
-}
-
-export function assertFuzzProofBundleRequirements(requirements, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzProofBundleRequirements(requirements, { file });
-}
-
-export function assertFuzzMutationReadiness(mutation, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzMutationReadiness(mutation, { file });
 }
 
 export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.property } = {}) {

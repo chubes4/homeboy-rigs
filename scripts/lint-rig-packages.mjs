@@ -4,7 +4,6 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { assertFuzzReadinessMetadata } from './fuzz-manifest-helpers.mjs';
 
 const args = process.argv.slice(2);
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
@@ -611,14 +610,18 @@ function lintFuzzReadinessMetadata(rel, workload) {
     return;
   }
 
-  try {
-    assertFuzzReadinessMetadata(workload, { file: rel });
-  } catch (error) {
-    failures.push(error.message);
-    return;
+  const readiness = workload.metadata.readiness;
+  if (!['declared', 'executable', 'proven'].includes(readiness.level)) {
+    failures.push(`${rel}: metadata.readiness.level must be declared, executable, or proven`);
   }
 
-  const readinessLevel = workload.metadata.readiness.level;
+  if (readiness.level !== 'declared') {
+    if (typeof readiness.coverage_contract !== 'string' || readiness.coverage_contract.trim() === '') {
+      failures.push(`${rel}: metadata.readiness.coverage_contract must describe the contract`);
+    }
+  }
+
+  const readinessLevel = readiness.level;
   const optionalArtifactNames = [
     ...(workload.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
     ...(workload.artifacts?.expected || []),

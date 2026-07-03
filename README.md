@@ -50,10 +50,8 @@ full-surface performance rig shape for WordPress plugins: discovery, safe admin,
 frontend, and REST coverage, readiness checks, fixtures, metrics, artifacts,
 thresholds, and plugin-specific workload extension points.
 
-The current WordPress fuzz coverage status for WooCommerce, WordPress Core,
-Gutenberg, and Jetpack is tracked in
-[`docs/fuzz-coverage-matrix.md`](docs/fuzz-coverage-matrix.md), including the
-difference between declared, executable, and proven coverage.
+WordPress fuzz readiness status lives in each product manifest's
+`metadata.readiness` contract instead of a hand-maintained repo-wide matrix.
 
 ## Install
 
