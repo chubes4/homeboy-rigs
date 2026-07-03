@@ -13,7 +13,7 @@ import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-pa
 import { summarizeEceReadinessMetrics } from './ece-product-page-readiness-metrics.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
-import { runWpCodeboxRecipe } from './ece-product-page-wp-codebox.mjs';
+import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 import { wpCodeboxBrowserArtifacts } from '../../../shared/wp-codebox/artifacts.mjs';
 
 const execFileAsync = promisify(execFile);

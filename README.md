@@ -277,6 +277,8 @@ WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Arti
 
 Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, which is a pass-through to promoted upstream helpers. Rigs must not duplicate `command -v wp-codebox`, local checkout guesses, env-var precedence, watchdogs, duplicate-run dedupe, or artifact fallback. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, command-scoped filesystem assertions, child reaping, and structured recipe failure reporting; keep affected rigs downscoped until Homeboy/Homeboy Extensions exposes those contracts.
 
+`shared/stable-workload-lab-command-planner.mjs` remains rig-local until Homeboy owns a first-class stable workload Lab planning command. The upstream command should read `manifests/stable-workloads.json`, emit `homeboy fuzz run --lab-only` plans, and produce persisted-run comparison commands so product wrappers only pass product identity and schema metadata.
+
 Cleanup should move in small waves:
 
 1. Build a shared local Studio bench helper foundation for repeated filesystem, artifact, CLI, and appdata setup.
