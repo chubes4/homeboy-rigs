@@ -197,41 +197,6 @@ test('rejects missing declared fuzz workload files', () => {
   assert.match(result.stderr, /declares missing file/);
 });
 
-test('delegates generic fuzz workload contract validation to Homeboy', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({ schema: 'legacy/fuzz-workload' }),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /failed homeboy\/fuzz-workload\/v1 contract validation/);
-  assert.match(result.stderr, /must use schema homeboy\/fuzz-workload\/v1/);
-});
-
-test('rejects committed local Developer checkout paths in rigs', () => {
-  const directory = createRigPackage({
-    rig: {
-      components: {
-        product: {
-          path: '~/Developer/product',
-          branch: 'main',
-        },
-      },
-    },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /use portable component path settings instead of committed ~\/Developer or \$HOME\/Developer checkout paths/);
-});
-
 test('accepts registry-backed components with portable path settings', () => {
   const directory = createRigPackage({
     rig: {

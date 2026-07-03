@@ -24,7 +24,7 @@ The `fuzzer` profile composes the same surface classes as the Woo full-surface r
 Install and check the rig package:
 
 ```sh
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig install ./WordPress/gutenberg
 homeboy rig check gutenberg-api-route-inventory
 homeboy rig check gutenberg-browser-coverage
 ```

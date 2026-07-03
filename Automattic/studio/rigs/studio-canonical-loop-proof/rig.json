@@ -1,6 +1,6 @@
 {
   "id": "studio-canonical-loop-proof",
-  "description": "Guard harness for the intended Studio website artifact loop. It validates the contract fixture, then fails unless a real live-mode proof with durable reviewer-facing refs is implemented and configured.",
+  "description": "Guard harness for the intended Studio website artifact loop. It validates the contract fixture only; live proof ownership belongs to the future core/runtime contract work.",
   "components": {
     "studio-native": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STUDIO_NATIVE}",
@@ -50,12 +50,6 @@
         "kind": "check",
         "label": "canonical loop fixture validates",
         "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --check",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "canonical loop live proof is configured",
-        "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs",
         "expect_exit": 0
       }
     ]

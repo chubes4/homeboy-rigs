@@ -318,12 +318,7 @@ export function assertGenericArtifactPostprocessWorkloadContract(workload, { id,
   assert.equal(workload.metadata?.readiness?.level, readinessLevel, `${id} artifact-postprocess readiness level drifted`);
   assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('artifact root')), `${id} readiness must describe the artifact-root proof condition`);
   assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('reviewer-facing evidence')), `${id} readiness must describe the reviewer-facing artifact proof condition`);
-  if (runnerSupportStatus === 'blocked') {
-    assert.equal(workload.metadata?.generic_primitive?.status, 'blocked', `${id} blocked workload must mark the generic primitive as blocked`);
-    assert.ok(workload.metadata?.missing_upstream_contract?.includes('artifact-postprocess'), `${id} blocked workload must name the missing upstream artifact-postprocess contract`);
-  } else {
-    assert.equal(workload.metadata?.missing_upstream_contract, undefined, `${id} must not claim missing upstream artifact-postprocess fields`);
-  }
+  assert.equal(workload.metadata?.missing_upstream_contract, undefined, `${id} must not claim missing upstream artifact-postprocess fields`);
 }
 
 function collectRequiredArtifactNames(manifest) {

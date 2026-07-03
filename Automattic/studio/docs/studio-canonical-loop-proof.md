@@ -48,7 +48,7 @@ Even with those values present, this harness fails until the live implementation
 homeboy rig check studio-canonical-loop-proof
 ```
 
-The rig validates the fixture and then attempts the live proof step. Without live-mode runtime wiring and durable refs, the rig fails rather than reporting a fake proof pass.
+The rig validates the fixture only. A passing rig check means the checked-in host request fixture is structurally valid; it does not claim a live Studio Native loop proof.
 
 ## Production Loop Acceptance Criteria
 
@@ -65,7 +65,7 @@ The production proof needs to drive the real runtime:
 - Verify the visible site output changes.
 - Produce reviewer-facing artifacts/screenshots/events that demonstrate the iteration has value.
 
-## Blockers To Make The Full Production Proof Executable
+## Core/Runtime Follow-Up For An Executable Production Proof
 
 - Host request API contract needs an executable endpoint and auth shape.
 - Codebox fanout generation needs a durable artifact bundle contract for website artifacts.
