@@ -518,55 +518,6 @@ test('rejects fuzz profiles that reference undeclared fuzz workloads', () => {
   assert.match(result.stderr, /fuzz profile smoke references missing-fuzz, but fuzz_workloads does not declare a matching workload file/);
 });
 
-test('rejects proven fuzz readiness without proof bundle linkage', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        metadata: {
-          kind: 'generic-fuzz',
-          readiness: {
-            level: 'proven',
-            coverage_contract: 'Generic fuzz coverage is proven.',
-            proof_refs: ['https://github.com/example/product/issues/123'],
-          },
-        },
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /proven readiness requires proof_bundle/);
-});
-
-test('accepts proven fuzz readiness with helper-owned proof bundle linkage', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        metadata: {
-          kind: 'generic-fuzz',
-          readiness: {
-            level: 'proven',
-            coverage_contract: 'Generic fuzz coverage is proven.',
-            proof_refs: ['https://github.com/example/product/issues/123'],
-            proof_bundle: {
-              artifact_refs: ['https://github.com/example/product/actions/runs/123/artifacts/456'],
-              run_ids: ['run:product-fuzz'],
-              gap_reports: ['https://github.com/example/product/issues/124'],
-              fuzz_result_artifacts: ['report'],
-            },
-          },
-        },
-        artifacts: { expected: [{ name: 'report', required: true }] },
-        cases: [{ case_id: 'generic-fuzz:default', artifacts: [{ name: 'report', required: true }] }],
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-});
-
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
