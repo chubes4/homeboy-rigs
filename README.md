@@ -41,11 +41,9 @@ facing artifact refs, run IDs, gap reports, and required fuzz result artifact
 names. Keep rows at declared/executable until those links exist; local paths,
 localhost URLs, and optional artifacts are not proof.
 
-Reusable helper patterns live under `shared/`. The first shared web performance
-pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
-mark feature-not-needed and feature-needed phases, count feature/third-party
-requests before and after the trigger, and emit assertions proving no early
-initialization plus post-trigger success.
+Reusable helper patterns live under `shared/` only when the helper is specific to
+rig package declarations. Generic browser orchestration helpers belong in
+Homeboy Extensions and should be consumed through explicit helper-manifest paths.
 
 `shared/wordpress-plugin-performance-template/` documents the reusable
 full-surface performance rig shape for WordPress plugins: discovery, safe admin,
@@ -275,9 +273,13 @@ Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning
 
 WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Artifact consumers should resolve files through `shared/wp-codebox/artifacts.mjs` instead of parsing `artifacts.directory/files/...` at each call site. The helper delegates to the upstream manifest-aware resolver contract and does not provide legacy artifact-layout fallback.
 
-Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, which is a pass-through to promoted upstream helpers. Rigs must not duplicate `command -v wp-codebox`, local checkout guesses, env-var precedence, watchdogs, duplicate-run dedupe, or artifact fallback. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, command-scoped filesystem assertions, child reaping, and structured recipe failure reporting; keep affected rigs downscoped until Homeboy/Homeboy Extensions exposes those contracts.
+Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, which is a pass-through to promoted upstream helpers. Rigs must not duplicate `command -v wp-codebox`, local checkout guesses, env-var precedence, watchdogs, duplicate-run dedupe, or artifact fallback. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, command-scoped filesystem assertions, child reaping, and structured recipe failure reporting; keep affected rigs downscoped until Homeboy/Homeboy Extensions exposes those contracts. Studio combined WP Codebox path cleanup is tracked in [#655](https://github.com/chubes4/homeboy-rigs/issues/655).
 
-`shared/stable-workload-lab-command-planner.mjs` remains rig-local until Homeboy owns a first-class stable workload Lab planning command. Wrappers can pass `--prefer-core-planner` to delegate to `homeboy fuzz stable-plan` when an installed Homeboy exposes it, or `--use-core-planner` to require it. Until that command is released, the local planner is a migration shim that reads `manifests/stable-workloads.json`, emits `homeboy fuzz run --lab-only` plans, and produces persisted-run comparison commands so product wrappers only pass product identity and schema metadata.
+Stable workload Lab planning is owned by Homeboy core. Product packages keep only
+`manifests/stable-workloads.json` declarations and call `homeboy fuzz stable-plan`
+directly; rigs must not add local stable-planner wrappers or compatibility
+fallbacks. The Homeboy release blocker is tracked in
+[Extra-Chill/homeboy#7430](https://github.com/Extra-Chill/homeboy/issues/7430).
 
 Rig cleanup proof is now owned by Homeboy lifecycle artifacts. Rigs keep product-specific `lifecycle.cleanup` metadata for package review, while runtime evidence should come from Homeboy-emitted `rig_resource_lifecycle_index` artifacts rather than rig-local cleanup intent contract checks.
 

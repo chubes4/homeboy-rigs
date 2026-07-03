@@ -3,7 +3,6 @@
   "profile_id": "jetpack-arbitrary-plugin-proof",
   "description": "Reviewer-friendly Jetpack profiling workload names. Jetpack owns route, module, admin, DB, and external HTTP semantics here; Homeboy only runs declared workload ids and collects generic artifacts.",
   "rig": "rigs/jetpack-api-route-inventory/rig.json",
-  "lab_command_generator": "tools/stable-workload-lab-commands.mjs",
   "comparison_surfaces": ["fuzz-observations", "relative-hotspot-artifacts", "db-query-hotspots", "coverage-gaps", "guardrail-results"],
   "contracts": [
     {
