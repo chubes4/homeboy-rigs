@@ -7,7 +7,7 @@ Declares the Jetpack fuzz coverage suite for REST/API, module state, module opti
 Install locally:
 
 ```sh
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/Automattic/jetpack
+homeboy rig install ./Automattic/jetpack
 ```
 
 Check the rig package:

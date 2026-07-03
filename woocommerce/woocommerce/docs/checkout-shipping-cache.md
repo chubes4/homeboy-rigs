@@ -42,8 +42,8 @@ It performs this practical first slice:
 Before running the workload, `homeboy rig check woocommerce-performance` verifies
 that the runner has:
 
-- The WooCommerce monorepo checkout at `~/Developer/woocommerce`.
-- The plugin path at `~/Developer/woocommerce/plugins/woocommerce`.
+- A WooCommerce monorepo checkout supplied through the rig component path settings.
+- The WooCommerce plugin path inside that checkout, typically `plugins/woocommerce` for the monorepo layout.
 - Composer-generated PHP dependencies, especially `vendor/autoload_packages.php`.
 - Generated feature config at `includes/react-admin/feature-config.php`.
 

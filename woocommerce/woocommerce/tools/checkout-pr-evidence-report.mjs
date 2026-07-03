@@ -141,7 +141,7 @@ function renderReport(data) {
 	lines.push('');
 	lines.push('## Command Recipe');
 	lines.push('');
-	lines.push('1. Check out the old PR shape in `~/Developer/woocommerce` and run `homeboy rig up woocommerce-performance`.');
+	lines.push('1. Check out the old PR shape in the WooCommerce component checkout and run `homeboy rig up woocommerce-performance`.');
 	lines.push('2. Run every `ready` command with `<shared-state>` set to `/tmp/woocommerce-checkout-pr-65588-old-shape`.');
 	lines.push('3. Check out the revised WooCommerce candidate and rerun the same commands with `<shared-state>` set to `/tmp/woocommerce-checkout-pr-65588-revised-candidate`.');
 	if (blockedScenarios.length > 0 || blockedGatewayProfiles.length > 0 || readyScenarios.length > 0 || readyGatewayProfiles.length > 0) {

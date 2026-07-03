@@ -7,7 +7,7 @@ Declares a WordPress Core coverage/fuzz suite for `WordPress/wordpress-develop` 
 Install locally:
 
 ```sh
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress-develop
+homeboy rig install ./WordPress/wordpress-develop
 ```
 
 Validate the rig package without running workloads:

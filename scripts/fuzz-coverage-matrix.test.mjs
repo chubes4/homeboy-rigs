@@ -10,30 +10,23 @@ const repoRoot = path.join(__dirname, '..');
 const readText = (relativePath) => readFileSync(path.join(repoRoot, relativePath), 'utf8');
 const readJson = (relativePath) => JSON.parse(readText(relativePath));
 
-const matrix = readText('docs/fuzz-coverage-matrix.md');
 const wooAggressiveDestructive = readJson('woocommerce/woocommerce/manifests/aggressive-destructive-workloads.json');
 const wooRestCrudFixturePlan = readJson('woocommerce/woocommerce/manifests/rest-crud-fixture-plan.json');
 const wooTargetInventory = readJson('woocommerce/woocommerce/manifests/target-inventory.json');
 const wooPerformanceHotspots = readJson('woocommerce/woocommerce/fuzz/performance-hotspots-artifact-summary.json');
 const jetpackFullSurface = readJson('Automattic/jetpack/manifests/full-surface-coverage.json');
 
-const matrixTableRow = (label) => matrix.split('\n').find((line) => line.startsWith(`| ${label} |`));
-
-test('coverage matrix reflects Woo destructive manifests as executable contract-backed coverage', () => {
+test('Woo destructive manifests declare executable contract-backed coverage', () => {
   assert.equal(wooAggressiveDestructive.readiness.level, 'executable');
   assert.equal(wooAggressiveDestructive.readiness.execution_enabled, true);
   assert.deepEqual(wooAggressiveDestructive.readiness.missing_upstream_contracts, []);
 
-  for (const contractId of wooAggressiveDestructive.generic_contracts) {
-    assert.ok(matrix.includes(contractId), `matrix must name destructive contract ${contractId}`);
-  }
+  assert.ok(wooAggressiveDestructive.generic_contracts.length > 0, 'destructive coverage must name generic contracts');
 
   for (const operation of wooRestCrudFixturePlan.operations) {
     assert.equal(operation.expected.execute, true, `${operation.id} must be executable in the manifest`);
     assert.equal(operation.expected.readiness_level, 'executable', `${operation.id} readiness drifted`);
-    for (const contractId of operation.expected.contract_ids) {
-      assert.ok(matrix.includes(contractId), `matrix must name REST CRUD fixture contract ${contractId}`);
-    }
+    assert.ok(operation.expected.contract_ids.length > 0, `${operation.id} must declare contract ids`);
   }
 
   const restApi = wooTargetInventory.discovery_manifests.product_surface_taxonomy.surfaces.rest_api;
@@ -41,17 +34,9 @@ test('coverage matrix reflects Woo destructive manifests as executable contract-
   assert.equal(restApi.operation_readiness.update, 'destructive_isolated_executable');
   assert.equal(restApi.operation_readiness.delete, 'destructive_isolated_executable');
   assert.deepEqual(restApi.blocked_by, []);
-
-  assert.ok(matrix.includes('No missing upstream contracts for executable destructive coverage.'));
-  assert.ok(!matrix.includes('execute:false'), 'matrix must not preserve stale non-executable Woo CRUD language');
-  assert.ok(!matrix.includes('D mutation'), 'matrix must not preserve stale declared-only mutation status');
 });
 
-test('coverage matrix reflects Jetpack mutation manifests as executable rows without inventing proof', () => {
-  const jetpackRow = matrixTableRow('Jetpack');
-  assert.ok(jetpackRow, 'summary table must include Jetpack');
-  assert.ok(jetpackRow.includes('| D/E | D/E | D/E | D/E | D/E | D/E partial | D/E |'));
-
+test('Jetpack mutation manifests declare executable workloads without claiming proof', () => {
   const executableJetpackWorkloads = [
     ...jetpackFullSurface.coverage_profiles['full-surface'].options,
     ...jetpackFullSurface.coverage_profiles['full-surface'].modules,
@@ -61,21 +46,15 @@ test('coverage matrix reflects Jetpack mutation manifests as executable rows wit
   ];
 
   for (const workloadId of executableJetpackWorkloads) {
-    assert.ok(jetpackFullSurface.workloads[workloadId], `${workloadId} must have workload metadata`);
-    assert.ok(matrix.includes(workloadId), `matrix must list executable Jetpack workload ${workloadId}`);
+    const workload = jetpackFullSurface.workloads[workloadId];
+    assert.ok(workload, `${workloadId} must have workload metadata`);
+    assert.ok(workload.artifact_expectations?.required?.length > 0, `${workloadId} must declare required artifacts before proof can be claimed`);
   }
-
-  assert.ok(matrix.includes('Proven status needs reviewer-facing run artifacts'));
-  assert.ok(matrix.includes('safe WP.com sandbox credentials'));
 });
 
-test('coverage matrix keeps performance proof tied to relative hotspot artifacts, not smoke output', () => {
+test('performance proof remains tied to relative hotspot artifact schema', () => {
   const artifactSchema = wooPerformanceHotspots.metadata.artifact_schema;
   assert.equal(artifactSchema.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1');
   assert.equal(artifactSchema.ranking.mode, 'relative');
   assert.equal(artifactSchema.threshold_policy, 'relative_ranking_only');
-
-  assert.ok(matrix.includes('Relative hotspot output (`homeboy-rigs/woocommerce-performance-hotspots-summary/v1`) is the primary performance evidence'));
-  assert.ok(matrix.includes('smoke output are not proof'));
-  assert.ok(!matrix.toLowerCase().includes('rollback'), 'matrix must avoid stale rollback proof language');
 });

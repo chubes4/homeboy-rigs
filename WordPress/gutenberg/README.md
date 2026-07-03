@@ -9,7 +9,7 @@ Homeboy Extensions / WP Codebox API performance primitives to Gutenberg later.
 Install locally:
 
 ```sh
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig install ./WordPress/gutenberg
 ```
 
 Run the route inventory workload:
@@ -67,7 +67,7 @@ The workload mounts the local Gutenberg checkout plus a generated fixture plugin
 Install locally:
 
 ```sh
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig install ./WordPress/gutenberg
 ```
 
 Run the baseline repro:

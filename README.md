@@ -241,12 +241,12 @@ homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build -
 The site-build workload accepts a runtime namespace for parallel Workflow Bench runs. Select canonical Studio Web Workflow Bench scenarios with `studio_workflow_bench_scenario_id` and point `studio_workflow_bench_root`, `STUDIO_WEB_WORKFLOW_BENCH_ROOT`, or `WORKFLOW_BENCH_ROOT` at a Studio Web checkout. Homeboy Rigs consumes the canonical corpus directly; Studio Web owns scenario prompts, categories, proof surfaces, success gates, and matrix selection. `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
 
 ```bash
-STUDIO_WEB_WORKFLOW_BENCH_ROOT=$HOME/Developer/studio-web \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/path/to/studio-web \
 HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-restaurant \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
-STUDIO_WEB_WORKFLOW_BENCH_ROOT=$HOME/Developer/studio-web \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/path/to/studio-web \
 HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-saas \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
 homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
@@ -337,7 +337,7 @@ homeboy rig show studio-agent-claude-trunk
 
 `stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs. TSRMLS fallback defines are owned upstream by WordPress/wordpress-playground#3512; `studio-combined` checks for that upstream source instead of patching Playground files at rig runtime.
 
-`rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the local `~/Developer/wordpress-playground` checkout. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
+`rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the operator-provided WordPress Playground checkout. For a local data-machine-code workspace, that path might be `~/Developer/wordpress-playground`; other checkout layouts should be passed through rig component settings. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
 
 ```bash
 homeboy rig install --all ./WordPress/wordpress-playground
@@ -353,7 +353,7 @@ admin, frontend/rendering, hooks/cron/options, content, media/users, and
 performance-observation contracts without adding a `homeboy bench` fallback.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress-develop
+homeboy rig install ./WordPress/wordpress-develop
 homeboy rig check wordpress-core-fuzz-coverage
 export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
@@ -368,7 +368,7 @@ and experimental route groups. It keeps Gutenberg route grouping in
 benchmark workload.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig install ./WordPress/gutenberg
 homeboy rig check gutenberg-api-route-inventory
 homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
 ```
@@ -389,7 +389,7 @@ and validates generic fuzz manifest contracts without treating bench workloads a
 proof of full fuzz execution.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/Automattic/jetpack
+homeboy rig install ./Automattic/jetpack
 homeboy rig check jetpack-api-route-inventory
 node Automattic/jetpack/tools/validate-fuzz-manifests.mjs
 ```
@@ -408,7 +408,7 @@ catalog, and admin-dashboard performance workloads against a local WooCommerce
 monorepo checkout mounted into the WP Codebox WordPress bench runtime.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
+homeboy rig install ./woocommerce/woocommerce
 homeboy rig check woocommerce-performance
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
@@ -416,10 +416,10 @@ homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products
 ```
 
-The runner must provide `~/Developer/woocommerce/plugins/woocommerce`. The rig
-check reports missing checkout, Composer dependency, and generated feature-config
-prerequisites with targeted messages. Use `homeboy rig up` for the safe dependency
-prep path before benchmarking. `checkout-shortcode-place-order-latency` covers
+The runner must provide a WooCommerce component checkout with the monorepo plugin
+available at `plugins/woocommerce`. The rig check reports missing checkout,
+Composer dependency, and generated feature-config prerequisites with targeted
+messages. Use `homeboy rig up` for the safe dependency prep path before benchmarking. `checkout-shortcode-place-order-latency` covers
 the shortcode `[woocommerce_checkout]` place-order path from
 https://github.com/chubes4/homeboy-rigs/issues/223 and writes raw JSON under
 `HOMEBOY_BENCH_SHARED_STATE`.
@@ -515,7 +515,7 @@ The rig declares `node_modules` as a Homeboy `shared_paths` entry. When the acti
 
 ## Conventions
 
-- **Component paths** use `~/Developer/<repo>` for primary checkouts and `~/Developer/<repo>@<branch-slug>` for worktrees, mirroring the data-machine-code workspace convention.
+- **Component paths** come from rig component settings or environment variables. Local examples may use a data-machine-code workspace path such as `~/Developer/<repo>` or `~/Developer/<repo>@<branch-slug>`, but that is an operator layout, not a package convention.
 - **Package directories** use the owning repo's fully qualified name. Cross-repo rigs live under the product/workflow owner.
 - **Bench workloads** live beside their owning rig and use `${package.root}` so installed rig packages resolve their own portable workload files.
 - **Branches** in `components.<id>.branch` document the expected branch — rigs don't currently enforce branch state, but the field hints to humans reading the spec.
