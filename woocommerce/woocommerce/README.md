@@ -39,6 +39,13 @@ The rig mounts the selected WooCommerce checkout into disposable WP Codebox
 WordPress runtimes. Pass `--path /absolute/path/to/plugins/woocommerce` when
 validating a specific WooCommerce worktree.
 
+## Bench Fixtures
+
+WooCommerce-specific PHP bench fixtures live under `bench/lib/` in this rig
+package. Workloads can require `bench/lib/woocommerce-fixtures.php` for reusable
+store shapes and `bench/lib/woocommerce-expensive-shipping.php` for deterministic
+shipping-rate cost simulation.
+
 The checkout gateway compatibility matrix defaults to the `core_only` profile
 set so BACS, Cheque, and COD controls can run even when real gateway plugin
 materialization is unavailable. Select the focused Stripe profile set when the
