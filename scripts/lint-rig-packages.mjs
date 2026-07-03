@@ -26,6 +26,16 @@ const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
 const cleanupIntents = new Set(['none', 'external', 'manual', 'pipeline']);
 const homeboyBin = process.env.HOMEBOY_BIN || 'homeboy';
+const stablePlannerShimPattern = new RegExp([
+  'stable-workload-lab-command-' + 'planner',
+  'stable-workload-lab-' + 'commands\\.mjs',
+  'lab_' + 'command_generator',
+].join('|'));
+const deferredInitShimPattern = new RegExp([
+  'shared/webperf/deferred-init-' + 'webperf',
+  '__homeboy' + 'DeferredInit',
+  'DEFERRED_' + 'INIT_PHASES',
+].join('|'));
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -546,6 +556,14 @@ function lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot) {
 function lintPortableSource(file, portableSourceValidators) {
   const rel = relative(root, file);
   const contents = readFileSync(file, 'utf8');
+
+  if (stablePlannerShimPattern.test(contents)) {
+    failures.push(`${rel}: stable workload planning belongs to homeboy fuzz stable-plan, not rig-local planner shims`);
+  }
+
+  if (deferredInitShimPattern.test(contents)) {
+    failures.push(`${rel}: deferred-init browser helpers belong in Homeboy Extensions, not homeboy-rigs shims`);
+  }
 
   if (contents.includes(personalPathPrefix)) {
     failures.push(`${rel}: use $HOME, homedir(), component paths, or settings instead of hard-coded /Users/chubes paths`);

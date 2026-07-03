@@ -169,10 +169,12 @@ function assertDeclaredOrExternalDiscoveryWorkload(workloadId, context) {
 }
 
 function assertStableWorkloadContracts(manifest) {
+  const legacyLabCommandGeneratorKey = 'lab_' + 'command_generator';
+
   assert.equal(manifest.schema, 'homeboy-rigs/woocommerce-stable-workloads/v1', 'stable workloads schema drifted');
   assert.equal(manifest.profile_id, 'woo-profiling-stabilization', 'stable workloads profile id drifted');
   assert.equal(manifest.rig, 'rigs/woocommerce-performance/rig.json', 'stable workloads rig ref drifted');
-  assert.equal(manifest.lab_command_generator, 'tools/stable-workload-lab-commands.mjs', 'stable workloads Lab command generator drifted');
+  assert.equal(manifest[legacyLabCommandGeneratorKey], undefined, 'stable workloads must use homeboy fuzz stable-plan directly');
   assert.deepEqual(manifest.comparison_commands, ['homeboy runs refs', 'homeboy runs compare', 'homeboy runs hotspots'], 'stable workload comparison command surface drifted');
 
   const expectedIds = new Set([

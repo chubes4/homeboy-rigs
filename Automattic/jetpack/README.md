@@ -26,18 +26,20 @@ homeboy fuzz list --rig jetpack-api-route-inventory
 
 Use offloaded Lab runners for proof campaigns. Listing workloads confirms declarations only; P status requires persisted `homeboy fuzz run` artifacts, coverage gap reports, and non-local proof references.
 
-Generate Lab-only commands for stable Jetpack profiling proof runs:
+Generate Lab-only commands for stable Jetpack profiling proof runs through Homeboy core:
 
 ```sh
-node Automattic/jetpack/tools/stable-workload-lab-commands.mjs \
-  --prefer-core-planner \
+homeboy fuzz stable-plan \
+  --manifest Automattic/jetpack/manifests/stable-workloads.json \
+  --component jetpack \
+  --rig jetpack-api-route-inventory \
   --runner LAB_RUNNER_ID \
   --artifact-root ARTIFACT_ROOT \
   --run-id-prefix jetpack-stable-YYYYMMDD \
   --tracker-ref github:Automattic/jetpack#ISSUE_OR_PR
 ```
 
-The generator emits one `homeboy fuzz run --lab-only` command per stable workload entry and compare commands for persisted refs, elapsed-time trends, and hotspot deltas. It does not execute workloads locally. When the installed Homeboy includes `homeboy fuzz stable-plan`, `--prefer-core-planner` delegates planning to core; otherwise the rig-local migration planner emits the same Lab-only command surface.
+`homeboy fuzz stable-plan` emits one `homeboy fuzz run --lab-only` command per stable workload entry and compare commands for persisted refs, elapsed-time trends, and hotspot deltas. It does not execute workloads locally. Use a Homeboy release that exposes `fuzz stable-plan`; this repo intentionally does not carry a rig-local compatibility planner.
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;
