@@ -56,8 +56,8 @@ silently pass with optional output or local-only evidence.
 | Project | Contract-backed destructive or mutation state | Exact contract IDs | True blockers |
 |---|---|---|---|
 | WooCommerce | Product, variation, order, coupon, customer, stock, cart/session, HPOS table, and Action Scheduler destructive lifecycle workloads are executable in offloaded disposable WP Codebox isolation. Manifest evidence: `manifests/aggressive-destructive-workloads.json`, `manifests/rest-crud-fixture-plan.json`, `manifests/product-chaos-sequence-packs.json`, `manifests/target-inventory.json`. | `wp-codebox/wordpress-fuzz-runtime-contract/v1`, `wp-codebox/fuzz-fixture-plan/v1`, `wp-codebox/rest-mutation-fixture-opt-in/v1`, `homeboy/isolation-proof/v1`, `homeboy/fuzz-action-model/v1`, `homeboy/fuzz-exploration-policy/v1`, `homeboy/wordpress-surface-family-contracts/v1`, `homeboy/wordpress-fuzz-runtime-workload-operation/v1`, `wp-codebox/fuzz-artifact-bundle/v1`, `wp-codebox/sandbox-isolation-proof/v1`, `wp-codebox/delete-boundary-artifact/v1`, `wp-codebox/mutation-isolation-artifact/v1`, `homeboy-extensions/generate-database-observations/v1`, `homeboy-extensions/generate-admin-observations/v1`, `homeboy-extensions/generate-browser-observations/v1`, `homeboy-extensions/generate-editor-observations/v1`. | No missing upstream contracts for executable destructive coverage. Proven status still requires reviewer-facing query fingerprint, cache/transient churn, DB write-set, duplicate query, option/autoload churn, admin/browser action-step, replay/minimize, relative hotspot, convergence, and artifact-bundle refs listed by the manifests. Live payment, tax, shipping, webhook, marketplace, and credential-bearing settings effects require safe skip or isolated mock evidence. |
-| WordPress Core | Read-only REST, DB, admin, frontend, hook/cron/options, content, media, user, and performance observations are executable. Create, update, and delete are not executable in this package because the Core manifest does not declare product-owned mutation workloads. | `homeboy-rigs/wordpress-full-surface-coverage/v1`, `homeboy/wordpress-rest-route-inventory/v1`, `homeboy/wordpress-rest-request-cases/v1`, `homeboy-rigs/wordpress-core-admin-page-coverage/v1`, `wp-codebox/browser-request-coverage/v1`, `homeboy/wordpress-db-inventory/v1`, `homeboy/wordpress-rest-db-query-profile/v1`, `homeboy/wordpress-runtime-state-coverage/v1`. | Disposable Core fixture mutation workloads and reviewer-facing proof artifacts are absent from the Core manifests. |
-| Gutenberg | Read-only REST, DB, admin/editor, frontend/block rendering, browser, runtime-state, and performance observation contracts are executable. Template, pattern, and block-entity mutations are not product-owned executable destructive coverage in this package. | `homeboy-rigs/wordpress-full-surface-coverage/v1`, `homeboy/wordpress-rest-route-inventory/v1`, `homeboy/wordpress-rest-request-cases/v1`, `homeboy-rigs/gutenberg-admin-page-coverage/v1`, `wp-codebox/browser-request-coverage/v1`, `homeboy/wordpress-db-inventory/v1`, `homeboy/wordpress-rest-db-query-profile/v1`, `homeboy/gutenberg-runtime-state-coverage/v1`, `homeboy/gutenberg-performance-observation/v1`. | Destructive editor/entity mutation manifests and reviewer-facing proof artifacts are absent from the Gutenberg manifests. |
+| WordPress Core | Read-only REST, DB, admin, frontend, hook/cron/options, content, media, user, and performance observations are executable. Create, update, and delete sequence packs are declared-only and blocked because they are not wired into rig `fuzz_workloads`. | `homeboy-rigs/wordpress-full-surface-coverage/v1`, `homeboy/wordpress-rest-route-inventory/v1`, `homeboy/wordpress-rest-request-cases/v1`, `homeboy-rigs/wordpress-core-admin-page-coverage/v1`, `wp-codebox/browser-request-coverage/v1`, `homeboy/wordpress-db-inventory/v1`, `homeboy/wordpress-rest-db-query-profile/v1`, `homeboy/wordpress-runtime-state-coverage/v1`. | `WordPress/wordpress-develop/manifests/destructive-sequence-packs.json` remains `declared_blocked` until HBX provides `wordpress-fuzz-manifest-validator.js`, disposable Core fixture mutation runner wiring, and durable destructive sequence artifacts. |
+| Gutenberg | Read-only REST, DB, admin/editor, frontend/block rendering, browser, runtime-state, and performance observation contracts are executable. Template, pattern, block-entity, navigation, and editor-state mutation sequence packs are declared-only and blocked because they are not wired into rig `fuzz_workloads`. | `homeboy-rigs/wordpress-full-surface-coverage/v1`, `homeboy/wordpress-rest-route-inventory/v1`, `homeboy/wordpress-rest-request-cases/v1`, `homeboy-rigs/gutenberg-admin-page-coverage/v1`, `wp-codebox/browser-request-coverage/v1`, `homeboy/wordpress-db-inventory/v1`, `homeboy/wordpress-rest-db-query-profile/v1`, `homeboy/gutenberg-runtime-state-coverage/v1`, `homeboy/gutenberg-performance-observation/v1`. | `WordPress/gutenberg/manifests/destructive-sequence-packs.json` remains `declared_blocked` until HBX provides `wordpress-fuzz-manifest-validator.js`, disposable Gutenberg editor/entity mutation runner wiring, and durable destructive sequence artifacts. |
 | Jetpack | REST, DB/query inventory, admin, external HTTP guardrails, public frontend, browser coverage, performance observation, options, module state, sync queue, cron sync actions, and connected/disconnected fixture states are executable manifest rows. | `homeboy-rigs/wordpress-full-surface-coverage/v1`, `homeboy/wordpress-rest-route-inventory/v1`, `homeboy/wordpress-rest-request-cases/v1`, `homeboy/wordpress-db-inventory/v1`, `homeboy/wordpress-rest-db-query-profile/v1`, `homeboy/wordpress-admin-page-coverage/v1`, `wp-codebox/browser-request-coverage/v1`, `homeboy/jetpack-module-option-table-inventory/v1`, `homeboy/jetpack-performance-observation/v1`. | Proven status needs reviewer-facing run artifacts, coverage gap reports, and persisted guardrail/request artifacts. Connected remote WP.com state remains blocked on safe WP.com sandbox credentials and must not be emulated locally. |
 
 ## WooCommerce
@@ -105,8 +105,10 @@ Canonical Core fuzz contracts live under `WordPress/wordpress-develop`.
 
 CRUD/mutation readiness: read coverage is declared/executable for REST, admin,
 frontend, media, user, option, postmeta, hook, cron, and rewrite inventories.
-Create/update/delete remain declared-only until upstream fuzz runner primitives
-provide disposable Core fixture mutation and durable artifact manifests.
+Create/update/delete sequence packs are declared-only (`declared_blocked`) until
+HBX provides the missing `wordpress-fuzz-manifest-validator.js`, upstream fuzz
+runner primitives provide disposable Core fixture mutation, the rig wires real
+fuzz workloads, and durable artifact manifests exist.
 
 ## Gutenberg
 
@@ -122,11 +124,12 @@ provide disposable Core fixture mutation and durable artifact manifests.
 
 CRUD/mutation readiness: read coverage is executable for REST route inventory,
 editor/admin/browser surfaces, block rendering, template/pattern entities, and DB
-query attribution. Create/update are partially executable through editor state
-and fixture traces but proven only for targeted pattern-preview and notes-related
-bugs. Delete remains declared-only until upstream fixture mutation primitives can
-exercise template, pattern, and block-entity deletion without product-specific
-cleanup shims.
+query attribution. Template, pattern, reusable-block, navigation, editor-state,
+and block insert/edit/save/delete sequence packs are declared-only
+(`declared_blocked`) until HBX provides the missing
+`wordpress-fuzz-manifest-validator.js`, upstream fixture mutation primitives can
+exercise these paths without product-specific cleanup shims, the rig wires real
+fuzz workloads, and durable artifact manifests exist.
 
 ## Jetpack
 

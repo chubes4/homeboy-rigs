@@ -81,18 +81,21 @@ const requiredDestructiveContracts = new Set([
 
 assert.equal(destructiveSequencePacks.schema, 'homeboy-rigs/wordpress-core-destructive-sequence-packs/v1', 'Core destructive sequence pack schema drifted');
 assert.equal(destructiveSequencePacks.id, 'wordpress-core-destructive-sequence-packs', 'Core destructive sequence pack id drifted');
-assert.equal(destructiveSequencePacks.status, 'contract_backed_executable', 'Core destructive sequence pack status drifted');
-assert.equal(destructiveSequencePacks.execution_enabled, true, 'Core destructive sequence packs must be executable');
+assert.equal(destructiveSequencePacks.status, 'declared_blocked', 'Core destructive sequence pack status drifted');
+assert.equal(destructiveSequencePacks.execution_enabled, false, 'Core destructive sequence packs must not claim execution before runner wiring exists');
 assert.equal(destructiveSequencePacks.local_execution_enabled, false, 'Core destructive sequence packs must not enable local execution');
-assert.equal(destructiveSequencePacks.readiness?.level, 'executable', 'Core destructive sequence pack readiness drifted');
+assert.equal(destructiveSequencePacks.readiness?.level, 'declared', 'Core destructive sequence pack readiness drifted');
+assert.equal(destructiveSequencePacks.readiness?.execution_enabled, false, 'Core destructive sequence readiness must not claim execution before runner wiring exists');
 assert.equal(destructiveSequencePacks.readiness?.proof_bundle, undefined, 'Core destructive sequence packs must not claim proof refs before artifacts exist');
+assert.ok((destructiveSequencePacks.missing_upstream_contracts || []).includes('homeboy-extensions/wordpress-fuzz-manifest-validator.js'), 'Core destructive sequence packs must name the missing HBX validator blocker');
+assert.ok((destructiveSequencePacks.readiness?.upstream_blockers || []).includes('homeboy-extensions/wordpress-fuzz-manifest-validator.js'), 'Core destructive sequence readiness must name the missing HBX validator blocker');
 assert.deepEqual(new Set(destructiveSequencePacks.required_upstream_contracts || []), requiredDestructiveContracts, 'Core destructive sequence upstream contracts drifted');
 assert.deepEqual(new Set(destructiveSequencePacks.readiness?.contract_ids || []), requiredDestructiveContracts, 'Core destructive sequence readiness contract ids drifted');
 
 const coreFamilies = new Map((destructiveSequencePacks.surface_families || []).map((family) => [family.id, family]));
 assert.deepEqual(new Set(coreFamilies.keys()), new Set(['posts-pages', 'media', 'users', 'terms', 'options-rewrite', 'meta']), 'Core destructive sequence surface families drifted');
 for (const [familyId, family] of coreFamilies) {
-  assert.equal(family.readiness, 'destructive_isolated_executable', `${familyId} must be executable`);
+  assert.equal(family.readiness, 'declared_only_blocked', `${familyId} must remain declared-only until upstream execution exists`);
   assert.deepEqual(new Set(family.operations), new Set(['create', 'read', 'update', 'delete']), `${familyId} CRUD operations drifted`);
 }
 
@@ -100,7 +103,7 @@ const coreSequences = new Map((destructiveSequencePacks.sequence_packs || []).ma
 assert.deepEqual(new Set(coreSequences.keys()), new Set(['post-page-crud-delete', 'media-crud-delete', 'user-crud-delete', 'term-crud-delete', 'options-rewrite-crud-delete', 'meta-crud-delete']), 'Core destructive sequence pack ids drifted');
 assert.deepEqual(new Set(destructiveSequencePacks.relative_hotspot_taxonomy?.labels || []), new Set(['sequence', 'action', 'route', 'table', 'state']), 'Core destructive hotspot taxonomy labels drifted');
 for (const [sequenceId, sequence] of coreSequences) {
-  assert.equal(sequence.readiness, 'destructive_isolated_executable', `${sequenceId} must be executable`);
+  assert.equal(sequence.readiness, 'declared_only_blocked', `${sequenceId} must remain declared-only until upstream execution exists`);
   assert.ok(coreFamilies.has(sequence.surface_family), `${sequenceId} references unknown surface family`);
   assert.ok(sequence.steps.some((step) => step.includes('delete')), `${sequenceId} must include a delete path`);
   assert.ok(sequence.required_contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'), `${sequenceId} must wire Homeboy workload operation contract`);

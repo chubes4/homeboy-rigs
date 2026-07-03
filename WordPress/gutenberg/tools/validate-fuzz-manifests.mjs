@@ -184,18 +184,21 @@ const requiredDestructiveContracts = new Set([
 
 assert.equal(destructiveSequencePacks.schema, 'homeboy-rigs/gutenberg-destructive-sequence-packs/v1', 'Gutenberg destructive sequence pack schema drifted');
 assert.equal(destructiveSequencePacks.id, 'gutenberg-destructive-sequence-packs', 'Gutenberg destructive sequence pack id drifted');
-assert.equal(destructiveSequencePacks.status, 'contract_backed_executable', 'Gutenberg destructive sequence pack status drifted');
-assert.equal(destructiveSequencePacks.execution_enabled, true, 'Gutenberg destructive sequence packs must be executable');
+assert.equal(destructiveSequencePacks.status, 'declared_blocked', 'Gutenberg destructive sequence pack status drifted');
+assert.equal(destructiveSequencePacks.execution_enabled, false, 'Gutenberg destructive sequence packs must not claim execution before runner wiring exists');
 assert.equal(destructiveSequencePacks.local_execution_enabled, false, 'Gutenberg destructive sequence packs must not enable local execution');
-assert.equal(destructiveSequencePacks.readiness?.level, 'executable', 'Gutenberg destructive sequence pack readiness drifted');
+assert.equal(destructiveSequencePacks.readiness?.level, 'declared', 'Gutenberg destructive sequence pack readiness drifted');
+assert.equal(destructiveSequencePacks.readiness?.execution_enabled, false, 'Gutenberg destructive sequence readiness must not claim execution before runner wiring exists');
 assert.equal(destructiveSequencePacks.readiness?.proof_bundle, undefined, 'Gutenberg destructive sequence packs must not claim proof refs before artifacts exist');
+assert.ok((destructiveSequencePacks.missing_upstream_contracts || []).includes('homeboy-extensions/wordpress-fuzz-manifest-validator.js'), 'Gutenberg destructive sequence packs must name the missing HBX validator blocker');
+assert.ok((destructiveSequencePacks.readiness?.upstream_blockers || []).includes('homeboy-extensions/wordpress-fuzz-manifest-validator.js'), 'Gutenberg destructive sequence readiness must name the missing HBX validator blocker');
 assert.deepEqual(new Set(destructiveSequencePacks.required_upstream_contracts || []), requiredDestructiveContracts, 'Gutenberg destructive sequence upstream contracts drifted');
 assert.deepEqual(new Set(destructiveSequencePacks.readiness?.contract_ids || []), requiredDestructiveContracts, 'Gutenberg destructive sequence readiness contract ids drifted');
 
 const gutenbergFamilies = new Map((destructiveSequencePacks.surface_families || []).map((family) => [family.id, family]));
 assert.deepEqual(new Set(gutenbergFamilies.keys()), new Set(['templates', 'patterns', 'reusable-block-entities', 'navigation', 'editor-state', 'block-insert-edit-save-delete']), 'Gutenberg destructive sequence surface families drifted');
 for (const [familyId, family] of gutenbergFamilies) {
-  assert.equal(family.readiness, 'destructive_isolated_executable', `${familyId} must be executable`);
+  assert.equal(family.readiness, 'declared_only_blocked', `${familyId} must remain declared-only until upstream execution exists`);
   assert.ok(family.operations.includes('delete'), `${familyId} must include delete operations`);
 }
 
@@ -203,7 +206,7 @@ const gutenbergSequences = new Map((destructiveSequencePacks.sequence_packs || [
 assert.deepEqual(new Set(gutenbergSequences.keys()), new Set(['template-lifecycle', 'pattern-lifecycle', 'reusable-block-lifecycle', 'navigation-lifecycle', 'editor-state-lifecycle', 'block-insert-edit-save-delete']), 'Gutenberg destructive sequence pack ids drifted');
 assert.deepEqual(new Set(destructiveSequencePacks.relative_hotspot_taxonomy?.labels || []), new Set(['sequence', 'action', 'route', 'table', 'editor_state']), 'Gutenberg destructive hotspot taxonomy labels drifted');
 for (const [sequenceId, sequence] of gutenbergSequences) {
-  assert.equal(sequence.readiness, 'destructive_isolated_executable', `${sequenceId} must be executable`);
+  assert.equal(sequence.readiness, 'declared_only_blocked', `${sequenceId} must remain declared-only until upstream execution exists`);
   assert.ok(gutenbergFamilies.has(sequence.surface_family), `${sequenceId} references unknown surface family`);
   assert.ok(sequence.steps.some((step) => step.includes('delete')), `${sequenceId} must include a delete path`);
   assert.ok(sequence.required_contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'), `${sequenceId} must wire Homeboy workload operation contract`);

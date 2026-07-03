@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
@@ -20,6 +21,15 @@ function invalidManifestDiagnostic({ helperName, manifestPath }) {
     'Expected the manifest module to expose getWordPressHelperManifest() or WORDPRESS_HELPER_MANIFEST with an extensionRoot string.',
     `Run ${bootstrapCommand}, then inject the generated helper manifest path explicitly:`,
     '  HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js',
+  ].join('\n');
+}
+
+function missingHelperFileDiagnostic({ helperName, helperPath, manifestFileName }) {
+  return [
+    `Homeboy WordPress helper "${helperName}" is missing from the injected helper manifest root.`,
+    `Expected helper file: ${helperPath}`,
+    `Missing upstream file: ${manifestFileName}`,
+    'Do not add a rig-local shim; add the helper to Homeboy Extensions and regenerate the helper manifest.',
   ].join('\n');
 }
 
@@ -88,6 +98,10 @@ export function loadWordPressHelperModule({ helperName, manifestFileName }) {
   const helperPath = wordpressLibHelperPath(manifestFileName, { helperName });
   if (!helperPath) {
     throw new Error(helperDiagnostic({ helperName }));
+  }
+
+  if (!existsSync(helperPath)) {
+    throw new Error(missingHelperFileDiagnostic({ helperName, helperPath, manifestFileName }));
   }
 
   return requireHelper(
