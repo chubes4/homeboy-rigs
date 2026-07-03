@@ -30,13 +30,14 @@ Generate Lab-only commands for stable Jetpack profiling proof runs:
 
 ```sh
 node Automattic/jetpack/tools/stable-workload-lab-commands.mjs \
+  --prefer-core-planner \
   --runner LAB_RUNNER_ID \
   --artifact-root ARTIFACT_ROOT \
   --run-id-prefix jetpack-stable-YYYYMMDD \
   --tracker-ref github:Automattic/jetpack#ISSUE_OR_PR
 ```
 
-The generator emits one `homeboy fuzz run --lab-only` command per stable workload entry and compare commands for persisted refs, elapsed-time trends, and hotspot deltas. It does not execute workloads locally.
+The generator emits one `homeboy fuzz run --lab-only` command per stable workload entry and compare commands for persisted refs, elapsed-time trends, and hotspot deltas. It does not execute workloads locally. When the installed Homeboy includes `homeboy fuzz stable-plan`, `--prefer-core-planner` delegates planning to core; otherwise the rig-local migration planner emits the same Lab-only command surface.
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;

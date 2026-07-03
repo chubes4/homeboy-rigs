@@ -277,7 +277,9 @@ WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Arti
 
 Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, which is a pass-through to promoted upstream helpers. Rigs must not duplicate `command -v wp-codebox`, local checkout guesses, env-var precedence, watchdogs, duplicate-run dedupe, or artifact fallback. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, command-scoped filesystem assertions, child reaping, and structured recipe failure reporting; keep affected rigs downscoped until Homeboy/Homeboy Extensions exposes those contracts.
 
-`shared/stable-workload-lab-command-planner.mjs` remains rig-local until Homeboy owns a first-class stable workload Lab planning command. The upstream command should read `manifests/stable-workloads.json`, emit `homeboy fuzz run --lab-only` plans, and produce persisted-run comparison commands so product wrappers only pass product identity and schema metadata.
+`shared/stable-workload-lab-command-planner.mjs` remains rig-local until Homeboy owns a first-class stable workload Lab planning command. Wrappers can pass `--prefer-core-planner` to delegate to `homeboy fuzz stable-plan` when an installed Homeboy exposes it, or `--use-core-planner` to require it. Until that command is released, the local planner is a migration shim that reads `manifests/stable-workloads.json`, emits `homeboy fuzz run --lab-only` plans, and produces persisted-run comparison commands so product wrappers only pass product identity and schema metadata.
+
+Rig cleanup proof is now owned by Homeboy lifecycle artifacts. Rigs keep product-specific `lifecycle.cleanup` metadata for package review, while runtime evidence should come from Homeboy-emitted `rig_resource_lifecycle_index` artifacts rather than rig-local cleanup intent contract checks.
 
 Cleanup should move in small waves:
 

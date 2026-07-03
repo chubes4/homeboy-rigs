@@ -37,51 +37,15 @@ if (command !== 'contract' || subcommand !== 'validate') {
 }
 
 const isFuzzWorkload = first === '--file' && third === 'homeboy/fuzz-workload/v1';
-const isCleanupIntent = first === 'homeboy/resource-cleanup-intent/v1' && second === '--file';
-const file = isFuzzWorkload ? second : third;
-const schema = isFuzzWorkload ? third : first;
+const file = second;
+const schema = third;
 
-if (!isFuzzWorkload && !isCleanupIntent) {
+if (!isFuzzWorkload) {
   console.error(\`unexpected homeboy args: ${'${process.argv.slice(2).join(" ")}'}\`);
   process.exit(64);
 }
 
 const payload = JSON.parse(readFileSync(file, 'utf8'));
-
-function fail(path, error) {
-  console.log(JSON.stringify({
-    success: false,
-    error: {
-      code: 'validation.invalid_json',
-      message: 'Contract validation failed',
-      details: { path, error, schema, valid: false },
-    },
-  }));
-  process.exit(1);
-}
-
-if (isCleanupIntent) {
-  if (payload.schema !== 'homeboy/resource-cleanup-intent/v1') {
-    fail('schema', 'unexpected schema');
-  }
-  if (!['dry_run', 'apply'].includes(payload.intent)) {
-    fail('intent', 'unknown cleanup intent');
-  }
-  if (!payload.ownership?.dry_run?.owner?.trim()) {
-    fail('ownership.dry_run.owner', 'must not be blank');
-  }
-  if (!payload.ownership?.dry_run?.declared_by?.trim()) {
-    fail('ownership.dry_run.declared_by', 'must not be blank');
-  }
-  if (payload.ownership.dry_run.reason !== undefined && !payload.ownership.dry_run.reason.trim()) {
-    fail('ownership.dry_run.reason', 'must not be blank');
-  }
-  if (payload.intent === 'apply' && !payload.ownership?.apply?.owner?.trim()) {
-    fail('ownership.apply', 'apply cleanup intent requires explicit apply ownership metadata');
-  }
-  console.log(JSON.stringify({ success: true, data: { file, schema, valid: true } }));
-  process.exit(0);
-}
 
 const workload = payload;
 if (workload.schema !== 'homeboy/fuzz-workload/v1') {
@@ -417,7 +381,7 @@ test('accepts explicit cleanup policy for rigs with resources and empty down lif
   assert.doesNotMatch(result.stderr, /declared resources and empty or missing pipeline\.down/);
 });
 
-test('validates cleanup policy metadata through the Homeboy cleanup intent contract', () => {
+test('validates cleanup policy metadata without runtime cleanup proof', () => {
   const directory = createRigPackage({
     rig: {
       lifecycle: {
@@ -435,8 +399,7 @@ test('validates cleanup policy metadata through the Homeboy cleanup intent contr
   const result = runLint(directory);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /lifecycle\.cleanup failed Homeboy cleanup intent contract validation/);
-  assert.match(result.stderr, /ownership\.dry_run\.reason: must not be blank/);
+  assert.match(result.stderr, /lifecycle\.cleanup\.reason must explain the cleanup boundary/);
 });
 
 test('rejects invalid explicit cleanup policy', () => {
