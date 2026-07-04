@@ -3,7 +3,68 @@
   "bench": {
     "warmup_iterations": 0
   },
+  "fuzz_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/fuzz/gutenberg-rest-route-fuzz.json" },
+      { "path": "${package.root}/fuzz/gutenberg-rest-request-cases-fuzz.json" },
+      { "path": "${package.root}/fuzz/gutenberg-admin-page-coverage.json" },
+      { "path": "${package.root}/fuzz/block-editor-browser-coverage.json" },
+      { "path": "${package.root}/fuzz/site-editor-browser-coverage.json" },
+      { "path": "${package.root}/fuzz/block-rendering-coverage.json" },
+      { "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json" },
+      { "path": "${package.root}/fuzz/gutenberg-db-inventory-fuzz.json" },
+      { "path": "${package.root}/fuzz/gutenberg-rest-db-query-profile-fuzz.json" },
+      { "path": "${package.root}/fuzz/gutenberg-hooks-options-inventory.json" },
+      { "path": "${package.root}/fuzz/gutenberg-editor-performance-observation.json" },
+      { "path": "${package.root}/fuzz/gutenberg-external-http-guardrail-fuzz.json" }
+    ]
+  },
+  "fuzz_profiles": {
+    "smoke": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
+      "block-editor-browser-coverage"
+    ],
+    "fuzzer": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
+      "block-editor-browser-coverage",
+      "site-editor-browser-coverage",
+      "block-rendering-coverage",
+      "frontend-rendering-request-coverage",
+      "gutenberg-db-inventory-fuzz",
+      "gutenberg-rest-db-query-profile-fuzz",
+      "gutenberg-hooks-options-inventory",
+      "gutenberg-editor-performance-observation",
+      "gutenberg-external-http-guardrail-fuzz"
+    ],
+    "full-surface": [
+      "gutenberg-rest-route-fuzz",
+      "gutenberg-rest-request-cases-fuzz",
+      "gutenberg-admin-page-coverage",
+      "block-editor-browser-coverage",
+      "site-editor-browser-coverage",
+      "block-rendering-coverage",
+      "frontend-rendering-request-coverage",
+      "gutenberg-db-inventory-fuzz",
+      "gutenberg-rest-db-query-profile-fuzz",
+      "gutenberg-hooks-options-inventory",
+      "gutenberg-editor-performance-observation",
+      "gutenberg-external-http-guardrail-fuzz"
+    ]
+  },
   "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Gutenberg checkout exists",
+        "file": "${components.gutenberg.path}/gutenberg.php",
+        "component": "gutenberg",
+        "component_path_contains": "gutenberg"
+      }
+    ],
     "down": []
   }
 }

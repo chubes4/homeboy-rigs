@@ -207,6 +207,10 @@ function materializeRigSpec(file, rig, seen = new Set()) {
 }
 
 function deepMergeRigSpec(parent, child) {
+  if (Array.isArray(parent) && isArrayMergeDirective(child)) {
+    return applyArrayMergeDirective(parent, child);
+  }
+
   if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
     return child;
   }
@@ -222,16 +226,56 @@ function deepMergeRigSpec(parent, child) {
     }
 
     const parentValue = merged[key];
-    merged[key] = parentValue && value
-      && typeof parentValue === 'object'
-      && typeof value === 'object'
-      && !Array.isArray(parentValue)
-      && !Array.isArray(value)
+    merged[key] = parentValue && value && shouldRecurseMerge(parentValue, value)
       ? deepMergeRigSpec(parentValue, value)
       : value;
   }
 
   return merged;
+}
+
+function shouldRecurseMerge(parentValue, childValue) {
+  if (Array.isArray(parentValue) && isArrayMergeDirective(childValue)) {
+    return true;
+  }
+
+  return typeof parentValue === 'object'
+    && typeof childValue === 'object'
+    && !Array.isArray(parentValue)
+    && !Array.isArray(childValue);
+}
+
+function isArrayMergeDirective(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    && (Object.hasOwn(value, '$append') || Object.hasOwn(value, '$merge_by'));
+}
+
+function applyArrayMergeDirective(parent, directive) {
+  if (Object.hasOwn(directive, '$append')) {
+    return [...parent, ...asDirectiveEntries(directive.$append)];
+  }
+
+  const key = typeof directive.$merge_by === 'string' ? directive.$merge_by.trim() : '';
+  const entries = asDirectiveEntries(directive.entries);
+  if (!key) {
+    return directive;
+  }
+
+  const merged = [...parent];
+  for (const entry of entries) {
+    const entryKey = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry[key] : undefined;
+    const index = merged.findIndex((candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate) && candidate[key] === entryKey);
+    if (entryKey === undefined || index === -1) {
+      merged.push(entry);
+      continue;
+    }
+    merged[index] = deepMergeRigSpec(merged[index], entry);
+  }
+  return merged;
+}
+
+function asDirectiveEntries(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 function hasDeclaredResources(resources) {

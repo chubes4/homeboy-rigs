@@ -20,27 +20,5 @@
   },
   "trace": {
     "default_component": "jetpack"
-  },
-  "trace_workloads": {
-    "nodejs": [
-      {
-        "path": "${package.root}/bench/jetpack-browser-coverage.trace.mjs"
-      }
-    ]
-  },
-  "trace_profiles": {
-    "smoke": ["jetpack-browser-coverage"],
-    "full-surface": ["jetpack-browser-coverage"]
-  },
-  "pipeline": {
-    "check": [
-      {
-        "kind": "requirement",
-        "label": "Jetpack plugin checkout exists",
-        "file": "${components.jetpack.path}/jetpack.php",
-        "component": "jetpack",
-        "component_path_contains": "jetpack"
-      }
-    ]
   }
 }

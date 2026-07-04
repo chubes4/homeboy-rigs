@@ -11,14 +11,15 @@ import {
   declaredBenchWorkloadIds,
   declaredFuzzIds,
   fuzzManifestHasExecutableArtifactContract,
+  readMaterializedRig,
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import { assertJetpackFuzzManifestReadinessContract } from './fuzz-workload-validator.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
-const apiRig = readJson(packageRoot, 'rigs/jetpack-api-route-inventory/rig.json');
-const browserRig = readJson(packageRoot, 'rigs/jetpack-browser-coverage/rig.json');
+const apiRig = readMaterializedRig(packageRoot, 'rigs/jetpack-api-route-inventory/rig.json');
+const browserRig = readMaterializedRig(packageRoot, 'rigs/jetpack-browser-coverage/rig.json');
 const fullSurfaceCoverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const restRouteCoverage = readJson(packageRoot, 'manifests/rest-route-coverage.json');
 const stableWorkloads = readJson(packageRoot, 'manifests/stable-workloads.json');
