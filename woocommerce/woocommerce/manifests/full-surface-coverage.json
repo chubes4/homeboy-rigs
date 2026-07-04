@@ -2,18 +2,39 @@
   "schema": "homeboy-rigs/wordpress-full-surface-coverage/v1",
   "property": "woocommerce/woocommerce",
   "description": "Coverage targets for WooCommerce across Store API, REST API, database schema, server requests, and browser requests.",
-  "requires_primitives": [
-    "wordpress-rest-route-matrix",
-    "wordpress-rest-request-cases",
-    "wordpress-rest-db-query-profiler",
-    "wordpress-db-inventory",
-    "wordpress-external-http-guardrail",
-    "browser-request-coverage",
-    "wordpress-authenticated-admin-page-coverage",
-    "wordpress-block-inventory",
-    "wordpress-options-transients-inventory",
-    "wordpress-performance-hotspots-summary"
-  ],
+  "execution_claim_policy": "product_manifest_only_no_runner_support_claim",
+  "product_surface_matrix": {
+    "taxonomy": ["rest_api", "database", "server_requests", "browser_requests", "authenticated_admin_pages", "options_transients", "frontend_rendering", "performance_hotspots"],
+    "fixture_shapes": {
+      "catalog": "synthetic products, variations, attributes, terms, coupons, and stock states",
+      "checkout": "synthetic carts, sessions, customers, orders, shipping zones, tax rates, and offline gateways",
+      "admin": "administrator and shop-manager wp-admin navigation targets with destructive actions classified as skipped",
+      "api": "Store API, wc/v3, wc-admin, and wc-analytics safe request cases",
+      "database": "WooCommerce tables, lookup tables, options, transients, Action Scheduler rows, and query attribution"
+    },
+    "side_effect_policies": {
+      "read": "inventory and request observations are read-only or safe GET cases",
+      "create_update": "fixture mutations execute only with explicit Homeboy isolation proof and WP Codebox sandbox isolation proof contracts",
+      "delete": "delete paths execute through WP Codebox delete-boundary artifacts and sandbox isolation proof contracts",
+      "external_http": "live payment, tax, shipping, marketplace, and carrier calls are classified or blocked by product policy"
+    },
+    "action_family_labels": ["catalog", "checkout", "cart_session", "orders", "payments", "shipping_tax", "admin", "rest_api", "options_transients", "database", "external_http", "frontend_rendering"],
+    "upstream_contracts": {
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "source_prs": {
+        "wp_codebox": "Automattic/wp-codebox#1634,#1635,#1636",
+        "homeboy": "Extra-Chill/homeboy#6941,#6942,#6943",
+        "homeboy_extensions": "Extra-Chill/homeboy-extensions#2016,#2017,#2018"
+      }
+    },
+    "readiness_contract": {
+      "schema": "homeboy-rigs/product-surface-readiness-contract/v1",
+      "level": "executable",
+      "contract_ids": ["wp-codebox/wordpress-fuzz-runtime-contract/v1", "homeboy/isolation-proof/v1", "homeboy/fuzz-action-model/v1", "homeboy/fuzz-exploration-policy/v1", "homeboy/wordpress-surface-family-contracts/v1", "homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/fuzz-artifact-bundle/v1", "wp-codebox/sandbox-isolation-proof/v1"],
+      "missing_upstream_contracts": []
+    },
+    "relative_hotspot_labels": ["checkout", "cart", "catalog", "admin", "api"]
+  },
   "target_inventory_manifest": "manifests/target-inventory.json",
   "coverage_map": {
     "rest": {
