@@ -18,7 +18,7 @@
           "path": "performance-hotspots-artifact-summary/performance_hotspots_summary.json",
           "kind": "json",
           "contentType": "application/json",
-          "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+          "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
           "semantic_key": "fuzz.report",
           "ranking": {
             "mode": "relative",
@@ -40,7 +40,7 @@
       "contentType": "application/json",
       "required": true,
       "metadata": {
-        "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+        "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
         "semantic_key": "fuzz.report"
       }
     }
@@ -48,10 +48,20 @@
   "metadata": {
     "runner": "wp-codebox",
     "workload": "performance-hotspots-artifact-summary",
-    "runner_support_status": "supported",
+    "runner_support_status": "blocked_on_upstream_primitive",
+    "generic_primitive": {
+      "status": "supported",
+      "contract": "homeboy/artifact-postprocess-plan/v1",
+      "hotspot_schema": "homeboy/performance-hotspots-summary/v1",
+      "required_capabilities": [
+        "persisted artifact root scanning",
+        "output path confinement",
+        "declared JSON artifact writing"
+      ]
+    },
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "Artifact-postprocess can execute the Woo performance hotspot summary over an approved offloaded DB/API campaign artifact root, but proven status requires reviewer-facing run and performance_hotspots_summary artifact refs.",
+      "level": "declared",
+      "coverage_contract": "Woo performance hotspot summary contract over an approved offloaded DB/API campaign artifact root. Execution requires Homeboy or Extensions to provide artifact-postprocess IO and generic hotspot aggregation schema handling. Proven status requires reviewer-facing run and performance_hotspots_summary artifact refs.",
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -63,11 +73,12 @@
         ]
       },
       "proven_when": [
+        "Homeboy or Extensions executes the artifact-postprocess plan against a persisted artifact root and validates the generic hotspot summary contract.",
         "An approved offloaded campaign run provides a reviewer-facing artifact root for prior workload outputs.",
         "The runner collects the declared performance_hotspots_summary fuzz.report JSON artifact as reviewer-facing evidence."
       ]
     },
-    "coverage_shape": "Executable relative hotspot ranking over available WooCommerce performance and DB/API run artifacts",
+    "coverage_shape": "Executable relative hotspot ranking over available WooCommerce performance and DB/API run artifacts through Homeboy artifact-postprocess",
     "manifest": "manifests/full-surface-coverage.json"
   }
 }

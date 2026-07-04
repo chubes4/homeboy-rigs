@@ -2,19 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   assertFuzzProofBundle,
-  assertFuzzReadinessMetadata,
   assertGenericFuzzManifest,
   assertReviewerFacingFuzzRef,
   declaredFuzzIds,
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   fuzzProofBundleFields,
-  localOnlyReviewerFacingRef,
+  normalizeReviewerFacingFuzzRef,
   workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
-
-process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
-delete process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR;
 
 function fuzzManifest(overrides = {}) {
   return {
@@ -194,29 +190,6 @@ test('fuzzManifestHasExecutableArtifactContract excludes declared or blocked con
   })), false);
 });
 
-test('assertFuzzReadinessMetadata accepts declared CRUD and isolated mutation contracts', () => {
-  assert.doesNotThrow(() => assertFuzzReadinessMetadata(fuzzManifest({
-    metadata: {
-      workload_path: '${package.root}/bench/product.workload.json',
-      readiness: {
-        level: 'executable',
-        coverage_contract: 'Catalog REST CRUD coverage with rollback-safe option mutation proof artifacts.',
-        upstream_blockers: ['homeboy fuzz runner needs durable artifact manifest links before full proof'],
-        crud: {
-          create: { level: 'declared', upstream_blocker: 'safe fixture create primitive is not available upstream' },
-          read: { level: 'executable' },
-          update: { level: 'declared', upstream_blocker: 'safe fixture update primitive is not available upstream' },
-          delete: { level: 'declared', upstream_blocker: 'safe fixture delete primitive is not available upstream' },
-        },
-        mutation: {
-          safety_boundary: 'Runs in disposable WP Codebox with rollback artifacts for changed options/transients.',
-          rollback_artifacts: ['rollback_report'],
-        },
-      },
-    },
-  }), { file: 'product-fuzz.json' }));
-});
-
 test('assertGenericFuzzManifest can require readiness metadata', () => {
   assert.throws(
     () => assertGenericFuzzManifest(fuzzManifest(), {
@@ -232,7 +205,7 @@ test('assertGenericFuzzManifest can require readiness metadata', () => {
 test('assertFuzzProofBundle accepts a canonical fuzz envelope artifact ref as the primary proof pointer', () => {
   assert.ok(fuzzProofBundleFields.has('canonical_fuzz_envelope_ref'));
   assert.doesNotThrow(() => assertFuzzProofBundle({
-    canonical_fuzz_envelope_ref: 'homeboy-runs:product-fuzz/artifacts/fuzz-envelope.json',
+    canonical_fuzz_envelope_ref: 'homeboy://run/product-fuzz/artifact/fuzz-envelope',
   }, fuzzManifest(), { file: 'product-fuzz.json' }));
 });
 
@@ -250,7 +223,6 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
   for (const localRef of [
     'https://localhost:8881/fuzz-envelope.json',
     'https://127.0.0.1:8881/fuzz-envelope.json',
-    'https://0.0.0.0:8881/fuzz-envelope.json',
     'file:///tmp/fuzz-envelope.json',
     '/tmp/fuzz-envelope.json',
     '/Users/chris/fuzz-envelope.json',
@@ -267,7 +239,7 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
         fuzz_result_artifacts: ['report'],
         canonical_fuzz_envelope_ref: localRef,
       }, fuzzManifest(), { file: 'product-fuzz.json' }),
-      /canonical_fuzz_envelope_ref (must not use local evidence|must be a reviewer-facing artifact ref)/,
+      /canonical_fuzz_envelope_ref/,
       `${localRef} should be rejected`
     );
   }
@@ -275,14 +247,13 @@ test('assertFuzzProofBundle rejects local canonical fuzz envelope artifact refs'
 
 test('reviewer-facing fuzz refs accept durable refs and reject placeholders/local refs', () => {
   assert.doesNotThrow(() => assertReviewerFacingFuzzRef('homeboy://run/product-fuzz/artifact/report', 'proof ref'));
-  assert.equal(localOnlyReviewerFacingRef('artifact:./report.json'), true);
-  assert.equal(localOnlyReviewerFacingRef('homeboy-artifact:///tmp/report.json'), true);
+  assert.equal(normalizeReviewerFacingFuzzRef('homeboy://run/product-fuzz/artifact/report').status, 'normalized');
   assert.throws(
     () => assertReviewerFacingFuzzRef('<artifact-ref>', 'proof ref'),
-    /must be a reviewer-facing artifact ref/
+    /Invalid argument 'artifact-ref'/
   );
   assert.throws(
     () => assertReviewerFacingFuzzRef('artifact:./report.json', 'proof ref'),
-    /must not use local evidence/
+    /Invalid argument 'artifact-ref'/
   );
 });

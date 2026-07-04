@@ -29,9 +29,7 @@ const TIMING_CORRELATOR_FILENAME = 'timing-correlator.js';
  * @returns {string}
  */
 export function requestProfilerPath() {
-  return setting('wordpress_request_profiler_path') || wordpressHelperPath('requestProfiler', {
-    envVar: 'HOMEBOY_WORDPRESS_REQUEST_PROFILER_HELPER',
-  });
+  return setting('wordpress_request_profiler_path') || wordpressHelperPath('requestProfiler');
 }
 
 /**
@@ -49,9 +47,7 @@ export function requestProfilerPath() {
  * @returns {string}
  */
 export function timingCorrelatorPath(options = {}) {
-  const explicit = options.override ?? (setting('wordpress_timing_correlator_path') || wordpressHelperPath('timingCorrelator', {
-    envVar: 'HOMEBOY_WORDPRESS_TIMING_CORRELATOR_HELPER',
-  }));
+  const explicit = options.override ?? (setting('wordpress_timing_correlator_path') || wordpressHelperPath('timingCorrelator'));
   if (explicit) {
     return explicit;
   }

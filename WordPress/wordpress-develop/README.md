@@ -7,13 +7,14 @@ Declares a WordPress Core coverage/fuzz suite for `WordPress/wordpress-develop` 
 Install locally:
 
 ```sh
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress-develop
+homeboy rig install ./WordPress/wordpress-develop
 ```
 
 Validate the rig package without running workloads:
 
 ```sh
 homeboy rig check wordpress-core-fuzz-coverage
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
 ```
 

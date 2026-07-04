@@ -1,0 +1,105 @@
+{
+  "schema": "homeboy-rigs/wordpress-core-destructive-sequence-packs/v1",
+  "id": "wordpress-core-destructive-sequence-packs",
+  "description": "WordPress Core owned destructive sequence pack declarations for future disposable WP Codebox execution through explicit Homeboy, HBEX, and Codebox contracts.",
+  "status": "declared_blocked",
+  "execution_enabled": false,
+  "local_execution_enabled": false,
+  "runner_behavior": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
+  "owner_profile": "wordpress-core-fuzz-coverage",
+  "required_upstream_contracts": [
+    "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+    "homeboy/isolation-proof/v1",
+    "homeboy/fuzz-action-model/v1",
+    "homeboy/fuzz-exploration-policy/v1",
+    "homeboy/wordpress-surface-family-contracts/v1",
+    "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+    "wp-codebox/fuzz-artifact-bundle/v1",
+    "wp-codebox/sandbox-isolation-proof/v1",
+    "wp-codebox/delete-boundary-artifact/v1",
+    "wp-codebox/mutation-isolation-artifact/v1",
+    "homeboy-extensions/generate-database-observations/v1",
+    "homeboy-extensions/generate-admin-observations/v1",
+    "homeboy-extensions/generate-browser-observations/v1",
+    "homeboy-extensions/generate-editor-observations/v1"
+  ],
+  "missing_upstream_contracts": [
+    "homeboy-extensions/wordpress-fuzz-manifest-validator.js",
+    "disposable Core fixture mutation runner wiring",
+    "durable destructive sequence artifact manifest"
+  ],
+  "readiness": {
+    "level": "declared",
+    "execution_enabled": false,
+    "local_execution_enabled": false,
+    "proof_status": "declared_only_blocked_until_upstream_execution_exists",
+    "upstream_blockers": [
+      "homeboy-extensions/wordpress-fuzz-manifest-validator.js",
+      "disposable Core fixture mutation runner wiring",
+      "durable destructive sequence artifact manifest"
+    ],
+    "contract_ids": [
+      "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+      "homeboy/isolation-proof/v1",
+      "homeboy/fuzz-action-model/v1",
+      "homeboy/fuzz-exploration-policy/v1",
+      "homeboy/wordpress-surface-family-contracts/v1",
+      "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+      "wp-codebox/fuzz-artifact-bundle/v1",
+      "wp-codebox/sandbox-isolation-proof/v1",
+      "wp-codebox/delete-boundary-artifact/v1",
+      "wp-codebox/mutation-isolation-artifact/v1",
+      "homeboy-extensions/generate-database-observations/v1",
+      "homeboy-extensions/generate-admin-observations/v1",
+      "homeboy-extensions/generate-browser-observations/v1",
+      "homeboy-extensions/generate-editor-observations/v1"
+    ],
+    "proof_bundle_requirements": {
+      "status": "required_before_proven",
+      "local_only_refs_allowed": false,
+      "placeholder_refs_allowed": false,
+      "required_refs": [
+        "reviewer-facing destructive sequence resolution artifact ref",
+        "reviewer-facing delete-boundary artifact ref",
+        "reviewer-facing mutation-isolation artifact ref",
+        "reviewer-facing database observation artifact ref",
+        "reviewer-facing admin/browser/editor observation artifact refs",
+        "reviewer-facing fuzz artifact bundle ref"
+      ],
+      "required_artifacts": [
+        "destructive_sequence_resolution",
+        "delete_boundary_artifact",
+        "mutation_isolation_artifact",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "fuzz_artifact_bundle"
+      ]
+    }
+  },
+  "surface_families": [
+    { "id": "posts-pages", "surfaces": ["posts", "pages"], "operations": ["create", "read", "update", "delete"], "readiness": "declared_only_blocked" },
+    { "id": "media", "surfaces": ["media", "attachments"], "operations": ["create", "read", "update", "delete"], "readiness": "declared_only_blocked" },
+    { "id": "users", "surfaces": ["users", "roles", "capabilities"], "operations": ["create", "read", "update", "delete"], "readiness": "declared_only_blocked" },
+    { "id": "terms", "surfaces": ["terms", "taxonomies"], "operations": ["create", "read", "update", "delete"], "readiness": "declared_only_blocked" },
+    { "id": "options-rewrite", "surfaces": ["options", "rewrite_rules"], "operations": ["create", "read", "update", "delete"], "readiness": "declared_only_blocked" },
+    { "id": "meta", "surfaces": ["post_meta", "user_meta", "term_meta"], "operations": ["create", "read", "update", "delete"], "readiness": "declared_only_blocked" }
+  ],
+  "sequence_packs": [
+    { "id": "post-page-crud-delete", "surface_family": "posts-pages", "steps": ["create fixture post", "create fixture page", "read REST and admin lists", "update title/content/status", "update parent/menu/order fields", "delete fixture post and page inside isolated sandbox"], "required_contract_ids": ["homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/mutation-isolation-artifact/v1", "wp-codebox/delete-boundary-artifact/v1"], "hotspot_labels": { "sequence": "post-page-crud-delete", "action": ["post-create", "page-create", "post-update", "page-update", "content-delete"], "route": ["wp/v2/posts", "wp/v2/pages"], "table": ["wp_posts", "wp_postmeta"], "state": ["post_status", "page_hierarchy", "revision_state"] }, "readiness": "declared_only_blocked" },
+    { "id": "media-crud-delete", "surface_family": "media", "steps": ["upload fixture attachment", "read media library and REST attachment", "update alt text and caption", "regenerate metadata", "delete attachment inside isolated sandbox"], "required_contract_ids": ["homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/mutation-isolation-artifact/v1", "wp-codebox/delete-boundary-artifact/v1"], "hotspot_labels": { "sequence": "media-crud-delete", "action": ["media-upload", "attachment-update", "metadata-regeneration", "attachment-delete"], "route": ["wp/v2/media"], "table": ["wp_posts", "wp_postmeta"], "state": ["attachment_metadata", "uploads_index"] }, "readiness": "declared_only_blocked" },
+    { "id": "user-crud-delete", "surface_family": "users", "steps": ["create fixture user", "read user list and permissions", "update profile and role", "exercise capability boundary", "delete fixture user inside isolated sandbox"], "required_contract_ids": ["homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/mutation-isolation-artifact/v1", "wp-codebox/delete-boundary-artifact/v1"], "hotspot_labels": { "sequence": "user-crud-delete", "action": ["user-create", "role-update", "permission-check", "user-delete"], "route": ["wp/v2/users"], "table": ["wp_users", "wp_usermeta"], "state": ["roles", "capabilities", "author_reassignment"] }, "readiness": "declared_only_blocked" },
+    { "id": "term-crud-delete", "surface_family": "terms", "steps": ["create fixture category and tag", "assign terms to fixture content", "read REST and admin term lists", "update term hierarchy and slug", "delete fixture terms inside isolated sandbox"], "required_contract_ids": ["homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/mutation-isolation-artifact/v1", "wp-codebox/delete-boundary-artifact/v1"], "hotspot_labels": { "sequence": "term-crud-delete", "action": ["term-create", "term-assign", "term-update", "term-delete"], "route": ["wp/v2/categories", "wp/v2/tags"], "table": ["wp_terms", "wp_term_taxonomy", "wp_term_relationships", "wp_termmeta"], "state": ["term_counts", "taxonomy_hierarchy"] }, "readiness": "declared_only_blocked" },
+    { "id": "options-rewrite-crud-delete", "surface_family": "options-rewrite", "steps": ["create fixture option", "read option through admin/runtime path", "update fixture option", "flush fixture rewrite rules", "delete fixture option inside isolated sandbox"], "required_contract_ids": ["homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/mutation-isolation-artifact/v1", "wp-codebox/delete-boundary-artifact/v1"], "hotspot_labels": { "sequence": "options-rewrite-crud-delete", "action": ["option-create", "option-update", "rewrite-flush", "option-delete"], "route": ["wp/v2/settings"], "table": ["wp_options"], "state": ["autoloaded_options", "rewrite_rules", "transients"] }, "readiness": "declared_only_blocked" },
+    { "id": "meta-crud-delete", "surface_family": "meta", "steps": ["create fixture content/user/term", "create post/user/term meta", "read REST and database-attributed meta", "update fixture meta", "delete fixture meta inside isolated sandbox"], "required_contract_ids": ["homeboy/wordpress-fuzz-runtime-workload-operation/v1", "wp-codebox/mutation-isolation-artifact/v1", "wp-codebox/delete-boundary-artifact/v1"], "hotspot_labels": { "sequence": "meta-crud-delete", "action": ["meta-create", "meta-read", "meta-update", "meta-delete"], "route": ["wp/v2/posts", "wp/v2/users", "wp/v2/categories"], "table": ["wp_postmeta", "wp_usermeta", "wp_termmeta"], "state": ["registered_meta", "protected_meta", "meta_cache"] }, "readiness": "declared_only_blocked" }
+  ],
+  "relative_hotspot_taxonomy": {
+    "labels": ["sequence", "action", "route", "table", "state"],
+    "sequence": ["post-page-crud-delete", "media-crud-delete", "user-crud-delete", "term-crud-delete", "options-rewrite-crud-delete", "meta-crud-delete"],
+    "action": ["post-create", "page-create", "media-upload", "user-create", "term-create", "option-update", "rewrite-flush", "meta-delete"],
+    "route": ["wp/v2/posts", "wp/v2/pages", "wp/v2/media", "wp/v2/users", "wp/v2/categories", "wp/v2/tags", "wp/v2/settings"],
+    "table": ["wp_posts", "wp_postmeta", "wp_users", "wp_usermeta", "wp_terms", "wp_term_taxonomy", "wp_term_relationships", "wp_termmeta", "wp_options"],
+    "state": ["post_status", "page_hierarchy", "attachment_metadata", "roles", "capabilities", "term_counts", "rewrite_rules", "registered_meta"]
+  }
+}

@@ -3,9 +3,7 @@ import { loadWordPressHelperModule } from '../wordpress-helper-loader.mjs';
 function loadArtifactHelper() {
   return loadWordPressHelperModule({
     helperName: 'wp-codebox-artifacts',
-    envVar: 'HOMEBOY_WP_CODEBOX_ARTIFACT_HELPER',
     manifestFileName: 'wp-codebox-artifacts.js',
-    packageImport: 'homeboy-extension-wordpress/wp-codebox-artifacts',
   });
 }
 

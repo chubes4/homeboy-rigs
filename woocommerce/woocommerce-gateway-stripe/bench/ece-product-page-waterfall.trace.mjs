@@ -13,7 +13,7 @@ import { evaluateEceFixtureHealth, fixtureHealthSummary } from './ece-product-pa
 import { summarizeEceReadinessMetrics } from './ece-product-page-readiness-metrics.mjs';
 import { DEFAULT_ECE_SCENARIO_ID, eceInteractionScript, eceLayoutScript, eceProductPageScenario, eceSimulatedClsScript } from './ece-product-page-scenarios.mjs';
 import { classifyEceWalletFanoutEvidence, groupedWalletLayoutSummary } from './ece-product-page-wallet-classification.mjs';
-import { runWpCodeboxRecipe } from './ece-product-page-wp-codebox.mjs';
+import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
 import { wpCodeboxBrowserArtifacts } from '../../../shared/wp-codebox/artifacts.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -24,7 +24,8 @@ const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || DEFAULT_ECE_SCENARIO_ID
 const scenario = eceProductPageScenario(scenarioId);
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join(tmpdir(), 'wc-stripe-ece-waterfall-artifacts');
-const woocommercePath = process.env.HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH || path.join(process.env.HOME || '', 'Developer/woocommerce/plugins/woocommerce');
+const woocommercePath = process.env.HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH
+  || process.env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_STRIPE_ECE_PRODUCT_PAGE__WOOCOMMERCE;
 const wpVersion = process.env.HOMEBOY_WC_STRIPE_WP_VERSION || '7.0';
 const eceLocations = process.env.HOMEBOY_WC_STRIPE_ECE_LOCATIONS || 'product';
 const acceptedPaymentMethods = setting('woocommerce_stripe_accepted_payment_methods', process.env.HOMEBOY_WC_STRIPE_ACCEPTED_PAYMENT_METHODS || 'card,link');
@@ -57,8 +58,11 @@ if (!traceHelperDir) {
 if (!existsSync(fixtureBootstrapPath)) {
   throw new Error(`Missing rig-owned Stripe fixture bootstrap at ${fixtureBootstrapPath}`);
 }
+if (!woocommercePath) {
+  throw new Error('WooCommerce dependency plugin path is required. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH or HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_STRIPE_ECE_PRODUCT_PAGE__WOOCOMMERCE.');
+}
 if (!existsSync(path.join(woocommercePath, 'woocommerce.php'))) {
-  throw new Error(`Missing WooCommerce dependency plugin at ${woocommercePath}. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH to a packaged WooCommerce plugin directory.`);
+  throw new Error(`Missing WooCommerce dependency plugin at ${woocommercePath}. Set HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH or HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_STRIPE_ECE_PRODUCT_PAGE__WOOCOMMERCE to a packaged WooCommerce plugin directory.`);
 }
 
 const fixtureBootstrapSource = (await readFile(fixtureBootstrapPath, 'utf8'))

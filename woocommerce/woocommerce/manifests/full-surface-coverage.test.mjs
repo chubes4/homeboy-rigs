@@ -4,20 +4,19 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  assertArtifactPostprocessWorkloadContract,
+  assertGenericArtifactPostprocessWorkloadContract,
   assertFullSurfaceCoverageManifest,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import {
   assertWooRequiredFuzzProofContracts,
   wooRequiredFuzzProofContracts,
 } from '../tools/fuzz-proof-contracts.mjs';
+import { resolveTestHomeboyWordPressHelperManifest } from '../../../scripts/test-homeboy-wordpress-helper-manifest.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
-const repoRoot = path.join(packageRoot, '..', '..');
 
-process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = path.join(repoRoot, 'scripts/fixtures/homeboy-extension-wordpress/lib/helper-manifest.js');
-delete process.env.HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR;
+process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = resolveTestHomeboyWordPressHelperManifest();
 
 const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-coverage.json'), 'utf8'));
 const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
@@ -28,14 +27,27 @@ const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 
 const dbApiFuzzCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/db-api-fuzz-campaign.json'), 'utf8'));
 const aggressiveIsolatedCampaign = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json'), 'utf8'));
 const aggressiveDestructiveWorkloads = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/aggressive-destructive-workloads.json'), 'utf8'));
+const restCrudRouteFamilyCatalog = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-route-family-catalog.json'), 'utf8'));
+const restCrudFixturePlan = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-fixture-plan.json'), 'utf8'));
+const restCrudPayloadFixtures = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/rest-crud-payload-fixtures.json'), 'utf8'));
+const targetInventory = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/target-inventory.json'), 'utf8'));
+const productChaosSequencePacks = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/product-chaos-sequence-packs.json'), 'utf8'));
 const performanceHotspots = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/performance-hotspots-artifact-summary.json'), 'utf8'));
 const restDbQueryProfileWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/rest-db-query-profile.workload.json'), 'utf8'));
 const coverageGapReport = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/coverage-gap-report.json'), 'utf8'));
 const coverageGapReportWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/coverage-gap-report.workload.json'), 'utf8'));
 const performanceHotspotsWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'bench/performance-hotspots-artifact-summary.workload.json'), 'utf8'));
 const runtimePrepScript = readFileSync(path.join(packageRoot, 'tools/prepare-runtime-dependency.sh'), 'utf8');
+const wooArtifactPostprocessHelper = '${package.root}/tools/db-api-fuzzer-artifacts.mjs';
 
 const workloadIdFromPath = (workloadPath) => path.basename(workloadPath, path.extname(workloadPath));
+const genericExecutableReadinessStates = new Set([
+  'targeted_workload_executable',
+  'isolated_mutation_executable',
+  'destructive_isolated_executable',
+  'sensitive_isolated_executable',
+  'executable_in_isolated_sandbox',
+]);
 
 const executableCoverageWorkloadIds = () => new Set([
   ...Object.values(performanceRig.bench_workloads?.wordpress || {}).flat().map((entry) => workloadIdFromPath(entry.path)),
@@ -107,7 +119,38 @@ test('fuzz workload metadata does not fall back to benchmark transcripts', () =>
   }
 });
 
-test('Woo Composer prep delegates to Homeboy dependency install primitive', () => {
+test('Woo Composer prep declares dependency materialization for plugin vendor output', () => {
+  const wordpressExtension = performanceRig.components.woocommerce.extensions.wordpress;
+  assert.equal(wordpressExtension.wp_codebox_source_path, '${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}');
+  assert.equal(wordpressExtension.wp_codebox_source_subdir, 'plugins/woocommerce');
+  assert.equal(wordpressExtension.wp_codebox_mount_slug, 'woocommerce');
+  assert.equal(wordpressExtension.wp_codebox_source_subpath, 'plugins/woocommerce');
+  assert.equal(wordpressExtension.wp_codebox_plugin_file, 'woocommerce/woocommerce.php');
+
+  const dependencySteps = performanceRig.requirements?.dependency_materialization || [];
+  const composerStep = dependencySteps.find((step) => step.id === 'woocommerce-php-package-dependencies');
+
+  assert.ok(composerStep, 'expected WooCommerce PHP dependency materialization step');
+  assert.equal(composerStep.command, 'homeboy deps install --path "${components.woocommerce.path}/plugins/woocommerce"');
+  assert.deepEqual(composerStep.env, { XDEBUG_MODE: 'off' });
+  assert.doesNotMatch(composerStep.command, /^[A-Za-z_][A-Za-z0-9_]*=/);
+  assert.equal(composerStep.inputs.recipe, 'wordpress-php-package-dependencies');
+  assert.doesNotMatch(composerStep.command, /prepare-runtime-dependency\.sh/);
+  assert.doesNotMatch(composerStep.command, /\$\{components\.woocommerce\.path\}\/tools\//);
+  assert.equal(composerStep.component, 'woocommerce');
+  assert.equal(composerStep.cwd, '${components.woocommerce.path}/plugins/woocommerce');
+  assert.deepEqual(composerStep.cache_key_inputs, [
+    '${components.woocommerce.path}/plugins/woocommerce/composer.json',
+    '${components.woocommerce.path}/plugins/woocommerce/composer.lock',
+  ]);
+  assert.deepEqual(
+    new Set(composerStep.expected_outputs.map((output) => `${output.kind}:${output.path}`)),
+    new Set([
+      'dir:${components.woocommerce.path}/plugins/woocommerce/vendor',
+      'file:${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php',
+    ])
+  );
+
   const composerRequirements = [
     ...performanceRig.pipeline.check,
     ...performanceRig.pipeline.fuzz_prepare,
@@ -116,6 +159,9 @@ test('Woo Composer prep delegates to Homeboy dependency install primitive', () =
   assert.equal(composerRequirements.length, 2);
   for (const requirement of composerRequirements) {
     assert.match(requirement.prepare_command, /prepare-runtime-dependency\.sh" composer/);
+    assert.match(requirement.file, /plugins\/woocommerce\/vendor\/autoload_packages\.php$/);
+    assert.doesNotMatch(requirement.remediation, /homeboy rig up/);
+    assert.match(requirement.remediation, /woocommerce-php-package-dependencies/);
   }
 
   assert.match(runtimePrepScript, /homeboy deps install --path "\$woocommerce_plugin_source"/);
@@ -154,7 +200,7 @@ test('generated REST request cases are driven by route inventory coverage semant
 test('performance hotspot summary contract uses relative ranking instead of hard thresholds', () => {
   const artifactSchema = performanceHotspots.metadata.artifact_schema;
 
-  assert.equal(artifactSchema.schema, 'homeboy/woocommerce-performance-hotspots-summary/v1');
+  assert.equal(artifactSchema.schema, 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1');
   assert.equal(artifactSchema.ranking.mode, 'relative');
   assert.deepEqual(
     new Set(artifactSchema.ranking.surfaces),
@@ -187,41 +233,62 @@ test('REST DB query profile consumes generated request case artifacts with caps'
 });
 
 test('coverage gap and hotspot reports declare the generic artifact postprocess contract', () => {
-  assert.equal(coverageGapReport.metadata.readiness.level, 'executable');
+  assert.equal(coverageGapReport.metadata.readiness.level, 'declared');
   assert.equal(coverageGapReport.workload.path, '${package.root}/bench/coverage-gap-report.workload.json');
   assert.equal(coverageGapReport.workload.type, 'json');
   assert.equal(coverageGapReport.safety_class, 'read_only');
   assert.equal(coverageGapReport.artifacts.expected[0].name, 'coverage_gap_report');
-  assertArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
+  assertWooArtifactPostprocessWorkloadContract(coverageGapReportWorkload, {
     id: 'coverage-gap-report',
     action: 'coverage-gap-report',
     artifact: 'coverage_gap_report',
     outputPath: 'coverage-gap-report/coverage_gap_report.json',
     schema: 'homeboy-rigs/wordpress-coverage-gap-report/v1',
+    runnerSupportStatus: 'blocked_on_upstream_primitive',
+    readinessLevel: 'declared',
   });
 
-  assert.equal(performanceHotspots.metadata.readiness.level, 'executable');
+  assert.equal(performanceHotspots.metadata.readiness.level, 'declared');
   assert.equal(performanceHotspots.workload.path, '${package.root}/bench/performance-hotspots-artifact-summary.workload.json');
   assert.equal(performanceHotspots.workload.type, 'json');
   assert.equal(performanceHotspots.safety_class, 'read_only');
   assert.equal(performanceHotspots.artifacts.expected[0].name, 'performance_hotspots_summary');
-  assertArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
+  assertWooArtifactPostprocessWorkloadContract(performanceHotspotsWorkload, {
     id: 'performance-hotspots-artifact-summary',
     action: 'performance-hotspots-summary',
     artifact: 'performance_hotspots_summary',
     outputPath: 'performance-hotspots-artifact-summary/performance_hotspots_summary.json',
-    schema: 'homeboy/woocommerce-performance-hotspots-summary/v1',
+    schema: 'homeboy-rigs/woocommerce-performance-hotspots-summary/v1',
+    runnerSupportStatus: 'blocked_on_upstream_primitive',
+    readinessLevel: 'declared',
   });
 });
 
-test('DB/API campaign consumes the declared Codebox fixture contract without proof refs', () => {
+function assertWooArtifactPostprocessWorkloadContract(workload, contract) {
+  assertGenericArtifactPostprocessWorkloadContract(workload, {
+    ...contract,
+    helper: wooArtifactPostprocessHelper,
+  });
+}
+
+test('DB/API campaign consumes executable Codebox fixture contracts without proof refs', () => {
   assert.equal(dbApiFuzzCampaign.suite_manifest, 'manifests/codebox-fuzz-suite-contract.json');
   assert.equal(codeboxFuzzSuiteWorkload.metadata.fixture.suite_manifest, '${package.root}/manifests/codebox-fuzz-suite-contract.json');
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle, undefined);
   assert.equal(codeboxFuzzSuiteManifest.target.metadata.proof_bundle_requirements.status, 'required_before_proven');
+  assert.equal(codeboxFuzzSuiteManifest.target.metadata.profile.fixture_contracts.readiness_level, 'executable');
+  assert.equal(codeboxFuzzSuiteManifest.target.metadata.profile.fixture_contracts.execution_enabled, true);
+  assert.equal(codeboxFuzzSuiteWorkload.metadata.readiness.level, 'executable');
+  assert.equal(codeboxFuzzSuiteWorkload.metadata.readiness.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].fixture_contracts.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['product-rest-crud-fuzzer'].fixture_contracts.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].readiness.crud.create.level, 'executable');
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].readiness.crud.update.level, 'executable');
+  assert.equal(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer'].readiness.crud.delete.level, 'executable');
+  assert.equal(performanceRig.fuzz_profile_metadata['product-rest-crud-fuzzer'].readiness.crud.delete.level, 'executable');
 });
 
-test('aggressive destructive Woo workloads declare isolation, rollback, dynamic IDs, and side-effect policy gates', () => {
+test('aggressive destructive Woo workloads declare isolation, dynamic IDs, and side-effect policy gates', () => {
   assert.equal(
     aggressiveIsolatedCampaign.fixture_sources.aggressive_destructive_workloads,
     'manifests/aggressive-destructive-workloads.json'
@@ -229,6 +296,15 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
   assert.equal(aggressiveDestructiveWorkloads.execution_scope, 'offloaded_codebox_homeboy_hbex_isolated_sandbox');
   assert.equal(aggressiveDestructiveWorkloads.local_execution_enabled, false);
   assert.equal(aggressiveDestructiveWorkloads.destructive_full_coverage_proven, false);
+  assert.equal(aggressiveDestructiveWorkloads.readiness.level, 'executable');
+  assert.equal(aggressiveDestructiveWorkloads.readiness.execution_enabled, true);
+  assert.deepEqual(aggressiveDestructiveWorkloads.readiness.missing_upstream_contracts, []);
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/isolation-proof/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy/wordpress-fuzz-runtime-workload-operation/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy-extensions/generate-database-observations/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy-extensions/generate-admin-observations/v1'));
+  assert.ok(aggressiveDestructiveWorkloads.readiness.contract_ids.includes('homeboy-extensions/generate-browser-observations/v1'));
   assert.equal(aggressiveDestructiveWorkloads.readiness.proof_bundle_requirements.status, 'required_before_proven');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.scope, 'fixture_owned_only');
   assert.equal(aggressiveDestructiveWorkloads.dynamic_id_policy.placeholder_ids_allowed, false);
@@ -247,24 +323,129 @@ test('aggressive destructive Woo workloads declare isolation, rollback, dynamic 
 
   const requiredArtifacts = new Set(aggressiveDestructiveWorkloads.required_artifacts_per_workload);
   for (const artifact of [
-    'codebox_isolation_readiness',
-    'snapshot_restore_artifact',
+    'disposable_sandbox_boundary',
+    'mutation_isolation_artifact',
+    'delete_boundary_artifact',
     'fixture_dynamic_id_manifest',
-    'rollback_plan',
-    'rollback_verification',
     'side_effect_policy_evidence',
     'destructive_case_ledger',
+    'database_observations',
+    'admin_observations',
+    'browser_observations',
+    'editor_observations',
+    'relative_hotspots',
+    'convergence_summary',
+    'sandbox_teardown_evidence',
+    'artifact_bundle_ref',
   ]) {
     assert.ok(requiredArtifacts.has(artifact), `global destructive workload artifact requirements must include ${artifact}`);
   }
 
   for (const workload of aggressiveDestructiveWorkloads.workloads) {
+    assert.equal(new Set(workload.required_artifacts).size, workload.required_artifacts.length, `${workload.id} required artifacts must not contain duplicates`);
     assert.ok(workload.fixture_family, `${workload.id} must bind to a fixture family`);
     assert.ok(workload.fixture_dynamic_ids.length > 0, `${workload.id} must use fixture-owned dynamic IDs`);
-    assert.ok(workload.rollback_scope.length > 0, `${workload.id} must declare rollback scope`);
+    assert.ok(workload.disposable_mutation_scope.length > 0, `${workload.id} must declare disposable mutation scope`);
     for (const artifact of requiredArtifacts) {
       assert.ok(workload.required_artifacts.includes(artifact), `${workload.id} must require ${artifact}`);
     }
+  }
+});
+
+test('REST CRUD fixture plan advertises executable state only through explicit upstream contracts', () => {
+  assert.equal(restCrudFixturePlan.metadata.execution_enabled, true);
+  assert.equal(restCrudFixturePlan.metadata.readiness_level, 'executable');
+  assert.equal(restCrudPayloadFixtures.status, 'contract_backed_executable');
+  assert.equal(restCrudPayloadFixtures.readiness.level, 'executable');
+  assert.equal(restCrudPayloadFixtures.readiness.execution_enabled, true);
+  assert.equal(restCrudPayloadFixtures.readiness.upstream_blockers, undefined);
+  assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('homeboy/isolation-proof/v1'));
+  assert.ok(restCrudFixturePlan.metadata.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'));
+
+  const surfaces = targetInventory.discovery_manifests.product_surface_taxonomy.surfaces;
+  const surfaceByResourceKind = new Map([
+    ['product', 'products'],
+    ['order', 'orders'],
+    ['customer', 'customers'],
+    ['coupon', 'coupons'],
+  ]);
+
+  for (const operation of restCrudFixturePlan.operations) {
+    assert.equal(operation.expected.execute, true, `${operation.id} must be contract-backed executable`);
+    assert.equal(operation.expected.readiness_level, 'executable', `${operation.id} readiness drifted`);
+    assert.ok(operation.expected.contract_ids.includes('homeboy/isolation-proof/v1'), `${operation.id} must wire Homeboy isolation proof`);
+    assert.ok(operation.expected.contract_ids.includes('wp-codebox/sandbox-isolation-proof/v1'), `${operation.id} must wire WP Codebox sandbox isolation proof`);
+    const surfaceId = surfaceByResourceKind.get(operation.resource.kind);
+    assert.ok(surfaceId, `${operation.id} must map to a target inventory surface`);
+    const state = surfaces[surfaceId].operation_readiness[operation.metadata.operation];
+    assert.ok(state, `${operation.id} must declare ${operation.metadata.operation} readiness`);
+    assert.ok(genericExecutableReadinessStates.has(state), `${operation.id} must map to contract-backed executable target inventory state`);
+  }
+
+  for (const family of restCrudPayloadFixtures.families) {
+    assert.deepEqual(family.executable_operations, ['create', 'update', 'delete']);
+    assert.equal(family.blocked_operations, undefined, `${family.id} must not fake blocked operations for available contracts`);
+  }
+
+  assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.level, 'executable');
+  assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.execution_enabled, true);
+  assert.equal(targetInventory.discovery_manifests.rest_payload_fixtures.readiness.upstream_blockers, undefined);
+  assert.equal(targetInventory.discovery_manifests.rest_route_families.readiness.level, 'executable');
+  assert.equal(targetInventory.discovery_manifests.rest_route_families.readiness.execution_enabled, true);
+
+  assert.equal(productChaosSequencePacks.execution_enabled, true);
+  assert.equal(productChaosSequencePacks.readiness.execution_enabled, true);
+  assert.equal(aggressiveIsolatedCampaign.readiness.execution_enabled, true);
+  assert.equal(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose'].readiness.execution_enabled, true);
+  assert.equal(targetInventory.discovery_manifests.product_chaos_sequence_packs.readiness.execution_enabled, true);
+
+  for (const family of aggressiveIsolatedCampaign.fixture_families) {
+    assert.ok(genericExecutableReadinessStates.has(family.readiness), `${family.id} fixture family must wire executable upstream contracts`);
+  }
+  for (const sequencePack of productChaosSequencePacks.sequence_packs) {
+    assert.ok(genericExecutableReadinessStates.has(sequencePack.readiness), `${sequencePack.id} sequence pack must wire executable upstream contracts`);
+  }
+});
+
+test('REST CRUD route family catalog matches executable fixture-plan state', () => {
+  const staleContractLanguage = /missing_generic_rest_mutation_runner|generic REST mutation runner|upstream_blocker|rollback|revert/i;
+  const manifestTexts = [
+    JSON.stringify(restCrudRouteFamilyCatalog),
+    JSON.stringify(restCrudPayloadFixtures),
+    JSON.stringify(targetInventory.discovery_manifests.rest_route_families),
+    JSON.stringify(targetInventory.discovery_manifests.rest_payload_fixtures),
+    JSON.stringify(codeboxFuzzSuiteManifest),
+    JSON.stringify(codeboxFuzzSuiteWorkload.metadata.readiness),
+    JSON.stringify(performanceRig.fuzz_profile_metadata['aggressive-isolated-firehose']),
+    JSON.stringify(performanceRig.fuzz_profile_metadata['db-api-performance-fuzzer']),
+    JSON.stringify(performanceRig.fuzz_profile_metadata['product-rest-crud-fuzzer']),
+  ];
+
+  for (const text of manifestTexts) {
+    assert.doesNotMatch(text.replaceAll(/"rollback_artifacts":\[[^\]]*\],?/g, ''), staleContractLanguage);
+  }
+
+  const expectedFamilies = new Set(targetInventory.discovery_manifests.rest_route_families.route_family_ids);
+  assert.deepEqual(new Set(restCrudRouteFamilyCatalog.route_families.map((family) => family.id)), expectedFamilies);
+
+  const fixtureOperationsByFamily = new Map();
+  for (const family of restCrudPayloadFixtures.families) {
+    for (const routeFamilyId of family.route_family_ids) {
+      fixtureOperationsByFamily.set(routeFamilyId, family.executable_operations);
+    }
+  }
+
+  for (const routeFamily of restCrudRouteFamilyCatalog.route_families) {
+    const executableOperations = fixtureOperationsByFamily.get(routeFamily.id);
+    assert.ok(executableOperations, `${routeFamily.id} must map to payload fixture operations`);
+    for (const operation of executableOperations) {
+      assert.equal(
+        routeFamily.readiness?.[operation]?.level,
+        'executable',
+        `${routeFamily.id} ${operation} readiness must agree with executable fixture operations`
+      );
+    }
+    assert.deepEqual(routeFamily.mutation_contract?.executable_operations, executableOperations);
   }
 });
 
@@ -281,19 +462,19 @@ test('aggressive destructive Woo workloads cover required destructive surface fa
   assert.ok(workloadSurfaces.get('hpos-order-table-destructive-lifecycle').has('hpos'));
   assert.ok(workloadSurfaces.get('action-scheduler-destructive-lifecycle').has('action_scheduler'));
 
-  const hposRollbackScope = new Set(
-    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').rollback_scope
+  const hposMutationScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'hpos-order-table-destructive-lifecycle').disposable_mutation_scope
   );
-  assert.ok(hposRollbackScope.has('wp_wc_orders'));
-  assert.ok(hposRollbackScope.has('wp_wc_order_addresses'));
-  assert.ok(hposRollbackScope.has('wp_wc_order_operational_data'));
+  assert.ok(hposMutationScope.has('wp_wc_orders'));
+  assert.ok(hposMutationScope.has('wp_wc_order_addresses'));
+  assert.ok(hposMutationScope.has('wp_wc_order_operational_data'));
 
-  const actionSchedulerRollbackScope = new Set(
-    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').rollback_scope
+  const actionSchedulerMutationScope = new Set(
+    aggressiveDestructiveWorkloads.workloads.find((workload) => workload.id === 'action-scheduler-destructive-lifecycle').disposable_mutation_scope
   );
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_actions'));
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_claims'));
-  assert.ok(actionSchedulerRollbackScope.has('wp_actionscheduler_logs'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_actions'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_claims'));
+  assert.ok(actionSchedulerMutationScope.has('wp_actionscheduler_logs'));
 });
 
 test('external side-effect policy blocks live effects and requires skip or isolated mock evidence', () => {

@@ -27,8 +27,12 @@
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "executable",
-      "coverage_contract": "Summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs through the supported homeboy.artifact-postprocess command shape. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "level": "declared",
+      "coverage_contract": "Contract to summarize available WooCommerce checkout, cart, catalog, admin, and API hotspot artifacts by relative ranking with request attribution, query attribution, fixture scale, and run refs. Execution requires Homeboy or Extensions artifact-postprocess IO and generic hotspot schema handling. Proven status requires reviewer-facing run artifacts produced by offloaded workloads.",
+      "upstream_blockers": [
+        "homeboy/artifact-postprocess-plan/v1 runner for persisted artifact root scanning, output path confinement, and declared JSON artifact writing",
+        "homeboy/performance-hotspots-summary/v1 generic hotspot aggregation schema handling"
+      ],
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -40,6 +44,11 @@
         ]
       }
     },
+    "generic_primitive": {
+      "status": "supported",
+      "contract": "homeboy/artifact-postprocess-plan/v1",
+      "hotspot_schema": "homeboy/performance-hotspots-summary/v1"
+    },
     "fixture": {
       "runtime": "wp-codebox",
       "scope": "disposable-wordpress",
@@ -47,7 +56,7 @@
       "activation": "woocommerce/woocommerce.php"
     },
     "artifact_schema": {
-      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
       "ranking": {
         "mode": "relative",
         "surfaces": ["checkout", "cart", "catalog", "admin", "api"],

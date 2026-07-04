@@ -2,7 +2,7 @@
   "schema": "homeboy-rigs/woocommerce-aggressive-destructive-workloads/v1",
   "id": "woocommerce-aggressive-destructive-workloads",
   "profile_id": "aggressive-isolated-firehose",
-  "description": "WooCommerce-owned aggressive destructive workload declarations for offloaded WP Codebox isolation. These declarations provide Woo surface knowledge and fixture policy only; Homeboy, HBEX, and WP Codebox supply the generic execution, isolation, and artifact contracts.",
+  "description": "WooCommerce-owned aggressive destructive workload declarations for disposable WP Codebox execution. Rigs owns Woo surface knowledge and fixture policy; execution is contract-backed by Homeboy, HBEX, and WP Codebox public fuzz/sandbox contracts.",
   "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
   "local_execution_enabled": false,
   "destructive_full_coverage_proven": false,
@@ -15,43 +15,79 @@
     "sequence_packs": "manifests/product-chaos-sequence-packs.json"
   },
   "generic_contracts": [
-    "homeboy/destructive-isolated-mode/v1",
-    "homeboy/fuzz-execution-request-artifact/v1",
-    "homeboy/fuzz-coverage-reconciliation/v1",
-    "wp-codebox/destructive-fuzz-suite-metadata/v1",
-    "wp-codebox/snapshot-restore-artifact/v1",
-    "wp-codebox/mutation-isolation-artifact/v1",
-    "homeboy/wordpress-rest-mutation-rollback-contract/v1",
+    "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+    "homeboy/isolation-proof/v1",
+    "homeboy/fuzz-action-model/v1",
+    "homeboy/fuzz-exploration-policy/v1",
+    "homeboy/wordpress-surface-family-contracts/v1",
+    "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+    "wp-codebox/fuzz-artifact-bundle/v1",
+    "wp-codebox/sandbox-isolation-proof/v1",
     "wp-codebox/delete-boundary-artifact/v1",
-    "homeboy-rigs/external-side-effect-policy/v1"
+    "wp-codebox/mutation-isolation-artifact/v1",
+    "homeboy-extensions/generate-database-observations/v1",
+    "homeboy-extensions/generate-admin-observations/v1",
+    "homeboy-extensions/generate-browser-observations/v1",
+    "homeboy-extensions/generate-editor-observations/v1"
   ],
   "readiness": {
-    "level": "executable_in_isolated_sandbox",
+    "level": "executable",
     "execution_enabled": true,
     "local_execution_enabled": false,
-    "proof_status": "requires_reviewer_facing_artifacts",
-    "coverage_contract": "Aggressive destructive workloads may run only through offloaded WP Codebox isolation with explicit destructive mode, fixture-owned dynamic IDs, rollback plans, rollback verification, and side-effect policy artifacts. No destructive case is proven by this manifest alone.",
+    "proof_status": "requires_reviewer_facing_artifacts_before_proven",
+    "coverage_contract": "Aggressive destructive workloads execute only through explicit upstream contracts: Homeboy isolation proof, Homeboy fuzz action/exploration contracts, HBEX WordPress runtime workload operation mapping, WP Codebox fuzz artifact bundles, mutation/delete-boundary artifacts, and disposable WP Codebox sandbox isolation proof.",
+    "contract_ids": [
+      "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+      "homeboy/isolation-proof/v1",
+      "homeboy/fuzz-action-model/v1",
+      "homeboy/fuzz-exploration-policy/v1",
+      "homeboy/wordpress-surface-family-contracts/v1",
+      "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+      "wp-codebox/fuzz-artifact-bundle/v1",
+      "wp-codebox/sandbox-isolation-proof/v1",
+      "wp-codebox/delete-boundary-artifact/v1",
+      "wp-codebox/mutation-isolation-artifact/v1",
+      "homeboy-extensions/generate-database-observations/v1",
+      "homeboy-extensions/generate-admin-observations/v1",
+      "homeboy-extensions/generate-browser-observations/v1",
+      "homeboy-extensions/generate-editor-observations/v1"
+    ],
+    "missing_upstream_contracts": [],
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "local_only_refs_allowed": false,
       "placeholder_refs_allowed": false,
       "required_refs": [
-        "reviewer-facing Codebox isolation readiness artifact ref",
-        "reviewer-facing snapshot restore artifact ref",
+        "reviewer-facing disposable sandbox boundary artifact ref",
+        "reviewer-facing mutation isolation artifact ref",
+        "reviewer-facing delete boundary artifact ref",
         "reviewer-facing fixture dynamic ID artifact ref",
-        "reviewer-facing rollback plan artifact ref",
-        "reviewer-facing rollback verification artifact ref",
         "reviewer-facing side-effect policy evidence artifact ref",
-        "reviewer-facing destructive case ledger artifact ref"
+        "reviewer-facing destructive case ledger artifact ref",
+        "reviewer-facing database observation artifact ref",
+        "reviewer-facing admin action observation artifact ref",
+        "reviewer-facing browser action observation artifact ref",
+        "reviewer-facing editor observation artifact ref",
+        "reviewer-facing replay/minimize artifact refs",
+        "reviewer-facing relative hotspot and convergence artifact refs",
+        "reviewer-facing sandbox teardown/discard evidence artifact ref",
+        "reviewer-facing fuzz artifact bundle ref"
       ],
       "required_artifacts": [
-        "codebox_isolation_readiness",
-        "snapshot_restore_artifact",
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "delete_boundary_artifact",
         "fixture_dynamic_id_manifest",
-        "rollback_plan",
-        "rollback_verification",
         "side_effect_policy_evidence",
-        "destructive_case_ledger"
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref"
       ]
     }
   },
@@ -61,7 +97,13 @@
     "placeholder_ids_allowed": false,
     "foreign_ids_allowed": false,
     "required_artifact": "fixture_dynamic_id_manifest",
-    "required_fields": ["fixture_namespace", "created_ids", "route_parameter_bindings", "owner_case_id", "rollback_ref"]
+    "required_fields": [
+      "fixture_namespace",
+      "created_ids",
+      "route_parameter_bindings",
+      "owner_case_id",
+      "disposable_sandbox_ref"
+    ]
   },
   "side_effect_policy": {
     "live_external_effects_allowed": false,
@@ -70,127 +112,488 @@
       {
         "id": "payment",
         "policy": "isolated_mock_only_or_safe_skip",
-        "blocked_live_effects": ["payment authorization", "payment capture", "payment refund", "saved credential mutation"],
-        "allowed_evidence": ["safe_skip_artifact", "isolated_mock_execution_artifact"]
+        "blocked_live_effects": [
+          "payment authorization",
+          "payment capture",
+          "payment refund",
+          "saved credential mutation"
+        ],
+        "allowed_evidence": [
+          "safe_skip_artifact",
+          "isolated_mock_execution_artifact"
+        ]
       },
       {
         "id": "tax",
         "policy": "safe_skip_or_isolated_builtin_rates_only",
-        "blocked_live_effects": ["external tax provider request", "credential-bearing tax account mutation"],
-        "allowed_evidence": ["safe_skip_artifact", "isolated_mock_execution_artifact"]
+        "blocked_live_effects": [
+          "external tax provider request",
+          "credential-bearing tax account mutation"
+        ],
+        "allowed_evidence": [
+          "safe_skip_artifact",
+          "isolated_mock_execution_artifact"
+        ]
       },
       {
         "id": "shipping",
         "policy": "safe_skip_or_isolated_mock_rates_only",
-        "blocked_live_effects": ["carrier rate request", "label purchase", "tracking webhook mutation"],
-        "allowed_evidence": ["safe_skip_artifact", "isolated_mock_execution_artifact"]
+        "blocked_live_effects": [
+          "carrier rate request",
+          "label purchase",
+          "tracking webhook mutation"
+        ],
+        "allowed_evidence": [
+          "safe_skip_artifact",
+          "isolated_mock_execution_artifact"
+        ]
       },
       {
         "id": "webhook",
         "policy": "safe_skip_or_loopback_only",
-        "blocked_live_effects": ["remote webhook delivery", "third-party callback registration"],
-        "allowed_evidence": ["safe_skip_artifact", "isolated_mock_execution_artifact"]
+        "blocked_live_effects": [
+          "remote webhook delivery",
+          "third-party callback registration"
+        ],
+        "allowed_evidence": [
+          "safe_skip_artifact",
+          "isolated_mock_execution_artifact"
+        ]
       },
       {
         "id": "marketplace",
         "policy": "safe_skip_only",
-        "blocked_live_effects": ["marketplace install", "extension purchase", "remote marketplace API mutation"],
-        "allowed_evidence": ["safe_skip_artifact"]
+        "blocked_live_effects": [
+          "marketplace install",
+          "extension purchase",
+          "remote marketplace API mutation"
+        ],
+        "allowed_evidence": [
+          "safe_skip_artifact"
+        ]
       },
       {
         "id": "credential_bearing_settings",
         "policy": "safe_skip_only",
-        "blocked_live_effects": ["API key write", "secret token write", "OAuth connection mutation", "account disconnect"],
-        "allowed_evidence": ["safe_skip_artifact"]
+        "blocked_live_effects": [
+          "API key write",
+          "secret token write",
+          "OAuth connection mutation",
+          "account disconnect"
+        ],
+        "allowed_evidence": [
+          "safe_skip_artifact"
+        ]
       }
     ]
   },
   "required_artifacts_per_workload": [
-    "codebox_isolation_readiness",
-    "snapshot_restore_artifact",
+    "disposable_sandbox_boundary",
+    "mutation_isolation_artifact",
+    "delete_boundary_artifact",
     "fixture_dynamic_id_manifest",
-    "rollback_plan",
-    "rollback_verification",
     "side_effect_policy_evidence",
-    "destructive_case_ledger"
+    "destructive_case_ledger",
+    "database_observations",
+    "admin_observations",
+    "browser_observations",
+    "editor_observations",
+    "relative_hotspots",
+    "convergence_summary",
+    "sandbox_teardown_evidence",
+    "artifact_bundle_ref"
   ],
   "workloads": [
     {
       "id": "product-variation-destructive-lifecycle",
-      "surfaces": ["products", "variations", "attributes", "terms"],
+      "surfaces": [
+        "products",
+        "variations",
+        "attributes",
+        "terms"
+      ],
       "fixture_family": "catalog-products-and-variations",
-      "route_families": ["products-collection", "products-batch", "product-variations-batch", "product-attributes-and-terms"],
-      "operations": ["create product", "create variation", "update price", "update stock", "update attributes", "delete variation", "delete product"],
-      "fixture_dynamic_ids": ["product_id", "variation_id", "attribute_id", "term_id", "category_id"],
-      "rollback_scope": ["wp_posts", "wp_postmeta", "terms", "term_taxonomy", "term_relationships", "wp_wc_product_meta_lookup"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger", "delete_boundary_artifact"],
-      "side_effect_surfaces": []
+      "route_families": [
+        "products-collection",
+        "products-batch",
+        "product-variations-batch",
+        "product-attributes-and-terms"
+      ],
+      "operations": [
+        "create product",
+        "create variation",
+        "update price",
+        "update stock",
+        "update attributes",
+        "delete variation",
+        "delete product"
+      ],
+      "fixture_dynamic_ids": [
+        "product_id",
+        "variation_id",
+        "attribute_id",
+        "term_id",
+        "category_id"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [],
+      "disposable_mutation_scope": [
+        "wp_posts",
+        "wp_postmeta",
+        "terms",
+        "term_taxonomy",
+        "term_relationships",
+        "wp_wc_product_meta_lookup"
+      ]
     },
     {
       "id": "order-refund-destructive-lifecycle",
-      "surfaces": ["orders", "refunds", "order_notes"],
+      "surfaces": [
+        "orders",
+        "refunds",
+        "order_notes"
+      ],
       "fixture_family": "orders-coupons-customers",
-      "route_families": ["orders-collection", "orders-notes", "orders-refunds"],
-      "operations": ["create order", "status transition", "add note", "create refund candidate", "delete order"],
-      "fixture_dynamic_ids": ["order_id", "order_item_id", "refund_id", "order_note_id", "customer_id", "product_id"],
-      "rollback_scope": ["wp_wc_orders", "wp_wc_order_addresses", "wp_wc_order_operational_data", "wp_woocommerce_order_items", "wp_woocommerce_order_itemmeta", "wp_wc_order_stats", "wp_comments", "wp_commentmeta"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger", "delete_boundary_artifact"],
-      "side_effect_surfaces": ["payment", "tax"]
+      "route_families": [
+        "orders-collection",
+        "orders-notes",
+        "orders-refunds"
+      ],
+      "operations": [
+        "create order",
+        "status transition",
+        "add note",
+        "create refund candidate",
+        "delete order"
+      ],
+      "fixture_dynamic_ids": [
+        "order_id",
+        "order_item_id",
+        "refund_id",
+        "order_note_id",
+        "customer_id",
+        "product_id"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [
+        "payment",
+        "tax"
+      ],
+      "disposable_mutation_scope": [
+        "wp_wc_orders",
+        "wp_wc_order_addresses",
+        "wp_wc_order_operational_data",
+        "wp_woocommerce_order_items",
+        "wp_woocommerce_order_itemmeta",
+        "wp_wc_order_stats",
+        "wp_comments",
+        "wp_commentmeta"
+      ]
     },
     {
       "id": "coupon-customer-destructive-lifecycle",
-      "surfaces": ["coupons", "customers", "usage_limits"],
+      "surfaces": [
+        "coupons",
+        "customers",
+        "usage_limits"
+      ],
       "fixture_family": "orders-coupons-customers",
-      "route_families": ["coupons-collection", "customers-collection"],
-      "operations": ["create coupon", "create customer", "update billing", "apply coupon", "read usage counters", "delete coupon", "delete customer"],
-      "fixture_dynamic_ids": ["coupon_id", "coupon_code", "customer_id", "user_id", "cart_token", "order_id"],
-      "rollback_scope": ["wp_users", "wp_usermeta", "wp_posts", "wp_postmeta", "wp_wc_orders", "wp_wc_order_coupon_lookup"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger", "delete_boundary_artifact"],
-      "side_effect_surfaces": []
+      "route_families": [
+        "coupons-collection",
+        "customers-collection"
+      ],
+      "operations": [
+        "create coupon",
+        "create customer",
+        "update billing",
+        "apply coupon",
+        "read usage counters",
+        "delete coupon",
+        "delete customer"
+      ],
+      "fixture_dynamic_ids": [
+        "coupon_id",
+        "coupon_code",
+        "customer_id",
+        "user_id",
+        "cart_token",
+        "order_id"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [],
+      "disposable_mutation_scope": [
+        "wp_users",
+        "wp_usermeta",
+        "wp_posts",
+        "wp_postmeta",
+        "wp_wc_orders",
+        "wp_wc_order_coupon_lookup"
+      ]
     },
     {
       "id": "stock-inventory-destructive-lifecycle",
-      "surfaces": ["stock", "inventory", "lookup_tables", "low_stock_notifications"],
+      "surfaces": [
+        "stock",
+        "inventory",
+        "lookup_tables",
+        "low_stock_notifications"
+      ],
       "fixture_family": "catalog-products-and-variations",
-      "route_families": ["products-collection", "products-batch", "product-variations-batch"],
-      "operations": ["set stock quantity", "toggle manage stock", "backorder transition", "reduce stock through checkout", "restore stock"],
-      "fixture_dynamic_ids": ["product_id", "variation_id", "order_id", "order_item_id", "stock_adjustment_ref"],
-      "rollback_scope": ["wp_postmeta", "wp_wc_product_meta_lookup", "wp_wc_order_product_lookup", "wp_actionscheduler_actions"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger"],
-      "side_effect_surfaces": ["webhook"]
+      "route_families": [
+        "products-collection",
+        "products-batch",
+        "product-variations-batch"
+      ],
+      "operations": [
+        "set stock quantity",
+        "toggle manage stock",
+        "backorder transition",
+        "reduce stock through checkout",
+        "restore stock"
+      ],
+      "fixture_dynamic_ids": [
+        "product_id",
+        "variation_id",
+        "order_id",
+        "order_item_id",
+        "stock_adjustment_ref"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [
+        "webhook"
+      ],
+      "disposable_mutation_scope": [
+        "wp_postmeta",
+        "wp_wc_product_meta_lookup",
+        "wp_wc_order_product_lookup",
+        "wp_actionscheduler_actions"
+      ]
     },
     {
       "id": "cart-checkout-session-destructive-lifecycle",
-      "surfaces": ["cart", "checkout", "sessions", "shipping_packages"],
+      "surfaces": [
+        "cart",
+        "checkout",
+        "sessions",
+        "shipping_packages"
+      ],
       "fixture_family": "cart-checkout-store-api",
-      "route_families": ["store-api-cart", "store-api-checkout"],
-      "operations": ["create session", "add item", "update quantity", "apply coupon", "select shipping", "submit checkout", "reset session"],
-      "fixture_dynamic_ids": ["session_key", "cart_item_key", "cart_token", "nonce", "order_id", "shipping_rate_id"],
-      "rollback_scope": ["wp_woocommerce_sessions", "wp_wc_orders", "wp_wc_order_addresses", "wp_woocommerce_order_items", "wp_actionscheduler_actions"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger"],
-      "side_effect_surfaces": ["payment", "tax", "shipping"]
+      "route_families": [
+        "store-api-cart",
+        "store-api-checkout"
+      ],
+      "operations": [
+        "create session",
+        "add item",
+        "update quantity",
+        "apply coupon",
+        "select shipping",
+        "submit checkout",
+        "reset session"
+      ],
+      "fixture_dynamic_ids": [
+        "session_key",
+        "cart_item_key",
+        "cart_token",
+        "nonce",
+        "order_id",
+        "shipping_rate_id"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [
+        "payment",
+        "tax",
+        "shipping"
+      ],
+      "disposable_mutation_scope": [
+        "wp_woocommerce_sessions",
+        "wp_wc_orders",
+        "wp_wc_order_addresses",
+        "wp_woocommerce_order_items",
+        "wp_actionscheduler_actions"
+      ]
     },
     {
       "id": "hpos-order-table-destructive-lifecycle",
-      "surfaces": ["hpos", "order_tables", "order_lookup_tables"],
+      "surfaces": [
+        "hpos",
+        "order_tables",
+        "order_lookup_tables"
+      ],
       "fixture_family": "orders-coupons-customers",
-      "route_families": ["orders-collection", "orders-refunds"],
-      "operations": ["create HPOS order", "mutate addresses", "mutate operational data", "create refund", "verify table cleanup"],
-      "fixture_dynamic_ids": ["order_id", "refund_id", "order_address_id", "operational_data_ref", "order_item_id"],
-      "rollback_scope": ["wp_wc_orders", "wp_wc_order_addresses", "wp_wc_order_operational_data", "wp_wc_orders_meta", "wp_wc_order_stats", "wp_wc_order_product_lookup", "wp_wc_order_coupon_lookup"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger", "database_observations"],
-      "side_effect_surfaces": ["payment", "tax"]
+      "route_families": [
+        "orders-collection",
+        "orders-refunds"
+      ],
+      "operations": [
+        "create HPOS order",
+        "mutate addresses",
+        "mutate operational data",
+        "create refund",
+        "verify table cleanup"
+      ],
+      "fixture_dynamic_ids": [
+        "order_id",
+        "refund_id",
+        "order_address_id",
+        "operational_data_ref",
+        "order_item_id"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [
+        "payment",
+        "tax"
+      ],
+      "disposable_mutation_scope": [
+        "wp_wc_orders",
+        "wp_wc_order_addresses",
+        "wp_wc_order_operational_data",
+        "wp_wc_orders_meta",
+        "wp_wc_order_stats",
+        "wp_wc_order_product_lookup",
+        "wp_wc_order_coupon_lookup"
+      ]
     },
     {
       "id": "action-scheduler-destructive-lifecycle",
-      "surfaces": ["action_scheduler", "scheduled_jobs", "webhook_delivery_jobs"],
+      "surfaces": [
+        "action_scheduler",
+        "scheduled_jobs",
+        "webhook_delivery_jobs"
+      ],
       "fixture_family": "settings-reports-admin",
       "route_families": [],
-      "operations": ["enqueue fixture action", "mutate action status", "run due fixture action", "cleanup action logs", "verify no leaked pending actions"],
-      "fixture_dynamic_ids": ["action_id", "group_id", "hook_name", "log_entry_id", "claim_id"],
-      "rollback_scope": ["wp_actionscheduler_actions", "wp_actionscheduler_claims", "wp_actionscheduler_groups", "wp_actionscheduler_logs"],
-      "required_artifacts": ["codebox_isolation_readiness", "snapshot_restore_artifact", "fixture_dynamic_id_manifest", "rollback_plan", "rollback_verification", "side_effect_policy_evidence", "destructive_case_ledger", "database_observations"],
-      "side_effect_surfaces": ["webhook", "marketplace", "credential_bearing_settings"]
+      "operations": [
+        "enqueue fixture action",
+        "mutate action status",
+        "run due fixture action",
+        "cleanup action logs",
+        "verify no leaked pending actions"
+      ],
+      "fixture_dynamic_ids": [
+        "action_id",
+        "group_id",
+        "hook_name",
+        "log_entry_id",
+        "claim_id"
+      ],
+      "required_artifacts": [
+        "disposable_sandbox_boundary",
+        "mutation_isolation_artifact",
+        "fixture_dynamic_id_manifest",
+        "side_effect_policy_evidence",
+        "destructive_case_ledger",
+        "database_observations",
+        "admin_observations",
+        "browser_observations",
+        "editor_observations",
+        "relative_hotspots",
+        "convergence_summary",
+        "sandbox_teardown_evidence",
+        "artifact_bundle_ref",
+        "delete_boundary_artifact"
+      ],
+      "side_effect_surfaces": [
+        "webhook",
+        "marketplace",
+        "credential_bearing_settings"
+      ],
+      "disposable_mutation_scope": [
+        "wp_actionscheduler_actions",
+        "wp_actionscheduler_claims",
+        "wp_actionscheduler_groups",
+        "wp_actionscheduler_logs"
+      ]
     }
   ]
 }

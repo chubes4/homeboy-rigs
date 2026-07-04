@@ -41,21 +41,17 @@ facing artifact refs, run IDs, gap reports, and required fuzz result artifact
 names. Keep rows at declared/executable until those links exist; local paths,
 localhost URLs, and optional artifacts are not proof.
 
-Reusable helper patterns live under `shared/`. The first shared web performance
-pattern is `shared/webperf/deferred-init-webperf.mjs`, which lets trace workloads
-mark feature-not-needed and feature-needed phases, count feature/third-party
-requests before and after the trigger, and emit assertions proving no early
-initialization plus post-trigger success.
+Reusable helper patterns live under `shared/` only when the helper is specific to
+rig package declarations. Generic browser orchestration helpers belong in
+Homeboy Extensions and should be consumed through explicit helper-manifest paths.
 
 `shared/wordpress-plugin-performance-template/` documents the reusable
 full-surface performance rig shape for WordPress plugins: discovery, safe admin,
 frontend, and REST coverage, readiness checks, fixtures, metrics, artifacts,
 thresholds, and plugin-specific workload extension points.
 
-The current WordPress fuzz coverage status for WooCommerce, WordPress Core,
-Gutenberg, and Jetpack is tracked in
-[`docs/fuzz-coverage-matrix.md`](docs/fuzz-coverage-matrix.md), including the
-difference between declared, executable, and proven coverage.
+WordPress fuzz readiness status lives in each product manifest's
+`metadata.readiness` contract instead of a hand-maintained repo-wide matrix.
 
 ## Install
 
@@ -78,29 +74,31 @@ homeboy rig check studio-combined
 `homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a lightweight package lint for PHP syntax, portable source paths, generated rig drift, `fuzz_profiles` references that drift from `fuzz_workloads`, and WordPress plugin fuzz workload IDs accidentally reappearing in `bench_workloads` or `bench_profiles`:
 
 ```bash
+export HOMEBOY_NODEJS_WORKLOAD_UTILS=/path/to/homeboy-extensions/nodejs/scripts/bench/lib/workload-utils.mjs
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs
 ```
 
-GitHub Actions runs the package lint with PHP installed.
+GitHub Actions runs the package lint with PHP installed and injects Homeboy Extensions helper paths explicitly. Shared loaders fail with setup guidance when required paths are absent; they do not guess local sibling checkouts.
 
 ## Automattic/studio
 
 `rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
 
-`studio-figma-to-wordpress-import` is the black-box Figma to WordPress Studio proof rig. It does not modify Studio. The workload uses the installed `studio` CLI from `PATH`, writes a temporary Blueprint, creates a brand new Studio site, installs Static Site Importer during site creation, imports a Figma runner request fixture, and verifies the imported theme plus SSI import result through Studio/WP-CLI commands.
+`studio-figma-to-wordpress-import` is the adapter rig for the Blocks Engine Figma transformer fixture matrix. Blocks Engine owns fixture discovery, frame selection, transform execution, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy. It expects a Blocks Engine checkout and does not create separate runtime resources.
 
 ```bash
 homeboy rig check studio-figma-to-wordpress-import
-homeboy bench --rig studio-figma-to-wordpress-import --scenario studio-figma-ssi-import --iterations 1 --shared-state /tmp/studio-figma-ssi-import
+homeboy rig up studio-figma-to-wordpress-import
 ```
 
 Useful settings:
 
-- `figma_studio_runner_request=/path/to/runner-request.json` points the rig at a real Figma plugin payload instead of the checked-in fixture.
-- `figma_studio_ssi_plugin_url=https://.../static-site-importer.zip` pins the SSI package used by the generated Blueprint.
-- `figma_studio_site_name="Imported Figma Site"` overrides the generated Studio site name.
+- `HOMEBOY_RIG_COMPONENT_PATH__STUDIO_FIGMA_TO_WORDPRESS_IMPORT__BLOCKS_ENGINE=/path/to/blocks-engine` points the rig at the Blocks Engine checkout.
 
 `studio-combined` declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
+
+`studio-combined` rewires selected Studio package manifests to local Playground tarballs during `up`. Before that rewrite, the rig refuses dirty package manifests and stores backups under `${components.studio.path}/.homeboy-rig/studio-combined/package-backups`; `down` restores those files when they still look like rig-owned local tarball rewrites. The rig no longer deletes Studio `node_modules` scopes during setup. Rig-owned symlinks such as `~/.local/bin/studio` and `${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds` are declared as shared paths, so `down` removes the links it created without deleting user-owned checkout or dependency contents.
 
 ```bash
 homeboy rig check studio-combined
@@ -239,12 +237,12 @@ homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build -
 The site-build workload accepts a runtime namespace for parallel Workflow Bench runs. Select canonical Studio Web Workflow Bench scenarios with `studio_workflow_bench_scenario_id` and point `studio_workflow_bench_root`, `STUDIO_WEB_WORKFLOW_BENCH_ROOT`, or `WORKFLOW_BENCH_ROOT` at a Studio Web checkout. Homeboy Rigs consumes the canonical corpus directly; Studio Web owns scenario prompts, categories, proof surfaces, success gates, and matrix selection. `studio_bench_namespace` only isolates runtime resources such as artifacts, Studio CLI config, appdata, daemon sockets, temp files, site roots, and the derived port range.
 
 ```bash
-STUDIO_WEB_WORKFLOW_BENCH_ROOT=$HOME/Developer/studio-web \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/path/to/studio-web \
 HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-restaurant \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=restaurant-a \
 homeboy bench --rig studio-agent-claude-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
 
-STUDIO_WEB_WORKFLOW_BENCH_ROOT=$HOME/Developer/studio-web \
+STUDIO_WEB_WORKFLOW_BENCH_ROOT=/path/to/studio-web \
 HOMEBOY_SETTINGS_STUDIO_WORKFLOW_BENCH_SCENARIO_ID=homeboy-plain-site-saas \
 HOMEBOY_SETTINGS_STUDIO_BENCH_NAMESPACE=saas-a \
 homeboy bench --rig studio-agent-gpt55-ssi --scenario studio-agent-site-build --iterations 1 --shared-state /tmp/studio-agent-bench &
@@ -254,7 +252,7 @@ wait
 
 The workload reads `eval/workflow-bench/scenarios/*.json` and `eval/workflow-bench/corpora/*.json` from the configured Studio Web checkout. The default scenario is `homeboy-plain-site-restaurant`.
 
-Source-vs-frontend visual fidelity evidence is captured through WP Codebox `wordpress.visual-compare`. Set `studio_wp_codebox_cli_path`, `HOMEBOY_WP_CODEBOX_CLI`, or `WP_CODEBOX_CLI_PATH` to the WP Codebox CLI entrypoint before running `studio-agent-site-build`; the bench keeps Studio-specific targets and thresholds, while WP Codebox owns screenshots, pixel diffs, DOM/style explanations, and visual evidence artifacts.
+Source-vs-frontend visual fidelity evidence is captured through WP Codebox `wordpress.visual-compare`. Set `studio_wp_codebox_cli_path` to the WP Codebox CLI entrypoint before running `studio-agent-site-build`; the bench keeps Studio-specific targets and thresholds, while WP Codebox owns screenshots, pixel diffs, DOM/style explanations, and visual evidence artifacts.
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 
@@ -265,15 +263,23 @@ Mixed-source prompt variants such as `astro-docs-content-collection`, `markdown-
 Keep the Studio bench harness layered so each repo owns the smallest stable surface it can support:
 
 - `homeboy-rigs` owns Studio-specific workloads, prompts, and experimental harness wiring while APIs are still moving.
-- `homeboy-extensions/nodejs` owns generic Node benchmark settings, command, artifact, and redaction helpers used by Studio workloads.
-- `homeboy-extensions/wordpress` owns generic WordPress helper discovery, WP Codebox recipe execution, and block quality probes once their contracts are stable.
+- `homeboy-extensions/nodejs` owns generic Node benchmark settings, command, artifact, and redaction helpers used by Studio workloads. Rigs consume those helpers through the injected `HOMEBOY_NODEJS_WORKLOAD_UTILS` path.
+- `homeboy-extensions/wordpress` owns generic WordPress helper manifests, WP Codebox recipe execution, and block quality probes once their contracts are stable. Rigs consume those helpers through `HOMEBOY_WORDPRESS_HELPER_MANIFEST`.
 - `homeboy` core owns benchmark orchestration only; it should stay generic and substrate-agnostic.
 
 Issue [#185](https://github.com/chubes4/homeboy-rigs/issues/185) tracks thinning duplicated helper logic after upstream promotion. Studio native-block quality probing now uses the promoted Homeboy Extensions block quality probes from `Extra-Chill/homeboy-extensions#1009`; target post metrics remain tracked in `Extra-Chill/homeboy-extensions#1018`. Studio fixture plugin install/restore now delegates to the Homeboy Extensions fixture setup helper from `Extra-Chill/homeboy-extensions#1134`, and helper discovery consumes promoted helper-manifest paths from `Extra-Chill/homeboy-extensions#1141`; rigs should not add local fallback shims for those contracts.
 
-WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Artifact consumers should resolve files through `shared/wp-codebox/artifacts.mjs` instead of parsing `artifacts.directory/files/...` at each call site. The helper consumes artifact file manifests when WP Codebox/Homeboy expose them and keeps one temporary fallback for the current `files/browser/*` bundle layout until that manifest contract is stable upstream.
+WP Codebox helper ownership is documented in `shared/wp-codebox/README.md`. Artifact consumers should resolve files through `shared/wp-codebox/artifacts.mjs` instead of parsing `artifacts.directory/files/...` at each call site. The helper delegates to the upstream manifest-aware resolver contract and does not provide legacy artifact-layout fallback.
 
-Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, and rig check pipelines should call `shared/wp-codebox/check-cli.sh` instead of duplicating `command -v wp-codebox`, local checkout guesses, or env-var precedence. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, and command-scoped filesystem assertions; keep local helpers small until Homeboy/Homeboy Extensions exposes those contracts.
+Rig-side WP Codebox recipe execution should import `shared/wp-codebox/recipe.mjs`, which is a pass-through to promoted upstream helpers. Rigs must not duplicate `command -v wp-codebox`, local checkout guesses, env-var precedence, watchdogs, duplicate-run dedupe, or artifact fallback. The remaining upstream primitive gaps are typed rig requirements for executable discovery, shared node dependency availability, temporary symlink setup, command-scoped filesystem assertions, child reaping, and structured recipe failure reporting; keep affected rigs downscoped until Homeboy/Homeboy Extensions exposes those contracts. Studio combined WP Codebox path cleanup is tracked in [#655](https://github.com/chubes4/homeboy-rigs/issues/655).
+
+Stable workload Lab planning is owned by Homeboy core. Product packages keep only
+`manifests/stable-workloads.json` declarations and call `homeboy fuzz stable-plan`
+directly; rigs must not add local stable-planner wrappers or compatibility
+fallbacks. The Homeboy release blocker is tracked in
+[Extra-Chill/homeboy#7430](https://github.com/Extra-Chill/homeboy/issues/7430).
+
+Rig cleanup proof is now owned by Homeboy lifecycle artifacts. Rigs keep product-specific `lifecycle.cleanup` metadata for package review, while runtime evidence should come from Homeboy-emitted `rig_resource_lifecycle_index` artifacts rather than rig-local cleanup intent contract checks.
 
 Cleanup should move in small waves:
 
@@ -333,12 +339,12 @@ homeboy rig show studio-agent-claude-trunk
 
 `stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs. TSRMLS fallback defines are owned upstream by WordPress/wordpress-playground#3512; `studio-combined` checks for that upstream source instead of patching Playground files at rig runtime.
 
-`rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the local `~/Developer/wordpress-playground` checkout. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
+`rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the operator-provided WordPress Playground checkout. For a local data-machine-code workspace, that path might be `~/Developer/wordpress-playground`; other checkout layouts should be passed through rig component settings. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
 
 ```bash
 homeboy rig install --all ./WordPress/wordpress-playground
 homeboy rig check playground-cli-diagnostics
-homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1 --shared-state /tmp/playground-cli-diagnostics
+homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1
 ```
 
 ## WordPress/wordpress-develop
@@ -349,8 +355,9 @@ admin, frontend/rendering, hooks/cron/options, content, media/users, and
 performance-observation contracts without adding a `homeboy bench` fallback.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/wordpress-develop
+homeboy rig install ./WordPress/wordpress-develop
 homeboy rig check wordpress-core-fuzz-coverage
+export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
 node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
 ```
 
@@ -363,16 +370,15 @@ and experimental route groups. It keeps Gutenberg route grouping in
 benchmark workload.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/WordPress/gutenberg
+homeboy rig install ./WordPress/gutenberg
 homeboy rig check gutenberg-api-route-inventory
 homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-route-inventory --iterations 1 --shared-state /tmp/gutenberg-api-inventory
 ```
 
-`WordPress/gutenberg/manifests/fuzzer-profile.json` adds a rig-owned fuzzer profile shape for REST route coverage, wp-admin/editor page coverage, block editor load/action probes, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting. Inspect its fuzz declarations through Homeboy's generic fuzz command and run browser coverage separately:
+`WordPress/gutenberg/manifests/fuzzer-profile.json` adds a rig-owned fuzzer profile shape for REST route coverage, wp-admin/editor page coverage, block editor load/action probes, DB query/profile hooks, external HTTP guardrails, and coverage-gap reporting. Inspect its fuzz declarations through Homeboy's generic fuzz command, use `WordPress/gutenberg/docs/fuzzer-profile.md` for focused fuzz run examples, and run browser coverage separately:
 
 ```bash
 homeboy fuzz list --rig gutenberg-api-route-inventory
-homeboy fuzz run --rig gutenberg-api-route-inventory --workload gutenberg-rest-route-fuzz --run-id gutenberg-rest-route-fuzz --seed 1 --max-duration 10m
 homeboy trace --rig gutenberg-browser-coverage --profile fuzzer
 ```
 
@@ -385,7 +391,7 @@ and validates generic fuzz manifest contracts without treating bench workloads a
 proof of full fuzz execution.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/Automattic/jetpack
+homeboy rig install ./Automattic/jetpack
 homeboy rig check jetpack-api-route-inventory
 node Automattic/jetpack/tools/validate-fuzz-manifests.mjs
 ```
@@ -404,7 +410,7 @@ catalog, and admin-dashboard performance workloads against a local WooCommerce
 monorepo checkout mounted into the WP Codebox WordPress bench runtime.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
+homeboy rig install ./woocommerce/woocommerce
 homeboy rig check woocommerce-performance
 homeboy rig up woocommerce-performance
 homeboy bench --rig woocommerce-performance --scenario checkout-shipping-cache --iterations 1 --shared-state /tmp/woocommerce-performance-bench
@@ -412,10 +418,10 @@ homeboy bench --rig woocommerce-performance --scenario checkout-shortcode-place-
 homeboy bench --rig woocommerce-performance --scenario admin-dashboard-physical-products-query --iterations 1 --shared-state /tmp/woocommerce-admin-dashboard-products
 ```
 
-The runner must provide `~/Developer/woocommerce/plugins/woocommerce`. The rig
-check reports missing checkout, Composer dependency, and generated feature-config
-prerequisites with targeted messages. Use `homeboy rig up` for the safe dependency
-prep path before benchmarking. `checkout-shortcode-place-order-latency` covers
+The runner must provide a WooCommerce component checkout with the monorepo plugin
+available at `plugins/woocommerce`. The rig check reports missing checkout,
+Composer dependency, and generated feature-config prerequisites with targeted
+messages. Use `homeboy rig up` for the safe dependency prep path before benchmarking. `checkout-shortcode-place-order-latency` covers
 the shortcode `[woocommerce_checkout]` place-order path from
 https://github.com/chubes4/homeboy-rigs/issues/223 and writes raw JSON under
 `HOMEBOY_BENCH_SHARED_STATE`.
@@ -427,14 +433,15 @@ Express Checkout Element browser waterfall trace against a local WooCommerce
 Stripe checkout plus a packaged WooCommerce dependency.
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce-gateway-stripe
+homeboy rig install /path/to/homeboy-rigs/woocommerce/woocommerce-gateway-stripe
 homeboy rig check woocommerce-stripe-ece-product-page
-homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall --output /tmp/wc-stripe-ece-waterfall.json
+homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-waterfall
 ```
 
 Additional trace scenarios cover post-load interactions for scrolling to the ECE
-container, changing quantity, and attempting variation changes while preserving
-the original load-only `smoke` behavior.
+container, changing quantity, and attempting variation changes. The `smoke`
+profile is contract sanity for fixture availability only, not reviewer-facing
+proof.
 
 ```bash
 homeboy trace --rig woocommerce-stripe-ece-product-page woocommerce-gateway-stripe ece-product-page-scroll-to-ece
@@ -446,6 +453,8 @@ Use Homeboy's visual compare hook with the WP Codebox provider when collecting
 reviewer-facing parity proof for a PR:
 
 ```bash
+wp_codebox_visual_compare_provider="$(node -e 'const path = require("node:path"); const loaded = require(process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST); const manifest = typeof loaded.getWordPressHelperManifest === "function" ? loaded.getWordPressHelperManifest() : loaded.WORDPRESS_HELPER_MANIFEST; process.stdout.write(path.join(manifest.extensionRoot, "lib", "wp-codebox-visual-compare.js"));')"
+
 homeboy trace compare \
   --rig woocommerce-stripe-ece-product-page \
   --baseline-target origin/develop \
@@ -455,7 +464,7 @@ homeboy trace compare \
   --report markdown \
   --visual-compare \
   --visual-compare-provider node \
-  --visual-provider-arg "$HOME/Developer/homeboy-extensions/wordpress/lib/wp-codebox-visual-compare.js" \
+  --visual-provider-arg "$wp_codebox_visual_compare_provider" \
   --visual-threshold 0.1 \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-product-page-proof.md
@@ -465,7 +474,8 @@ The provider calls WP Codebox's `wordpress.visual-compare` primitive against the
 baseline/candidate screenshots captured by the trace workload and emits source,
 candidate, diff, JSON diff, and explanation artifacts.
 
-The `smoke` profile keeps the default WP Codebox browser behavior. The optional
+The `smoke` profile is contract sanity for the default WP Codebox browser path.
+It is not proof of wallet eligibility, performance, or visual parity. The optional
 `secure-browser` profile depends on generic upstream preview/profile contracts
 from Extra-Chill/homeboy#3554 and Automattic/wp-codebox#651/#652 and keeps
 Stripe-specific scenario behavior in this rig package.
@@ -507,7 +517,7 @@ The rig declares `node_modules` as a Homeboy `shared_paths` entry. When the acti
 
 ## Conventions
 
-- **Component paths** use `~/Developer/<repo>` for primary checkouts and `~/Developer/<repo>@<branch-slug>` for worktrees, mirroring the data-machine-code workspace convention.
+- **Component paths** come from rig component settings or environment variables. Local examples may use a data-machine-code workspace path such as `~/Developer/<repo>` or `~/Developer/<repo>@<branch-slug>`, but that is an operator layout, not a package convention.
 - **Package directories** use the owning repo's fully qualified name. Cross-repo rigs live under the product/workflow owner.
 - **Bench workloads** live beside their owning rig and use `${package.root}` so installed rig packages resolve their own portable workload files.
 - **Branches** in `components.<id>.branch` document the expected branch — rigs don't currently enforce branch state, but the field hints to humans reading the spec.

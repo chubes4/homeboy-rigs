@@ -66,8 +66,9 @@ Frontend coverage:
 - Record TTFB, DOM readiness, page-ready time, request count, transferred bytes,
   failed resources, console errors, key selectors, and screenshot/trace paths
   when a browser runner is available.
-- Use `shared/webperf/` for deferred-initialization checks when the plugin should
-  avoid loading feature code until a user action or viewport condition.
+- Use Homeboy Extensions browser helpers for deferred-initialization checks when
+  the plugin should avoid loading feature code until a user action or viewport
+  condition.
 
 REST coverage:
 

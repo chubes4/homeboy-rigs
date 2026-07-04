@@ -33,18 +33,23 @@
         },
         "update": {
           "level": "declared",
-          "upstream_blocker": "Gateway update cases need rollback-safe checkout/gateway fixture mutation primitives."
+          "upstream_blocker": "Gateway update cases need product-owned checkout/gateway fixture mutation artifacts."
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "Gateway delete cases need rollback-safe cleanup fixtures."
+          "upstream_blocker": "Gateway delete cases need product-owned delete-boundary cleanup fixtures."
         }
       },
       "mutation": {
         "safety_boundary": "Gateway and checkout state is exercised only inside a disposable WP Codebox WordPress fixture.",
-        "rollback_artifacts": [
-          "gateway_matrix"
-        ]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["gateway_matrix"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "isolation_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

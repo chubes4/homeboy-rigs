@@ -43,7 +43,7 @@
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "Destructive wp-admin actions remain skipped until rollback-safe delete fixtures exist."
+          "upstream_blocker": "Destructive wp-admin actions remain skipped until product-owned delete-boundary fixture artifacts exist."
         }
       }
     },

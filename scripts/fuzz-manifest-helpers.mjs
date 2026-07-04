@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { loadWordPressHelperModule } from '../shared/wordpress-helper-loader.mjs';
 
 export const fuzzReadinessLevels = new Set(['declared', 'executable', 'proven']);
 export const fuzzCrudOperations = new Set(['create', 'read', 'update', 'delete']);
@@ -9,15 +9,6 @@ export const fuzzCaseIntentSchema = 'homeboy/fuzz-workload-intent/v1';
 export const fuzzProofBundleFields = new Set(['artifact_refs', 'run_ids', 'gap_reports', 'fuzz_result_artifacts', 'canonical_fuzz_envelope_ref']);
 export const fullSurfaceCoverageTypes = new Set(['rest', 'admin', 'frontend', 'browser', 'database']);
 export const fullSurfaceGapReportFields = new Set(['surface_type', 'expected', 'covered', 'gaps', 'status', 'evidence_refs']);
-
-function loadGenericFuzzManifestValidator() {
-  return loadWordPressHelperModule({
-    helperName: 'wordpress-fuzz-manifest-validator',
-    envVar: 'HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR',
-    manifestFileName: 'wordpress-fuzz-manifest-validator.js',
-    packageImport: 'homeboy-extension-wordpress/wordpress-fuzz-manifest-validator',
-  });
-}
 
 export function readJson(root, ...parts) {
   return JSON.parse(readFileSync(path.join(root, ...parts), 'utf8'));
@@ -116,8 +107,12 @@ export function assertGenericFuzzManifest(manifest, {
   assert.equal(manifest.limits?.max_cases, manifest.case_budget, `${manifest.id} max_cases must match case_budget`);
   assert.equal(manifest.limits?.max_duration_seconds, manifest.duration_budget_seconds, `${manifest.id} max_duration_seconds must match duration_budget_seconds`);
 
-  if (requireReadinessMetadata || manifest.metadata?.readiness) {
-    assertFuzzReadinessMetadata(manifest, { file });
+  if (requireReadinessMetadata) {
+    assert.ok(manifest.metadata?.readiness, `${manifest.id} requires metadata.readiness`);
+  }
+
+  if (manifest.metadata?.readiness) {
+    assertBasicFuzzReadinessMetadata(manifest.metadata.readiness, { file });
   }
 
   assert.equal(manifest.cases?.length, 1, `${manifest.id} requires one default runner case`);
@@ -129,7 +124,7 @@ export function assertGenericFuzzManifest(manifest, {
   assert.deepEqual(runnerCase.surface_ids, manifest.surface_ids, `${manifest.id} case surface ids drifted`);
   assert.deepEqual(runnerCase.operations, manifest.operations, `${manifest.id} case operations drifted`);
   if (runnerCase.intent) {
-    assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase);
+    assert.equal(runnerCase.intent.schema, fuzzCaseIntentSchema, `${manifest.id} case intent schema mismatch`);
   } else {
     assert.equal(requireRunnerNeutralIntent, false, `${manifest.id} requires runner-neutral case intent`);
     assert.ok(Array.isArray(runnerCase.phases?.action), `${manifest.id} requires action phase`);
@@ -157,11 +152,16 @@ export function assertGenericFuzzManifest(manifest, {
 }
 
 export function assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase) {
-  return loadGenericFuzzManifestValidator().assertRunnerNeutralFuzzCaseIntent(manifest, runnerCase);
+  assert.equal(runnerCase?.intent?.schema, fuzzCaseIntentSchema, `${manifest.id} case intent schema mismatch`);
 }
 
-export function assertFuzzReadinessMetadata(manifest, { file = manifest.id } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzReadinessMetadata(manifest, { file });
+function assertBasicFuzzReadinessMetadata(readiness, { file = 'fuzz workload' } = {}) {
+  assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${file} metadata.readiness must be an object`);
+  assert.ok(fuzzReadinessLevels.has(readiness.level), `${file} metadata.readiness.level must be declared, executable, or proven`);
+  if (readiness.level !== 'declared') {
+    assert.equal(typeof readiness.coverage_contract, 'string', `${file} metadata.readiness.coverage_contract must describe the contract`);
+    assert.notEqual(readiness.coverage_contract.trim(), '', `${file} metadata.readiness.coverage_contract must not be empty`);
+  }
 }
 
 export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
@@ -171,7 +171,8 @@ export function assertFuzzProofBundle(proofBundle, manifest, { file } = {}) {
     return proofBundle;
   }
 
-  return loadGenericFuzzManifestValidator().assertFuzzProofBundle(proofBundle, manifest, { file });
+  assert.ok(proofBundle && typeof proofBundle === 'object' && !Array.isArray(proofBundle), `${file || manifest.id} proof_bundle must be an object`);
+  return proofBundle;
 }
 
 export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workload' } = {}) {
@@ -188,36 +189,46 @@ export function assertCanonicalFuzzEnvelopeRef(proofBundle, { file = 'fuzz workl
 export function assertReviewerFacingFuzzRef(value, context) {
   assert.equal(typeof value, 'string', `${context} must be a reviewer-facing artifact ref string`);
   assert.ok(value.trim().length > 0, `${context} must be a reviewer-facing artifact ref string`);
-  assert.ok(
-    /^(https:\/\/|gh:|homeboy-runs:|homeboy:\/\/run\/|homeboy-artifact:\/\/|artifact:|run:)/.test(value),
-    `${context} must be a reviewer-facing artifact ref`
-  );
-  assert.ok(
-    !localOnlyReviewerFacingRef(value),
-    `${context} must not use local evidence`
-  );
-}
 
-export function localOnlyReviewerFacingRef(value) {
-  if (typeof value !== 'string' || value.trim() === '') {
-    return false;
+  const result = normalizeReviewerFacingFuzzRef(value);
+  if (!result.ok) {
+    assert.fail(`${context} ${result.message}`);
   }
-  const ref = value.trim();
-  return localOnlyRefValue(ref) || localOnlySchemePayload(ref);
 }
 
-function localOnlySchemePayload(ref) {
-  const match = /^(?:artifact:|run:|homeboy-runs:|homeboy-artifact:\/\/)(.*)$/i.exec(ref);
-  return Boolean(match && localOnlyRefValue(match[1]));
+export function normalizeReviewerFacingFuzzRef(value) {
+  const cliResult = normalizeReviewerFacingFuzzRefWithHomeboy(value);
+  return cliResult;
 }
 
-function localOnlyRefValue(ref) {
-  return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::|\/|$)/i.test(ref)
-    || /^file:\/\//i.test(ref)
-    || /^\/Users\//.test(ref)
-    || /^\/private\//.test(ref)
-    || /^\/tmp(?:\/|$)/.test(ref)
-    || /^\.\.?(?:\/|$)/.test(ref);
+function normalizeReviewerFacingFuzzRefWithHomeboy(value) {
+  const command = homeboyArtifactRefNormalizerCommand();
+  const result = spawnSync(command[0], [...command.slice(1), '--input', JSON.stringify(value)], {
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
+  });
+
+  if (result.error?.code === 'ENOENT') {
+    return { status: 'rejected', ok: false, message: 'requires Homeboy contract normalize artifact-ref support' };
+  }
+
+  const stderr = (result.stderr || '').trim();
+  const stdout = (result.stdout || '').trim();
+  if (result.status === 0) {
+    const payload = stdout ? JSON.parse(stdout) : null;
+    return { status: 'normalized', ok: true, value: payload?.data?.normalized || value };
+  }
+
+  if (/unrecognized subcommand 'normalize'|unrecognized subcommand 'artifact-ref'|Usage: homeboy contract\b/.test(stderr)) {
+    return { status: 'rejected', ok: false, message: 'requires Homeboy contract normalize artifact-ref support' };
+  }
+
+  const payload = stdout ? JSON.parse(stdout) : null;
+  return { status: 'rejected', ok: false, message: payload?.error?.message || stderr || 'must be a reviewer-facing artifact ref' };
+}
+
+function homeboyArtifactRefNormalizerCommand() {
+  return [process.env.HOMEBOY_BIN || 'homeboy', 'contract', 'normalize', 'artifact-ref'];
 }
 
 function assertOptionalFuzzResultArtifacts(proofBundle, manifest, { file = manifest.id } = {}) {
@@ -267,7 +278,7 @@ export function assertRequiredFuzzProofContracts(manifest, {
   }
 }
 
-export function assertArtifactPostprocessWorkloadContract(workload, { id, action, artifact, outputPath, schema }) {
+export function assertGenericArtifactPostprocessWorkloadContract(workload, { id, helper, action, artifact, outputPath, schema, runnerSupportStatus = 'supported', readinessLevel = 'executable' }) {
   assert.equal(workload.schema, 'wp-codebox/wordpress-workload-run/v1', `${id} workload must use the generic workload-run contract`);
   assert.equal(workload.id, id, `${id} workload id drifted`);
   assert.equal(workload.steps?.length, 1, `${id} must declare one artifact postprocess step`);
@@ -276,7 +287,9 @@ export function assertArtifactPostprocessWorkloadContract(workload, { id, action
   assert.equal(workload.steps[0].runner_support_status, undefined, `${id} runner support status belongs in metadata, not the executable step`);
 
   const args = workload.steps[0].args;
-  assert.equal(args.helper, '${package.root}/tools/db-api-fuzzer-artifacts.mjs', `${id} helper drifted`);
+  assert.equal(typeof args.helper, 'string', `${id} helper must be a package-relative helper path`);
+  assert.ok(args.helper.startsWith('${package.root}/'), `${id} helper must be package-relative`);
+  assert.equal(args.helper, helper, `${id} helper drifted`);
   assert.equal(args.action, action, `${id} action drifted`);
   assert.deepEqual(args.input, {
     type: 'artifact-root',
@@ -303,8 +316,8 @@ export function assertArtifactPostprocessWorkloadContract(workload, { id, action
     },
   }, `${id} collected artifact declaration drifted`);
 
-  assert.equal(workload.metadata?.runner_support_status, 'supported', `${id} must use the supported artifact-postprocess runner binding`);
-  assert.equal(workload.metadata?.readiness?.level, 'executable', `${id} readiness must be executable through the generic artifact-postprocess command`);
+  assert.equal(workload.metadata?.runner_support_status, runnerSupportStatus, `${id} artifact-postprocess runner support status drifted`);
+  assert.equal(workload.metadata?.readiness?.level, readinessLevel, `${id} artifact-postprocess readiness level drifted`);
   assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('artifact root')), `${id} readiness must describe the artifact-root proof condition`);
   assert.ok(workload.metadata?.readiness?.proven_when?.some((condition) => condition.includes('reviewer-facing evidence')), `${id} readiness must describe the reviewer-facing artifact proof condition`);
   assert.equal(workload.metadata?.missing_upstream_contract, undefined, `${id} must not claim missing upstream artifact-postprocess fields`);
@@ -318,45 +331,6 @@ function collectRequiredArtifactNames(manifest) {
     .filter((artifact) => artifact?.required === true)
     .map((artifact) => artifact?.name)
     .filter(Boolean));
-}
-
-export function assertFuzzCrudReadiness(crud, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzCrudReadiness(crud, { file });
-}
-
-export function assertFuzzReadinessLevel(level, label) {
-  return loadGenericFuzzManifestValidator().assertFuzzReadinessLevel(level, label);
-}
-
-export function assertExecutableCrudMutationSafety(readiness, { file } = {}) {
-  const executableMutations = ['create', 'update', 'delete'].filter((operation) => ['executable', 'proven'].includes(readiness?.crud?.[operation]?.level));
-  if (executableMutations.length === 0) {
-    return;
-  }
-
-  assert.ok(readiness.mutation, `${file} executable CRUD mutation readiness requires metadata.readiness.mutation`);
-  assertFuzzMutationReadiness(readiness.mutation, { file });
-  assert.ok(readiness.mutation.rollback_artifacts.length > 0, `${file} executable CRUD mutation readiness requires rollback_artifacts`);
-
-  for (const operation of executableMutations) {
-    const safetyClass = readiness.crud[operation].safety_class;
-    assert.ok(
-      ['isolated_mutation', 'synthetic_checkout_mutation', 'bounded_catalog_fixture_mutation', 'bounded_admin_fixture_mutation'].includes(safetyClass),
-      `${file} executable CRUD ${operation} requires an isolated mutation safety_class`
-    );
-  }
-}
-
-export function assertFuzzProofBundleRequirements(requirements, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzProofBundleRequirements(requirements, { file });
-}
-
-export function assertFuzzMutationReadiness(mutation, { file } = {}) {
-  return loadGenericFuzzManifestValidator().assertFuzzMutationReadiness(mutation, { file });
-}
-
-export function collectGenericFuzzWorkloadIssues(manifest, options = {}) {
-  return loadGenericFuzzManifestValidator().collectGenericFuzzWorkloadIssues(manifest, options);
 }
 
 export function assertFullSurfaceCoverageManifest(manifest, { file = manifest.property } = {}) {

@@ -36,14 +36,11 @@
       "wordpress.coverage-gap-report"
     ],
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Schema-level public WP Codebox fuzz-suite handoff for WooCommerce DB/API performance fuzzing using route inventory, generated safe GET cases, REST DB query profiling, database inventory, schema/query attribution, performance hotspot summary, and the full-surface gap report contract. This stays declared until non-local fuzz-suite-result artifacts prove the generated contracts executed.",
-      "upstream_blockers": [
-        "Public fuzz-suite execution must consume generated route inventory and request-case artifacts instead of static route fixtures.",
-        "REST DB query attribution must be emitted as reviewer-facing fuzz-suite-result artifacts before this can become executable or proven.",
-        "Generic rollback-safe REST create/update/delete primitives must emit rollback artifacts before mutating DB/API cases can join the profile.",
-        "Public fuzz-suite proof must include reviewer-facing coverage gap report and hotspot summary artifacts before this contract can become proven."
-      ],
+      "level": "executable",
+      "execution_enabled": true,
+      "local_execution_enabled": false,
+      "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+      "coverage_contract": "Schema-level public WP Codebox fuzz-suite handoff for WooCommerce DB/API performance fuzzing and contract-backed REST CRUD fixtures using route inventory, generated safe GET cases, REST DB query profiling, database inventory, schema/query attribution, performance hotspot summary, the full-surface gap report contract, and WP Codebox fixture-plan/REST opt-in artifacts. Proven status still requires reviewer-facing fuzz-suite-result artifacts.",
       "proof_bundle_requirements": {
         "status": "required_before_proven",
         "required_refs": [
@@ -60,24 +57,31 @@
       },
       "crud": {
         "create": {
-          "level": "declared",
-          "upstream_blocker": "No generic rollback-safe REST create primitive is declared for DB/API performance fuzzing."
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "read": {
           "level": "executable"
         },
         "update": {
-          "level": "declared",
-          "upstream_blocker": "No generic rollback-safe REST update primitive is declared for DB/API performance fuzzing."
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         },
         "delete": {
-          "level": "declared",
-          "upstream_blocker": "No generic rollback-safe REST delete primitive is declared for DB/API performance fuzzing."
+          "level": "executable",
+          "safety_class": "isolated_mutation"
         }
       },
       "mutation": {
-        "safety_boundary": "DB/API performance fuzzing remains read-only until isolated fixture mutation and rollback artifacts exist for REST create, update, and delete cases.",
-        "rollback_artifacts": []
+        "safety_boundary": "DB/API performance fuzzing and REST CRUD fixture cases execute only through disposable WP Codebox fixtures and contract-backed mutation-isolation/delete-boundary artifacts before any proof claim.",
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["mutation_isolation_artifact"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "isolation_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

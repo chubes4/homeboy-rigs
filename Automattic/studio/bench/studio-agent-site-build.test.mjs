@@ -3,8 +3,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { resolveTestHomeboyWordPressHelperManifest } from '../../../scripts/test-homeboy-wordpress-helper-manifest.mjs';
 
 process.env.HOMEBOY_COMPONENT_PATH ||= '/tmp/homeboy-rigs-test-component';
+process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST ||= resolveTestHomeboyWordPressHelperManifest();
 
 const {
   agentSuccessGate,
@@ -35,6 +37,20 @@ export function resolveHomeboyInvocationRuntime({ namespace }) {
   const state = process.env.HOMEBOY_INVOCATION_STATE_DIR ? process.env.HOMEBOY_INVOCATION_STATE_DIR + '/' + namespace : null;
   const artifact = process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR ? process.env.HOMEBOY_INVOCATION_ARTIFACT_DIR + '/' + namespace : null;
   const tmp = process.env.HOMEBOY_INVOCATION_TMP_DIR ? process.env.HOMEBOY_INVOCATION_TMP_DIR + '/' + namespace : null;
+  const env = {
+    HOMEBOY_INVOCATION_NAMESPACE: namespace,
+    HOMEBOY_INVOCATION_STATE_DIR: state,
+    HOMEBOY_INVOCATION_ARTIFACT_DIR: artifact,
+    HOMEBOY_INVOCATION_TMP_DIR: tmp,
+    TMPDIR: tmp,
+    TMP: tmp,
+    TEMP: tmp,
+    HOME: state + '/home',
+    XDG_CONFIG_HOME: state + '/config',
+    XDG_CACHE_HOME: state + '/cache',
+    XDG_DATA_HOME: state + '/data',
+    XDG_STATE_HOME: state,
+  };
   return {
     isolated: true,
     namespace,
@@ -49,15 +65,9 @@ export function resolveHomeboyInvocationRuntime({ namespace }) {
       base: Number(process.env.HOMEBOY_INVOCATION_PORT_BASE),
       max: Number(process.env.HOMEBOY_INVOCATION_PORT_MAX),
     },
+    env,
     childEnv(extra = {}) {
-      return {
-        HOMEBOY_INVOCATION_NAMESPACE: namespace,
-        HOMEBOY_INVOCATION_STATE_DIR: state,
-        HOMEBOY_INVOCATION_ARTIFACT_DIR: artifact,
-        HOMEBOY_INVOCATION_TMP_DIR: tmp,
-        TMPDIR: tmp,
-        ...extra,
-      };
+      return { ...env, ...extra };
     },
     async prepareDirs() {},
     assertPort(port) { return Number(port); },
@@ -213,7 +223,7 @@ test('bench runtime composes the Homeboy invocation helper output for Studio', a
       const runtime = await createStudioBenchRuntime('/tmp/shared-state');
 
       assert.equal(runtime.invocationId, 'inv-test');
-      assert.equal(runtime.artifactDir, '/tmp/inv/artifacts');
+      assert.equal(runtime.artifactDir, '/tmp/inv/artifacts/studio-agent-site-build');
       assert.equal(runtime.siteRoot, '/tmp/inv/state/studio-agent-site-build/sites');
       assert.equal(runtime.cliConfigDir, '/tmp/inv/state/studio-agent-site-build/cli-config');
       assert.equal(runtime.appDataDir, '/tmp/inv/state/studio-agent-site-build/appdata');
@@ -227,6 +237,13 @@ test('bench runtime composes the Homeboy invocation helper output for Studio', a
         HOMEBOY_INVOCATION_ARTIFACT_DIR: '/tmp/inv/artifacts/studio-agent-site-build',
         HOMEBOY_INVOCATION_TMP_DIR: '/tmp/inv/tmp/studio-agent-site-build',
         TMPDIR: '/tmp/inv/tmp/studio-agent-site-build',
+        TMP: '/tmp/inv/tmp/studio-agent-site-build',
+        TEMP: '/tmp/inv/tmp/studio-agent-site-build',
+        HOME: '/tmp/inv/state/studio-agent-site-build/home',
+        XDG_CONFIG_HOME: '/tmp/inv/state/studio-agent-site-build/config',
+        XDG_CACHE_HOME: '/tmp/inv/state/studio-agent-site-build/cache',
+        XDG_DATA_HOME: '/tmp/inv/state/studio-agent-site-build/data',
+        XDG_STATE_HOME: '/tmp/inv/state/studio-agent-site-build',
         E2E: '1',
         E2E_CLI_CONFIG_PATH: '/tmp/inv/state/studio-agent-site-build/cli-config',
         E2E_APP_DATA_PATH: '/tmp/inv/state/studio-agent-site-build/appdata',

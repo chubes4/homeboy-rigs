@@ -58,18 +58,23 @@
         },
         "update": {
           "level": "declared",
-          "upstream_blocker": "Checkout update cases need rollback-safe order/session mutation fixtures."
+          "upstream_blocker": "Checkout update cases need product-owned order/session mutation-isolation fixtures."
         },
         "delete": {
           "level": "declared",
-          "upstream_blocker": "Checkout delete cases need rollback-safe order cleanup fixtures."
+          "upstream_blocker": "Checkout delete cases need product-owned delete-boundary cleanup fixtures."
         }
       },
       "mutation": {
         "safety_boundary": "Orders and sessions are created only inside a disposable WP Codebox WordPress fixture.",
-        "rollback_artifacts": [
-          "raw_result"
-        ]
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["raw_result"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "rollback_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "isolation_artifacts": ["mutation_isolation_artifact", "delete_boundary_artifact"]
       }
     },
     "fixture": {

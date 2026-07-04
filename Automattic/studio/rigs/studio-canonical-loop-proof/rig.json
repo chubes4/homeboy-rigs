@@ -1,6 +1,6 @@
 {
   "id": "studio-canonical-loop-proof",
-  "description": "Contract harness for the intended Studio website artifact loop. It validates shape and portable evidence refs, but does not prove the production Studio Native runtime loop or iteration quality.",
+  "description": "Guard harness for the intended Studio website artifact loop. It validates the contract fixture only; live proof ownership belongs to the future core/runtime contract work.",
   "components": {
     "studio-native": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_CANONICAL_LOOP_PROOF__STUDIO_NATIVE}",
@@ -21,6 +21,12 @@
       "${components.static-site-importer.path}",
       "${components.wp-codebox.path}"
     ]
+  },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "manual",
+      "reason": "The proof harness reads user-owned component checkouts and does not create a separate runtime resource; checkout cleanup remains an operator decision."
+    }
   },
   "pipeline": {
     "check": [
@@ -44,12 +50,6 @@
         "kind": "check",
         "label": "canonical loop fixture validates",
         "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --check",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "canonical loop contract harness passes",
-        "command": "node ${package.root}/proofs/studio-canonical-loop-proof.mjs --out /tmp/studio-canonical-loop-proof-rig-check",
         "expect_exit": 0
       }
     ]

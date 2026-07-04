@@ -29,7 +29,7 @@ performance bugs in disposable WordPress/WooCommerce runtimes.
 ## Install
 
 ```bash
-homeboy rig install $HOME/Developer/homeboy-rigs@<branch>/woocommerce/woocommerce
+homeboy rig install ./woocommerce/woocommerce
 homeboy rig check woocommerce-performance
 ```
 
@@ -38,6 +38,13 @@ homeboy rig check woocommerce-performance
 The rig mounts the selected WooCommerce checkout into disposable WP Codebox
 WordPress runtimes. Pass `--path /absolute/path/to/plugins/woocommerce` when
 validating a specific WooCommerce worktree.
+
+## Bench Fixtures
+
+WooCommerce-specific PHP bench fixtures live under `bench/lib/` in this rig
+package. Workloads can require `bench/lib/woocommerce-fixtures.php` for reusable
+store shapes and `bench/lib/woocommerce-expensive-shipping.php` for deterministic
+shipping-rate cost simulation.
 
 The checkout gateway compatibility matrix defaults to the `core_only` profile
 set so BACS, Cheque, and COD controls can run even when real gateway plugin
@@ -132,37 +139,45 @@ WooCommerce plugin directory.
 ```bash
 homeboy rig up woocommerce-performance
 homeboy fuzz list --rig woocommerce-performance
-homeboy fuzz run --rig woocommerce-performance --workload cart-session-overwrite-race --run-id wc-cart-session-overwrite-race --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-concurrent-create-order --run-id wc-checkout-atomicity --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-gateway-compatibility-matrix --run-id wc-gateway-matrix --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload checkout-shipping-cache --run-id wc-shipping-cache --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload layered-nav-count-cache --run-id wc-layered-nav-count-cache --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload layered-nav-catalog-crawl --run-id wc-layered-nav-catalog-crawl --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload admin-page-coverage --run-id wc-admin-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload woocommerce-rest-route-inventory --run-id wc-rest-route-inventory --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload generated-rest-request-cases --run-id wc-rest-generated-cases --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload rest-db-query-profile --run-id wc-rest-db-query-profile --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload db-inventory --run-id wc-db-inventory --seed 1 --max-duration 10m
-homeboy fuzz run --rig woocommerce-performance --workload rest-permission-boundary-matrix --run-id wc-rest-permission-boundary-matrix --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload rest-namespace-generated-cases --run-id wc-rest-namespace-generated-cases --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload rest-schema-query-attribution --run-id wc-rest-schema-query-attribution --seed 1 --max-duration 20m
-homeboy fuzz run --rig woocommerce-performance --workload action-scheduler-lookup-table-coverage --run-id wc-action-scheduler-lookup-table-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload options-transients-coverage --run-id wc-options-transients-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload rollback-safe-options-transients-mutations --run-id wc-rollback-safe-options-transients-mutations --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload frontend-rendering-request-coverage --run-id wc-frontend-rendering-request-coverage --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-performance-hotspots-summary --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload woocommerce-external-http-guardrail --run-id wc-external-http-guardrail --seed 1 --max-duration 10m
 ```
+
+Run a focused workload from the table with the shared command shape:
+
+```bash
+homeboy fuzz run --rig woocommerce-performance --workload <workload> --run-id <run-id> --seed 1 --max-duration <duration>
+```
+
+| Workload | Example run id | Duration |
+|---|---|---|
+| `cart-session-overwrite-race` | `wc-cart-session-overwrite-race` | `10m` |
+| `checkout-concurrent-create-order` | `wc-checkout-atomicity` | `10m` |
+| `checkout-gateway-compatibility-matrix` | `wc-gateway-matrix` | `15m` |
+| `checkout-shipping-cache` | `wc-shipping-cache` | `15m` |
+| `layered-nav-count-cache` | `wc-layered-nav-count-cache` | `15m` |
+| `layered-nav-catalog-crawl` | `wc-layered-nav-catalog-crawl` | `15m` |
+| `admin-page-coverage` | `wc-admin-coverage` | `15m` |
+| `woocommerce-rest-route-inventory` | `wc-rest-route-inventory` | `10m` |
+| `generated-rest-request-cases` | `wc-rest-generated-cases` | `20m` |
+| `rest-db-query-profile` | `wc-rest-db-query-profile` | `20m` |
+| `db-inventory` | `wc-db-inventory` | `10m` |
+| `rest-permission-boundary-matrix` | `wc-rest-permission-boundary-matrix` | `20m` |
+| `rest-namespace-generated-cases` | `wc-rest-namespace-generated-cases` | `20m` |
+| `rest-schema-query-attribution` | `wc-rest-schema-query-attribution` | `20m` |
+| `action-scheduler-lookup-table-coverage` | `wc-action-scheduler-lookup-table-coverage` | `15m` |
+| `options-transients-coverage` | `wc-options-transients-coverage` | `15m` |
+| `rollback-safe-options-transients-mutations` | `wc-rollback-safe-options-transients-mutations` | `15m` |
+| `frontend-rendering-request-coverage` | `wc-frontend-rendering-request-coverage` | `15m` |
+| `woocommerce-external-http-guardrail` | `wc-external-http-guardrail` | `10m` |
 
 `homeboy fuzz list --rig woocommerce-performance` resolves the rig's
 WooCommerce component and `fuzz_workloads.wordpress` declarations before any
 focused `homeboy fuzz run` proof command. Fuzz workloads are not
-registered through `bench_workloads`, so there is no legacy bench fallback path
-for checkout atomicity, shipping cache guardrails, layered-nav cache coverage,
-  admin coverage, REST coverage, namespace generated cases, permission
-  boundaries, schema/query attribution, DB inventory, Action Scheduler, lookup
-  tables, rollback-safe options/transients, frontend rendering, performance
-summaries, or external HTTP guardrails.
+registered through `bench_workloads`; checkout atomicity, shipping cache
+guardrails, layered-nav cache coverage, admin coverage, REST coverage, namespace
+generated cases, permission boundaries, schema/query attribution, DB inventory,
+Action Scheduler, lookup tables, isolated options/transients, frontend
+rendering, performance summaries, and external HTTP guardrails all run through
+`homeboy fuzz`.
 
 The rig exposes `smoke`, `fuzzer`, and `full-surface` `fuzz_profiles` for fleet
 orchestration. These profiles only group existing fuzz workload declarations;
@@ -179,37 +194,54 @@ The Woo DB/API fuzz progression is split into two focused profiles:
 
 - `db-api-performance-fuzzer` groups read-only REST route inventory, generated
   safe request cases, REST DB query profiling, DB inventory, schema/query
-  attribution, gap reporting, and hotspot summary declarations. Create, update,
-  and delete stay declared until upstream rollback-safe REST mutation primitives
-  emit rollback artifacts.
+  attribution, gap reporting, hotspot summary declarations, and contract-backed
+  REST CRUD fixture artifacts. Create, update, and delete are executable through
+  the upstream WP Codebox/Homeboy/HBEX contracts and require reviewer-facing
+  artifacts before proven status.
 - `product-rest-crud-fuzzer` makes product and variation batch create/update plus
-  readback executable through `rest-product-batch-import`. Delete remains blocked
-  on the same upstream rollback-safe delete primitive and delete-boundary artifact
-  contract.
+  readback executable through `rest-product-batch-import`; delete execution is
+  represented by the fixture-plan/delete-boundary contracts and remains
+  not-proven until reviewer-facing artifact refs exist.
 
-The hotspot and coverage aggregation workloads execute through
-`homeboy.artifact-postprocess` when the approved offloaded runner provides the
-campaign artifact root. Do not shim aggregation in the rig: Homeboy/Homeboy
-Extensions must bind `args.helper`, `args.action`, `args.input`, `args.output`,
-and `args.parameters`, then collect the declared `fuzz.report` artifact before
-those contracts can become proven.
+Woo scale profiles live in `manifests/scale-profiles.json`. They declare
+product-owned values for large catalogs, variation-heavy catalogs, HPOS order
+history, customers, coupons, layered-nav attributes, shipping/tax zones, Action
+Scheduler backlog, polluted options/transients, admin list tables, and REST
+pagination/search/filter collection scale. Each profile feeds the Homeboy
+Extensions generic WordPress workload scale profile schema through
+`workload_scale_profile`; this rig does not implement generic fixture generation
+or claim local benchmark/fuzz proof for those declarations.
+
+The aggressive isolated firehose, product chaos sequence packs, and generated REST
+CRUD fixture-plan handoff are executable contract surfaces, not proof claims.
+Every operation in `manifests/rest-crud-fixture-plan.json` is contract-backed by
+the upstream offloaded runner stack and still requires reviewer-facing isolation,
+delete-boundary, and fuzz-suite artifact refs before any `proven` claim.
+
+The aggressive isolated firehose campaign shape is declared in
+`manifests/aggressive-isolated-fuzz-campaign.json`. Change that manifest when
+adding product surfaces, artifact expectations, isolation proof requirements,
+HBEX flags, or reviewer-facing ref collection semantics. Command execution is
+owned by the Homeboy/HBEX fuzz runner; this rig package does not preserve
+consumer-side command-array renderers as product proof.
+
+The hotspot and coverage aggregation workloads are data-only declarations for
+the intended `homeboy.artifact-postprocess` shape. Do not shim aggregation in the
+rig: Homeboy must first ship a real artifact-postprocess runner primitive for
+persisted artifact roots, then collect the declared `fuzz.report` artifact before
+those contracts can execute or become proven.
 
 The DB/API campaign manifest wires those two aggregation workloads to generic
 postprocess metadata instead of abstract proof placeholders:
 
-```bash
-homeboy fuzz run --rig woocommerce-performance --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report --seed 1 --max-duration 15m
-homeboy fuzz run --rig woocommerce-performance --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary --seed 1 --max-duration 15m
-```
-
-Both commands must run in the same approved offloaded campaign environment as
-the upstream Codebox fuzz-suite, REST route inventory, generated cases, DB query
-profile, DB inventory, and schema/query attribution workloads. Their
-`homeboy.artifact-postprocess` steps consume the offloaded `${artifacts.root}`
-JSON artifact root and emit required reviewer-facing `coverage_gap_report` and
-`performance_hotspots_summary` JSON artifacts. The manifest records the exact
-`helper`, `action`, `input`, `output`, and `parameters` contract for each output;
-it does not contain live proof refs yet.
+`coverage-gap-report` and `performance-hotspots-artifact-summary` are not listed
+as runnable operator commands while upstream artifact-postprocess is missing.
+Their declared `homeboy.artifact-postprocess` steps will consume the offloaded
+`${artifacts.root}` JSON artifact root and emit reviewer-facing
+`coverage_gap_report` and `performance_hotspots_summary` JSON artifacts after the
+upstream primitive exists. The manifest records the exact `helper`, `action`,
+`input`, `output`, and `parameters` contract for each output; it does not contain
+live proof refs yet.
 
 The DB/API campaign contract lives in `manifests/db-api-fuzz-campaign.json` and
 requires reviewer-facing refs for `wp-codebox/fuzz-suite-result/v1`,
@@ -239,7 +271,10 @@ workload IDs, persists artifacts, and compares completed runs.
 Generate the Lab-only command plan without executing any workload:
 
 ```bash
-node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
+homeboy fuzz stable-plan \
+  --manifest woocommerce/woocommerce/manifests/stable-workloads.json \
+  --component woocommerce \
+  --rig woocommerce-performance \
   --runner LAB_RUNNER_ID \
   --artifact-root ARTIFACT_ROOT \
   --run-id-prefix woo-stable-YYYYMMDD \
@@ -249,7 +284,10 @@ node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
 For a focused proof, pass one or more stable IDs:
 
 ```bash
-node woocommerce/woocommerce/tools/stable-workload-lab-commands.mjs \
+homeboy fuzz stable-plan \
+  --manifest woocommerce/woocommerce/manifests/stable-workloads.json \
+  --component woocommerce \
+  --rig woocommerce-performance \
   --stable-id rest-db-query-profile,store-api-product-browse \
   --runner LAB_RUNNER_ID \
   --artifact-root ARTIFACT_ROOT \
@@ -263,6 +301,8 @@ generated `homeboy runs refs`, `homeboy runs compare`, and `homeboy runs
 hotspots --baseline-run BASELINE_RUN_ID --candidate-run CANDIDATE_RUN_ID`
 commands to compare persisted evidence over time. Keep reviewer-facing proof in
 Homeboy run/artifact refs; local paths and local-only URLs are not proof.
+Use a Homeboy release that exposes `fuzz stable-plan`; this repo intentionally
+does not carry a rig-local compatibility planner.
 
 Each Woo fuzz manifest declares the WP Codebox fixture contract in metadata:
 `wp-codebox` runtime, disposable WordPress scope, WooCommerce component, and
@@ -361,10 +401,10 @@ into `tests/bench/`, and returns the normalized Homeboy `BenchResults` envelope.
   WooCommerce lookup-table inventory, and lookup row attribution around fixture
   setup and safe request cases without dispatching live jobs.
 - `options-transients-coverage` declares option, transient, Action Scheduler,
-  lookup-table, and rollback-safe isolated option mutation coverage. It is D/E
-  until artifacts show rollback rows and transient/action deltas.
+  lookup-table, and isolated option mutation coverage. It is D/E
+  until artifacts show mutation rows and transient/action deltas.
 - `rollback-safe-options-transients-mutations` narrows the isolated mutation
-  contract to rollback verification, transient growth attribution, and skipped
+  contract to mutation verification, transient growth attribution, and skipped
   sensitive option reasons so options/transients proof can be reviewed without
   inferring mutation safety from the broader inventory workload.
 - `frontend-rendering-request-coverage` declares shop, product, cart, checkout,

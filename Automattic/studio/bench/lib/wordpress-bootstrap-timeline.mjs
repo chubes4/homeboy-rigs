@@ -9,9 +9,7 @@ const require = createRequire(import.meta.url);
 const BOOTSTRAP_TIMELINE_FILENAME = 'wordpress-bootstrap-timeline.js';
 
 function bootstrapTimelinePath(options = {}) {
-  const explicit = options.override || process.env.HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_PATH || wordpressHelperPath('bootstrapTimeline', {
-    envVar: 'HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_HELPER',
-  });
+  const explicit = options.override || wordpressHelperPath('bootstrapTimeline');
   if (explicit) {
     return explicit;
   }
@@ -26,7 +24,7 @@ function bootstrapTimelinePath(options = {}) {
 function loadWordPressBootstrapTimeline(options = {}) {
   const helperPath = bootstrapTimelinePath(options);
   if (!helperPath || !existsSync(helperPath)) {
-    throw new Error('Homeboy WordPress bootstrap timeline helper is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_BOOTSTRAP_TIMELINE_PATH.');
+    throw new Error('Homeboy WordPress bootstrap timeline helper is unavailable. Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.');
   }
 
   return require(helperPath);

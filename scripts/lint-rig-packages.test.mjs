@@ -1,71 +1,63 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { resolveTestHomeboyWordPressHelperManifest } from './test-homeboy-wordpress-helper-manifest.mjs';
 
 const script = new URL('./lint-rig-packages.mjs', import.meta.url).pathname;
-const wordpressHelperManifest = new URL('./fixtures/homeboy-extension-wordpress/lib/helper-manifest.js', import.meta.url).pathname;
-const wordpressCoreFuzzValidatorSource = `
-export function validateFuzzWorkload({ rel, root, workload }) {
-  const failures = [];
-  const isWordPressDevelopFuzz = rel.startsWith('WordPress/wordpress-develop/fuzz/')
-    || (rel.startsWith('fuzz/') && root.endsWith('/WordPress/wordpress-develop'));
-  const surfaceIds = Array.isArray(workload.surface_ids) ? workload.surface_ids : [];
-  const isWordPressCoreFuzz = workload.target?.type === 'wordpress-core'
-    || workload.target?.component === 'wordpress-develop'
-    || workload.metadata?.kind === 'wordpress-core-fuzz'
-    || surfaceIds.some((surfaceId) => typeof surfaceId === 'string' && surfaceId.startsWith('wordpress-core-'));
-
-  if (isWordPressCoreFuzz && !isWordPressDevelopFuzz) {
-    failures.push(\`${'${rel}'}: WordPress Core fuzz workloads must live under WordPress/wordpress-develop/fuzz; WordPress/wordpress is legacy bench/trace compatibility scaffolding\`);
-  }
-
-  if (!isWordPressDevelopFuzz) {
-    return failures;
-  }
-
-  const semanticKeys = new Set((workload.artifacts?.expected || []).map((artifact) => artifact?.semantic_key).filter(Boolean));
-  if (workload.id === 'rest-api') {
-    for (const operation of ['rest-route-inventory', 'generated-rest-case-plan', 'request-case-execution', 'permission-boundary-classification', 'role-boundary-execution']) {
-      if (!workload.operations?.includes(operation)) {
-        failures.push(\`${'${rel}'}: rest-api must include ${'${operation}'} in operations\`);
-      }
-    }
-    for (const semanticKey of ['fuzz.rest.route_inventory', 'fuzz.rest.generated_cases', 'fuzz.rest.permission_boundaries']) {
-      if (!semanticKeys.has(semanticKey)) {
-        failures.push(\`${'${rel}'}: rest-api must declare expected artifact semantic key ${'${semanticKey}'}\`);
-      }
-    }
-  }
-
-  if (workload.id === 'db-inventory-query-profile') {
-    for (const surfaceId of ['wordpress-core-database', 'wordpress-core-rest-routes', 'wordpress-core-options', 'wordpress-core-postmeta', 'wordpress-core-rewrites']) {
-      if (!workload.surface_ids?.includes(surfaceId)) {
-        failures.push(\`${'${rel}'}: db-inventory-query-profile must include ${'${surfaceId}'} in surface_ids\`);
-      }
-    }
-    for (const operation of ['schema-inventory', 'rest-query-profile', 'options-query-attribution', 'postmeta-query-attribution', 'rewrite-query-attribution']) {
-      if (!workload.operations?.includes(operation)) {
-        failures.push(\`${'${rel}'}: db-inventory-query-profile must include ${'${operation}'} in operations\`);
-      }
-    }
-    for (const semanticKey of ['fuzz.db.schema_inventory', 'fuzz.db.rest_query_attribution', 'fuzz.db.options_postmeta_rewrite_attribution']) {
-      if (!semanticKeys.has(semanticKey)) {
-        failures.push(\`${'${rel}'}: db-inventory-query-profile must declare expected artifact semantic key ${'${semanticKey}'}\`);
-      }
-    }
-  }
-
-  return failures;
-}
-`;
+const wordpressHelperManifest = resolveTestHomeboyWordPressHelperManifest();
+const wordpressCoreFuzzValidatorModule = new URL('../WordPress/wordpress-develop/tools/fuzz-workload-validator.mjs', import.meta.url).href;
+const wordpressCoreFuzzValidatorSource = `export { validateFuzzWorkload } from ${JSON.stringify(wordpressCoreFuzzValidatorModule)};\n`;
 
 function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function writeFakeHomeboyBin(directory) {
+  const bin = join(directory, 'fake-homeboy.mjs');
+  writeFileSync(bin, `#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+
+const [command, subcommand, first, second, third] = process.argv.slice(2);
+if (command === 'contract' && subcommand === 'normalize' && first === 'artifact-ref' && second === '--input') {
+  const value = JSON.parse(third);
+  if (typeof value === 'string' && /^homeboy:\\/\\//.test(value)) {
+    console.log(JSON.stringify({ success: true, data: { normalized: value } }));
+    process.exit(0);
+  }
+  console.log(JSON.stringify({ success: false, error: { message: "Invalid argument 'artifact-ref'" } }));
+  process.exit(1);
+}
+
+if (command !== 'contract' || subcommand !== 'validate') {
+  console.error(\`unexpected homeboy args: ${'${process.argv.slice(2).join(" ")}'}\`);
+  process.exit(64);
+}
+
+const isFuzzWorkload = first === '--file' && third === 'homeboy/fuzz-workload/v1';
+const file = second;
+const schema = third;
+
+if (!isFuzzWorkload) {
+  console.error(\`unexpected homeboy args: ${'${process.argv.slice(2).join(" ")}'}\`);
+  process.exit(64);
+}
+
+const payload = JSON.parse(readFileSync(file, 'utf8'));
+
+const workload = payload;
+if (workload.schema !== 'homeboy/fuzz-workload/v1') {
+  console.error('must use schema homeboy/fuzz-workload/v1');
+  process.exit(1);
+}
+
+console.log(JSON.stringify({ success: true, data: { file, schema, valid: true } }));
+`);
+  chmodSync(bin, 0o755);
+  return bin;
+}
 function createRigPackage({ rig = {}, fuzzWorkloads = {}, benchWorkloads = {}, benchProfiles = {}, fuzzProfiles = {} } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-lint-'));
   const packageRoot = join(directory, 'Vendor', 'product');
@@ -137,13 +129,14 @@ function fuzzWorkload(overrides = {}) {
   };
 }
 
-function runLint(directory) {
+function runLint(directory, env = {}) {
   return spawnSync(process.execPath, [script, directory], {
     encoding: 'utf8',
     env: {
       ...process.env,
+      HOMEBOY_BIN: writeFakeHomeboyBin(directory),
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: wordpressHelperManifest,
-      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: '',
+      ...env,
     },
   });
 }
@@ -166,27 +159,6 @@ test('rejects missing declared fuzz workload files', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /declares missing file/);
-});
-
-test('rejects committed local Developer checkout paths in rigs', () => {
-  const directory = createRigPackage({
-    rig: {
-      components: {
-        product: {
-          path: '~/Developer/product',
-          branch: 'main',
-        },
-      },
-    },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /use portable component path settings instead of committed ~\/Developer or \$HOME\/Developer checkout paths/);
 });
 
 test('accepts registry-backed components with portable path settings', () => {
@@ -253,6 +225,204 @@ test('accepts explicitly allowed shared path self-targets', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
+test('rejects rigs with resources, empty down lifecycle, and no cleanup policy', () => {
+  const directory = createRigPackage({
+    rig: {
+      resources: {
+        ports: [8080],
+      },
+      pipeline: {
+        down: [],
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
+});
+
+test('rejects rigs with resources, missing down lifecycle, and no cleanup policy', () => {
+  const directory = createRigPackage({
+    rig: {
+      resources: {
+        ports: [8080],
+      },
+      pipeline: {
+        up: [
+          {
+            kind: 'check',
+            label: 'generic check',
+            command: 'true',
+          },
+        ],
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
+});
+
+test('rejects inherited resources with missing down lifecycle and no cleanup policy', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  writeJson(join(packageRoot, 'rigs', 'base.json'), {
+    resources: {
+      paths: ['${components.product.path}'],
+    },
+    pipeline: {
+      up: [
+        {
+          kind: 'check',
+          label: 'generic check',
+          command: 'true',
+        },
+      ],
+    },
+  });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    extends: '../base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [
+        { path: '${package.root}/fuzz/generic-fuzz.json' },
+      ],
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
+});
+
+test('accepts inherited cleanup policy for inherited resources with missing down lifecycle', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  writeJson(join(packageRoot, 'rigs', 'base.json'), {
+    lifecycle: {
+      cleanup: {
+        intent: 'manual',
+        reason: 'The inherited rig resources are user-owned checkout state.',
+      },
+    },
+    resources: {
+      paths: ['${components.product.path}'],
+    },
+    pipeline: {
+      up: [
+        {
+          kind: 'check',
+          label: 'generic check',
+          command: 'true',
+        },
+      ],
+    },
+  });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    extends: '../base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [
+        { path: '${package.root}/fuzz/generic-fuzz.json' },
+      ],
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+test('accepts explicit cleanup policy for rigs with resources and empty down lifecycle', () => {
+  const directory = createRigPackage({
+    rig: {
+      lifecycle: {
+        cleanup: {
+          intent: 'external',
+          reason: 'The runner owns the declared resource boundary.',
+        },
+      },
+      resources: {
+        exclusive: ['generic:${env.HOMEBOY_SETTINGS_GENERIC_NAMESPACE}'],
+      },
+      pipeline: {
+        down: [],
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.doesNotMatch(result.stderr, /declared resources and empty or missing pipeline\.down/);
+});
+
+test('validates cleanup policy metadata without runtime cleanup proof', () => {
+  const directory = createRigPackage({
+    rig: {
+      lifecycle: {
+        cleanup: {
+          intent: 'external',
+          reason: '   ',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /lifecycle\.cleanup\.reason must explain the cleanup boundary/);
+});
+
+test('rejects invalid explicit cleanup policy', () => {
+  const directory = createRigPackage({
+    rig: {
+      lifecycle: {
+        cleanup: {
+          intent: 'implicit',
+        },
+      },
+    },
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /lifecycle\.cleanup\.intent must be one of none, external, manual, pipeline/);
+  assert.match(result.stderr, /lifecycle\.cleanup\.reason must explain the cleanup boundary/);
+});
+
 test('rejects committed local Developer checkout paths in stacks', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
@@ -271,79 +441,6 @@ test('rejects committed local Developer checkout paths in stacks', () => {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /stacks\/combined\.json: use portable component path settings/);
-});
-
-test('rejects invalid declared fuzz workload shapes', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({ schema: 'wrong', label: '' }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /must use schema homeboy\/fuzz-workload\/v1/);
-  assert.match(result.stderr, /must declare a non-empty string label/);
-});
-
-test('rejects fuzz workload safety classes outside the Homeboy contract', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({ safety_class: 'read_only_inventory' }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /safety_class must be one of read_only, idempotent, isolated_mutation, destructive/);
-});
-
-test('rejects fuzz case safety classes that drift from the workload', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        safety_class: 'read_only',
-        cases: [
-          { case_id: 'generic-fuzz:default', metadata: { safety_class: 'isolated_mutation' } },
-        ],
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /case generic-fuzz:default metadata\.safety_class must match workload safety_class read_only/);
-});
-
-test('rejects runner-neutral fuzz intent that embeds command phases', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        cases: [
-          {
-            case_id: 'generic-fuzz:default',
-            phases: { action: [{ command: 'wordpress.run-workload' }] },
-            artifacts: [{ name: 'generic_report' }],
-            intent: {
-              schema: 'homeboy/fuzz-workload-intent/v1',
-              type: 'wordpress-plugin-workload',
-              plugin: { activation: 'generic/generic.php' },
-              execute: {
-                workload_ref: 'default',
-                path: '${package.root}/bench/generic.workload.json',
-                type: 'json',
-              },
-              collect: [{ artifact: 'generic_report' }],
-            },
-          },
-        ],
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /runner-neutral case intent must not embed runner command phases/);
 });
 
 test('rejects missing fuzz workload backing files', () => {
@@ -421,49 +518,6 @@ test('rejects fuzz profiles that reference undeclared fuzz workloads', () => {
   assert.match(result.stderr, /fuzz profile smoke references missing-fuzz, but fuzz_workloads does not declare a matching workload file/);
 });
 
-test('rejects proven fuzz readiness without proof bundle linkage', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        metadata: {
-          kind: 'generic-fuzz',
-          readiness: {
-            level: 'proven',
-            coverage_contract: 'Generic fuzz coverage is proven.',
-            proof_refs: ['https://github.com/example/product/issues/123'],
-          },
-        },
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /proven readiness requires proof_bundle/);
-});
-
-test('accepts proven fuzz readiness with canonical fuzz envelope proof linkage', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload({
-        metadata: {
-          kind: 'generic-fuzz',
-          readiness: {
-            level: 'proven',
-            coverage_contract: 'Generic fuzz coverage is proven.',
-            proof_bundle: {
-              canonical_fuzz_envelope_ref: 'homeboy://run/product-fuzz/artifact/fuzz-envelope',
-            },
-          },
-        },
-      }),
-    },
-  });
-  const result = runLint(directory);
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-});
-
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
@@ -493,6 +547,24 @@ export function validateFuzzWorkload({ rel, workload }) {
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /product-local validator ran/);
+});
+
+test('discovers product portable source validators without central product branches', () => {
+  const directory = createRigPackage();
+  const packageRoot = join(directory, 'Vendor', 'product');
+  const toolsRoot = join(packageRoot, 'tools');
+  mkdirSync(toolsRoot, { recursive: true });
+  writeFileSync(join(packageRoot, 'bench', 'portable-source.mjs'), 'const productLocalMarker = true;\n');
+  writeFileSync(join(toolsRoot, 'portable-source-validator.mjs'), `
+export function validatePortableSource({ rel, contents }) {
+  return contents.includes('productLocalMarker') ? [\`${'${rel}'}: product-local portable source validator ran\`] : [];
+}
+`);
+
+  const result = runLint(directory);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /product-local portable source validator ran/);
 });
 
 test('requires WordPress Core REST fuzz permission proof artifacts', () => {

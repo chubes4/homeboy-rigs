@@ -7,10 +7,11 @@
   "generic_upstream_contracts": [
     "homeboy.artifact-postprocess",
     "wp-codebox/wordpress-workload-run/v1",
-    "homeboy/woocommerce-performance-hotspots-summary/v1"
+    "homeboy-rigs/woocommerce-performance-hotspots-summary/v1"
   ],
   "readiness": {
     "level": "executable",
+    "contract": "homeboy/artifact-postprocess-plan/v1 plus homeboy/performance-hotspots-summary/v1",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [
@@ -61,13 +62,13 @@
     {
       "workload_id": "performance-hotspots-artifact-summary",
       "artifact_name": "performance_hotspots_summary",
-      "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+      "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
       "required": false,
       "consumed_fields": ["ranking", "evidence_refs"]
     }
   ],
   "sample_output": {
-    "schema": "homeboy/woocommerce-performance-hotspots-summary/v1",
+    "schema": "homeboy-rigs/woocommerce-performance-hotspots-summary/v1",
     "ranking": [
       {
         "rank": 1,

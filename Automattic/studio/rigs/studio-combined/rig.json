@@ -18,6 +18,13 @@
     }
   },
 
+  "lifecycle": {
+    "cleanup": {
+      "intent": "pipeline",
+      "reason": "pipeline.down stops the Studio daemon and tarball server, removes shared-path links created by this rig, and restores package manifests saved before local tarball rewrites; component checkouts and dependencies remain user-owned resources."
+    }
+  },
+
   "services": {
     "tarball-server": {
       "kind": "http-static",
@@ -48,7 +55,7 @@
     ]
   },
 
-  "symlinks": [
+  "shared_paths": [
     {
       "link": "~/.local/bin/studio",
       "target": "~/.local/bin/studio-dev"
@@ -518,7 +525,7 @@
         "op": "health"
       },
       {
-        "kind": "symlink",
+        "kind": "shared-path",
         "op": "verify"
       },
       {
@@ -641,7 +648,7 @@
         "cwd": "${components.wordpress-playground.path}"
       },
       {
-        "kind": "symlink",
+        "kind": "shared-path",
         "op": "ensure"
       },
       {
@@ -662,14 +669,14 @@
       },
       {
         "kind": "command",
-        "label": "Rewire Studio package.jsons to local tarballs",
-        "command": "VER=$(jq -r '.version' \"${components.wordpress-playground.path}/lerna.json\"); for pkg in apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json; do PACKAGE_BASE_URL=http://127.0.0.1:9724/studio-dev PACKAGE_VERSION=$VER bash \"${components.wordpress-playground.path}/packages/playground/test-built-npm-packages/use-local-packages.sh\" \"$pkg\"; done",
+        "label": "Backup Studio package manifests before local tarball rewrite",
+        "command": "backup_dir=.homeboy-rig/studio-combined/package-backups; files='package-lock.json apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json'; if [ ! -d \"$backup_dir\" ]; then for file in $files; do git diff --quiet -- \"$file\" && git diff --cached --quiet -- \"$file\" || { printf '%s\\n' \"Refusing to rewrite dirty Studio package manifest: $file\"; exit 1; }; done; fi; mkdir -p \"$backup_dir\"; for file in $files; do if [ -f \"$file\" ] && [ ! -f \"$backup_dir/$file\" ]; then mkdir -p \"$backup_dir/$(dirname \"$file\")\"; cp \"$file\" \"$backup_dir/$file\"; fi; done",
         "cwd": "${components.studio.path}"
       },
       {
         "kind": "command",
-        "label": "Bust stale Studio node_modules",
-        "command": "rm -rf node_modules/@wp-playground node_modules/@php-wasm apps/cli/node_modules/@wp-playground apps/cli/node_modules/@php-wasm",
+        "label": "Rewire Studio package manifests to local tarballs",
+        "command": "VER=$(jq -r '.version' \"${components.wordpress-playground.path}/lerna.json\"); for pkg in apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json; do PACKAGE_BASE_URL=http://127.0.0.1:9724/studio-dev PACKAGE_VERSION=$VER bash \"${components.wordpress-playground.path}/packages/playground/test-built-npm-packages/use-local-packages.sh\" \"$pkg\"; done",
         "cwd": "${components.studio.path}"
       },
       {
@@ -701,6 +708,16 @@
         "kind": "service",
         "id": "tarball-server",
         "op": "stop"
+      },
+      {
+        "kind": "shared-path",
+        "op": "cleanup"
+      },
+      {
+        "kind": "command",
+        "label": "Restore Studio package manifests from rig backup",
+        "command": "backup_dir=.homeboy-rig/studio-combined/package-backups; if [ ! -d \"$backup_dir\" ]; then exit 0; fi; restored=1; for backup in \"$backup_dir\"/package-lock.json \"$backup_dir\"/apps/cli/package.json \"$backup_dir\"/apps/studio/package.json \"$backup_dir\"/tools/benchmark-site-editor/package.json \"$backup_dir\"/tools/common/package.json; do [ -f \"$backup\" ] || continue; rel=${backup#$backup_dir/}; if [ -f \"$rel\" ] && grep -q 'http://127.0.0.1:9724/studio-dev/' \"$rel\"; then cp \"$backup\" \"$rel\"; else printf '%s\\n' \"Not restoring $rel because it no longer looks like a rig-owned local tarball rewrite. Restore manually from $backup if needed.\"; restored=0; fi; done; if [ \"$restored\" = 1 ]; then rm -rf .homeboy-rig/studio-combined; else exit 1; fi",
+        "cwd": "${components.studio.path}"
       }
     ]
   }

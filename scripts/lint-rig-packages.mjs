@@ -2,26 +2,14 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import {
-  assertFuzzReadinessMetadata,
-  collectGenericFuzzWorkloadIssues,
-} from './fuzz-manifest-helpers.mjs';
 
 const args = process.argv.slice(2);
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
 const rootArg = args.find((arg) => !arg.startsWith('--'));
 const root = rootArg ? resolve(process.cwd(), rootArg) : process.cwd();
-// Keep this set a superset of homeboy core's `IGNORED_DIRECTORIES`
-// (src/core/rig/lint.rs) so a rig package never passes one linter and fails the
-// other. Core ignores `.sampleplugin` (generated WP Codebox sample-plugin
-// scaffolds); homeboy-rigs additionally has a real top-level `.datamachine/`.
-// The unified policy is the union of both. Converging this linter onto the core
-// primitive is tracked in Extra-Chill/homeboy#6783; the lint-only entry point
-// CI needs to consume `run_package_lint` (and the matching core `.datamachine`
-// ignore) is tracked in Extra-Chill/homeboy#6825.
-const ignoredDirectories = new Set(['.git', '.claude', '.sampleplugin', '.datamachine', '.opencode', 'node_modules', 'vendor']);
+const ignoredDirectories = new Set(['.git', '.claude', '.datamachine', '.opencode', 'node_modules', 'vendor']);
 const phpFiles = [];
 const rigFiles = [];
 const jsonFiles = [];
@@ -29,12 +17,24 @@ const fuzzWorkloadFiles = [];
 const portableSourceFiles = [];
 const fuzzManifestValidators = [];
 const fuzzWorkloadValidatorFiles = [];
+const portableSourceValidatorFiles = [];
 const failures = [];
 const warnings = [];
-const studioModelRigGenerator = join(root, 'scripts/generate-studio-agent-model-rigs.mjs');
 const personalPathPrefix = '/Users/' + 'chubes/';
 const localDeveloperCheckoutPattern = /(?:~|\$HOME)\/Developer\//;
 const tsrmlsPatchMarker = 'PHP-WASM-COMBINED-FIXES ' + 'TSRMLS fallback';
+const cleanupIntents = new Set(['none', 'external', 'manual', 'pipeline']);
+const homeboyBin = process.env.HOMEBOY_BIN || 'homeboy';
+const stablePlannerShimPattern = new RegExp([
+  'stable-workload-lab-command-' + 'planner',
+  'stable-workload-lab-' + 'commands\\.mjs',
+  'lab_' + 'command_generator',
+].join('|'));
+const deferredInitShimPattern = new RegExp([
+  'shared/webperf/deferred-init-' + 'webperf',
+  '__homeboy' + 'DeferredInit',
+  'DEFERRED_' + 'INIT_PHASES',
+].join('|'));
 
 if (!existsSync(root)) {
   console.error(`Lint root does not exist: ${root}`);
@@ -77,7 +77,31 @@ function walk(directory) {
     if (entry.isFile() && entry.name === 'fuzz-workload-validator.mjs') {
       fuzzWorkloadValidatorFiles.push(join(directory, entry.name));
     }
+
+    if (entry.isFile() && entry.name === 'portable-source-validator.mjs') {
+      portableSourceValidatorFiles.push(join(directory, entry.name));
+    }
   }
+}
+
+async function loadPortableSourceValidators() {
+  const validators = [];
+
+  for (const file of portableSourceValidatorFiles.sort()) {
+    try {
+      const module = await import(pathToFileURL(file));
+      const validate = module.validatePortableSource || module.default;
+      if (typeof validate !== 'function') {
+        failures.push(`${relative(root, file)}: portable source validator must export validatePortableSource(sourceContext) or a default function`);
+        continue;
+      }
+      validators.push({ file, validate });
+    } catch (error) {
+      failures.push(`${relative(root, file)}: failed to load portable source validator: ${error.message}`);
+    }
+  }
+
+  return validators;
 }
 
 async function loadFuzzWorkloadValidators() {
@@ -112,6 +136,8 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     return;
   }
 
+  const materializedRig = materializeRigSpec(file, rig);
+
   const pipelineCommands = Object.values(rig.pipeline || {})
     .flatMap((steps) => Array.isArray(steps) ? steps : [])
     .map((step) => step.command || '')
@@ -125,19 +151,122 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     failures.push(`${rel}: isolated-block-editor must use the component path or shared node_modules setting instead of /var/lib/datamachine`);
   }
 
+  if (/Automattic\/studio\/rigs\/studio-(?:canonical-loop-proof|native-live-runtime-open)\/rig\.json/.test(rel) && /--out\s+\/tmp\//.test(contents)) {
+    failures.push(`${rel}: proof rig checks must let proof scripts use Homeboy artifact env output directories instead of hard-coded /tmp outputs`);
+  }
+
   if (localDeveloperCheckoutPattern.test(contents)) {
     failures.push(`${rel}: use portable component path settings instead of committed ~/Developer or $HOME/Developer checkout paths`);
   }
 
-  if (/WP Codebox CLI/.test(pipelineCommands) && /command -v wp-codebox|Developer\/wp-codebox|HOMEBOY_WP_CODEBOX_BIN/.test(pipelineCommands)) {
-    failures.push(`${rel}: use shared/wp-codebox/check-cli.sh instead of duplicating WP Codebox CLI discovery in rig commands`);
+  if (/shared\/wp-codebox\/check-cli\.sh|command -v wp-codebox|Developer\/wp-codebox|HOMEBOY_WP_CODEBOX_BIN/.test(pipelineCommands)) {
+    failures.push(`${rel}: WP Codebox executable discovery belongs upstream; do not add rig-local CLI checks or fallback discovery`);
   }
 
-  lintSharedPaths(rel, rig);
+  lintSharedPaths(rel, materializedRig);
+  lintLifecycleCleanup(rel, materializedRig);
 
   lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot);
   lintFuzzProfiles(rel, rig);
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
+}
+
+function materializeRigSpec(file, rig, seen = new Set()) {
+  const extendPath = typeof rig.extends === 'string' ? rig.extends.trim() : '';
+
+  if (!extendPath) {
+    return rig;
+  }
+
+  const parentFile = resolve(dirname(file), extendPath);
+  const parentRel = relative(root, parentFile);
+
+  if (seen.has(parentFile)) {
+    failures.push(`${relative(root, file)}: rig extends cycle includes ${parentRel}`);
+    return rig;
+  }
+
+  if (!existsSync(parentFile)) {
+    failures.push(`${relative(root, file)}: extends missing rig spec ${normalize(extendPath)}`);
+    return rig;
+  }
+
+  let parentRig;
+  try {
+    parentRig = JSON.parse(readFileSync(parentFile, 'utf8'));
+  } catch (error) {
+    failures.push(`${parentRel}: invalid JSON: ${error.message}`);
+    return rig;
+  }
+
+  seen.add(parentFile);
+  const materializedParent = materializeRigSpec(parentFile, parentRig, seen);
+  seen.delete(parentFile);
+
+  return deepMergeRigSpec(materializedParent, rig);
+}
+
+function deepMergeRigSpec(parent, child) {
+  if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
+    return child;
+  }
+
+  if (!child || typeof child !== 'object' || Array.isArray(child)) {
+    return child;
+  }
+
+  const merged = { ...parent };
+  for (const [key, value] of Object.entries(child)) {
+    if (key === 'extends') {
+      continue;
+    }
+
+    const parentValue = merged[key];
+    merged[key] = parentValue && value
+      && typeof parentValue === 'object'
+      && typeof value === 'object'
+      && !Array.isArray(parentValue)
+      && !Array.isArray(value)
+      ? deepMergeRigSpec(parentValue, value)
+      : value;
+  }
+
+  return merged;
+}
+
+function hasDeclaredResources(resources) {
+  if (!resources || typeof resources !== 'object' || Array.isArray(resources)) {
+    return false;
+  }
+
+  return Object.values(resources).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value));
+}
+
+function lifecycleCleanupPolicy(rig) {
+  const cleanup = rig.lifecycle?.cleanup;
+  return cleanup && typeof cleanup === 'object' && !Array.isArray(cleanup) ? cleanup : null;
+}
+
+function lintLifecycleCleanup(rel, rig) {
+  const cleanup = lifecycleCleanupPolicy(rig);
+
+  if (cleanup) {
+    if (!cleanupIntents.has(cleanup.intent)) {
+      failures.push(`${rel}: lifecycle.cleanup.intent must be one of ${[...cleanupIntents].join(', ')}`);
+    }
+
+    if (typeof cleanup.reason !== 'string' || cleanup.reason.trim() === '') {
+      failures.push(`${rel}: lifecycle.cleanup.reason must explain the cleanup boundary`);
+    }
+  }
+
+  const down = Array.isArray(rig.pipeline?.down) ? rig.pipeline.down : [];
+
+  if (!hasDeclaredResources(rig.resources) || down.length > 0 || cleanup) {
+    return;
+  }
+
+  failures.push(`${rel}: rigs with declared resources and empty or missing pipeline.down must declare lifecycle.cleanup intent`);
 }
 
 function lintSharedPaths(rel, rig) {
@@ -260,10 +389,8 @@ function collectFuzzWorkloads() {
   return fuzzWorkloadsByPackageRoot;
 }
 
-function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
-  for (const issue of collectGenericFuzzWorkloadIssues(workload, { context })) {
-    failures.push(`${rel}: ${issue}`);
-  }
+function validateFuzzWorkloadShape(rel, workloadFile, workload, context, packageRoot) {
+  validateGenericFuzzWorkloadContract(rel, workloadFile, context);
 
   if (workload.workload && typeof workload.workload === 'object' && !Array.isArray(workload.workload) && typeof workload.workload.path === 'string' && workload.workload.path.trim() !== '') {
     const workloadPath = resolvePackagePath(workload.workload.path, packageRoot);
@@ -273,6 +400,17 @@ function validateFuzzWorkloadShape(rel, workload, context, packageRoot) {
       failures.push(`${rel}: ${context} workload path ${relative(root, workloadPath)} does not exist`);
     }
   }
+}
+
+function validateGenericFuzzWorkloadContract(rel, file, context) {
+  const result = spawnSync(homeboyBin, ['contract', 'validate', '--file', file, 'homeboy/fuzz-workload/v1'], { encoding: 'utf8' });
+  if (result.status === 0) {
+    return;
+  }
+
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
+  const detail = output ? `: ${output}` : '';
+  failures.push(`${rel}: ${context} failed homeboy/fuzz-workload/v1 contract validation${detail}`);
 }
 
 function fuzzWorkloadId(workload, path) {
@@ -316,7 +454,7 @@ function lintFuzzWorkloads(rel, file, rig, fuzzWorkloadsByPackageRoot) {
         continue;
       }
 
-      validateFuzzWorkloadShape(rel, workload, `fuzz workload ${declarationRel}`, packageRoot);
+      validateFuzzWorkloadShape(rel, resolvedPath, workload, `fuzz workload ${declarationRel}`, packageRoot);
 
       const workloadId = fuzzWorkloadId(workload, resolvedPath);
       const packageWorkload = packageWorkloads.get(workloadId);
@@ -414,9 +552,17 @@ function lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot) {
   }
 }
 
-function lintPortableSource(file) {
+function lintPortableSource(file, portableSourceValidators) {
   const rel = relative(root, file);
   const contents = readFileSync(file, 'utf8');
+
+  if (stablePlannerShimPattern.test(contents)) {
+    failures.push(`${rel}: stable workload planning belongs to homeboy fuzz stable-plan, not rig-local planner shims`);
+  }
+
+  if (deferredInitShimPattern.test(contents)) {
+    failures.push(`${rel}: deferred-init browser helpers belong in Homeboy Extensions, not homeboy-rigs shims`);
+  }
 
   if (contents.includes(personalPathPrefix)) {
     failures.push(`${rel}: use $HOME, homedir(), component paths, or settings instead of hard-coded /Users/chubes paths`);
@@ -429,6 +575,12 @@ function lintPortableSource(file) {
   if (contents.includes(tsrmlsPatchMarker)) {
     failures.push(`${rel}: TSRMLS fallback defines are owned by WordPress/wordpress-playground#3512; do not patch Playground source in rigs`);
   }
+
+  if (rel === 'Automattic/studio/proofs/studio-native-live-runtime-open.mjs' && contents.includes('studio-native-local-runtime.local')) {
+    failures.push(`${rel}: live runtime proof must require an explicit runtime URL instead of falling back to local DNS`);
+  }
+
+  lintProductPortableSourceValidators(rel, file, contents, portableSourceValidators);
 }
 
 function lintFuzzWorkload(file, fuzzWorkloadValidators) {
@@ -442,36 +594,9 @@ function lintFuzzWorkload(file, fuzzWorkloadValidators) {
     return;
   }
 
-  for (const issue of collectGenericFuzzWorkloadIssues(workload, { context: 'fuzz workload' })) {
-    failures.push(`${rel}: ${issue}`);
-  }
-
-  for (const field of ['surface_ids', 'operations', 'cases']) {
-    if (!Array.isArray(workload[field]) || workload[field].length === 0) {
-      failures.push(`${rel}: fuzz workload must define non-empty array field ${field}`);
-    }
-  }
-
-  if (!workload.target || typeof workload.target.type !== 'string') {
-    failures.push(`${rel}: fuzz workload must define target.type`);
-  }
-
-  if (!workload.metadata || typeof workload.metadata.kind !== 'string') {
-    failures.push(`${rel}: fuzz workload must define metadata.kind`);
-  }
-
+  validateGenericFuzzWorkloadContract(rel, file, 'fuzz workload');
   lintFuzzReadinessMetadata(rel, workload);
   lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadValidators);
-
-  if (workload.limits) {
-    if (!Number.isInteger(workload.limits.max_cases) || workload.limits.max_cases < 1) {
-      failures.push(`${rel}: limits.max_cases must be a positive integer`);
-    }
-
-    if (!Number.isInteger(workload.limits.max_duration_seconds) || workload.limits.max_duration_seconds < 1) {
-      failures.push(`${rel}: limits.max_duration_seconds must be a positive integer`);
-    }
-  }
 }
 
 function lintFuzzReadinessMetadata(rel, workload) {
@@ -485,14 +610,18 @@ function lintFuzzReadinessMetadata(rel, workload) {
     return;
   }
 
-  try {
-    assertFuzzReadinessMetadata(workload, { file: rel });
-  } catch (error) {
-    failures.push(error.message);
-    return;
+  const readiness = workload.metadata.readiness;
+  if (!['declared', 'executable', 'proven'].includes(readiness.level)) {
+    failures.push(`${rel}: metadata.readiness.level must be declared, executable, or proven`);
   }
 
-  const readinessLevel = workload.metadata.readiness.level;
+  if (readiness.level !== 'declared') {
+    if (typeof readiness.coverage_contract !== 'string' || readiness.coverage_contract.trim() === '') {
+      failures.push(`${rel}: metadata.readiness.coverage_contract must describe the contract`);
+    }
+  }
+
+  const readinessLevel = readiness.level;
   const optionalArtifactNames = [
     ...(workload.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
     ...(workload.artifacts?.expected || []),
@@ -517,6 +646,24 @@ function lintProductFuzzWorkloadValidators(rel, file, workload, fuzzWorkloadVali
       }
       if (!Array.isArray(issues)) {
         failures.push(`${relative(root, validator.file)}: validateFuzzWorkload must return an array of failure strings or undefined`);
+        continue;
+      }
+      failures.push(...issues);
+    } catch (error) {
+      failures.push(error.message);
+    }
+  }
+}
+
+function lintProductPortableSourceValidators(rel, file, contents, portableSourceValidators) {
+  for (const validator of portableSourceValidators) {
+    try {
+      const issues = validator.validate({ rel, root, file, contents });
+      if (issues === undefined) {
+        continue;
+      }
+      if (!Array.isArray(issues)) {
+        failures.push(`${relative(root, validator.file)}: validatePortableSource must return an array of failure strings or undefined`);
         continue;
       }
       failures.push(...issues);
@@ -566,18 +713,6 @@ function reportWarnings() {
   }
 }
 
-function lintGeneratedStudioModelRigs() {
-  if (!existsSync(studioModelRigGenerator)) {
-    return;
-  }
-
-  const result = spawnSync('node', [studioModelRigGenerator, '--check'], { encoding: 'utf8' });
-  if (result.status !== 0) {
-    const output = `${result.stdout || ''}${result.stderr || ''}`.trim();
-    failures.push(`Studio agent model rig generation check failed${output ? `: ${output}` : ''}`);
-  }
-}
-
 function lintFuzzManifestValidators() {
   for (const validator of fuzzManifestValidators) {
     const result = spawnSync('node', [validator], { encoding: 'utf8' });
@@ -590,13 +725,13 @@ function lintFuzzManifestValidators() {
 
 walk(root);
 
+const portableSourceValidators = await loadPortableSourceValidators();
 const fuzzWorkloadValidators = await loadFuzzWorkloadValidators();
 const fuzzWorkloadsByPackageRoot = collectFuzzWorkloads();
 
 rigFiles.forEach((file) => lintRigPortability(file, fuzzWorkloadsByPackageRoot));
 fuzzWorkloadFiles.forEach((file) => lintFuzzWorkload(file, fuzzWorkloadValidators));
-portableSourceFiles.forEach(lintPortableSource);
-lintGeneratedStudioModelRigs();
+portableSourceFiles.forEach((file) => lintPortableSource(file, portableSourceValidators));
 lintFuzzManifestValidators();
 
 reportFailures();

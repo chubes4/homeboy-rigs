@@ -18,6 +18,12 @@
       "${components.wordpress-playground.path}"
     ]
   },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "manual",
+      "reason": "The rig may install dependencies into the user-owned Playground checkout; removing that checkout state is an operator decision."
+    }
+  },
   "bench_workloads": {
     "nodejs": [
       "${package.root}/bench/playground-cli-runphp-errors.bench.mjs"

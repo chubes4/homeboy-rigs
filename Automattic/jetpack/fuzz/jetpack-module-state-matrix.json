@@ -2,7 +2,7 @@
   "schema": "homeboy/fuzz-workload/v1",
   "id": "jetpack-module-state-matrix",
   "label": "Jetpack module state matrix",
-  "safety_class": "read_only",
+  "safety_class": "isolated_mutation",
   "surface_ids": [
     "jetpack-modules",
     "jetpack-settings"
@@ -10,11 +10,11 @@
   "operations": [
     "module-discovery",
     "module-group-inventory",
-    "module-activate-deactivate-plan",
+    "module-activate-deactivate-disposable-mutation",
     "settings-state-classification",
     "dependency-classification",
     "connected-state-blocker-classification",
-    "rollback-requirement-plan"
+    "disposable-destructive-contract-classification"
   ],
   "case_budget": 80,
   "duration_budget_seconds": 900,
@@ -24,41 +24,47 @@
     "workload_path": "${package.root}/manifests/full-surface-coverage.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
-    "mutation_policy": "declare_toggle_plan_until_isolated_connected_fixture_exists",
-    "generic_primitive": {
-      "status": "blocked",
-      "reason": "Module activation and deactivation writes stay planned until runtime isolation, connected-state fixtures, HTTP guardrails, and rollback artifact capture are all available."
+    "mutation_policy": "upstream_disposable_destructive_contract",
+    "upstream_disposable_destructive_contract": {
+      "status": "required",
+      "contract": "wordpress-disposable-destructive-contract",
+      "fixture_scope": "wp-codebox-disposable-wordpress",
+      "rollback_required": false,
+      "remote_state_allowed": false
     },
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Jetpack module discovery, grouping, dependency, settings-state, connected-state blocker, and rollback requirement matrix. Toggle execution is declared only until isolated connected/disconnected fixtures and rollback artifacts are available.",
+      "level": "executable",
+      "coverage_contract": "Jetpack module discovery, grouping, dependency, settings-state, connected-state blocker, and local disposable activation/deactivation through the upstream destructive contract. WP.com remote-state effects stay blocked until explicit provisioning exists.",
       "upstream_blockers": [
-        "runtime isolation fixture must prove Jetpack module toggles cannot affect a developer or connected production site",
-        "connected and disconnected Jetpack fixture states must be explicit inputs before connection-sensitive module writes can run",
-        "rollback artifact capture must persist before/after/restore rows for jetpack_active_modules and module settings"
+        "true WP.com connected-state behavior requires an explicit OAuth app, sandbox blog, service account, or exact equivalent before remote-state effects can run"
       ],
       "crud": {
         "create": {
-          "level": "declared",
-          "upstream_blocker": "module activation creates option/state deltas and requires isolated connected-state fixtures"
+          "level": "executable"
         },
         "read": {
           "level": "executable"
         },
         "update": {
-          "level": "declared",
-          "upstream_blocker": "module toggle/update writes require rollback artifacts and connected-state fixtures"
+          "level": "executable"
         },
         "delete": {
-          "level": "declared",
-          "upstream_blocker": "module deactivation deletes or rewrites state and requires rollback artifacts"
+          "level": "executable"
         }
       },
       "mutation": {
-        "safety_boundary": "Planned only. Execution requires disposable WP Codebox isolation, explicit connected/disconnected fixture inputs, blocked external dispatch, and before/after/restore artifacts for every changed option.",
-        "rollback_artifacts": [
-          "module_state_rollback_plan",
-          "module_option_before_after_restore_rows"
+        "safety_boundary": "Executes local module state writes only in a disposable WP Codebox WordPress runtime through the upstream destructive contract. Connection-dependent remote effects are classified as provisioning-blocked.",
+        "rollback_required": false,
+        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
+        "mutation_isolation_artifacts": ["module_state_disposable_mutation_contract", "module_option_before_after_rows"],
+        "delete_boundary_artifacts": ["delete_boundary_artifact"],
+        "destructive_case_ledgers": ["destructive_case_ledger"],
+        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
+        "artifact_bundle_refs": ["artifact_bundle_ref"],
+        "rollback_artifacts": [],
+        "disposable_contract_artifacts": [
+          "module_state_disposable_mutation_contract",
+          "module_option_before_after_rows"
         ]
       }
     },
@@ -68,11 +74,11 @@
         "module_group_rows",
         "dependency_rows",
         "connected_state_blockers",
-        "rollback_requirement_rows"
+        "disposable_mutation_contract_rows"
       ],
       "optional": [
         "settings_state_rows",
-        "planned_toggle_rows"
+        "executed_local_toggle_rows"
       ]
     }
   },
@@ -97,11 +103,11 @@
       "operations": [
         "module-discovery",
         "module-group-inventory",
-        "module-activate-deactivate-plan",
+          "module-activate-deactivate-disposable-mutation",
         "settings-state-classification",
         "dependency-classification",
         "connected-state-blocker-classification",
-        "rollback-requirement-plan"
+          "disposable-destructive-contract-classification"
       ],
       "inputs": {
         "module_allowlist": [
@@ -160,18 +166,17 @@
           "stats",
           "subscriptions"
         ],
-        "connected_state_required_for_mutation": true,
+        "connected_state_required_for_mutation": false,
+        "connected_remote_state_provisioning_required": true,
         "runtime_isolation_required_for_mutation": true,
         "external_dispatch": false,
-        "execute_mutations": false,
-        "mutation_mode": "declared_plan",
-        "restore_original_values": true,
-        "rollback_required": true,
-        "rollback_requirements": [
-          "snapshot jetpack_active_modules before toggle",
-          "record every module option before/after/restore value shape",
-          "restore active module list before assertions complete",
-          "fail closed when connected/disconnected fixture state is unavailable"
+        "execute_mutations": true,
+        "mutation_mode": "upstream_disposable_destructive_contract",
+        "rollback_required": false,
+        "disposable_destructive_contract": [
+          "run only inside wp-codebox disposable WordPress",
+          "record module option before and after value shape",
+          "classify WP.com remote effects as provisioned_connected_state_required"
         ],
         "skip_reason_codes": [
           "connection_required",
@@ -192,11 +197,12 @@
             "command": "wordpress.fuzz-plugin-module-state",
             "args": [
               "external_dispatch=false",
-              "execute_mutations=false",
-              "mutation_mode=declared_plan",
-              "connected_state_required_for_mutation=true",
+              "execute_mutations=true",
+              "mutation_mode=upstream_disposable_destructive_contract",
+              "connected_state_required_for_mutation=false",
+              "connected_remote_state_provisioning_required=true",
               "runtime_isolation_required_for_mutation=true",
-              "rollback_required=true"
+              "rollback_required=false"
             ]
           }
         ],
@@ -219,17 +225,17 @@
           }
         },
         {
-          "name": "module_state_rollback_plan",
-          "path": "jetpack-module-state-matrix/module_state_rollback_plan.json",
+          "name": "module_state_disposable_mutation_contract",
+          "path": "jetpack-module-state-matrix/module_state_disposable_mutation_contract.json",
           "required": true,
           "metadata": {
-            "semantic_key": "fuzz.rollback_plan"
+              "semantic_key": "fuzz.disposable_destructive_contract"
           }
         }
       ],
       "metadata": {
-        "safety_class": "read_only",
-        "mutation_policy": "declare_toggle_plan_until_isolated_connected_fixture_exists"
+        "safety_class": "isolated_mutation",
+        "mutation_policy": "upstream_disposable_destructive_contract"
       }
     }
   ],
@@ -245,11 +251,11 @@
     "operations": [
       "module-discovery",
       "module-group-inventory",
-      "module-activate-deactivate-plan",
+      "module-activate-deactivate-disposable-mutation",
       "settings-state-classification",
       "dependency-classification",
       "connected-state-blocker-classification",
-      "rollback-requirement-plan"
+      "disposable-destructive-contract-classification"
     ]
   },
   "artifacts": {
@@ -261,9 +267,9 @@
         "required": true
       },
       {
-        "name": "module_state_rollback_plan",
-        "role": "rollback_plan",
-        "semantic_key": "fuzz.rollback_plan",
+        "name": "module_state_disposable_mutation_contract",
+        "role": "disposable_destructive_contract",
+        "semantic_key": "fuzz.disposable_destructive_contract",
         "required": true
       }
     ]

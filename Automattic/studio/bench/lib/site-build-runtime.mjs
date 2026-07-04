@@ -15,7 +15,7 @@ import {
 } from './studio-bench.mjs';
 
 const DEFAULT_STUDIO_PORT = 8881;
-const INVOCATION_NAMESPACE = 'studio-agent-site-build';
+export const INVOCATION_NAMESPACE = 'studio-agent-site-build';
 const WORKFLOW_BENCH_SCENARIO_SETTING = 'studio_workflow_bench_scenario_id';
 const WORKFLOW_BENCH_ROOT_SETTING = 'studio_workflow_bench_root';
 const MODEL_SETTING = 'studio_agent_model';
@@ -34,7 +34,7 @@ function envPath(key) {
   return typeof process.env[key] === 'string' && process.env[key] ? process.env[key] : '';
 }
 
-export async function createStudioBenchRuntime(sharedState = SHARED_STATE) {
+export async function createInvocationRuntime({ namespace, sharedState = SHARED_STATE }) {
   const helperPath = envPath('HOMEBOY_NODEJS_INVOCATION_RUNTIME_HELPER');
   if (!helperPath) {
     throw new Error(
@@ -43,39 +43,50 @@ export async function createStudioBenchRuntime(sharedState = SHARED_STATE) {
   }
 
   const { resolveHomeboyInvocationRuntime } = await import(helperPath);
-  const invocationRuntime = resolveHomeboyInvocationRuntime({ namespace: INVOCATION_NAMESPACE });
-  const stateDir = invocationRuntime.dirs.state || '';
+  const invocationRuntime = resolveHomeboyInvocationRuntime({ namespace });
+  const stateDir = invocationRuntime.dirs?.state || '';
   const artifactDir =
-    invocationRuntime.baseDirs.artifact || path.join(sharedState, 'studio-agent-site-build-artifacts');
-  const tmpDir = invocationRuntime.dirs.tmp || (stateDir ? path.join(stateDir, 'tmp') : '');
-  const cliConfigDir = stateDir ? path.join(stateDir, 'cli-config') : '';
-  const appDataDir = stateDir ? path.join(stateDir, 'appdata') : '';
-  const processManagerHome = stateDir ? path.join(stateDir, 'daemon') : '';
-  const portBase = invocationRuntime.portRange?.base ?? null;
-  const portMax = invocationRuntime.portRange?.max ?? null;
+    invocationRuntime.dirs?.artifact || path.join(sharedState, `${namespace}-artifacts`);
+  const tmpDir = invocationRuntime.dirs?.tmp || (stateDir ? path.join(stateDir, 'tmp') : '');
 
   return {
     invocationId: invocationRuntime.invocationId || '',
     artifactDir,
-    siteRoot: stateDir ? path.join(stateDir, 'sites') : path.join(artifactDir, 'sites'),
     stateDir,
+    tmpDir,
+    portBase: invocationRuntime.portRange?.base ?? null,
+    portMax: invocationRuntime.portRange?.max ?? null,
+    childEnv: (extra = {}) => invocationRuntime.childEnv(extra),
+    prepareDirs: () => invocationRuntime.prepareDirs(),
+    assertPort: invocationRuntime.assertPort,
+  };
+}
+
+export async function createStudioBenchRuntime(sharedState = SHARED_STATE) {
+  const invocationRuntime = await createInvocationRuntime({
+    namespace: INVOCATION_NAMESPACE,
+    sharedState,
+  });
+  const cliConfigDir = invocationRuntime.stateDir ? path.join(invocationRuntime.stateDir, 'cli-config') : '';
+  const appDataDir = invocationRuntime.stateDir ? path.join(invocationRuntime.stateDir, 'appdata') : '';
+  const processManagerHome = invocationRuntime.stateDir ? path.join(invocationRuntime.stateDir, 'daemon') : '';
+  const siteRoot = invocationRuntime.stateDir
+    ? path.join(invocationRuntime.stateDir, 'sites')
+    : path.join(invocationRuntime.artifactDir, 'sites');
+
+  return {
+    ...invocationRuntime,
+    siteRoot,
     cliConfigDir,
     appDataDir,
     processManagerHome,
-    tmpDir,
-    portBase,
-    portMax,
-    env: invocationRuntime.isolated
-      ? invocationRuntime.childEnv({
-          E2E: '1',
-          E2E_CLI_CONFIG_PATH: cliConfigDir,
-          E2E_APP_DATA_PATH: appDataDir,
-          STUDIO_PROCESS_MANAGER_HOME: processManagerHome,
-          ...(tmpDir ? { TMPDIR: tmpDir } : {}),
-        })
-      : {},
-    prepareDirs: () => invocationRuntime.prepareDirs(),
-    assertPort: invocationRuntime.assertPort,
+    env: invocationRuntime.childEnv({
+      E2E: '1',
+      E2E_CLI_CONFIG_PATH: cliConfigDir,
+      E2E_APP_DATA_PATH: appDataDir,
+      STUDIO_PROCESS_MANAGER_HOME: processManagerHome,
+      ...(invocationRuntime.tmpDir ? { TMPDIR: invocationRuntime.tmpDir } : {}),
+    }),
   };
 }
 

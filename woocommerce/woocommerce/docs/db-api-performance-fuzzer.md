@@ -39,7 +39,7 @@ log. The reviewer-facing proof bundle must contain artifacts with these schemas:
 - `wp-codebox/fuzz-suite-result/v1` for the runtime-backed Codebox fuzz-suite result.
 - `wp-codebox/wordpress-hotspots/v1` for WordPress hotspot discovery from the same campaign.
 - `homeboy/fuzz-coverage/v1` for Homeboy fuzz coverage.
-- `homeboy/woocommerce-performance-hotspots-summary/v1` for hotspot ranking output.
+- `homeboy-rigs/woocommerce-performance-hotspots-summary/v1` for rig-owned hotspot ranking output.
 - `homeboy-rigs/wordpress-coverage-gap-report/v1` for the coverage gap report.
 
 Every proof ref must be durable and reviewer-facing, using one of the accepted
@@ -61,19 +61,21 @@ The declared source contracts live in:
 - `manifests/db-api-performance-fuzzer-gap-report.json`.
 - `bench/coverage-gap-report.workload.json`.
 - `bench/performance-hotspots-artifact-summary.workload.json`.
-- `tools/db-api-fuzzer-artifacts.mjs`.
+- `tools/db-api-fuzzer-artifacts.mjs` for Woo report interpretation, schemas,
+  and performance surface classification.
 
-The artifact aggregation in `tools/db-api-fuzzer-artifacts.mjs` is product-local
-temporary glue. It exists so the Woo DB/API campaign can declare the desired
-artifact shapes without copying that behavior into Homeboy core before the
-upstream generic primitives exist. Treat the coverage-gap and hotspot-summary
-postprocess outputs as declared campaign artifacts only; they become proof only
-after Homeboy collects reviewer-facing refs from an approved offloaded run.
+Generic artifact root scanning, output writing, path confinement, and declared
+JSON output validation belong upstream in Homeboy core or Extensions. The Woo
+helper consumes artifact records and emits Woo-owned report payloads; it does not
+implement generic artifact-postprocess IO.
+Treat the coverage-gap and hotspot-summary postprocess outputs as declared
+campaign artifacts only; they become proof only after Homeboy collects
+reviewer-facing refs from an approved offloaded run.
 
 Blocked upstream extraction points:
 
 - A generic Homeboy artifact-postprocess primitive for scanning persisted run
-  artifact trees and emitting declared JSON outputs.
+  artifact trees, enforcing path confinement, and emitting declared JSON outputs.
 - A generic hotspot aggregation primitive that owns ranking fields, evidence refs,
   and threshold policy without WooCommerce-specific labels.
 - WP Codebox/Homeboy fuzz artifacts that expose durable fuzz-suite, hotspot, and
@@ -176,36 +178,34 @@ For a candidate comparison, repeat the same plan commands with `candidate` in th
 
 ## Run
 
-Run the whole campaign in the same approved offloaded environment so the
-postprocess workloads can consume the same persisted artifact root. Use the
-selected WooCommerce checkout through `--path` when the runner is validating a
-specific baseline or candidate worktree.
+Run the executable campaign workloads in the same approved offloaded environment
+so a future postprocess primitive can consume the same persisted artifact root.
+Use the selected WooCommerce checkout through `--path` when the runner is
+validating a specific baseline or candidate worktree.
 
-Baseline:
-
-```bash
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload generated-rest-request-cases --run-id wc-db-api-generated-cases-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload db-inventory --run-id wc-db-api-db-inventory-baseline --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution-baseline --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report-baseline --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-baseline-plugin-path> --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary-baseline --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-```
-
-Candidate:
+Use the same command shape for every baseline and candidate row:
 
 ```bash
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload codebox-fuzz-suite-contract --run-id wc-db-api-codebox-suite-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload woocommerce-rest-route-inventory --run-id wc-db-api-route-inventory-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload generated-rest-request-cases --run-id wc-db-api-generated-cases-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-db-query-profile --run-id wc-db-api-query-profile-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload db-inventory --run-id wc-db-api-db-inventory-candidate --seed 1 --max-duration 10m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload rest-schema-query-attribution --run-id wc-db-api-schema-query-attribution-candidate --seed 1 --max-duration 20m --require-result-envelope --require-case-log --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload coverage-gap-report --run-id wc-db-api-coverage-gap-report-candidate --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
-homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-candidate-plugin-path> --workload performance-hotspots-artifact-summary --run-id wc-db-api-hotspots-summary-candidate --seed 1 --max-duration 15m --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
+homeboy fuzz run --rig woocommerce-performance --path <runner-woocommerce-{baseline|candidate}-plugin-path> --workload <workload> --run-id <run-id> --seed 1 --max-duration <duration> <case-log-flag> --require-result-envelope --require-coverage-summary --tracker-ref "$WC_TRACKER_REF" --lab-only --runner "$HOMEBOY_RUNNER_ID" --detach-after-handoff
 ```
+
+| Workload | Baseline run id | Candidate run id | Duration | Extra flag |
+|---|---|---|---|---|
+| `codebox-fuzz-suite-contract` | `wc-db-api-codebox-suite-baseline` | `wc-db-api-codebox-suite-candidate` | `10m` |  |
+| `woocommerce-rest-route-inventory` | `wc-db-api-route-inventory-baseline` | `wc-db-api-route-inventory-candidate` | `10m` |  |
+| `generated-rest-request-cases` | `wc-db-api-generated-cases-baseline` | `wc-db-api-generated-cases-candidate` | `20m` | `--require-case-log` |
+| `rest-db-query-profile` | `wc-db-api-query-profile-baseline` | `wc-db-api-query-profile-candidate` | `20m` | `--require-case-log` |
+| `db-inventory` | `wc-db-api-db-inventory-baseline` | `wc-db-api-db-inventory-candidate` | `10m` |  |
+| `rest-schema-query-attribution` | `wc-db-api-schema-query-attribution-baseline` | `wc-db-api-schema-query-attribution-candidate` | `20m` | `--require-case-log` |
+
+Use the baseline plugin path with the baseline run ids, then repeat with the
+candidate plugin path and candidate run ids. Omit `<case-log-flag>` when the row
+does not list an extra flag.
+
+`coverage-gap-report` and `performance-hotspots-artifact-summary` are declared
+data-only artifact-postprocess contracts. Do not run them as proof until Homeboy
+ships a real artifact-postprocess runner primitive for persisted artifact roots
+and generic hotspot aggregation semantics.
 
 Use `homeboy runner job logs` to follow detached jobs when the selected runner
 accepts the handoff. Keep the tracker updated with the accepted job ids and final
@@ -244,7 +244,7 @@ not local files. Required proof refs:
 - `wordpress_hotspots` with schema `wp-codebox/wordpress-hotspots/v1`.
 - `homeboy_fuzz_coverage` with schema `homeboy/fuzz-coverage/v1`.
 - `coverage_gap_report` with schema `homeboy-rigs/wordpress-coverage-gap-report/v1`.
-- `performance_hotspots_summary` with schema `homeboy/woocommerce-performance-hotspots-summary/v1`.
+- `performance_hotspots_summary` with schema `homeboy-rigs/woocommerce-performance-hotspots-summary/v1`.
 
 ## Compare
 
@@ -292,7 +292,7 @@ Required artifacts:
 - `wp-codebox/wordpress-hotspots/v1`: durable artifact ref from `homeboy runs refs`
 - `homeboy/fuzz-coverage/v1`: durable artifact ref from `homeboy runs refs`
 - `homeboy-rigs/wordpress-coverage-gap-report/v1`: durable artifact ref from `homeboy runs refs`
-- `homeboy/woocommerce-performance-hotspots-summary/v1`: durable artifact ref from `homeboy runs refs`
+- `homeboy-rigs/woocommerce-performance-hotspots-summary/v1`: durable artifact ref from `homeboy runs refs`
 
 Compare: <compare-artifact-ref>
 Result: <pass/fail/partial with the concrete gap or hotspot delta>

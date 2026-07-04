@@ -10,7 +10,13 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     env:
-      HOMEBOY_WORDPRESS_FUZZ_MANIFEST_VALIDATOR: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/wordpress-fuzz-manifest-validator.js
+      HOMEBOY_VERSION: v0.275.0
+      HOMEBOY_RELEASE_TARGET: x86_64-unknown-linux-gnu
+      HOMEBOY_NODEJS_WORKLOAD_UTILS: ${{ github.workspace }}/homeboy-extensions/nodejs/scripts/bench/lib/workload-utils.mjs
+      HOMEBOY_WORDPRESS_HELPER_MANIFEST: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/helper-manifest.js
+    defaults:
+      run:
+        working-directory: homeboy-rigs
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,12 +32,26 @@ jobs:
         with:
           php-version: '8.3'
           coverage: none
+      - name: Install released Homeboy
+        run: |
+          homeboy_release_dir="/tmp/homeboy-${HOMEBOY_RELEASE_TARGET}"
+          homeboy_archive="${homeboy_release_dir}.tar.xz"
+          homeboy_release_url="https://github.com/Extra-Chill/homeboy/releases/download/${HOMEBOY_VERSION}/homeboy-${HOMEBOY_RELEASE_TARGET}.tar.xz"
+
+          curl -fsSL -o "${homeboy_archive}" "${homeboy_release_url}"
+          tar -xJf "${homeboy_archive}" -C /tmp
+          sudo install -m 0755 "${homeboy_release_dir}/homeboy" /usr/local/bin/homeboy
+          homeboy --version
+          homeboy contract validate --help
+          homeboy contract normalize artifact-ref --help
       - run: node scripts/lint-rig-packages.mjs
-        working-directory: homeboy-rigs
+      - name: Test lint harness
+        run: >-
+          node --test
+          scripts/lint-rig-packages.test.mjs
       - name: Test fuzz contracts
         run: >-
           node --test
           WordPress/gutenberg/tools/fuzz-coverage.test.mjs
           WordPress/wordpress-develop/fuzz/core-fuzz-contracts.test.mjs
           woocommerce/woocommerce/manifests/full-surface-coverage.test.mjs
-        working-directory: homeboy-rigs

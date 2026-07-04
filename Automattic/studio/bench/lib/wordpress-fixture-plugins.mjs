@@ -27,13 +27,11 @@ function fixturePluginsFromEnv({ jsonEnv, pathsEnv, fallbackJsonEnv = '', fallba
 }
 
 function loadFixtureSetupHelper() {
-  const { path: helperPath, module: helper } = loadWordPressLibHelper('fixture-setup.js', {
-    envVar: 'HOMEBOY_WORDPRESS_FIXTURE_SETUP_PATH',
-  });
+  const { path: helperPath, module: helper } = loadWordPressLibHelper('fixture-setup.js');
   if (!helper?.installWordPressFixturePlugins || !helper?.restoreWordPressFixturePlugins) {
     throw new Error(
       `Homeboy WordPress fixture setup helper is unavailable${helperPath ? ` at ${helperPath}` : ''}. ` +
-        'Update homeboy-extensions or set HOMEBOY_WORDPRESS_FIXTURE_SETUP_PATH.'
+        'Update homeboy-extensions or set HOMEBOY_WORDPRESS_HELPER_MANIFEST.'
     );
   }
   return helper;

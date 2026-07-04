@@ -1,4 +1,5 @@
 {
+  "extends": "../wp-codebox-external-cleanup.base.json",
   "id": "gutenberg-api-route-inventory",
   "description": "Gutenberg REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {

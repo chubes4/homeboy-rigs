@@ -1,7 +1,7 @@
 {
   "schema": "homeboy-rigs/wordpress-coverage-gap-report-workload/v1",
   "id": "woocommerce-db-api-performance-fuzzer-gap-report",
-  "description": "Executable WooCommerce DB/API performance fuzzer gap report workload over available fuzz/run artifacts using product-local temporary glue that mirrors the intended generic artifact-postprocess contract.",
+  "description": "WooCommerce DB/API performance fuzzer gap report workload contract over available fuzz/run artifacts. Execution requires Homeboy or Extensions to provide the generic artifact-postprocess primitive.",
   "profile_id": "db-api-performance-fuzzer",
   "workload": "fuzz/coverage-gap-report.json",
   "workload_config": "bench/coverage-gap-report.workload.json",
@@ -11,7 +11,7 @@
     "wp-codebox/wordpress-workload-run/v1",
     "homeboy-rigs/wordpress-coverage-gap-report/v1"
   ],
-  "boundary_note": "The Woo helper is a temporary local bridge pending upstream Homeboy artifact-postprocess and hotspot primitives. This workload stays executable/declarative until reviewer-facing artifact refs are collected from an approved offloaded run.",
+  "boundary_note": "The Woo helper provides product policy while Homeboy or Extensions owns the generic artifact-postprocess runner contract. Proven status requires reviewer-facing artifact refs from an approved offloaded run.",
   "semantic_key": "fuzz.report",
   "inputs": [
     "woocommerce-rest-route-inventory",
@@ -36,7 +36,7 @@
   },
   "readiness": {
     "level": "executable",
-    "execution": "artifact_aggregation",
+    "execution": "homeboy_artifact_postprocess",
     "proof_bundle_requirements": {
       "status": "required_before_proven",
       "required_refs": [
@@ -48,9 +48,7 @@
       ]
     },
     "upstream_blockers": [
-      "Homeboy must own a generic artifact-postprocess primitive for persisted run artifact roots.",
-      "Homeboy must own generic hotspot aggregation semantics before Woo-specific ranking labels can move out of rig tooling.",
-      "Public fuzz-suite execution must emit reviewer-facing fuzz-suite-result artifacts before this declaration can be proven."
+      "homeboy/artifact-postprocess-plan/v1 runner for persisted artifact root scanning, output path confinement, and declared JSON artifact writing"
     ]
   }
 }
