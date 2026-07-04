@@ -1,4 +1,5 @@
 {
+  "extends": "../wp-codebox-external-cleanup.base.json",
   "id": "woocommerce-browser-coverage",
   "description": "WP Codebox browser-actions request coverage for WooCommerce shop, product, cart, checkout, orders admin, products admin, and analytics admin surfaces.",
   "components": {
@@ -15,29 +16,27 @@
       "${components.woocommerce.path}"
     ]
   },
-  "lifecycle": {
-    "cleanup": {
-      "intent": "external",
-      "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; component checkouts are user-owned."
-    }
-  },
   "trace": {
     "default_component": "woocommerce"
+  },
+  "trace_workload_defaults": {
+    "nodejs": {
+      "check_groups": [],
+      "port_range_size": 1,
+      "trace_default_phase_preset": "browser-request-coverage",
+      "trace_phase_presets": {
+        "browser-request-coverage": [
+          "start:scenario.start",
+          "recipe:wp_codebox.recipe.start",
+          "actions:browser.actions.ready"
+        ]
+      }
+    }
   },
   "trace_workloads": {
     "nodejs": [
       {
-        "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
-        "check_groups": [],
-        "port_range_size": 1,
-        "trace_default_phase_preset": "browser-request-coverage",
-        "trace_phase_presets": {
-          "browser-request-coverage": [
-            "start:scenario.start",
-            "recipe:wp_codebox.recipe.start",
-            "actions:browser.actions.ready"
-          ]
-        }
+        "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs"
       }
     ]
   },

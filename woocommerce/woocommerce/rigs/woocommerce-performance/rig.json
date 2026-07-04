@@ -1,4 +1,5 @@
 {
+  "extends": "../wp-codebox-external-cleanup.base.json",
   "id": "woocommerce-performance",
   "description": "WooCommerce large-merchant performance and fuzz rig. Uses WordPress/WP Codebox runtimes for performance benchmarks plus declared fuzz workloads tied to concrete WooCommerce issues and coverage surfaces.",
   "components": {
@@ -63,7 +64,6 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "external",
       "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; the WooCommerce component checkout is user-owned."
     }
   },
@@ -224,31 +224,6 @@
       "coverage-gap-report"
     ],
     "fuzzer": [
-      "cart-session-overwrite-race",
-      "checkout-concurrent-create-order",
-      "checkout-gateway-compatibility-matrix",
-      "checkout-shipping-cache",
-      "admin-page-coverage",
-      "layered-nav-count-cache",
-      "layered-nav-catalog-crawl",
-      "rest-product-batch-import",
-      "woocommerce-rest-route-inventory",
-      "generated-rest-request-cases",
-      "rest-db-query-profile",
-      "db-inventory",
-      "rest-permission-boundary-matrix",
-      "rest-namespace-generated-cases",
-      "rest-schema-query-attribution",
-      "coverage-gap-report",
-      "action-scheduler-lookup-table-coverage",
-      "options-transients-coverage",
-      "rollback-safe-options-transients-mutations",
-      "codebox-fuzz-suite-contract",
-      "frontend-rendering-request-coverage",
-      "performance-hotspots-artifact-summary",
-      "woocommerce-external-http-guardrail"
-    ],
-    "full-surface": [
       "cart-session-overwrite-race",
       "checkout-concurrent-create-order",
       "checkout-gateway-compatibility-matrix",

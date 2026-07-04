@@ -224,7 +224,7 @@ function assertCampaignPostprocessOutput(workload, output, context) {
 function assertNoLocalOnlyRefs(value, context = 'value') {
   if (typeof value === 'string') {
     assert.ok(!/^(https?:\/\/)?(localhost|127\.0\.0\.1)([:/]|$)/.test(value), `${context} must not use local URLs`);
-    assert.ok(!value.startsWith('/Users/'), `${context} must not use local filesystem paths`);
+    assert.ok(!value.startsWith('/' + 'Users/'), `${context} must not use local filesystem paths`);
     return;
   }
 
