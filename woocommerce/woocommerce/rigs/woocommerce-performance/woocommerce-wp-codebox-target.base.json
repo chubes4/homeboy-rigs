@@ -1,0 +1,173 @@
+{
+  "extends": "../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
+  "components": {
+    "woocommerce": {
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
+      "branch": "trunk",
+      "extensions": {
+        "wordpress": {
+          "wp_codebox_wordpress_version": "7.0",
+          "wp_codebox_source_path": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
+          "wp_codebox_source_subdir": "plugins/woocommerce",
+          "wp_codebox_mount_slug": "woocommerce",
+          "wp_codebox_source_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
+          "wp_codebox_source_subpath": "plugins/woocommerce",
+          "wp_codebox_plugin_file": "woocommerce/woocommerce.php",
+          "bench_env": {
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILE_SET": "core_only",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PROFILES": "",
+            "WC_CHECKOUT_GATEWAY_MATRIX_STRIPE_DEPENDENCY": "woocommerce-gateway-stripe",
+            "WC_CHECKOUT_GATEWAY_MATRIX_PAYPAL_PAYMENTS_PATH": "",
+            "WC_CHECKOUT_GATEWAY_MATRIX_WOOPAYMENTS_PATH": "",
+            "WC_SHIPPING_CACHE_CART_ITEMS": "40",
+            "WC_SHIPPING_CACHE_PACKAGES": "8",
+            "WC_SHIPPING_CACHE_PACKAGE_SHAPE": "mixed_destination",
+            "WC_SHIPPING_CACHE_WARM_RUNS": "5",
+            "WC_SHIPPING_CACHE_TOTAL_CHURN_RUNS": "3",
+            "WC_SHIPPING_CACHE_REHASH_RUNS": "3",
+            "WC_REST_BATCH_IMPORT_ITEMS": "25",
+            "WC_REST_BATCH_IMPORT_ATTRIBUTES": "3",
+            "WC_REST_BATCH_IMPORT_TERMS_PER_ATTRIBUTE": "8",
+            "WC_REST_BATCH_IMPORT_CATALOG_PRODUCTS": "0",
+            "WC_REST_BATCH_IMPORT_CATALOG_VARIATIONS_PER_PRODUCT": "0",
+            "WC_REST_BATCH_IMPORT_SKU_SHAPE": "unique",
+            "WC_REST_BATCH_IMPORT_SLUG_TITLE_SHAPE": "unique",
+            "WC_REST_BATCH_IMPORT_TERM_MODE": "existing",
+            "WC_REST_BATCH_IMPORT_IMAGE_MODE": "none",
+            "WC_REST_BATCH_IMPORT_IMAGES_PER_PRODUCT": "1",
+            "WC_REST_BATCH_IMPORT_GALLERY_IMAGES_PER_PRODUCT": "0",
+            "WC_REST_BATCH_IMPORT_FOCUS_PHASE": "variation_create",
+            "WC_SHORTCODE_CHECKOUT_PRODUCTS": "150",
+            "WC_SHORTCODE_CHECKOUT_VARIATIONS": "125",
+            "WC_SHORTCODE_CHECKOUT_HISTORICAL_ORDERS": "25",
+            "WC_SHORTCODE_CHECKOUT_PAYMENT_METHODS": "cod,homeboy_synthetic",
+            "WC_CONCURRENT_CHECKOUT_REQUESTS": "2",
+            "WC_CONCURRENT_CHECKOUT_ITERATIONS": "3",
+            "WC_CONCURRENT_CHECKOUT_PAYMENT_MODE": "cod",
+            "WC_ADMIN_DASHBOARD_PRODUCTS": "500",
+            "WC_ADMIN_DASHBOARD_TERMS": "20",
+            "WC_ADMIN_DASHBOARD_PHYSICAL_PERCENT": "100"
+          }
+        }
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "woocommerce-performance:${env.HOMEBOY_SETTINGS_WOOCOMMERCE_PERFORMANCE_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.woocommerce.path}"
+    ]
+  },
+  "lifecycle": {
+    "cleanup": {
+      "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; the WooCommerce component checkout is user-owned."
+    }
+  },
+  "requirements": {
+    "dependency_materialization": [
+      {
+        "id": "woocommerce-php-package-dependencies",
+        "command": "homeboy deps install --path \"${components.woocommerce.path}/plugins/woocommerce\"",
+        "env": {
+          "XDEBUG_MODE": "off"
+        },
+        "component": "woocommerce",
+        "cwd": "${components.woocommerce.path}/plugins/woocommerce",
+        "inputs": {
+          "recipe": "wordpress-php-package-dependencies",
+          "manifest": "${components.woocommerce.path}/plugins/woocommerce/composer.json",
+          "lockfile": "${components.woocommerce.path}/plugins/woocommerce/composer.lock"
+        },
+        "expected_outputs": [
+          {
+            "path": "${components.woocommerce.path}/plugins/woocommerce/vendor",
+            "kind": "dir"
+          },
+          {
+            "path": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
+            "kind": "file"
+          }
+        ],
+        "cache_key_inputs": [
+          "${components.woocommerce.path}/plugins/woocommerce/composer.json",
+          "${components.woocommerce.path}/plugins/woocommerce/composer.lock"
+        ],
+        "safety": "network_access"
+      }
+    ]
+  },
+  "bench": {
+    "default_component": "woocommerce",
+    "warmup_iterations": 0
+  },
+  "fuzz": {
+    "default_component": "woocommerce"
+  },
+  "bench_workloads": {
+    "wordpress": []
+  },
+  "fuzz_workloads": {
+    "wordpress": []
+  },
+  "bench_profiles": {
+    "smoke": [],
+    "hot": []
+  },
+  "fuzz_profiles": {
+    "smoke": [],
+    "db-api-performance-fuzzer": [],
+    "product-rest-crud-fuzzer": [],
+    "fuzzer": [],
+    "aggressive-isolated-firehose": []
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "WooCommerce runner checkout exists",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/woocommerce.php",
+        "remediation": "Pass homeboy bench --path /path/to/woocommerce-monorepo or update components.woocommerce.path before running woocommerce-performance."
+      },
+      {
+        "kind": "requirement",
+        "label": "WooCommerce cart class exists",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-cart.php",
+        "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
+      },
+      {
+        "kind": "requirement",
+        "label": "WooCommerce shipping class exists",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-shipping.php",
+        "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
+      },
+      {
+        "kind": "requirement",
+        "label": "WooCommerce Composer package autoloader exists or can be prepared",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
+        "prepare_phases": [
+          "up",
+          "bench_prepare"
+        ],
+        "remediation": "Materialize dependency step woocommerce-php-package-dependencies for the plugins/woocommerce runtime path."
+      },
+      {
+        "kind": "requirement",
+        "label": "WooCommerce generated feature config exists or can be prepared",
+        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
+        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
+        "prepare_phases": [
+          "up",
+          "bench_prepare"
+        ],
+        "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
+      }
+    ],
+    "up": [],
+    "bench_prepare": [],
+    "fuzz_prepare": [],
+    "down": []
+  }
+}

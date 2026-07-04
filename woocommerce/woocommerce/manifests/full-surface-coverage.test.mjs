@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   assertGenericArtifactPostprocessWorkloadContract,
   assertFullSurfaceCoverageManifest,
+  readMaterializedRig,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import {
   assertWooRequiredFuzzProofContracts,
@@ -19,8 +20,8 @@ const packageRoot = path.join(__dirname, '..');
 process.env.HOMEBOY_WORDPRESS_HELPER_MANIFEST = resolveTestHomeboyWordPressHelperManifest();
 
 const manifest = JSON.parse(readFileSync(path.join(__dirname, 'full-surface-coverage.json'), 'utf8'));
-const performanceRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-performance/rig.json'), 'utf8'));
-const browserRig = JSON.parse(readFileSync(path.join(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
+const performanceRig = readMaterializedRig(packageRoot, 'rigs/woocommerce-performance/rig.json');
+const browserRig = readMaterializedRig(packageRoot, 'rigs/woocommerce-browser-coverage/rig.json');
 const generatedRestCases = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/generated-rest-request-cases.json'), 'utf8'));
 const codeboxFuzzSuiteWorkload = JSON.parse(readFileSync(path.join(packageRoot, 'fuzz/codebox-fuzz-suite-contract.json'), 'utf8'));
 const codeboxFuzzSuiteManifest = JSON.parse(readFileSync(path.join(packageRoot, 'manifests/codebox-fuzz-suite-contract.json'), 'utf8'));

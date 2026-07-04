@@ -1,0 +1,52 @@
+{
+  "extends": "./woocommerce-fuzz-catalog.base.json",
+  "bench_workloads": {
+    "wordpress": {
+      "$append": [
+        {
+          "path": "${package.root}/bench/checkout-shortcode-place-order-latency.php"
+        },
+        {
+          "path": "${package.root}/bench/admin-dashboard-physical-products-query.php"
+        }
+      ]
+    }
+  },
+  "bench_profiles": {
+    "smoke": {
+      "$append": [
+        "checkout-shortcode-place-order-latency",
+        "admin-dashboard-physical-products-query"
+      ]
+    },
+    "hot": {
+      "$append": [
+        "checkout-shortcode-place-order-latency",
+        "admin-dashboard-physical-products-query"
+      ]
+    }
+  },
+  "pipeline": {
+    "check": {
+      "$append": [
+        {
+          "kind": "requirement",
+          "label": "WooCommerce admin script asset registry exists or can be built",
+          "file": "${components.woocommerce.path}/plugins/woocommerce/assets/client/admin/wp-admin-scripts/command-palette.asset.php",
+          "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" admin-assets \"${components.woocommerce.path}/plugins/woocommerce\"",
+          "prepare_phases": [
+            "up",
+            "bench_prepare"
+          ],
+          "remediation": "Install pnpm dependencies and build Woo admin assets, or run: homeboy rig up woocommerce-performance"
+        },
+        {
+          "kind": "command",
+          "label": "WooCommerce admin assets are built",
+          "command": "bash \"${package.root}/tools/check-admin-assets.sh\" \"${components.woocommerce.path}\"",
+          "remediation": "Use a packaged WooCommerce plugin checkout or build the WooCommerce admin assets before running admin-page-coverage fuzz workloads."
+        }
+      ]
+    }
+  }
+}

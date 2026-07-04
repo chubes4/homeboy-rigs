@@ -16,6 +16,7 @@ import {
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   readJson,
+  readMaterializedRig,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import { assertWooRequiredFuzzProofContracts } from './fuzz-proof-contracts.mjs';
 import {
@@ -28,7 +29,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
-const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
+const rig = readMaterializedRig(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverageManifest = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const dbApiFuzzCampaign = readJson(packageRoot, 'manifests/db-api-fuzz-campaign.json');
 const dbApiPerformanceFuzzerGapReport = readJson(packageRoot, 'manifests/db-api-performance-fuzzer-gap-report.json');

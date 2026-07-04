@@ -1,0 +1,476 @@
+{
+  "extends": "./woocommerce-wp-codebox-target.base.json",
+  "fuzz_workloads": {
+    "wordpress": {
+      "$append": [
+        {
+          "path": "${package.root}/fuzz/cart-session-overwrite-race.json"
+        },
+        {
+          "path": "${package.root}/fuzz/checkout-concurrent-create-order.json"
+        },
+        {
+          "path": "${package.root}/fuzz/checkout-gateway-compatibility-matrix.json"
+        },
+        {
+          "path": "${package.root}/fuzz/checkout-shipping-cache.json"
+        },
+        {
+          "path": "${package.root}/fuzz/admin-page-coverage.json"
+        },
+        {
+          "path": "${package.root}/fuzz/layered-nav-count-cache.json"
+        },
+        {
+          "path": "${package.root}/fuzz/layered-nav-catalog-crawl.json"
+        },
+        {
+          "path": "${package.root}/fuzz/rest-product-batch-import.json"
+        },
+        {
+          "path": "${package.root}/fuzz/woocommerce-rest-route-inventory.json"
+        },
+        {
+          "path": "${package.root}/fuzz/generated-rest-request-cases.json"
+        },
+        {
+          "path": "${package.root}/fuzz/rest-db-query-profile.json"
+        },
+        {
+          "path": "${package.root}/fuzz/db-inventory.json"
+        },
+        {
+          "path": "${package.root}/fuzz/rest-permission-boundary-matrix.json"
+        },
+        {
+          "path": "${package.root}/fuzz/rest-namespace-generated-cases.json"
+        },
+        {
+          "path": "${package.root}/fuzz/rest-schema-query-attribution.json"
+        },
+        {
+          "path": "${package.root}/fuzz/coverage-gap-report.json"
+        },
+        {
+          "path": "${package.root}/fuzz/action-scheduler-lookup-table-coverage.json"
+        },
+        {
+          "path": "${package.root}/fuzz/options-transients-coverage.json"
+        },
+        {
+          "path": "${package.root}/fuzz/rollback-safe-options-transients-mutations.json"
+        },
+        {
+          "path": "${package.root}/fuzz/codebox-fuzz-suite-contract.json"
+        },
+        {
+          "path": "${package.root}/fuzz/frontend-rendering-request-coverage.json"
+        },
+        {
+          "path": "${package.root}/fuzz/performance-hotspots-artifact-summary.json"
+        },
+        {
+          "path": "${package.root}/fuzz/woocommerce-external-http-guardrail.json"
+        }
+      ]
+    }
+  },
+  "fuzz_profiles": {
+    "smoke": {
+      "$append": [
+        "codebox-fuzz-suite-contract",
+        "woocommerce-rest-route-inventory",
+        "db-inventory",
+        "admin-page-coverage"
+      ]
+    },
+    "db-api-performance-fuzzer": {
+      "$append": [
+        "woocommerce-rest-route-inventory",
+        "generated-rest-request-cases",
+        "rest-db-query-profile",
+        "db-inventory",
+        "rest-schema-query-attribution",
+        "coverage-gap-report",
+        "performance-hotspots-artifact-summary"
+      ]
+    },
+    "product-rest-crud-fuzzer": {
+      "$append": [
+        "rest-product-batch-import",
+        "woocommerce-rest-route-inventory",
+        "generated-rest-request-cases",
+        "rest-schema-query-attribution",
+        "coverage-gap-report"
+      ]
+    },
+    "fuzzer": {
+      "$append": [
+        "cart-session-overwrite-race",
+        "checkout-concurrent-create-order",
+        "checkout-gateway-compatibility-matrix",
+        "checkout-shipping-cache",
+        "admin-page-coverage",
+        "layered-nav-count-cache",
+        "layered-nav-catalog-crawl",
+        "rest-product-batch-import",
+        "woocommerce-rest-route-inventory",
+        "generated-rest-request-cases",
+        "rest-db-query-profile",
+        "db-inventory",
+        "rest-permission-boundary-matrix",
+        "rest-namespace-generated-cases",
+        "rest-schema-query-attribution",
+        "coverage-gap-report",
+        "action-scheduler-lookup-table-coverage",
+        "options-transients-coverage",
+        "rollback-safe-options-transients-mutations",
+        "codebox-fuzz-suite-contract",
+        "frontend-rendering-request-coverage",
+        "performance-hotspots-artifact-summary",
+        "woocommerce-external-http-guardrail"
+      ]
+    },
+    "aggressive-isolated-firehose": {
+      "$append": [
+        "codebox-fuzz-suite-contract",
+        "woocommerce-rest-route-inventory",
+        "generated-rest-request-cases",
+        "rest-db-query-profile",
+        "db-inventory",
+        "rest-schema-query-attribution",
+        "coverage-gap-report",
+        "performance-hotspots-artifact-summary",
+        "woocommerce-external-http-guardrail"
+      ]
+    }
+  },
+  "fuzz_profile_metadata": {
+    "full-surface": {
+      "description": "WooCommerce full-surface fuzz inventory. Discovery manifests extend the executable fuzz workload list with declared REST route-family, block, admin action, and DB/API hotspot artifact contracts without claiming additional runner coverage.",
+      "target_inventory_manifest": "manifests/target-inventory.json",
+      "discovery_manifests": {
+        "rest_route_families": "manifests/rest-crud-route-family-catalog.json",
+        "rest_payload_fixtures": "manifests/rest-crud-payload-fixtures.json",
+        "product_chaos_sequence_packs": "manifests/product-chaos-sequence-packs.json",
+        "blocks": "manifests/block-inventory-rendering-fuzz.json",
+        "admin_actions": "manifests/admin-action-inventory.json",
+        "db_api_hotspots": "manifests/db-api-hotspot-artifact-io.json"
+      },
+      "readiness": {
+        "level": "declared",
+        "coverage_contract": "These manifests are inventory and artifact contracts only. Executable coverage remains limited to workload ids declared in fuzz_workloads.wordpress and grouped by fuzz_profiles. Browser-only scenarios remain non-executable until upstream runner support emits reviewer-facing artifacts. Artifact-postprocess outputs can execute through the generic Homeboy contract but require reviewer-facing artifacts before proven readiness."
+      }
+    },
+    "aggressive-isolated-firehose": {
+      "description": "WooCommerce aggressive randomized destructive firehose profile for offloaded Codebox/Homeboy/HBEX isolated sandbox execution. Rigs supplies product manifests; execution is contract-backed by upstream fuzz/isolation contracts.",
+      "campaign_manifest": "manifests/aggressive-isolated-fuzz-campaign.json",
+      "target_inventory_manifest": "manifests/target-inventory.json",
+      "sequence_pack_manifest": "manifests/product-chaos-sequence-packs.json",
+      "source_profile": "full-surface",
+      "homeboy_fuzz_profile": "aggressive-isolated-firehose",
+      "hbex_fuzz_profile": "aggressive-isolated-firehose",
+      "codebox_fuzz_profile": "woocommerce-aggressive-isolated-firehose",
+      "required_upstream_contracts": [
+        "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+        "homeboy/isolation-proof/v1",
+        "homeboy/fuzz-action-model/v1",
+        "homeboy/fuzz-exploration-policy/v1",
+        "homeboy/wordpress-surface-family-contracts/v1",
+        "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+        "wp-codebox/fuzz-artifact-bundle/v1",
+        "wp-codebox/sandbox-isolation-proof/v1",
+        "wp-codebox/delete-boundary-artifact/v1",
+        "wp-codebox/mutation-isolation-artifact/v1",
+        "homeboy-extensions/generate-database-observations/v1",
+        "homeboy-extensions/generate-admin-observations/v1",
+        "homeboy-extensions/generate-browser-observations/v1",
+        "homeboy-extensions/generate-editor-observations/v1"
+      ],
+      "readiness": {
+        "level": "executable",
+        "execution_enabled": true,
+        "execution_scope": "offloaded_codebox_homeboy_hbex_isolated_sandbox",
+        "local_execution_enabled": false,
+        "coverage_contract": "Execution requires the upstream contract ids listed here and reviewer-facing proof artifacts before proven status.",
+        "contract_ids": [
+          "wp-codebox/wordpress-fuzz-runtime-contract/v1",
+          "homeboy/isolation-proof/v1",
+          "homeboy/fuzz-action-model/v1",
+          "homeboy/fuzz-exploration-policy/v1",
+          "homeboy/wordpress-surface-family-contracts/v1",
+          "homeboy/wordpress-fuzz-runtime-workload-operation/v1",
+          "wp-codebox/fuzz-artifact-bundle/v1",
+          "wp-codebox/sandbox-isolation-proof/v1",
+          "wp-codebox/delete-boundary-artifact/v1",
+          "wp-codebox/mutation-isolation-artifact/v1",
+          "homeboy-extensions/generate-database-observations/v1",
+          "homeboy-extensions/generate-admin-observations/v1",
+          "homeboy-extensions/generate-browser-observations/v1",
+          "homeboy-extensions/generate-editor-observations/v1"
+        ],
+        "missing_upstream_contracts": []
+      }
+    },
+    "db-api-performance-fuzzer": {
+      "description": "Focused WooCommerce DB/API performance fuzzer profile built only from declared REST inventory, generated REST cases, REST DB query profile, DB inventory, schema/query attribution, and performance hotspot summary workloads.",
+      "campaign_manifest": "manifests/db-api-fuzz-campaign.json",
+      "gap_report_manifest": "manifests/db-api-performance-fuzzer-gap-report.json",
+      "stable_workload_contracts_manifest": "manifests/stable-workloads.json",
+      "source_gap_report": "manifests/full-surface-coverage.json#gap_report",
+      "required_primitives": [
+        "wordpress.inventory-rest-routes",
+        "wordpress.generate-rest-request-cases",
+        "wordpress.profile-rest-db-queries",
+        "wordpress.inventory-database",
+        "wordpress.attribute-rest-schema-queries",
+        "wordpress.summarize-performance-hotspots",
+        "wordpress.coverage-gap-report"
+      ],
+      "fixture_contracts": {
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
+        "artifacts": [
+          {
+            "id": "rest_crud_fixture_plan",
+            "schema": "wp-codebox/fuzz-fixture-plan/v1",
+            "path": "manifests/rest-crud-fixture-plan.json",
+            "semantic_key": "fixture.plan",
+            "readiness": "contract_backed_executable"
+          },
+          {
+            "id": "rest_crud_fixture_opt_ins",
+            "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+            "path": "manifests/rest-crud-fixture-opt-ins.json",
+            "semantic_key": "fixture.opt_ins",
+            "readiness": "contract_backed_executable"
+          }
+        ],
+        "operation_ready_ref_families": [
+          "products",
+          "orders",
+          "customers",
+          "coupons"
+        ]
+      },
+      "readiness": {
+        "level": "executable",
+        "execution_enabled": true,
+        "local_execution_enabled": false,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "coverage_contract": "DB/API performance fuzzing is executable as a profile over existing WooCommerce fuzz workloads, the full-surface gap report contract, and contract-backed REST CRUD fixture artifacts. Proven status still requires reviewer-facing run artifacts.",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "required_refs": [
+            "reviewer-facing run ids from wp-codebox/fuzz-suite-result/v1 outputs",
+            "reviewer-facing coverage gap report artifact refs",
+            "reviewer-facing performance hotspot summary artifact refs"
+          ],
+          "required_artifacts": [
+            "route_inventory",
+            "rest_request_cases",
+            "rest_db_query_profile",
+            "db_inventory",
+            "rest_schema_query_attribution",
+            "coverage_gap_report",
+            "performance_hotspots_summary"
+          ]
+        },
+        "crud": {
+          "create": {
+            "level": "executable",
+            "safety_class": "isolated_mutation"
+          },
+          "read": {
+            "level": "executable"
+          },
+          "update": {
+            "level": "executable",
+            "safety_class": "isolated_mutation"
+          },
+          "delete": {
+            "level": "executable",
+            "safety_class": "isolated_mutation"
+          }
+        },
+        "mutation": {
+          "safety_boundary": "Profile execution uses disposable WP Codebox fixtures and contract-backed mutation-isolation/delete-boundary artifacts for REST CRUD cases.",
+          "disposable_sandbox_boundary_artifacts": [
+            "disposable_sandbox_boundary"
+          ],
+          "mutation_isolation_artifacts": [
+            "mutation_isolation_artifact"
+          ],
+          "delete_boundary_artifacts": [
+            "delete_boundary_artifact"
+          ],
+          "rollback_artifacts": [
+            "mutation_isolation_artifact",
+            "delete_boundary_artifact"
+          ],
+          "destructive_case_ledgers": [
+            "destructive_case_ledger"
+          ],
+          "teardown_discard_evidence": [
+            "sandbox_teardown_evidence"
+          ],
+          "artifact_bundle_refs": [
+            "artifact_bundle_ref"
+          ],
+          "isolation_artifacts": [
+            "mutation_isolation_artifact",
+            "delete_boundary_artifact"
+          ]
+        }
+      }
+    },
+    "product-rest-crud-fuzzer": {
+      "description": "Focused WooCommerce product REST CRUD fuzzing profile for batch create/update/delete/readback readiness through contract-backed fixture and delete-boundary artifacts.",
+      "route_family_catalog_manifest": "manifests/rest-crud-route-family-catalog.json",
+      "payload_fixture_manifest": "manifests/rest-crud-payload-fixtures.json",
+      "fixture_plan_manifest": "manifests/rest-crud-fixture-plan.json",
+      "rest_mutation_fixture_opt_ins_manifest": "manifests/rest-crud-fixture-opt-ins.json",
+      "hotspot_artifact_contract_manifest": "manifests/db-api-hotspot-artifact-io.json",
+      "fixture_contracts": {
+        "readiness_level": "executable",
+        "execution_enabled": true,
+        "proof_status": "contract_backed_executable_requires_reviewer_facing_artifacts_before_proven",
+        "handoff_path": "Rigs manifests -> HBEX opt-in ingestion -> Codebox mutation runner -> Homeboy artifacts",
+        "artifacts": [
+          {
+            "id": "rest_crud_fixture_plan",
+            "schema": "wp-codebox/fuzz-fixture-plan/v1",
+            "path": "manifests/rest-crud-fixture-plan.json",
+            "semantic_key": "fixture.plan",
+            "readiness": "contract_backed_executable"
+          },
+          {
+            "id": "rest_crud_fixture_opt_ins",
+            "schema": "wp-codebox/rest-mutation-fixture-opt-in/v1",
+            "path": "manifests/rest-crud-fixture-opt-ins.json",
+            "semantic_key": "fixture.opt_ins",
+            "readiness": "contract_backed_executable"
+          }
+        ],
+        "operation_ready_ref_families": [
+          "products",
+          "orders",
+          "customers",
+          "coupons"
+        ]
+      },
+      "generic_upstream_contracts": [
+        "wordpress.disposable-rest-mutation",
+        "wp-codebox/wordpress-workload-run/v1",
+        "wp-codebox/mutation-isolation-artifact/v1",
+        "wp-codebox/delete-boundary-artifact/v1"
+      ],
+      "readiness": {
+        "level": "executable",
+        "coverage_contract": "Product REST CRUD fuzzing can execute isolated create/update/delete plus readback through rest-product-batch-import and contract-backed WP Codebox fixture-plan/REST opt-in artifacts. Proven status requires reviewer-facing run artifacts and gap reports.",
+        "proof_bundle_requirements": {
+          "status": "required_before_proven",
+          "required_refs": [
+            "reviewer-facing run id for rest-product-batch-import",
+            "reviewer-facing coverage gap report artifact ref"
+          ],
+          "required_artifacts": [
+            "raw_result",
+            "coverage_gap_report"
+          ]
+        },
+        "crud": {
+          "create": {
+            "level": "executable",
+            "workload": "rest-product-batch-import",
+            "primitive": "wordpress.disposable-rest-mutation",
+            "safety_class": "isolated_mutation"
+          },
+          "read": {
+            "level": "executable",
+            "workloads": [
+              "generated-rest-request-cases",
+              "rest-schema-query-attribution"
+            ],
+            "safety_class": "read_only"
+          },
+          "update": {
+            "level": "executable",
+            "workload": "rest-product-batch-import",
+            "primitive": "wordpress.disposable-rest-mutation",
+            "safety_class": "isolated_mutation"
+          },
+          "delete": {
+            "level": "executable",
+            "primitive": "wp-codebox/delete-boundary-artifact/v1",
+            "artifact": "delete_boundary_artifact",
+            "safety_class": "isolated_mutation"
+          }
+        },
+        "mutation": {
+          "primitive": "wordpress.disposable-rest-mutation",
+          "safety_boundary": "Executable product create/update/delete cases run only inside disposable WP Codebox fixtures and must emit mutation/readback/delete-boundary details before any proof claim.",
+          "disposable_sandbox_boundary_artifacts": [
+            "disposable_sandbox_boundary"
+          ],
+          "mutation_isolation_artifacts": [
+            "raw_result",
+            "mutation_isolation_artifact"
+          ],
+          "delete_boundary_artifacts": [
+            "delete_boundary_artifact"
+          ],
+          "rollback_artifacts": [
+            "mutation_isolation_artifact",
+            "delete_boundary_artifact"
+          ],
+          "destructive_case_ledgers": [
+            "destructive_case_ledger"
+          ],
+          "teardown_discard_evidence": [
+            "sandbox_teardown_evidence"
+          ],
+          "artifact_bundle_refs": [
+            "artifact_bundle_ref"
+          ],
+          "isolation_artifacts": [
+            "mutation_isolation_artifact",
+            "delete_boundary_artifact"
+          ],
+          "mutation_artifact_schemas": [
+            "wp-codebox/mutation-isolation-artifact/v1",
+            "wp-codebox/delete-boundary-artifact/v1"
+          ]
+        }
+      }
+    }
+  },
+  "pipeline": {
+    "fuzz_prepare": {
+      "$append": [
+        {
+          "kind": "requirement",
+          "label": "WooCommerce Composer package autoloader exists or can be prepared",
+          "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
+          "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
+          "prepare_phases": [
+            "fuzz_prepare"
+          ],
+          "remediation": "Materialize dependency step woocommerce-php-package-dependencies for the plugins/woocommerce runtime path."
+        },
+        {
+          "kind": "requirement",
+          "label": "WooCommerce generated feature config exists or can be prepared",
+          "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
+          "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
+          "prepare_phases": [
+            "fuzz_prepare"
+          ],
+          "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
+        }
+      ]
+    }
+  }
+}
