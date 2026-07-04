@@ -1,5 +1,5 @@
 {
-  "extends": "../wp-codebox-external-cleanup.base.json",
+  "extends": "../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
   "id": "woocommerce-cart-session-race-browser",
   "description": "WP Codebox browser-level two-tab/product-page/cart-page repro rig for WooCommerce cart session overwrite race issue #46483.",
   "components": {

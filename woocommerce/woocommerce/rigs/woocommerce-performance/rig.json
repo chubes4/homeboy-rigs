@@ -1,5 +1,5 @@
 {
-  "extends": "../wp-codebox-external-cleanup.base.json",
+  "extends": "../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
   "id": "woocommerce-performance",
   "description": "WooCommerce large-merchant performance and fuzz rig. Uses WordPress/WP Codebox runtimes for performance benchmarks plus declared fuzz workloads tied to concrete WooCommerce issues and coverage surfaces.",
   "components": {

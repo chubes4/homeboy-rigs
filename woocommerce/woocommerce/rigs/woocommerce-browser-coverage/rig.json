@@ -1,5 +1,5 @@
 {
-  "extends": "../wp-codebox-external-cleanup.base.json",
+  "extends": "../../shared/wordpress-plugin/browser-coverage.base.json",
   "id": "woocommerce-browser-coverage",
   "description": "WP Codebox browser-actions request coverage for WooCommerce shop, product, cart, checkout, orders admin, products admin, and analytics admin surfaces.",
   "components": {
@@ -18,20 +18,6 @@
   },
   "trace": {
     "default_component": "woocommerce"
-  },
-  "trace_workload_defaults": {
-    "nodejs": {
-      "check_groups": [],
-      "port_range_size": 1,
-      "trace_default_phase_preset": "browser-request-coverage",
-      "trace_phase_presets": {
-        "browser-request-coverage": [
-          "start:scenario.start",
-          "recipe:wp_codebox.recipe.start",
-          "actions:browser.actions.ready"
-        ]
-      }
-    }
   },
   "trace_workloads": {
     "nodejs": [
@@ -59,7 +45,6 @@
         "command": "bash \"${package.root}/tools/check-admin-assets.sh\" \"${components.woocommerce.path}\"",
         "remediation": "Use a packaged WooCommerce plugin checkout or build the WooCommerce admin assets before running woocommerce-browser-coverage."
       }
-    ],
-    "down": []
+    ]
   }
 }

@@ -1,5 +1,5 @@
 {
-  "extends": "../wp-codebox-external-cleanup.base.json",
+  "extends": "../../shared/wordpress-plugin/fuzz-inventory.base.json",
   "id": "gutenberg-api-route-inventory",
   "description": "Gutenberg REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {
@@ -24,8 +24,7 @@
     ]
   },
   "bench": {
-    "default_component": "gutenberg",
-    "warmup_iterations": 0
+    "default_component": "gutenberg"
   },
   "fuzz": {
     "default_component": "gutenberg"
@@ -92,7 +91,6 @@
         "component_path_contains": "gutenberg",
         "remediation": "Pass homeboy bench --path /path/to/gutenberg or update components.gutenberg.path before running gutenberg-api-route-inventory."
       }
-    ],
-    "down": []
+    ]
   }
 }
