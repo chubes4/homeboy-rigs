@@ -1,4 +1,5 @@
 {
+  "extends": "../wp-codebox-external-cleanup.base.json",
   "id": "jetpack-api-route-inventory",
   "description": "Jetpack REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {
@@ -28,7 +29,6 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "external",
       "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; the Jetpack component checkout is user-owned."
     }
   },
