@@ -1,5 +1,5 @@
 {
-  "extends": "../wp-codebox-external-cleanup.base.json",
+  "extends": "../../shared/wordpress-plugin/fuzz-inventory.base.json",
   "id": "jetpack-api-route-inventory",
   "description": "Jetpack REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",
   "components": {
@@ -33,8 +33,7 @@
     }
   },
   "bench": {
-    "default_component": "jetpack",
-    "warmup_iterations": 0
+    "default_component": "jetpack"
   },
   "fuzz": {
     "default_component": "jetpack"
@@ -107,7 +106,6 @@
         "component_path_contains": "jetpack",
         "remediation": "Pass homeboy bench --path /path/to/jetpack/projects/plugins/jetpack or update components.jetpack.path before running jetpack-api-route-inventory."
       }
-    ],
-    "down": []
+    ]
   }
 }

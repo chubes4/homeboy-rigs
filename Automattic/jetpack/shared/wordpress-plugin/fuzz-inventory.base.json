@@ -1,0 +1,9 @@
+{
+  "extends": "./wp-codebox-external-cleanup.base.json",
+  "bench": {
+    "warmup_iterations": 0
+  },
+  "pipeline": {
+    "down": []
+  }
+}

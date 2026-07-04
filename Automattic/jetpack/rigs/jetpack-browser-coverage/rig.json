@@ -1,5 +1,5 @@
 {
-  "extends": "../wp-codebox-external-cleanup.base.json",
+  "extends": "../../shared/wordpress-plugin/browser-coverage.base.json",
   "id": "jetpack-browser-coverage",
   "description": "WP Codebox browser-actions request coverage for Jetpack dashboard, connection, modules, settings admin, and public module frontend surfaces.",
   "components": {
@@ -21,20 +21,6 @@
   "trace": {
     "default_component": "jetpack"
   },
-  "trace_workload_defaults": {
-    "nodejs": {
-      "check_groups": [],
-      "port_range_size": 1,
-      "trace_default_phase_preset": "browser-request-coverage",
-      "trace_phase_presets": {
-        "browser-request-coverage": [
-          "start:scenario.start",
-          "recipe:wp_codebox.recipe.start",
-          "actions:browser.actions.ready"
-        ]
-      }
-    }
-  },
   "trace_workloads": {
     "nodejs": [
       {
@@ -55,7 +41,6 @@
         "component": "jetpack",
         "component_path_contains": "jetpack"
       }
-    ],
-    "down": []
+    ]
   }
 }
