@@ -14,7 +14,27 @@
       }
     }
   },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs"
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": ["woocommerce-browser-coverage"],
+    "full-surface": ["woocommerce-browser-coverage"]
+  },
   "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "WooCommerce plugin checkout exists",
+        "file": "${components.woocommerce.path}/woocommerce.php",
+        "component": "woocommerce",
+        "component_path_contains": "woocommerce"
+      }
+    ],
     "down": []
   }
 }

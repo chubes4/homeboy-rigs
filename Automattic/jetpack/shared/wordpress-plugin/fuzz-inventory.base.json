@@ -3,7 +3,74 @@
   "bench": {
     "warmup_iterations": 0
   },
+  "fuzz_workloads": {
+    "wordpress": [
+      { "path": "${package.root}/fuzz/jetpack-rest-route-inventory.json" },
+      { "path": "${package.root}/fuzz/generated-rest-request-cases.json" },
+      { "path": "${package.root}/fuzz/rest-db-query-profile.json" },
+      { "path": "${package.root}/fuzz/db-inventory.json" },
+      { "path": "${package.root}/fuzz/jetpack-admin-page-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-module-state-matrix.json" },
+      { "path": "${package.root}/fuzz/jetpack-module-option-table-inventory.json" },
+      { "path": "${package.root}/fuzz/jetpack-options-matrix.json" },
+      { "path": "${package.root}/fuzz/jetpack-sync-queue-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-cron-sync-actions.json" },
+      { "path": "${package.root}/fuzz/jetpack-connected-disconnected-fixtures.json" },
+      { "path": "${package.root}/fuzz/jetpack-public-module-frontend-coverage.json" },
+      { "path": "${package.root}/fuzz/jetpack-performance-observation.json" },
+      { "path": "${package.root}/fuzz/jetpack-external-http-guardrail.json" }
+    ]
+  },
+  "fuzz_profiles": {
+    "smoke": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory"
+    ],
+    "fuzzer": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "jetpack-admin-page-coverage",
+      "jetpack-module-state-matrix",
+      "jetpack-module-option-table-inventory",
+      "jetpack-options-matrix",
+      "jetpack-sync-queue-coverage",
+      "jetpack-cron-sync-actions",
+      "jetpack-connected-disconnected-fixtures",
+      "jetpack-public-module-frontend-coverage",
+      "jetpack-performance-observation",
+      "jetpack-external-http-guardrail"
+    ],
+    "full-surface": [
+      "jetpack-rest-route-inventory",
+      "generated-rest-request-cases",
+      "rest-db-query-profile",
+      "db-inventory",
+      "jetpack-admin-page-coverage",
+      "jetpack-module-state-matrix",
+      "jetpack-module-option-table-inventory",
+      "jetpack-options-matrix",
+      "jetpack-sync-queue-coverage",
+      "jetpack-cron-sync-actions",
+      "jetpack-connected-disconnected-fixtures",
+      "jetpack-public-module-frontend-coverage",
+      "jetpack-performance-observation",
+      "jetpack-external-http-guardrail"
+    ]
+  },
   "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Jetpack plugin checkout exists",
+        "file": "${components.jetpack.path}/jetpack.php",
+        "component": "jetpack",
+        "component_path_contains": "jetpack"
+      }
+    ],
     "down": []
   }
 }

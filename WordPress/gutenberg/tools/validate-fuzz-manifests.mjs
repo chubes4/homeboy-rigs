@@ -9,12 +9,13 @@ import {
   declaredBenchProfileIds,
   declaredBenchWorkloadIds,
   declaredFuzzIds,
+  readMaterializedRig,
   readJson,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
-const rig = readJson(packageRoot, 'rigs/gutenberg-api-route-inventory/rig.json');
+const rig = readMaterializedRig(packageRoot, 'rigs/gutenberg-api-route-inventory/rig.json');
 
 const declaredIds = declaredFuzzIds(rig);
 const benchWorkloadIds = declaredBenchWorkloadIds(rig);
