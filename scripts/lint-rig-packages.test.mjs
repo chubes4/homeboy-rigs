@@ -225,137 +225,57 @@ test('accepts explicitly allowed shared path self-targets', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('rejects rigs with resources, empty down lifecycle, and no cleanup policy', () => {
-  const directory = createRigPackage({
+const cleanupPolicyCases = [
+  {
+    name: 'rejects rigs with resources, empty down lifecycle, and no cleanup policy',
+    expectedStatus: 'fail',
     rig: {
-      resources: {
-        ports: [8080],
-      },
-      pipeline: {
-        down: [],
-      },
+      resources: { ports: [8080] },
+      pipeline: { down: [] },
     },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
-});
-
-test('rejects rigs with resources, missing down lifecycle, and no cleanup policy', () => {
-  const directory = createRigPackage({
+    patterns: [/declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/],
+  },
+  {
+    name: 'rejects rigs with resources, missing down lifecycle, and no cleanup policy',
+    expectedStatus: 'fail',
     rig: {
-      resources: {
-        ports: [8080],
-      },
+      resources: { ports: [8080] },
       pipeline: {
-        up: [
-          {
-            kind: 'check',
-            label: 'generic check',
-            command: 'true',
-          },
-        ],
+        up: [{ kind: 'check', label: 'generic check', command: 'true' }],
       },
     },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
-});
-
-test('rejects inherited resources with missing down lifecycle and no cleanup policy', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-  const packageRoot = join(directory, 'Vendor', 'product');
-  writeJson(join(packageRoot, 'rigs', 'base.json'), {
-    resources: {
-      paths: ['${components.product.path}'],
-    },
-    pipeline: {
-      up: [
-        {
-          kind: 'check',
-          label: 'generic check',
-          command: 'true',
-        },
-      ],
-    },
-  });
-  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
-    extends: '../base.json',
-    id: 'generic-rig',
-    description: 'Generic lint fixture rig.',
-    fuzz_workloads: {
-      generic: [
-        { path: '${package.root}/fuzz/generic-fuzz.json' },
-      ],
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/);
-});
-
-test('accepts inherited cleanup policy for inherited resources with missing down lifecycle', () => {
-  const directory = createRigPackage({
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-  const packageRoot = join(directory, 'Vendor', 'product');
-  writeJson(join(packageRoot, 'rigs', 'base.json'), {
-    lifecycle: {
-      cleanup: {
-        intent: 'manual',
-        reason: 'The inherited rig resources are user-owned checkout state.',
+    patterns: [/declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/],
+  },
+  {
+    name: 'rejects inherited resources with missing down lifecycle and no cleanup policy',
+    expectedStatus: 'fail',
+    inherited: {
+      resources: { paths: ['${components.product.path}'] },
+      pipeline: {
+        up: [{ kind: 'check', label: 'generic check', command: 'true' }],
       },
     },
-    resources: {
-      paths: ['${components.product.path}'],
-    },
-    pipeline: {
-      up: [
-        {
-          kind: 'check',
-          label: 'generic check',
-          command: 'true',
+    patterns: [/declared resources and empty or missing pipeline\.down must declare lifecycle\.cleanup intent/],
+  },
+  {
+    name: 'accepts inherited cleanup policy for inherited resources with missing down lifecycle',
+    expectedStatus: 'pass',
+    inherited: {
+      lifecycle: {
+        cleanup: {
+          intent: 'manual',
+          reason: 'The inherited rig resources are user-owned checkout state.',
         },
-      ],
+      },
+      resources: { paths: ['${components.product.path}'] },
+      pipeline: {
+        up: [{ kind: 'check', label: 'generic check', command: 'true' }],
+      },
     },
-  });
-  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
-    extends: '../base.json',
-    id: 'generic-rig',
-    description: 'Generic lint fixture rig.',
-    fuzz_workloads: {
-      generic: [
-        { path: '${package.root}/fuzz/generic-fuzz.json' },
-      ],
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-});
-
-test('accepts explicit cleanup policy for rigs with resources and empty down lifecycle', () => {
-  const directory = createRigPackage({
+  },
+  {
+    name: 'accepts explicit cleanup policy for rigs with resources and empty down lifecycle',
+    expectedStatus: 'pass',
     rig: {
       lifecycle: {
         cleanup: {
@@ -363,65 +283,67 @@ test('accepts explicit cleanup policy for rigs with resources and empty down lif
           reason: 'The runner owns the declared resource boundary.',
         },
       },
-      resources: {
-        exclusive: ['generic:${env.HOMEBOY_SETTINGS_GENERIC_NAMESPACE}'],
-      },
-      pipeline: {
-        down: [],
-      },
+      resources: { exclusive: ['generic:${env.HOMEBOY_SETTINGS_GENERIC_NAMESPACE}'] },
+      pipeline: { down: [] },
     },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  assert.doesNotMatch(result.stderr, /declared resources and empty or missing pipeline\.down/);
-});
-
-test('validates cleanup policy metadata without runtime cleanup proof', () => {
-  const directory = createRigPackage({
+    absentPatterns: [/declared resources and empty or missing pipeline\.down/],
+  },
+  {
+    name: 'validates cleanup policy metadata without runtime cleanup proof',
+    expectedStatus: 'fail',
     rig: {
-      lifecycle: {
-        cleanup: {
-          intent: 'external',
-          reason: '   ',
-        },
-      },
+      lifecycle: { cleanup: { intent: 'external', reason: '   ' } },
     },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
-  });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /lifecycle\.cleanup\.reason must explain the cleanup boundary/);
-});
-
-test('rejects invalid explicit cleanup policy', () => {
-  const directory = createRigPackage({
+    patterns: [/lifecycle\.cleanup\.reason must explain the cleanup boundary/],
+  },
+  {
+    name: 'rejects invalid explicit cleanup policy',
+    expectedStatus: 'fail',
     rig: {
-      lifecycle: {
-        cleanup: {
-          intent: 'implicit',
+      lifecycle: { cleanup: { intent: 'implicit' } },
+    },
+    patterns: [
+      /lifecycle\.cleanup\.intent must be one of none, external, manual, pipeline/,
+      /lifecycle\.cleanup\.reason must explain the cleanup boundary/,
+    ],
+  },
+];
+
+for (const cleanupCase of cleanupPolicyCases) {
+  test(cleanupCase.name, () => {
+    const directory = createRigPackage({
+      rig: cleanupCase.inherited ? {} : cleanupCase.rig,
+      fuzzWorkloads: { 'generic-fuzz': fuzzWorkload() },
+    });
+
+    if (cleanupCase.inherited) {
+      const packageRoot = join(directory, 'Vendor', 'product');
+      writeJson(join(packageRoot, 'rigs', 'base.json'), cleanupCase.inherited);
+      writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+        extends: '../base.json',
+        id: 'generic-rig',
+        description: 'Generic lint fixture rig.',
+        fuzz_workloads: {
+          generic: [{ path: '${package.root}/fuzz/generic-fuzz.json' }],
         },
-      },
-    },
-    fuzzWorkloads: {
-      'generic-fuzz': fuzzWorkload(),
-    },
+      });
+    }
+
+    const result = runLint(directory);
+
+    if (cleanupCase.expectedStatus === 'pass') {
+      assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    } else {
+      assert.notEqual(result.status, 0);
+    }
+    for (const pattern of cleanupCase.patterns || []) {
+      assert.match(result.stderr, pattern);
+    }
+    for (const pattern of cleanupCase.absentPatterns || []) {
+      assert.doesNotMatch(result.stderr, pattern);
+    }
   });
-
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /lifecycle\.cleanup\.intent must be one of none, external, manual, pipeline/);
-  assert.match(result.stderr, /lifecycle\.cleanup\.reason must explain the cleanup boundary/);
-});
+}
 
 test('rejects committed local Developer checkout paths in stacks', () => {
   const directory = createRigPackage({
@@ -567,50 +489,57 @@ export function validatePortableSource({ rel, contents }) {
   assert.match(result.stderr, /product-local portable source validator ran/);
 });
 
-test('requires WordPress Core REST fuzz permission proof artifacts', () => {
-  const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
-    id: 'rest-api',
-    surface_ids: ['wordpress-core-rest-routes'],
-    operations: ['rest-route-inventory', 'generated-rest-case-plan'],
-    workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
-    artifacts: { expected: [] },
-  }));
-  const result = runLint(directory);
+const wordpressCoreProofArtifactCases = [
+  {
+    name: 'requires WordPress Core REST fuzz permission proof artifacts',
+    lintPackageRoot: false,
+    workload: fuzzWorkload({
+      id: 'rest-api',
+      surface_ids: ['wordpress-core-rest-routes'],
+      operations: ['rest-route-inventory', 'generated-rest-case-plan'],
+      workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
+      artifacts: { expected: [] },
+    }),
+    patterns: [/role-boundary-execution/, /fuzz\.rest\.permission_boundaries/],
+  },
+  {
+    name: 'requires WordPress Core DB attribution proof artifacts',
+    lintPackageRoot: false,
+    workload: fuzzWorkload({
+      id: 'db-inventory-query-profile',
+      surface_ids: ['wordpress-core-database'],
+      operations: ['db-inventory'],
+      workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
+      artifacts: { expected: [] },
+    }),
+    patterns: [/wordpress-core-postmeta/, /rewrite-query-attribution/, /fuzz\.db\.options_postmeta_rewrite_attribution/],
+  },
+  {
+    name: 'requires WordPress Core proof artifacts when linting package root directly',
+    lintPackageRoot: true,
+    workload: fuzzWorkload({
+      id: 'rest-api',
+      surface_ids: ['wordpress-core-rest-routes'],
+      operations: ['rest-route-inventory'],
+      workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
+      artifacts: { expected: [] },
+    }),
+    patterns: [/fuzz\/rest-api\.json: rest-api must declare expected artifact semantic key fuzz\.rest\.route_inventory/],
+  },
+];
 
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /role-boundary-execution/);
-  assert.match(result.stderr, /fuzz\.rest\.permission_boundaries/);
-});
+for (const proofCase of wordpressCoreProofArtifactCases) {
+  test(proofCase.name, () => {
+    const directory = createWordPressDevelopFuzzPackage(proofCase.workload);
+    const lintTarget = proofCase.lintPackageRoot ? join(directory, 'WordPress', 'wordpress-develop') : directory;
+    const result = runLint(lintTarget);
 
-test('requires WordPress Core DB attribution proof artifacts', () => {
-  const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
-    id: 'db-inventory-query-profile',
-    surface_ids: ['wordpress-core-database'],
-    operations: ['db-inventory'],
-    workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
-    artifacts: { expected: [] },
-  }));
-  const result = runLint(directory);
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /wordpress-core-postmeta/);
-  assert.match(result.stderr, /rewrite-query-attribution/);
-  assert.match(result.stderr, /fuzz\.db\.options_postmeta_rewrite_attribution/);
-});
-
-test('requires WordPress Core proof artifacts when linting package root directly', () => {
-  const directory = createWordPressDevelopFuzzPackage(fuzzWorkload({
-    id: 'rest-api',
-    surface_ids: ['wordpress-core-rest-routes'],
-    operations: ['rest-route-inventory'],
-    workload: { runner: 'wp-codebox', type: 'declarative', path: '${package.root}/manifests/rest-route-coverage.json' },
-    artifacts: { expected: [] },
-  }));
-  const result = runLint(join(directory, 'WordPress', 'wordpress-develop'));
-
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /fuzz\/rest-api\.json: rest-api must declare expected artifact semantic key fuzz\.rest\.route_inventory/);
-});
+    assert.notEqual(result.status, 0);
+    for (const pattern of proofCase.patterns) {
+      assert.match(result.stderr, pattern);
+    }
+  });
+}
 
 test('rejects WordPress Core fuzz workloads outside wordpress-develop', () => {
   const directory = mkdtempSync(join(tmpdir(), 'homeboy-rigs-wp-legacy-lint-'));

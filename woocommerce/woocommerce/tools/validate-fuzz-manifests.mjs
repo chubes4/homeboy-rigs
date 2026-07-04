@@ -790,7 +790,7 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.equal(generatedAggressiveFirehoseCommandPlan.runnable_commands_enabled, true, 'aggressive firehose command plan must emit runnable offloaded commands');
   assert.equal(generatedAggressiveFirehoseCommandPlan.plan_kind, 'runnable_offloaded_commands', 'aggressive firehose command plan kind drifted');
   assert.ok(generatedAggressiveFirehoseCommandPlan.commands.length > 0, 'aggressive firehose command plan must emit runnable offloaded commands');
-  assert.equal(generatedAggressiveFirehoseCommandPlan.core_planner?.help_validated, true, 'aggressive firehose command plan must validate the installed core homeboy fuzz plan command');
+  assert.equal(generatedAggressiveFirehoseCommandPlan.core_planner?.command_registry_validated, true, 'aggressive firehose command plan must validate the installed core homeboy fuzz command contract');
   assert.deepEqual(generatedAggressiveFirehoseCommandPlan.core_planner?.command, ['homeboy', 'fuzz', 'plan'], 'aggressive firehose command plan must use the core Homeboy fuzz planner');
   assert.deepEqual(generatedAggressiveFirehoseCommandPlan.blockers, [], 'aggressive firehose command plan must not carry stale blockers');
   const upstreamArtifactSources = generatedAggressiveFirehoseCommandPlan.upstream_contract_artifact_sources || [];

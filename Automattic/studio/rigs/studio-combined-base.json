@@ -1,0 +1,140 @@
+{
+  "components": {
+    "studio": {
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_COMBINED__STUDIO}",
+      "branch": "dev/combined-fixes",
+      "extensions": {
+        "nodejs": {
+          "studio_bench_variant": "combined-fixes"
+        }
+      }
+    },
+    "wordpress-playground": {
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_COMBINED__WORDPRESS_PLAYGROUND}",
+      "branch": "dev/combined-fixes"
+    }
+  },
+
+  "lifecycle": {
+    "cleanup": {
+      "intent": "pipeline",
+      "reason": "pipeline.down stops the Studio daemon and tarball server and removes shared-path links created by this rig; component checkouts, dependencies, built artifacts, and prepared stack state remain user-owned resources."
+    }
+  },
+
+  "services": {
+    "tarball-server": {
+      "kind": "http-static",
+      "cwd": "${components.wordpress-playground.path}/dist/packages-for-self-hosting",
+      "port": 9724,
+      "health": {
+        "http": "http://127.0.0.1:9724/",
+        "expect_status": 200
+      }
+    },
+    "studio-daemon": {
+      "kind": "external",
+      "discover": {
+        "pattern": "wordpress-server-child.mjs"
+      }
+    }
+  },
+
+  "resources": {
+    "ports": [9724],
+    "paths": [
+      "${components.studio.path}",
+      "${components.wordpress-playground.path}"
+    ],
+    "process_patterns": [
+      "wordpress-server-child.mjs",
+      "playground-server-child.mjs"
+    ]
+  },
+
+  "shared_paths": [
+    {
+      "link": "~/.local/bin/studio",
+      "target": "~/.local/bin/studio-dev"
+    },
+    {
+      "link": "${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds",
+      "target": "../../packages/playground/wordpress-builds"
+    }
+  ],
+
+  "bench": {
+    "default_component": "studio"
+  },
+
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Node.js available",
+        "executable": "node"
+      },
+      {
+        "kind": "requirement",
+        "label": "npm available",
+        "executable": "npm"
+      },
+      {
+        "kind": "requirement",
+        "label": "npx available",
+        "executable": "npx"
+      },
+      {
+        "kind": "requirement",
+        "label": "jq available",
+        "executable": "jq"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "health"
+      },
+      {
+        "kind": "shared-path",
+        "op": "verify"
+      }
+    ],
+    "up": [
+      {
+        "kind": "shared-path",
+        "op": "ensure"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "start"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "health"
+      },
+      {
+        "kind": "service",
+        "id": "studio-daemon",
+        "op": "stop"
+      }
+    ],
+    "down": [
+      {
+        "kind": "service",
+        "id": "studio-daemon",
+        "op": "stop"
+      },
+      {
+        "kind": "service",
+        "id": "tarball-server",
+        "op": "stop"
+      },
+      {
+        "kind": "shared-path",
+        "op": "cleanup"
+      }
+    ]
+  }
+}
