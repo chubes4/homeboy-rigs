@@ -5,10 +5,11 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { readMaterializedRig } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rig = JSON.parse(readFileSync(path.join(__dirname, '../rigs/woocommerce-performance/rig.json'), 'utf8'));
-const browserCoverageRig = JSON.parse(readFileSync(path.join(__dirname, '../rigs/woocommerce-browser-coverage/rig.json'), 'utf8'));
+const rig = readMaterializedRig(__dirname, '../rigs/woocommerce-performance/rig.json');
+const browserCoverageRig = readMaterializedRig(__dirname, '../rigs/woocommerce-browser-coverage/rig.json');
 const adminAssetsCheck = path.join(__dirname, '../tools/check-admin-assets.sh');
 
 test('admin coverage rigs fail preflight when WooCommerce admin assets are missing', () => {

@@ -4,13 +4,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readMaterializedRig } from '../../../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 const manifestPath = path.join(packageRoot, 'manifests/aggressive-isolated-fuzz-campaign.json');
-const rigPath = path.join(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-const rig = JSON.parse(readFileSync(rigPath, 'utf8'));
+const rig = readMaterializedRig(packageRoot, 'rigs/woocommerce-performance/rig.json');
 
 const options = parseArgs(process.argv.slice(2));
 const commandPlan = manifest.command_plan;

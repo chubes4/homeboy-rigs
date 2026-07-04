@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   declaredFuzzIds,
   readJson,
+  readMaterializedRig,
 } from '../../../scripts/fuzz-manifest-helpers.mjs';
 import {
   wooProductSurfaceTaxonomy,
@@ -13,7 +14,7 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');
 
-const rig = readJson(packageRoot, 'rigs/woocommerce-performance/rig.json');
+const rig = readMaterializedRig(packageRoot, 'rigs/woocommerce-performance/rig.json');
 const coverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const restCrudRouteFamilyCatalog = readJson(packageRoot, 'manifests/rest-crud-route-family-catalog.json');
 const restCrudPayloadFixtures = readJson(packageRoot, 'manifests/rest-crud-payload-fixtures.json');
