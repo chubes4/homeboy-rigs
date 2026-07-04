@@ -83,7 +83,7 @@ GitHub Actions runs the package lint with PHP installed and injects Homeboy Exte
 
 ## Automattic/studio
 
-`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment: forks rebased onto trunk, open PRs cherry-picked, Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to local tarballs.
+`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment for a prepared combined stack. It declares component paths, shared paths, services, resources, and workload dispatch; stack refresh/rebase, PHP-WASM compilation, tarball packaging, and Studio package rewrites are prepared outside the rig.
 
 `studio-figma-to-wordpress-import` is the adapter rig for the Blocks Engine Figma transformer fixture matrix. Blocks Engine owns fixture discovery, frame selection, transform execution, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy. It expects a Blocks Engine checkout and does not create separate runtime resources.
 
@@ -98,7 +98,15 @@ Useful settings:
 
 `studio-combined` declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
 
-`studio-combined` rewires selected Studio package manifests to local Playground tarballs during `up`. Before that rewrite, the rig refuses dirty package manifests and stores backups under `${components.studio.path}/.homeboy-rig/studio-combined/package-backups`; `down` restores those files when they still look like rig-owned local tarball rewrites. The rig no longer deletes Studio `node_modules` scopes during setup. Rig-owned symlinks such as `~/.local/bin/studio` and `${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds` are declared as shared paths, so `down` removes the links it created without deleting user-owned checkout or dependency contents.
+Prepare the stack and local tarball artifacts before using the rig:
+
+```bash
+homeboy stack sync studio-combined
+homeboy stack sync playground-combined
+npx nx run-many --all --target=package-for-self-hosting -- --hostingBaseUrl=http://127.0.0.1:9724/studio-dev
+```
+
+`studio-combined` no longer mutates git state, compiles PHP-WASM, rewrites Studio package manifests, or manages backup/restore shell. Rig-owned symlinks such as `~/.local/bin/studio` and `${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds` are declared as shared paths, so `down` removes the links it created without deleting user-owned checkout or dependency contents.
 
 ```bash
 homeboy rig check studio-combined
@@ -225,7 +233,7 @@ Canonical Studio create-site trace spans, pending Homeboy's trace span summary s
 | `state_to_ui` | `probe.site_details_running_true` | `ui.site.running_visible` |
 | `submit_to_running` | `ui.create_site.submit_clicked` | `ui.site.running_visible` |
 
-The optional `diagnostic-seeded-sqlite-db` trace experiment no longer assumes a seed database under `/tmp`; set `HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH=/path/to/seed.ht.sqlite` when using that experiment. The optional live `proc_open` check also requires `STUDIO_PROC_OPEN_CHECK_SITE_PATH` or `HOMEBOY_SETTINGS_STUDIO_PROC_OPEN_CHECK_SITE_PATH`, so package checks do not assume Chris's local Studio site path.
+The optional `diagnostic-seeded-sqlite-db` trace experiment no longer assumes a seed database under `/tmp`; set `HOMEBOY_SETTINGS_STUDIO_TRACE_SEED_DB_PATH=/path/to/seed.ht.sqlite` when using that experiment.
 
 The Studio agent site-build rigs are model/substrate-specific. Use `studio-agent-claude-ssi` or `studio-agent-gpt55-ssi` for current Static Site Importer site-build runs, and `studio-agent-claude-trunk` as the trunk reference.
 
@@ -508,12 +516,6 @@ homeboy trace --rig woocommerce-stripe-ece-product-page \
   woocommerce-gateway-stripe ece-product-page-waterfall \
   --output /tmp/wc-stripe-ece-real-wallet.json
 ```
-
-## chubes4/isolated-block-editor
-
-`rigs/isolated-block-editor/rig.json` runs the checks used while shaving Isolated Block Editor toward modern Gutenberg APIs.
-
-The rig declares `node_modules` as a Homeboy `shared_paths` entry. When the active checkout is a worktree without local dependencies, set `HOMEBOY_RIG_SHARED_PATH_TARGET__ISOLATED_BLOCK_EDITOR__NODE_MODULES` to the primary checkout's `node_modules` directory; `shared-path ensure` borrows that directory and `down` removes only the symlink it created.
 
 ## Conventions
 

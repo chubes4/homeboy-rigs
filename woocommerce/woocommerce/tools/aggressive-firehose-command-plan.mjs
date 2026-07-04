@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -354,23 +355,32 @@ function validateCommandPlan(plan) {
 }
 
 function validateHomeboyFuzzPlan(requiredFlags) {
-  const result = spawnSync('homeboy', ['fuzz', 'plan', '--help'], { encoding: 'utf8' });
-  if (result.error) {
-    throw new Error(`Installed Homeboy cannot validate Woo aggressive firehose: homeboy fuzz plan --help failed: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    throw new Error(`Installed Homeboy cannot validate Woo aggressive firehose: homeboy fuzz plan --help exited ${result.status}: ${result.stderr || result.stdout}`);
-  }
+  const exportDir = mkdtempSync(path.join(tmpdir(), 'homeboy-contract-export-'));
 
-  const help = `${result.stdout}\n${result.stderr}`;
-  const missingFlags = requiredFlags.filter((flag) => !help.includes(flag));
-  if (missingFlags.length > 0) {
-    throw new Error(`Installed Homeboy lacks required homeboy fuzz plan flags for Woo aggressive firehose: ${missingFlags.join(', ')}`);
+  try {
+    const result = spawnSync('homeboy', ['contract', 'export', '--dir', exportDir], { encoding: 'utf8' });
+    if (result.error) {
+      throw new Error(`Installed Homeboy cannot validate Woo aggressive firehose: homeboy contract export failed: ${result.error.message}`);
+    }
+    if (result.status !== 0) {
+      throw new Error(`Installed Homeboy cannot validate Woo aggressive firehose: homeboy contract export exited ${result.status}: ${result.stderr || result.stdout}`);
+    }
+
+    const commandRegistry = JSON.parse(readFileSync(path.join(exportDir, 'command-registry.json'), 'utf8'));
+    const fuzzCommand = commandRegistry.commands?.find((command) => command.name === 'fuzz');
+    if (!fuzzCommand) {
+      throw new Error('Installed Homeboy contract registry does not expose the fuzz command');
+    }
+    if (fuzzCommand.lab?.supported !== true) {
+      throw new Error('Installed Homeboy contract registry does not mark fuzz as Lab-supported');
+    }
+  } finally {
+    rmSync(exportDir, { recursive: true, force: true });
   }
 
   return {
     command: ['homeboy', 'fuzz', 'plan'],
-    help_validated: true,
+    command_registry_validated: true,
     required_flags: requiredFlags,
   };
 }

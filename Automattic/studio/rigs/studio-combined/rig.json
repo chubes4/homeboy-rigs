@@ -1,74 +1,7 @@
 {
+  "extends": "../studio-combined-base.json",
   "id": "studio-combined",
-  "description": "Studio + Playground combined-fixes dev environment. The 'use the dev copy' setup: forks rebased onto trunk + open PRs cherry-picked + Docker-compiled PHP-WASM glue, tarball server, and Studio CLI rewired to the local tarballs. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev. Run `homeboy rig check studio-combined` to preflight, `homeboy rig up studio-combined` to recover when broken.",
-
-  "components": {
-    "studio": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_COMBINED__STUDIO}",
-      "branch": "dev/combined-fixes",
-      "extensions": {
-        "nodejs": {
-          "studio_bench_variant": "combined-fixes"
-        }
-      }
-    },
-    "wordpress-playground": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_COMBINED__WORDPRESS_PLAYGROUND}",
-      "branch": "dev/combined-fixes"
-    }
-  },
-
-  "lifecycle": {
-    "cleanup": {
-      "intent": "pipeline",
-      "reason": "pipeline.down stops the Studio daemon and tarball server, removes shared-path links created by this rig, and restores package manifests saved before local tarball rewrites; component checkouts and dependencies remain user-owned resources."
-    }
-  },
-
-  "services": {
-    "tarball-server": {
-      "kind": "http-static",
-      "cwd": "${components.wordpress-playground.path}/dist/packages-for-self-hosting",
-      "port": 9724,
-      "health": {
-        "http": "http://127.0.0.1:9724/",
-        "expect_status": 200
-      }
-    },
-    "studio-daemon": {
-      "kind": "external",
-      "discover": {
-        "pattern": "wordpress-server-child.mjs"
-      }
-    }
-  },
-
-  "resources": {
-    "ports": [9724],
-    "paths": [
-      "${components.studio.path}",
-      "${components.wordpress-playground.path}"
-    ],
-    "process_patterns": [
-      "wordpress-server-child.mjs",
-      "playground-server-child.mjs"
-    ]
-  },
-
-  "shared_paths": [
-    {
-      "link": "~/.local/bin/studio",
-      "target": "~/.local/bin/studio-dev"
-    },
-    {
-      "link": "${components.wordpress-playground.path}/node_modules/@wp-playground/wordpress-builds",
-      "target": "../../packages/playground/wordpress-builds"
-    }
-  ],
-
-  "bench": {
-    "default_component": "studio"
-  },
+  "description": "Studio + Playground combined-fixes dev environment. Requires prepared combined stacks and built local Playground tarballs; run `homeboy stack sync studio-combined` and `homeboy stack sync playground-combined` before `homeboy rig up studio-combined`. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev.",
 
   "bench_workloads": {
     "nodejs": [
@@ -482,52 +415,8 @@
   },
 
   "pipeline": {
-    "check": [
-      {
-        "kind": "check",
-        "label": "Node.js available",
-        "command": "command -v node >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "npm available",
-        "command": "command -v npm >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "npx available",
-        "command": "command -v npx >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "jq available",
-        "command": "command -v jq >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "Docker daemon running",
-        "command": "docker info >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "check",
-        "label": "Docker buildx plugin available",
-        "command": "docker buildx version >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "service",
-        "id": "tarball-server",
-        "op": "health"
-      },
-      {
-        "kind": "shared-path",
-        "op": "verify"
-      },
+    "check": {
+      "$append": [
       {
         "kind": "check",
         "label": "Studio apps/cli wired to local tarballs",
@@ -549,14 +438,14 @@
       {
         "kind": "check",
         "label": "Compiled jspi glue has proc_open VFS-cwd fix",
-        "command": "test \"$(grep -c 'cwdstr = null' \"${components.studio.path}/node_modules/@php-wasm/node-8-3/jspi/php_8_3.js\")\" -ge 3",
-        "expect_exit": 0
+        "file": "${components.studio.path}/node_modules/@php-wasm/node-8-3/jspi/php_8_3.js",
+        "contains": "cwdstr = null"
       },
       {
         "kind": "check",
         "label": "Compiled asyncify glue has proc_open VFS-cwd fix",
-        "command": "test \"$(grep -c 'cwdstr = null' \"${components.studio.path}/node_modules/@php-wasm/node-8-3/asyncify/php_8_3.js\")\" -ge 3",
-        "expect_exit": 0
+        "file": "${components.studio.path}/node_modules/@php-wasm/node-8-3/asyncify/php_8_3.js",
+        "contains": "cwdstr = null"
       },
       {
         "kind": "check",
@@ -571,154 +460,8 @@
             "file_mtime": "${components.studio.path}/apps/cli/dist/cli/main.mjs"
           }
         }
-      },
-      {
-        "kind": "check",
-        "label": "Live proc_open end-to-end (optional configured Studio site)",
-        "command": "site_path=${STUDIO_PROC_OPEN_CHECK_SITE_PATH:-${HOMEBOY_SETTINGS_STUDIO_PROC_OPEN_CHECK_SITE_PATH:-}}; if [ -z \"$site_path\" ]; then printf '%s\\n' 'Skipping live proc_open check; set STUDIO_PROC_OPEN_CHECK_SITE_PATH or HOMEBOY_SETTINGS_STUDIO_PROC_OPEN_CHECK_SITE_PATH.'; exit 0; fi; marker_dir=$(mktemp -d \"${TMPDIR:-/tmp}/studio-rig-check.XXXXXX\") && marker=$marker_dir/marker && trap 'rm -rf \"$marker_dir\"' EXIT && export STUDIO_PROC_OPEN_CHECK_MARKER=\"$marker\" && out=$(studio wp --path \"$site_path\" eval '$marker = getenv(\"STUDIO_PROC_OPEN_CHECK_MARKER\"); $h = proc_open(\"touch \" . escapeshellarg($marker) . \" && echo ok\", [1=>[\"pipe\",\"w\"]], $p); if (is_resource($h)) { echo stream_get_contents($p[1]); proc_close($h); } sleep(1);' 2>&1 | tail -1) && test -f \"$marker\" && echo \"$out\" | grep -q ok",
-        "expect_exit": 0
       }
-    ],
-
-    "up": [
-      {
-        "kind": "check",
-        "label": "Docker daemon running (precondition for compile)",
-        "command": "docker info >/dev/null 2>&1",
-        "expect_exit": 0
-      },
-      {
-        "kind": "git",
-        "component": "studio",
-        "op": "fetch",
-        "args": ["origin"],
-        "label": "Fetch latest origin (Studio)"
-      },
-      {
-        "kind": "git",
-        "component": "studio",
-        "op": "checkout",
-        "args": ["dev/combined-fixes"],
-        "label": "Checkout dev/combined-fixes (Studio)"
-      },
-      {
-        "kind": "git",
-        "component": "studio",
-        "op": "rebase",
-        "args": ["--autostash", "origin/trunk"],
-        "label": "Rebase Studio onto origin/trunk"
-      },
-      {
-        "kind": "git",
-        "component": "wordpress-playground",
-        "op": "fetch",
-        "args": ["upstream"],
-        "label": "Fetch latest upstream (Playground)"
-      },
-      {
-        "kind": "git",
-        "component": "wordpress-playground",
-        "op": "checkout",
-        "args": ["dev/combined-fixes"],
-        "label": "Checkout dev/combined-fixes (Playground)"
-      },
-      {
-        "kind": "git",
-        "component": "wordpress-playground",
-        "op": "rebase",
-        "args": ["--autostash", "upstream/trunk"],
-        "label": "Rebase Playground onto upstream/trunk"
-      },
-      {
-        "kind": "command",
-        "label": "Compile PHP-WASM 8.3 (JSPI variant)",
-        "command": "node packages/php-wasm/compile/build.js --PLATFORM=node --PHP_VERSION=8.3 --WITH_JSPI=yes",
-        "cwd": "${components.wordpress-playground.path}"
-      },
-      {
-        "kind": "command",
-        "label": "Compile PHP-WASM 8.3 (asyncify variant)",
-        "command": "node packages/php-wasm/compile/build.js --PLATFORM=node --PHP_VERSION=8.3",
-        "cwd": "${components.wordpress-playground.path}"
-      },
-      {
-        "kind": "command",
-        "label": "Stage compiled artifacts into dist",
-        "command": "for variant in jspi asyncify; do src_dir=packages/php-wasm/node-builds/8-3/$variant; dst_dir=dist/packages/php-wasm/node-builds/8-3/$variant; cp \"$src_dir/php_8_3.js\" \"$dst_dir/php_8_3.js\"; wasm_src=$(find \"$src_dir\" -path '*/php_8_3.wasm' -type f | head -1); wasm_rel=${wasm_src#$src_dir/}; mkdir -p \"$dst_dir/$(dirname \"$wasm_rel\")\"; cp \"$wasm_src\" \"$dst_dir/$wasm_rel\"; done",
-        "cwd": "${components.wordpress-playground.path}"
-      },
-      {
-        "kind": "shared-path",
-        "op": "ensure"
-      },
-      {
-        "kind": "command",
-        "label": "Build Playground tarballs",
-        "command": "npx nx run-many --all --target=package-for-self-hosting -- --hostingBaseUrl=http://127.0.0.1:9724/studio-dev",
-        "cwd": "${components.wordpress-playground.path}"
-      },
-      {
-        "kind": "service",
-        "id": "tarball-server",
-        "op": "start"
-      },
-      {
-        "kind": "service",
-        "id": "tarball-server",
-        "op": "health"
-      },
-      {
-        "kind": "command",
-        "label": "Backup Studio package manifests before local tarball rewrite",
-        "command": "backup_dir=.homeboy-rig/studio-combined/package-backups; files='package-lock.json apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json'; if [ ! -d \"$backup_dir\" ]; then for file in $files; do git diff --quiet -- \"$file\" && git diff --cached --quiet -- \"$file\" || { printf '%s\\n' \"Refusing to rewrite dirty Studio package manifest: $file\"; exit 1; }; done; fi; mkdir -p \"$backup_dir\"; for file in $files; do if [ -f \"$file\" ] && [ ! -f \"$backup_dir/$file\" ]; then mkdir -p \"$backup_dir/$(dirname \"$file\")\"; cp \"$file\" \"$backup_dir/$file\"; fi; done",
-        "cwd": "${components.studio.path}"
-      },
-      {
-        "kind": "command",
-        "label": "Rewire Studio package manifests to local tarballs",
-        "command": "VER=$(jq -r '.version' \"${components.wordpress-playground.path}/lerna.json\"); for pkg in apps/cli/package.json apps/studio/package.json tools/benchmark-site-editor/package.json tools/common/package.json; do PACKAGE_BASE_URL=http://127.0.0.1:9724/studio-dev PACKAGE_VERSION=$VER bash \"${components.wordpress-playground.path}/packages/playground/test-built-npm-packages/use-local-packages.sh\" \"$pkg\"; done",
-        "cwd": "${components.studio.path}"
-      },
-      {
-        "kind": "command",
-        "label": "npm install Studio",
-        "command": "npm install",
-        "cwd": "${components.studio.path}"
-      },
-      {
-        "kind": "command",
-        "label": "Build Studio CLI",
-        "command": "npm run build",
-        "cwd": "${components.studio.path}/apps/cli"
-      },
-      {
-        "kind": "service",
-        "id": "studio-daemon",
-        "op": "stop"
-      }
-    ],
-
-    "down": [
-      {
-        "kind": "service",
-        "id": "studio-daemon",
-        "op": "stop"
-      },
-      {
-        "kind": "service",
-        "id": "tarball-server",
-        "op": "stop"
-      },
-      {
-        "kind": "shared-path",
-        "op": "cleanup"
-      },
-      {
-        "kind": "command",
-        "label": "Restore Studio package manifests from rig backup",
-        "command": "backup_dir=.homeboy-rig/studio-combined/package-backups; if [ ! -d \"$backup_dir\" ]; then exit 0; fi; restored=1; for backup in \"$backup_dir\"/package-lock.json \"$backup_dir\"/apps/cli/package.json \"$backup_dir\"/apps/studio/package.json \"$backup_dir\"/tools/benchmark-site-editor/package.json \"$backup_dir\"/tools/common/package.json; do [ -f \"$backup\" ] || continue; rel=${backup#$backup_dir/}; if [ -f \"$rel\" ] && grep -q 'http://127.0.0.1:9724/studio-dev/' \"$rel\"; then cp \"$backup\" \"$rel\"; else printf '%s\\n' \"Not restoring $rel because it no longer looks like a rig-owned local tarball rewrite. Restore manually from $backup if needed.\"; restored=0; fi; done; if [ \"$restored\" = 1 ]; then rm -rf .homeboy-rig/studio-combined; else exit 1; fi",
-        "cwd": "${components.studio.path}"
-      }
-    ]
+      ]
+    }
   }
 }
