@@ -10,7 +10,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     env:
-      HOMEBOY_VERSION: v0.275.0
+      HOMEBOY_VERSION: latest
       HOMEBOY_RELEASE_TARGET: x86_64-unknown-linux-gnu
       HOMEBOY_NODEJS_WORKLOAD_UTILS: ${{ github.workspace }}/homeboy-extensions/nodejs/scripts/bench/lib/workload-utils.mjs
       HOMEBOY_WORDPRESS_HELPER_MANIFEST: ${{ github.workspace }}/homeboy-extensions/wordpress/lib/helper-manifest.js
@@ -36,12 +36,17 @@ jobs:
         run: |
           homeboy_release_dir="/tmp/homeboy-${HOMEBOY_RELEASE_TARGET}"
           homeboy_archive="${homeboy_release_dir}.tar.xz"
-          homeboy_release_url="https://github.com/Extra-Chill/homeboy/releases/download/${HOMEBOY_VERSION}/homeboy-${HOMEBOY_RELEASE_TARGET}.tar.xz"
+          if [ "${HOMEBOY_VERSION}" = "latest" ]; then
+            homeboy_release_url="https://github.com/Extra-Chill/homeboy/releases/latest/download/homeboy-${HOMEBOY_RELEASE_TARGET}.tar.xz"
+          else
+            homeboy_release_url="https://github.com/Extra-Chill/homeboy/releases/download/${HOMEBOY_VERSION}/homeboy-${HOMEBOY_RELEASE_TARGET}.tar.xz"
+          fi
 
           curl -fsSL -o "${homeboy_archive}" "${homeboy_release_url}"
           tar -xJf "${homeboy_archive}" -C /tmp
           sudo install -m 0755 "${homeboy_release_dir}/homeboy" /usr/local/bin/homeboy
           homeboy --version
+          homeboy review lint --help
           homeboy contract validate --help
           homeboy contract normalize artifact-ref --help
       - run: node scripts/lint-rig-packages.mjs
