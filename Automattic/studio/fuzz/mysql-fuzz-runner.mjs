@@ -76,12 +76,30 @@ const caseContracts = {
  'wpcli-db-import-export': {
   invariants: [ 'WP-CLI export produces an artifact', 'Import restores the deleted sentinel option exactly', 'Round-trip data parity is verified after import' ],
  },
- 'wpcli-starts-mysql-when-needed': {
-  invariants: [ 'WP-CLI starts managed MySQL on demand when the site server is stopped', 'Database query succeeds without manually starting the site first' ],
- },
- 'loopback-wp-cron-idle': {
-  invariants: [ 'Loopback wp-cron request returns without a 5xx response', 'Managed MySQL remains queryable after idle loopback traffic' ],
- },
+  'wpcli-starts-mysql-when-needed': {
+   invariants: [ 'WP-CLI starts managed MySQL on demand when the site server is stopped', 'Database query succeeds without manually starting the site first' ],
+  },
+  'site-list-status-json': {
+   invariants: [ 'studio site list --format json includes the MySQL site', 'studio site status --format json reports the MySQL-backed site without corrupting config', 'JSON output remains machine-readable for lab automation' ],
+  },
+  'site-set-settings': {
+   invariants: [ 'studio site set updates persisted settings for a MySQL site', 'Name and debug settings survive config reload', 'MySQL connection metadata remains present after settings changes' ],
+  },
+  'wpcli-content-crud': {
+   invariants: [ 'WP-CLI can create and read posts, options, users, terms, and comments on a MySQL site', 'CRUD sentinel data is internally consistent', 'Cleanup removes transient CRUD fixtures without data-path errors' ],
+  },
+  'mysql-persistence-stop-start': {
+   invariants: [ 'WP-CLI-created content persists after studio site stop', 'Content remains queryable after studio site start', 'Managed MySQL state survives the Studio lifecycle boundary' ],
+  },
+  'studio-export-db-mysql': {
+   invariants: [ 'studio export --mode db creates a database artifact for the MySQL site', 'The exported database artifact contains the persistence sentinel', 'Export does not require converting the site back to SQLite' ],
+  },
+  'site-delete-no-files': {
+   invariants: [ 'studio site delete --no-files removes the MySQL site from Studio config', 'The isolated site files remain inside STUDIO_FUZZ_RUNTIME_ROOT for diagnostics', 'Deleting one MySQL site does not remove other campaign sites' ],
+  },
+  'loopback-wp-cron-idle': {
+   invariants: [ 'Loopback wp-cron request returns without a 5xx response', 'Managed MySQL remains queryable after idle loopback traffic' ],
+  },
  'loopback-async-post-fanout': {
   invariants: [ 'Concurrent loopback requests avoid 5xx responses', 'Fanout does not wedge the managed MySQL process', 'Managed MySQL remains queryable after fanout' ],
  },
@@ -122,12 +140,13 @@ function snippet( value, length = 4000 ) {
 }
 
 function errorMetadata( result ) {
- const text = `${ result.stdout }\n${ result.stderr }`;
- return {
-  saw_mysql_unavailable: /MySQL .*not available|No managed MySQL server|unsupported platform/i.test( text ),
-  saw_hash_mismatch: /SHA-256 mismatch|hash mismatch/i.test( text ),
-  saw_lock_timeout: /lock|EEXIST|Timed out waiting/i.test( text ),
-  saw_port_collision: /EADDRINUSE|address already in use|port.*in use|Timed out waiting for mysqld/i.test( text ),
+  const text = `${ result.stdout }\n${ result.stderr }`;
+  return {
+   saw_mysql_unavailable: /MySQL .*not available|No managed MySQL server|unsupported platform/i.test( text ),
+   saw_unknown_cli_surface: /Unknown argument|Unknown command|Not enough non-option arguments|You must provide a valid command/i.test( text ),
+   saw_hash_mismatch: /SHA-256 mismatch|hash mismatch/i.test( text ),
+   saw_lock_timeout: /lock|EEXIST|Timed out waiting/i.test( text ),
+   saw_port_collision: /EADDRINUSE|address already in use|port.*in use|Timed out waiting for mysqld/i.test( text ),
   saw_rollback: /rolled back to SQLite|rolling back to SQLite|site is unchanged/i.test( text ),
  };
 }
@@ -137,9 +156,12 @@ function classifyResult( result, options = {}, contract = {} ) {
  if ( contract.skip_on_expected_failure && result.code !== 0 ) {
   return 'unsupported_platform';
  }
- if ( metadata.saw_mysql_unavailable ) {
-  return 'unsupported_platform';
- }
+  if ( metadata.saw_mysql_unavailable ) {
+   return 'unsupported_platform';
+  }
+  if ( metadata.saw_unknown_cli_surface ) {
+   return 'unsupported_cli_surface';
+  }
  if ( result.signal === 'TIMEOUT' || metadata.saw_lock_timeout ) {
   return 'rig_setup_failure';
  }
@@ -373,7 +395,88 @@ if (!$ok) { exit(1); }
 }
 
 async function verifyOptionEquals( name, option, expected ) {
- const code = `$actual = get_option(${ JSON.stringify( option ) }); echo wp_json_encode(array('option' => ${ JSON.stringify( option ) }, 'expected' => ${ JSON.stringify( expected ) }, 'actual' => $actual, 'parity_ok' => $actual === ${ JSON.stringify( expected ) })); if ($actual !== ${ JSON.stringify( expected ) }) { exit(1); }`;
+  const code = `$actual = get_option(${ JSON.stringify( option ) }); echo wp_json_encode(array('option' => ${ JSON.stringify( option ) }, 'expected' => ${ JSON.stringify( expected ) }, 'actual' => $actual, 'parity_ok' => $actual === ${ JSON.stringify( expected ) })); if ($actual !== ${ JSON.stringify( expected ) }) { exit(1); }`;
+  return cli( 'wp', '--path', sitePath( name ), 'eval', code );
+}
+
+function parseJsonOutput( result ) {
+ const output = String( result.stdout || '' ).trim();
+ const starts = [ output.indexOf( '[' ), output.indexOf( '{' ) ].filter( ( index ) => index >= 0 );
+ if ( starts.length === 0 ) {
+  throw new Error( `No JSON object found in CLI output: ${ snippet( output ) }` );
+ }
+ return JSON.parse( output.slice( Math.min( ...starts ) ) );
+}
+
+async function verifySiteListAndStatus( name ) {
+ const list = await cli( 'site', 'list', '--format', 'json' );
+ if ( list.code !== 0 ) {
+  return list;
+ }
+ const sites = parseJsonOutput( list );
+ const site = sites.find( ( item ) => item.path === sitePath( name ) );
+ if ( ! site || site.databaseEngine !== 'mysql' || ! site.mysql ) {
+  return { ...list, code: 1, stderr: `${ list.stderr }\nMySQL site missing from site list JSON: ${ JSON.stringify( { found: site || null } ) }` };
+ }
+ const status = await cli( 'site', 'status', '--path', sitePath( name ), '--format', 'json' );
+ if ( status.code !== 0 ) {
+  return combineResults( [ list, status ], list.duration_ms + status.duration_ms );
+ }
+ const statusJson = parseJsonOutput( status );
+ if ( statusJson.sitePath !== sitePath( name ) || typeof statusJson.isOnline !== 'boolean' || statusJson.runtime !== 'Native' ) {
+  return { ...status, code: 1, stderr: `${ status.stderr }\nUnexpected site status JSON: ${ JSON.stringify( statusJson ) }` };
+ }
+ return combineResults( [ list, status ], list.duration_ms + status.duration_ms );
+}
+
+async function verifySiteConfigValues( name, expected ) {
+ const site = await getSiteConfig( name );
+ const mismatches = Object.entries( expected ).filter( ( [ key, value ] ) => site[ key ] !== value );
+ if ( mismatches.length || site.databaseEngine !== 'mysql' || ! site.mysql ) {
+  return {
+   code: 1,
+   signal: null,
+   duration_ms: 0,
+   stdout: JSON.stringify( { site, expected } ),
+   stderr: `Site config mismatch: ${ JSON.stringify( mismatches ) }`,
+  };
+ }
+ return { code: 0, signal: null, duration_ms: 0, stdout: JSON.stringify( { site, expected } ), stderr: '' };
+}
+
+async function verifyContentCrud( name ) {
+ const code = `
+$suffix = ${ JSON.stringify( runId ) };
+$option_key = 'studio_mysql_fuzz_crud_' . preg_replace('/[^a-z0-9_]/i', '_', $suffix);
+update_option($option_key, 'created');
+$term = wp_insert_term('Studio MySQL Fuzz Term ' . $suffix, 'category');
+if (is_wp_error($term)) { echo $term->get_error_message(); exit(1); }
+$user_id = wp_insert_user(array('user_login' => 'studio_mysql_fuzz_' . substr(md5($suffix), 0, 12), 'user_pass' => wp_generate_password(20), 'user_email' => 'studio-mysql-fuzz-' . substr(md5($suffix), 0, 12) . '@example.test', 'role' => 'author'));
+if (is_wp_error($user_id)) { echo $user_id->get_error_message(); exit(1); }
+$post_id = wp_insert_post(array('post_title' => 'Studio MySQL CRUD ' . $suffix, 'post_status' => 'publish', 'post_content' => 'crud sentinel', 'post_author' => $user_id, 'post_category' => array((int) $term['term_id'])));
+if (is_wp_error($post_id) || ! $post_id) { echo 'post insert failed'; exit(1); }
+$comment_id = wp_insert_comment(array('comment_post_ID' => $post_id, 'comment_author' => 'Studio Fuzz', 'comment_author_email' => 'studio-fuzz@example.test', 'comment_content' => 'comment sentinel ' . $suffix, 'comment_approved' => 1));
+if (! $comment_id) { echo 'comment insert failed'; exit(1); }
+$ok = get_option($option_key) === 'created' && get_post($post_id) && get_user_by('id', $user_id) && get_term($term['term_id'], 'category') && get_comment($comment_id);
+$summary = array('option' => get_option($option_key), 'term_id' => (int) $term['term_id'], 'user_id' => (int) $user_id, 'post_id' => (int) $post_id, 'comment_id' => (int) $comment_id, 'crud_ok' => (bool) $ok);
+wp_delete_comment($comment_id, true);
+wp_delete_post($post_id, true);
+wp_delete_user($user_id);
+wp_delete_term($term['term_id'], 'category');
+delete_option($option_key);
+echo wp_json_encode($summary);
+if (!$ok) { exit(1); }
+`;
+ return cli( 'wp', '--path', sitePath( name ), 'eval', code );
+}
+
+async function seedPersistenceSentinel( name ) {
+ const code = `update_option('studio_mysql_fuzz_persistence', ${ JSON.stringify( runId ) }); $post_id = wp_insert_post(array('post_title' => 'Studio MySQL persistence ${ runId }', 'post_status' => 'publish', 'post_content' => 'persistence sentinel')); echo wp_json_encode(array('option' => get_option('studio_mysql_fuzz_persistence'), 'post_id' => $post_id)); if (!$post_id) { exit(1); }`;
+ return cli( 'wp', '--path', sitePath( name ), 'eval', code );
+}
+
+async function verifyPersistenceSentinel( name ) {
+ const code = `$option = get_option('studio_mysql_fuzz_persistence'); $posts = get_posts(array('post_type' => 'post', 'post_status' => 'publish', 'title' => 'Studio MySQL persistence ${ runId }', 'numberposts' => 1)); $ok = $option === ${ JSON.stringify( runId ) } && count($posts) === 1; echo wp_json_encode(array('option' => $option, 'post_count' => count($posts), 'persistence_ok' => $ok)); if (!$ok) { exit(1); }`;
  return cli( 'wp', '--path', sitePath( name ), 'eval', code );
 }
 
@@ -587,12 +690,69 @@ await runCase( 'wpcli-db-import-export', 'studio.runtime.mysql.wpcli', 'wpcli.db
 }, { healthSite: 'mysql-native', metadata: { export_artifact: 'wpcli-db-import-export.sql', parity_probe: 'option-exact-roundtrip' } } );
 
 await runCase( 'wpcli-starts-mysql-when-needed', 'studio.runtime.mysql.wpcli', 'wpcli.starts.mysql.when-needed', () =>
- runSequence( [
-  () => cli( 'site', 'stop', '--path', sitePath( 'mysql-native' ) ),
-  () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'query', 'SELECT 1' ),
- ] ),
- { healthSite: 'mysql-native', metadata: { intent: 'WP-CLI should ensure managed MySQL is running even when the site server is stopped' } }
+  runSequence( [
+   () => cli( 'site', 'stop', '--path', sitePath( 'mysql-native' ) ),
+   () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'query', 'SELECT 1' ),
+  ] ),
+  { healthSite: 'mysql-native', metadata: { intent: 'WP-CLI should ensure managed MySQL is running even when the site server is stopped' } }
 );
+
+await runCase( 'site-list-status-json', 'studio.cli.site.management.mysql', 'site.list.status.mysql.json', () =>
+ verifySiteListAndStatus( 'mysql-native' ),
+ { healthSite: 'mysql-native', metadata: { surfaces: [ 'studio site list --format json', 'studio site status --format json' ] } }
+);
+
+await runCase( 'site-set-settings', 'studio.cli.site.management.mysql', 'site.set.mysql.settings', () =>
+ runSequence( [
+  () => cli( 'site', 'set', '--path', sitePath( 'mysql-native' ), '--name', 'mysql-native-renamed', '--debug-log', '--debug-display' ),
+  () => verifySiteConfigValues( 'mysql-native', { name: 'mysql-native-renamed', enableDebugLog: true, enableDebugDisplay: true } ),
+ ] ),
+ { healthSite: 'mysql-native', metadata: { surfaces: [ 'studio site set --name', 'studio site set --debug-log', 'studio site set --debug-display' ] } }
+);
+
+await runCase( 'wpcli-content-crud', 'studio.runtime.mysql.wpcli', 'wpcli.content.crud.mysql', () =>
+ verifyContentCrud( 'mysql-native' ),
+ { healthSite: 'mysql-native', metadata: { crud_entities: [ 'option', 'term', 'user', 'post', 'comment' ] } }
+);
+
+await runCase( 'mysql-persistence-stop-start', 'studio.runtime.mysql.lifecycle', 'mysql.persistence.stop.start', () =>
+ runSequence( [
+  () => seedPersistenceSentinel( 'mysql-native' ),
+  () => cli( 'site', 'stop', '--path', sitePath( 'mysql-native' ) ),
+  () => cli( 'site', 'start', '--path', sitePath( 'mysql-native' ), '--skip-browser', '--skip-log-details' ),
+  () => verifyPersistenceSentinel( 'mysql-native' ),
+ ] ),
+ { healthSite: 'mysql-native', metadata: { persistence_probe: 'option-and-post-sentinel-after-stop-start' } }
+);
+
+await runCase( 'studio-export-db-mysql', 'studio.cli.site.artifacts.mysql', 'studio.export.db.mysql', () =>
+ runSequence( [
+  () => cli( 'export', path.join( artifactsDir, 'studio-mysql-native-db.sql' ), '--path', sitePath( 'mysql-native' ), '--mode', 'db' ),
+  () => run( process.execPath, [ '--input-type=module', '-e', `import fs from 'node:fs'; const dump = fs.readFileSync(${ JSON.stringify( path.join( artifactsDir, 'studio-mysql-native-db.sql' ) ) }, 'utf8'); if (!dump.includes('studio_mysql_fuzz_persistence') || !dump.includes(${ JSON.stringify( runId ) })) { console.error('Export dump missing persistence sentinel'); process.exit(1); }` ] ),
+ ] ),
+ { healthSite: 'mysql-native', metadata: { export_artifact: 'studio-mysql-native-db.sql', surface: 'studio export --mode db' } }
+);
+
+await runCase( 'site-delete-no-files', 'studio.cli.site.management.mysql', 'site.delete.mysql.no-files', async () => {
+ const name = 'mysql-delete-no-files';
+ const created = await createMysqlSite( name );
+ if ( created.code !== 0 ) {
+  return created;
+ }
+ const deleted = await cli( 'site', 'delete', '--path', sitePath( name ), '--no-files' );
+ if ( deleted.code !== 0 ) {
+  return deleted;
+ }
+ const config = await readCliConfig();
+ const stillRegistered = config.sites.some( ( site ) => site.path === sitePath( name ) );
+ const filesRemain = await fs.access( sitePath( name ) ).then( () => true, () => false );
+ return {
+  ...deleted,
+  code: ! stillRegistered && filesRemain ? 0 : 1,
+  stdout: `${ deleted.stdout }\ndelete_probe=${ JSON.stringify( { stillRegistered, filesRemain } ) }`,
+  stderr: stillRegistered || ! filesRemain ? `${ deleted.stderr }\nUnexpected delete --no-files state` : deleted.stderr,
+ };
+}, { metadata: { surface: 'studio site delete --no-files', isolated_site: 'mysql-delete-no-files' } } );
 
 await runCase( 'loopback-wp-cron-idle', 'studio.runtime.mysql.loopback', 'loopback.wp-cron.idle', async () => {
  const start = await cli( 'site', 'start', '--path', sitePath( 'mysql-native' ), '--skip-browser', '--skip-log-details' );

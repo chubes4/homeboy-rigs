@@ -11,8 +11,10 @@ Run policy:
 Diagnostics added by the runner:
 
 - Per-case invariants describing what must remain true after success or expected failure.
-- Structured failure classification: `unsupported_platform`, `product_bug`, `rig_setup_failure`, `rig_induced_fault`, and `product_guardrail`.
+- Structured failure classification: `unsupported_platform`, `unsupported_cli_surface`, `product_bug`, `rig_setup_failure`, `rig_induced_fault`, and `product_guardrail`.
 - Data parity checks for the large SQLite-to-MySQL conversion and WP-CLI export/import round trip.
+- Studio CLI management coverage for `site list --format json`, `site status --format json`, `site set`, `export --mode db`, and isolated `site delete --no-files` against a MySQL-backed site.
+- WP-CLI CRUD coverage for posts, options, users, terms, and comments, plus persistence checks across `site stop` and `site start`.
 - Post-case health probes recorded separately from primary results so cleanup diagnostics do not mask the case outcome.
 - Replay metadata covering command shape, run id, selected operation strata, git head/branch, Node/platform/arch, runtime root, artifacts, and execution request file.
 - Expected skip handling for synthetic unsupported-platform coverage when provider artifacts are unavailable.

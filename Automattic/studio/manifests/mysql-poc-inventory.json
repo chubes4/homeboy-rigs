@@ -29,6 +29,7 @@
       "kind": "process-lifecycle",
       "operations": [
         { "id": "mysql.start.stop.restart", "kind": "submit", "family": "submit" },
+        { "id": "mysql.persistence.stop.start", "kind": "submit", "family": "submit" },
         { "id": "mysql.orphan.process.recovery", "kind": "submit", "family": "submit" },
         { "id": "mysql.port.collision", "kind": "submit", "family": "submit" },
         { "id": "mysql.concurrent.install.lock", "kind": "submit", "family": "submit" }
@@ -41,7 +42,26 @@
       "operations": [
         { "id": "wpcli.db.query", "kind": "query", "family": "query" },
         { "id": "wpcli.db.import.export", "kind": "submit", "family": "submit" },
-        { "id": "wpcli.starts.mysql.when-needed", "kind": "load", "family": "load" }
+        { "id": "wpcli.starts.mysql.when-needed", "kind": "load", "family": "load" },
+        { "id": "wpcli.content.crud.mysql", "kind": "submit", "family": "submit" }
+      ]
+    },
+    {
+      "schema": "homeboy/fuzz-target/v1",
+      "id": "studio.cli.site.management.mysql",
+      "kind": "cli",
+      "operations": [
+        { "id": "site.list.status.mysql.json", "kind": "read", "family": "read" },
+        { "id": "site.set.mysql.settings", "kind": "update", "family": "update" },
+        { "id": "site.delete.mysql.no-files", "kind": "delete", "family": "delete" }
+      ]
+    },
+    {
+      "schema": "homeboy/fuzz-target/v1",
+      "id": "studio.cli.site.artifacts.mysql",
+      "kind": "cli",
+      "operations": [
+        { "id": "studio.export.db.mysql", "kind": "read", "family": "read" }
       ]
     },
     {
@@ -71,7 +91,7 @@
       "id": "mysql-poc-lifecycle-fuzz",
       "safety_class": "isolated_mutation",
       "seed_ids": ["studio-mysql-seed"],
-      "case_budget": 45,
+      "case_budget": 60,
       "duration_budget_seconds": 1800,
       "metadata": {
         "execution_scope": "lab-only-destructive",
@@ -88,7 +108,7 @@
       "schema": "homeboy/fuzz-seed/v1",
       "id": "studio-mysql-seed",
       "kind": "scenario-corpus",
-      "value": "native-mysql-create,playground-rejection,sqlite-default,sqlite-to-mysql-empty-convert,sqlite-to-mysql-large-convert,conversion-rollback-guard,start-stop-restart,orphan-recovery,port-collision,concurrent-install-lock,wp-cli-db-query,wp-cli-db-import-export,wpcli-starts-mysql,wp-cron-loopback,async-loopback-fanout,client-abort-survival,binary-hash-mismatch,offline-unsupported-platform"
+      "value": "native-mysql-create,playground-rejection,sqlite-default,sqlite-to-mysql-empty-convert,sqlite-to-mysql-large-convert,conversion-rollback-guard,start-stop-restart,orphan-recovery,port-collision,concurrent-install-lock,wp-cli-db-query,wp-cli-db-import-export,wpcli-starts-mysql,site-list-status-json,site-set-settings,wpcli-content-crud,persistence-stop-start,studio-export-db,delete-no-files,wp-cron-loopback,async-loopback-fanout,client-abort-survival,binary-hash-mismatch,offline-unsupported-platform"
     }
   ],
   "provenance": {

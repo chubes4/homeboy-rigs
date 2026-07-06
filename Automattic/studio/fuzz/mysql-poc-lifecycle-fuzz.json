@@ -9,6 +9,8 @@
     "studio-runtime-mysql-lifecycle",
     "studio-runtime-mysql-wpcli",
     "studio-runtime-mysql-loopback",
+    "studio-cli-site-management-mysql",
+    "studio-cli-site-artifacts-mysql",
     "studio-mysql-binary-delivery"
   ],
   "operations": [
@@ -25,6 +27,12 @@
     "wpcli.db.query",
     "wpcli.db.import.export",
     "wpcli.starts.mysql.when-needed",
+    "site.list.status.mysql.json",
+    "site.set.mysql.settings",
+    "wpcli.content.crud.mysql",
+    "mysql.persistence.stop.start",
+    "studio.export.db.mysql",
+    "site.delete.mysql.no-files",
     "loopback.wp-cron.idle",
     "loopback.async.post.fanout",
     "loopback.client-abort.worker-survives",
@@ -32,7 +40,7 @@
     "binary.hash.mismatch",
     "binary.offline.unsupported-platform"
   ],
-  "case_budget": 45,
+  "case_budget": 60,
   "duration_budget_seconds": 1800,
   "metadata": {
     "kind": "studio-desktop-fuzz",
@@ -42,6 +50,7 @@
       "unsupported_platform": "Provider/platform unavailable or explicitly unsupported; expected unsupported probes are reported as skipped coverage, not product failures.",
       "product_bug": "The Studio MySQL path accepted the scenario but violated an invariant or returned an unexpected failure.",
       "rig_setup_failure": "The lab/component setup failed before the product invariant could be evaluated, such as npm/build, timeout, or lock setup failure.",
+      "unsupported_cli_surface": "The checked-out Studio CLI does not expose the requested command or option; classified separately from MySQL product/runtime failures.",
       "rig_induced_fault": "The workload intentionally injected a negative condition, such as port collision or synthetic hash mismatch, to verify diagnostics.",
       "product_guardrail": "The product intentionally rejected a risky operation and preserved state."
     },
@@ -74,6 +83,12 @@
       "wpcli.db.query": ["WP-CLI db query succeeds against managed MySQL", "SELECT 1 returns through the Studio runtime"],
       "wpcli.db.import.export": ["Export artifact is created", "Import restores deleted sentinel option exactly", "Round-trip parity is verified"],
       "wpcli.starts.mysql.when-needed": ["WP-CLI starts managed MySQL on demand", "Database query succeeds without manually starting the site"],
+      "site.list.status.mysql.json": ["studio site list --format json includes the MySQL site", "studio site status --format json reports the site", "JSON output remains machine-readable"],
+      "site.set.mysql.settings": ["studio site set updates persisted settings for the MySQL site", "Name and debug settings survive config reload", "MySQL metadata remains present"],
+      "wpcli.content.crud.mysql": ["WP-CLI creates and reads posts, options, users, terms, and comments", "CRUD sentinel data is internally consistent", "Transient CRUD fixtures are cleaned up"],
+      "mysql.persistence.stop.start": ["WP-CLI-created content persists after stop", "Content remains queryable after start", "Managed MySQL state survives the Studio lifecycle boundary"],
+      "studio.export.db.mysql": ["studio export --mode db creates a database artifact", "The artifact contains the persistence sentinel", "Export does not convert the site back to SQLite"],
+      "site.delete.mysql.no-files": ["studio site delete --no-files removes the site from Studio config", "Isolated site files remain for diagnostics", "Other campaign sites remain registered"],
       "loopback.wp-cron.idle": ["Loopback wp-cron avoids 5xx responses", "Managed MySQL remains queryable"],
       "loopback.async.post.fanout": ["Concurrent loopback requests avoid 5xx responses", "Fanout does not wedge MySQL", "Managed MySQL remains queryable"],
       "loopback.client-abort.worker-survives": ["Intentional client abort is expected", "Worker/database path survives", "Follow-up WP-CLI query succeeds"],
@@ -111,6 +126,8 @@
         "studio-runtime-mysql-lifecycle",
         "studio-runtime-mysql-wpcli",
         "studio-runtime-mysql-loopback",
+        "studio-cli-site-management-mysql",
+        "studio-cli-site-artifacts-mysql",
         "studio-mysql-binary-delivery"
       ],
       "operations": [
@@ -127,6 +144,12 @@
         "wpcli.db.query",
         "wpcli.db.import.export",
         "wpcli.starts.mysql.when-needed",
+        "site.list.status.mysql.json",
+        "site.set.mysql.settings",
+        "wpcli.content.crud.mysql",
+        "mysql.persistence.stop.start",
+        "studio.export.db.mysql",
+        "site.delete.mysql.no-files",
         "loopback.wp-cron.idle",
         "loopback.async.post.fanout",
         "loopback.client-abort.worker-survives",
@@ -167,7 +190,7 @@
     }
   ],
   "limits": {
-    "max_cases": 45,
+    "max_cases": 60,
     "max_duration_seconds": 1800
   },
   "coverage": {
@@ -177,6 +200,8 @@
       "studio-runtime-mysql-lifecycle",
       "studio-runtime-mysql-wpcli",
       "studio-runtime-mysql-loopback",
+      "studio-cli-site-management-mysql",
+      "studio-cli-site-artifacts-mysql",
       "studio-mysql-binary-delivery"
     ],
     "operations": [
@@ -193,6 +218,12 @@
       "wpcli.db.query",
       "wpcli.db.import.export",
       "wpcli.starts.mysql.when-needed",
+      "site.list.status.mysql.json",
+      "site.set.mysql.settings",
+      "wpcli.content.crud.mysql",
+      "mysql.persistence.stop.start",
+      "studio.export.db.mysql",
+      "site.delete.mysql.no-files",
       "loopback.wp-cron.idle",
       "loopback.async.post.fanout",
       "loopback.client-abort.worker-survives",
