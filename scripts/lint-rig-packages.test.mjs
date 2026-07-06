@@ -185,10 +185,13 @@ test('emits structured JSON for passing lint results', () => {
 
 test('rejects missing declared fuzz workload files', () => {
   const directory = createRigPackage();
-  const result = runLint(directory);
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /declares missing file/);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 1);
+  assert.match(jsonErrorText(payload), /declares missing file/);
 });
 
 test('emits structured JSON for failing lint results', () => {
@@ -429,10 +432,13 @@ test('rejects missing fuzz workload backing files', () => {
       }),
     },
   });
-  const result = runLint(directory);
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /workload path .*missing\.workload\.json does not exist/);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 1);
+  assert.match(jsonErrorText(payload), /workload path .*missing\.workload\.json does not exist/);
 });
 
 test('rejects duplicate declared fuzz workload ids per rig', () => {
@@ -473,11 +479,14 @@ test('rejects fuzz ids in bench workloads and profiles', () => {
       smoke: ['generic-fuzz'],
     },
   });
-  const result = runLint(directory);
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /bench_workloads declares generic-fuzz, but that id belongs to a fuzz workload/);
-  assert.match(result.stderr, /bench profile smoke references generic-fuzz, but that id belongs to a fuzz workload/);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 2);
+  assert.match(jsonErrorText(payload), /bench_workloads declares generic-fuzz, but that id belongs to a fuzz workload/);
+  assert.match(jsonErrorText(payload), /bench profile smoke references generic-fuzz, but that id belongs to a fuzz workload/);
 });
 
 test('rejects fuzz profiles that reference undeclared fuzz workloads', () => {
@@ -489,10 +498,53 @@ test('rejects fuzz profiles that reference undeclared fuzz workloads', () => {
       smoke: ['generic-fuzz', 'missing-fuzz'],
     },
   });
-  const result = runLint(directory);
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /fuzz profile smoke references missing-fuzz, but fuzz_workloads does not declare a matching workload file/);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 1);
+  assert.match(jsonErrorText(payload), /fuzz profile smoke references missing-fuzz, but fuzz_workloads does not declare a matching workload file/);
+});
+
+test('reports inherited array directive outcomes through structured JSON', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: { 'generic-fuzz': fuzzWorkload() },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  writeJson(join(packageRoot, 'rigs', 'base.json'), {
+    shared_paths: [
+      {
+        link: '${components.product.path}/cache',
+        target: '${components.product.path}/cache',
+        allow_self_target: true,
+      },
+    ],
+  });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    extends: '../base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    shared_paths: {
+      $append: [
+        {
+          link: '${components.product.path}/node_modules',
+          target: '${components.product.path}/node_modules',
+        },
+      ],
+    },
+    fuzz_workloads: {
+      generic: [{ path: '${package.root}/fuzz/generic-fuzz.json' }],
+    },
+  });
+
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
+
+  assert.notEqual(result.status, 0);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 1);
+  assert.match(jsonErrorText(payload), /shared_paths\[1\] link and target must differ unless allow_self_target is true/);
 });
 
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {
