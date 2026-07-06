@@ -146,6 +146,10 @@ function parseJsonOutput(result) {
   return JSON.parse(result.stdout);
 }
 
+function jsonErrorText(payload) {
+  return payload.errors.join('\n');
+}
+
 test('accepts generic declared fuzz workloads', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {
@@ -238,10 +242,13 @@ test('rejects shared paths where link and target are the same path', () => {
     },
   });
 
-  const result = runLint(directory);
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /shared_paths\[0\] link and target must differ unless allow_self_target is true/);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 1);
+  assert.match(jsonErrorText(payload), /shared_paths\[0\] link and target must differ unless allow_self_target is true/);
 });
 
 test('accepts explicitly allowed shared path self-targets', () => {
@@ -369,18 +376,23 @@ for (const cleanupCase of cleanupPolicyCases) {
       });
     }
 
-    const result = runLint(directory);
+    const result = runLint(directory, {}, ['--json']);
+    const payload = parseJsonOutput(result);
 
     if (cleanupCase.expectedStatus === 'pass') {
       assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.equal(payload.ok, true);
+      assert.equal(payload.error_count, 0);
     } else {
       assert.notEqual(result.status, 0);
+      assert.equal(payload.ok, false);
+      assert.equal(payload.error_count, cleanupCase.patterns.length);
     }
     for (const pattern of cleanupCase.patterns || []) {
-      assert.match(result.stderr, pattern);
+      assert.match(jsonErrorText(payload), pattern);
     }
     for (const pattern of cleanupCase.absentPatterns || []) {
-      assert.doesNotMatch(result.stderr, pattern);
+      assert.doesNotMatch(jsonErrorText(payload), pattern);
     }
   });
 }
@@ -438,10 +450,13 @@ test('rejects duplicate declared fuzz workload ids per rig', () => {
       'generic-fuzz-copy': fuzzWorkload(),
     },
   });
-  const result = runLint(directory);
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
 
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /fuzz workload id generic-fuzz is declared more than once in this rig/);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 2);
+  assert.match(jsonErrorText(payload), /fuzz workload id generic-fuzz is declared more than once in this rig/);
 });
 
 test('rejects fuzz ids in bench workloads and profiles', () => {
