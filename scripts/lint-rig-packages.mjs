@@ -6,6 +6,7 @@ import { basename, dirname, isAbsolute, join, normalize, relative, resolve } fro
 import { pathToFileURL } from 'node:url';
 
 const args = process.argv.slice(2);
+const jsonOutput = args.includes('--json');
 const strictFuzzReadiness = args.includes('--strict-fuzz-readiness');
 const rootArg = args.find((arg) => !arg.startsWith('--'));
 const root = rootArg ? resolve(process.cwd(), rootArg) : process.cwd();
@@ -727,6 +728,10 @@ function reportFailures() {
     return;
   }
 
+  if (jsonOutput) {
+    reportJsonAndExit(1);
+  }
+
   console.error('Rig package lint failed:');
   for (const failure of failures) {
     console.error(`- ${failure}`);
@@ -743,6 +748,25 @@ function reportWarnings() {
   for (const warning of warnings) {
     console.warn(`- ${warning}`);
   }
+}
+
+function lintResult() {
+  return {
+    ok: failures.length === 0,
+    rig_count: rigFiles.length,
+    fuzz_workload_count: fuzzWorkloadFiles.length,
+    portable_source_count: portableSourceFiles.length,
+    php_syntax_file_count: phpFiles.length,
+    warning_count: warnings.length,
+    error_count: failures.length,
+    warnings: [...warnings],
+    errors: [...failures],
+  };
+}
+
+function reportJsonAndExit(status = failures.length === 0 ? 0 : 1) {
+  console.log(JSON.stringify(lintResult()));
+  process.exit(status);
 }
 
 function lintFuzzManifestValidators() {
@@ -769,6 +793,10 @@ lintFuzzManifestValidators();
 reportFailures();
 
 if (!hasPhp()) {
+  if (jsonOutput) {
+    warnings.push(`PHP not found; skipped syntax checks for ${phpFiles.length} PHP file(s).`);
+    reportJsonAndExit(0);
+  }
   reportWarnings();
   console.warn(`PHP not found; skipped syntax checks for ${phpFiles.length} PHP file(s).`);
   process.exit(0);
@@ -777,6 +805,10 @@ if (!hasPhp()) {
 phpFiles.forEach(lintPhp);
 
 reportFailures();
+
+if (jsonOutput) {
+  reportJsonAndExit(0);
+}
 
 reportWarnings();
 
