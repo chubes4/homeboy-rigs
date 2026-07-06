@@ -129,8 +129,8 @@ function fuzzWorkload(overrides = {}) {
   };
 }
 
-function runLint(directory, env = {}) {
-  return spawnSync(process.execPath, [script, directory], {
+function runLint(directory, env = {}, args = []) {
+  return spawnSync(process.execPath, [script, ...args, directory], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -139,6 +139,11 @@ function runLint(directory, env = {}) {
       ...env,
     },
   });
+}
+
+function parseJsonOutput(result) {
+  assert.equal(result.stderr, '');
+  return JSON.parse(result.stdout);
 }
 
 test('accepts generic declared fuzz workloads', () => {
@@ -153,12 +158,47 @@ test('accepts generic declared fuzz workloads', () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
+test('emits structured JSON for passing lint results', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: {
+      'generic-fuzz': fuzzWorkload(),
+    },
+  });
+
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.rig_count, 1);
+  assert.equal(payload.fuzz_workload_count, 1);
+  assert.equal(payload.portable_source_count, 4);
+  assert.equal(payload.php_syntax_file_count, 0);
+  assert.equal(payload.warning_count, payload.warnings.length);
+  assert.equal(payload.error_count, 0);
+  assert.deepEqual(payload.errors, []);
+});
+
 test('rejects missing declared fuzz workload files', () => {
   const directory = createRigPackage();
   const result = runLint(directory);
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /declares missing file/);
+});
+
+test('emits structured JSON for failing lint results', () => {
+  const directory = createRigPackage();
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
+
+  assert.notEqual(result.status, 0);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.rig_count, 1);
+  assert.equal(payload.fuzz_workload_count, 0);
+  assert.equal(payload.warning_count, payload.warnings.length);
+  assert.equal(payload.error_count, payload.errors.length);
+  assert.match(payload.errors.join('\n'), /declares missing file/);
 });
 
 test('accepts registry-backed components with portable path settings', () => {
