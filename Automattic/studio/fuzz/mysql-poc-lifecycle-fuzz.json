@@ -38,6 +38,48 @@
     "kind": "studio-desktop-fuzz",
     "execution_scope": "lab-only-destructive",
     "local_execution_policy": "static-validation-only; do not run destructive runner locally",
+    "classification_contract": {
+      "unsupported_platform": "Provider/platform unavailable or explicitly unsupported; expected unsupported probes are reported as skipped coverage, not product failures.",
+      "product_bug": "The Studio MySQL path accepted the scenario but violated an invariant or returned an unexpected failure.",
+      "rig_setup_failure": "The lab/component setup failed before the product invariant could be evaluated, such as npm/build, timeout, or lock setup failure.",
+      "rig_induced_fault": "The workload intentionally injected a negative condition, such as port collision or synthetic hash mismatch, to verify diagnostics.",
+      "product_guardrail": "The product intentionally rejected a risky operation and preserved state."
+    },
+    "replay_metadata": [
+      "homeboy fuzz replay command",
+      "run id",
+      "selected operation strata",
+      "component git head and branch",
+      "node/platform/arch",
+      "runtime root",
+      "artifact paths",
+      "execution request file"
+    ],
+    "post_case_diagnostics": {
+      "policy": "Health probes run after selected cases and are recorded separately from the primary result so they do not mask the primary failure/success.",
+      "probe": "wp db query SELECT 1 against the case site when a managed MySQL site should remain usable"
+    },
+    "case_invariants": {
+      "build-cli": ["Studio CLI bundle exists before destructive MySQL cases run", "NPM install/build failures classify as rig setup failures"],
+      "create-mysql-native": ["Native site creation accepts databaseEngine=mysql", "Site config includes managed MySQL metadata", "Mutable paths stay inside STUDIO_FUZZ_RUNTIME_ROOT"],
+      "create-mysql-playground-rejected": ["Sandbox runtime rejects MySQL explicitly", "Rejected creation does not leave a usable site config entry"],
+      "create-sqlite-default": ["Default site creation remains SQLite", "MySQL support does not change omitted database-engine behavior"],
+      "convert-sqlite-empty": ["Default SQLite content converts to MySQL", "Converted site remains addressable by Studio CLI"],
+      "convert-sqlite-large": ["CRUD-heavy seed survives conversion", "Published post/page counts and sentinel checksum match after conversion", "Converted database remains queryable"],
+      "convert-sqlite-rollback-on-kept-dropin": ["Failed conversion rolls back to SQLite", "Guarded db.php content remains present", "Partial MySQL config is not persisted"],
+      "mysql.start.stop.restart": ["Managed MySQL starts and stops cleanly", "WP-CLI can query the database after start", "Stop cleanup is recorded without masking earlier results"],
+      "mysql.port.collision": ["Port collision produces a controlled failure", "Colliding listener is released", "Site config is not corrupted"],
+      "mysql.orphan.process.recovery": ["Stopped MySQL site restarts cleanly", "WP-CLI reconnects after restart", "Recovery stop leaves the site manageable"],
+      "mysql.concurrent.install.lock": ["Concurrent site creation shares the binary install lock safely", "Lock contention is classified separately from data-loss failures"],
+      "wpcli.db.query": ["WP-CLI db query succeeds against managed MySQL", "SELECT 1 returns through the Studio runtime"],
+      "wpcli.db.import.export": ["Export artifact is created", "Import restores deleted sentinel option exactly", "Round-trip parity is verified"],
+      "wpcli.starts.mysql.when-needed": ["WP-CLI starts managed MySQL on demand", "Database query succeeds without manually starting the site"],
+      "loopback.wp-cron.idle": ["Loopback wp-cron avoids 5xx responses", "Managed MySQL remains queryable"],
+      "loopback.async.post.fanout": ["Concurrent loopback requests avoid 5xx responses", "Fanout does not wedge MySQL", "Managed MySQL remains queryable"],
+      "loopback.client-abort.worker-survives": ["Intentional client abort is expected", "Worker/database path survives", "Follow-up WP-CLI query succeeds"],
+      "binary.hash.mismatch": ["Synthetic hash mismatch includes expected and actual SHA-256", "No network download or product mutation is required"],
+      "binary.offline.unsupported-platform": ["Synthetic unsupported platform is reported as skipped coverage", "Missing provider artifact is not counted as a product failure"]
+    },
     "tracker": "github_pr:Automattic/studio#3997",
     "inventory": "${package.root}/manifests/mysql-poc-inventory.json",
     "isolation_proof": "${package.root}/proofs/mysql-poc-isolation-proof.json",

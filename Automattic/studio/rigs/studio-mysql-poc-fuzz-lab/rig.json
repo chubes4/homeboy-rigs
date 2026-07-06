@@ -65,6 +65,11 @@
         "kind": "check",
         "label": "Studio MySQL fuzz isolation proof exists",
         "file": "${package.root}/proofs/mysql-poc-isolation-proof.json"
+      },
+      {
+        "kind": "check",
+        "label": "Studio MySQL fuzz lab README exists",
+        "file": "${package.root}/rigs/studio-mysql-poc-fuzz-lab/README.md"
       }
     ],
     "down": []

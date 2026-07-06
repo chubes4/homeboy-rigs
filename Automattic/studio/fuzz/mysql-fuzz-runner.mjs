@@ -17,6 +17,7 @@ const replayPath = path.join( artifactsDir, 'replay.json' );
 const resultsArtifactPath = path.relative( artifactsDir, resultsFile );
 const cliPath = path.join( root, 'apps/cli/dist/cli/main.mjs' );
 const commandTimeoutMs = Number( process.env.STUDIO_FUZZ_COMMAND_TIMEOUT_MS || 180_000 );
+const replayCommand = 'homeboy fuzz run --rig studio-mysql-poc-fuzz-lab --profile lab';
 
 const request = requestFile
 	? JSON.parse( await fs.readFile( requestFile, 'utf8' ) )
@@ -30,6 +31,76 @@ const cases = [];
 const findings = [];
 let activeCaseCommands = null;
 let commandSequence = 0;
+
+const caseContracts = {
+ 'build-cli': {
+  invariants: [ 'Studio CLI bundle exists before destructive MySQL cases run', 'NPM install/build failures are classified as rig setup failures, not MySQL product failures' ],
+  failure_class: 'rig_setup_failure',
+ },
+ 'create-mysql-native': {
+  invariants: [ 'A native Studio site can be created with databaseEngine=mysql', 'The site config includes managed MySQL connection metadata', 'The site path stays inside STUDIO_FUZZ_RUNTIME_ROOT' ],
+ },
+ 'create-mysql-playground-rejected': {
+  invariants: [ 'Sandbox/playground runtime rejects MySQL explicitly', 'Rejected playground creation must not leave a usable site config entry' ],
+  expected_failure_class: 'unsupported_platform',
+ },
+ 'create-sqlite-default': {
+  invariants: [ 'Default site creation remains SQLite when --database-engine is omitted', 'SQLite default behavior is not regressed by MySQL support' ],
+ },
+ 'convert-sqlite-empty': {
+  invariants: [ 'A SQLite site with default content can convert to MySQL', 'Converted site remains addressable by Studio CLI' ],
+ },
+ 'convert-sqlite-large': {
+  invariants: [ 'A CRUD-heavy SQLite seed survives conversion to MySQL', 'Seeded post count, sentinel option, and aggregate checksum match after conversion', 'Conversion does not drop published content' ],
+ },
+ 'convert-sqlite-rollback-on-kept-dropin': {
+  invariants: [ 'Failed conversion rolls the site back to SQLite', 'Existing guarded db.php content remains present', 'Partial MySQL config is not persisted after rollback' ],
+  expected_failure_class: 'product_guardrail',
+ },
+ 'mysql-start': {
+  invariants: [ 'Managed MySQL starts with the Studio site', 'WP-CLI can query the database after start' ],
+ },
+ 'mysql-port-collision': {
+  invariants: [ 'Port collision produces a controlled failure', 'The colliding listener is released after the case', 'The failed start does not corrupt site config' ],
+  expected_failure_class: 'rig_induced_fault',
+ },
+ 'mysql-orphan-process-recovery': {
+  invariants: [ 'A stopped MySQL site can restart cleanly', 'WP-CLI can reconnect after restart', 'Stop after recovery leaves the site manageable' ],
+ },
+ 'mysql-concurrent-install-lock': {
+  invariants: [ 'Concurrent MySQL site creation shares the binary install lock safely', 'At least one install lock winner does not corrupt the other site config', 'Lock contention failures are classified distinctly from product data-loss failures' ],
+ },
+ 'wpcli-db-query': {
+  invariants: [ 'WP-CLI db query succeeds against the managed MySQL site', 'SELECT 1 returns through the configured Studio runtime' ],
+ },
+ 'wpcli-db-import-export': {
+  invariants: [ 'WP-CLI export produces an artifact', 'Import restores the deleted sentinel option exactly', 'Round-trip data parity is verified after import' ],
+ },
+ 'wpcli-starts-mysql-when-needed': {
+  invariants: [ 'WP-CLI starts managed MySQL on demand when the site server is stopped', 'Database query succeeds without manually starting the site first' ],
+ },
+ 'loopback-wp-cron-idle': {
+  invariants: [ 'Loopback wp-cron request returns without a 5xx response', 'Managed MySQL remains queryable after idle loopback traffic' ],
+ },
+ 'loopback-async-post-fanout': {
+  invariants: [ 'Concurrent loopback requests avoid 5xx responses', 'Fanout does not wedge the managed MySQL process', 'Managed MySQL remains queryable after fanout' ],
+ },
+ 'loopback-client-abort-worker-survives': {
+  invariants: [ 'Intentional client abort is recorded as expected', 'The worker/database path survives the abort', 'A follow-up WP-CLI database query succeeds' ],
+ },
+ 'binary-hash-mismatch-metadata': {
+  invariants: [ 'Hash mismatch diagnostics include expected and actual SHA-256 values', 'Synthetic mismatch does not require network download or product mutation' ],
+  expected_failure_class: 'rig_induced_fault',
+ },
+ 'binary-offline-unsupported-platform': {
+  invariants: [ 'Unsupported synthetic platform is reported as skipped coverage', 'Missing provider artifact is not counted as a product failure' ],
+  expected_failure_class: 'unsupported_platform',
+  skip_on_expected_failure: true,
+ },
+ 'mysql-stop': {
+  invariants: [ 'Managed MySQL can stop cleanly after the campaign', 'Stop cleanup does not mask earlier case results' ],
+ },
+};
 
 await fs.mkdir( artifactsDir, { recursive: true } );
 await fs.rm( runtimeRoot, { recursive: true, force: true } );
@@ -59,6 +130,50 @@ function errorMetadata( result ) {
   saw_port_collision: /EADDRINUSE|address already in use|port.*in use|Timed out waiting for mysqld/i.test( text ),
   saw_rollback: /rolled back to SQLite|rolling back to SQLite|site is unchanged/i.test( text ),
  };
+}
+
+function classifyResult( result, options = {}, contract = {} ) {
+ const metadata = errorMetadata( result );
+ if ( contract.skip_on_expected_failure && result.code !== 0 ) {
+  return 'unsupported_platform';
+ }
+ if ( metadata.saw_mysql_unavailable ) {
+  return 'unsupported_platform';
+ }
+ if ( result.signal === 'TIMEOUT' || metadata.saw_lock_timeout ) {
+  return 'rig_setup_failure';
+ }
+ if ( metadata.saw_hash_mismatch || metadata.saw_port_collision || metadata.saw_rollback ) {
+  return options.expectFailure ? contract.expected_failure_class || 'rig_induced_fault' : 'product_bug';
+ }
+ if ( options.expectFailure ) {
+  return contract.expected_failure_class || 'rig_induced_fault';
+ }
+ return contract.failure_class || 'product_bug';
+}
+
+async function gitValue( args ) {
+ const result = await run( 'git', args, { operationId: 'replay-git', timeoutMs: 15_000 } );
+ return result.code === 0 ? result.stdout.trim() : null;
+}
+
+async function postCaseHealthProbe( caseId, name ) {
+ const probes = [];
+ if ( name ) {
+  const db = await cli( 'wp', '--path', sitePath( name ), 'db', 'query', 'SELECT 1' );
+  probes.push( {
+   id: `${ caseId }:wpcli-db-select-1`,
+   target: name,
+   status: db.code === 0 ? 'passed' : 'failed',
+   exit_code: db.code,
+   signal: db.signal || null,
+   duration_ms: db.duration_ms,
+   stdout_tail: snippet( db.stdout ),
+   stderr_tail: snippet( db.stderr ),
+   classification: db.code === 0 ? 'healthy' : classifyResult( db ),
+  } );
+ }
+ return probes;
 }
 
 async function run( command, args, options = {} ) {
@@ -123,12 +238,16 @@ async function runCase( id, targetId, operationId, fn, options = {} ) {
 	if ( selectedOperations.size && ! selectedOperations.has( operationId ) ) {
 		return;
 	}
- const started = new Date().toISOString();
- activeCaseCommands = [];
-  try {
-  const observed = await fn();
-  const passed = options.expectFailure ? observed.code !== 0 : observed.code === 0;
-		const status = passed ? 'passed' : 'failed';
+  const started = new Date().toISOString();
+  const contract = { ...( caseContracts[ id ] || {} ), ...( options.contract || {} ) };
+  activeCaseCommands = [];
+   try {
+	  const observed = await fn();
+   const health_probes = options.healthSite ? await postCaseHealthProbe( id, options.healthSite ) : [];
+   const skipped = Boolean( contract.skip_on_expected_failure && options.expectFailure && observed.code !== 0 );
+   const passed = skipped || ( options.expectFailure ? observed.code !== 0 : observed.code === 0 );
+		const status = skipped ? 'skipped' : passed ? 'passed' : 'failed';
+   const classification = classifyResult( observed, options, contract );
 		const caseEntry = {
 			schema: 'homeboy/fuzz-case/v1',
 			id,
@@ -143,24 +262,30 @@ async function runCase( id, targetId, operationId, fn, options = {} ) {
     stdout_tail: snippet( observed.stdout ),
     stderr_tail: snippet( observed.stderr ),
     error_metadata: errorMetadata( observed ),
+    classification,
+    health_probes,
     commands: activeCaseCommands,
    },
    metadata: {
     started,
     expect_failure: Boolean( options.expectFailure ),
+    expected_skip: Boolean( contract.skip_on_expected_failure ),
+    invariants: contract.invariants || [],
     replay: {
-     run_id: runId,
-     case_id: id,
-     operation_id: operationId,
-     runtime_root: runtimeRoot,
-     artifacts_dir: artifactsDir,
-    },
+      run_id: runId,
+      case_id: id,
+      operation_id: operationId,
+      runtime_root: runtimeRoot,
+      artifacts_dir: artifactsDir,
+      command: replayCommand,
+      selected_operation: operationId,
+     },
     ...( options.metadata || {} ),
    },
   };
 		cases.push( caseEntry );
 		await logCase( caseEntry );
-		if ( ! passed ) {
+  if ( ! passed ) {
 			findings.push( {
 				schema: 'homeboy/fuzz-finding/v1',
 				id: `${ id }-failure`,
@@ -170,17 +295,17 @@ async function runCase( id, targetId, operationId, fn, options = {} ) {
 				target_id: targetId,
 				operation_id: operationId,
 				case_id: id,
-				metadata: caseEntry.observed,
+				metadata: { ...caseEntry.observed, classification, invariants: contract.invariants || [] },
 			} );
 		}
- } catch ( error ) {
+	} catch ( error ) {
 		const caseEntry = {
 			schema: 'homeboy/fuzz-case/v1',
 			id,
 			target_id: targetId,
 			operation_id: operationId,
-   observed: { status: 'error', error: error?.stack || String( error ), commands: activeCaseCommands },
-   metadata: { started },
+   observed: { status: 'error', error: error?.stack || String( error ), classification: 'rig_setup_failure', commands: activeCaseCommands },
+   metadata: { started, invariants: contract.invariants || [] },
   };
 		cases.push( caseEntry );
 		await logCase( caseEntry );
@@ -227,8 +352,28 @@ async function createMysqlSite( name ) {
 }
 
 async function seedLargeSqliteSite( name ) {
+  const content = 'Large MySQL conversion fuzz payload '.repeat( 200 );
+  const code = `for ($i = 0; $i < 250; $i++) { wp_insert_post(array('post_title' => 'Fuzz post ' . $i, 'post_status' => 'publish', 'post_content' => ${ JSON.stringify( content ) })); } for ($i = 0; $i < 25; $i++) { wp_insert_post(array('post_title' => 'Fuzz page ' . $i, 'post_type' => 'page', 'post_status' => 'publish', 'post_content' => 'page-' . $i)); } update_option('studio_mysql_fuzz_large_seeded', '250-posts-25-pages'); update_option('studio_mysql_fuzz_large_checksum', md5('250-posts-25-pages|' . ${ JSON.stringify( content ) }));`;
+  return cli( 'wp', '--path', sitePath( name ), 'eval', code );
+}
+
+async function verifyLargeSqliteParity( name ) {
  const content = 'Large MySQL conversion fuzz payload '.repeat( 200 );
- const code = `for ($i = 0; $i < 250; $i++) { wp_insert_post(array('post_title' => 'Fuzz post ' . $i, 'post_status' => 'publish', 'post_content' => ${ JSON.stringify( content ) })); } update_option('studio_mysql_fuzz_large_seeded', '250-posts');`;
+ const code = `
+$posts = (int) wp_count_posts('post')->publish;
+$pages = (int) wp_count_posts('page')->publish;
+$seeded = get_option('studio_mysql_fuzz_large_seeded');
+$checksum = get_option('studio_mysql_fuzz_large_checksum');
+$expected_checksum = md5('250-posts-25-pages|' . ${ JSON.stringify( content ) });
+$ok = $posts >= 250 && $pages >= 25 && $seeded === '250-posts-25-pages' && $checksum === $expected_checksum;
+echo wp_json_encode(array('posts' => $posts, 'pages' => $pages, 'seeded' => $seeded, 'checksum' => $checksum, 'expected_checksum' => $expected_checksum, 'parity_ok' => $ok));
+if (!$ok) { exit(1); }
+`;
+ return cli( 'wp', '--path', sitePath( name ), 'eval', code );
+}
+
+async function verifyOptionEquals( name, option, expected ) {
+ const code = `$actual = get_option(${ JSON.stringify( option ) }); echo wp_json_encode(array('option' => ${ JSON.stringify( option ) }, 'expected' => ${ JSON.stringify( expected ) }, 'actual' => $actual, 'parity_ok' => $actual === ${ JSON.stringify( expected ) })); if ($actual !== ${ JSON.stringify( expected ) }) { exit(1); }`;
  return cli( 'wp', '--path', sitePath( name ), 'eval', code );
 }
 
@@ -365,9 +510,9 @@ await runCase( 'convert-sqlite-large', 'studio.cli.site.convert.mysql', 'convert
   () => createSqliteSite( 'sqlite-large' ),
   () => seedLargeSqliteSite( 'sqlite-large' ),
   () => cli( 'site', 'convert', '--path', sitePath( 'sqlite-large' ), '--to', 'mysql' ),
-  () => cli( 'wp', '--path', sitePath( 'sqlite-large' ), 'post', 'list', '--post_type=post', '--format=count' ),
+  () => verifyLargeSqliteParity( 'sqlite-large' ),
  ] ),
- { metadata: { expected_minimum_posts_after_conversion: 250 } }
+ { healthSite: 'sqlite-large', metadata: { expected_minimum_posts_after_conversion: 250, expected_minimum_pages_after_conversion: 25, parity_probe: 'posts-pages-options-checksum' } }
 );
 
 await runCase( 'convert-sqlite-rollback-on-kept-dropin', 'studio.cli.site.convert.mysql', 'convert.sqlite.mysql.rollback', async () => {
@@ -394,7 +539,7 @@ await runCase( 'convert-sqlite-rollback-on-kept-dropin', 'studio.cli.site.conver
 
 await runCase( 'mysql-start', 'studio.runtime.mysql.lifecycle', 'mysql.start.stop.restart', () =>
 	cli( 'site', 'start', '--path', sitePath( 'mysql-native' ), '--skip-browser', '--skip-log-details' )
-);
+, { healthSite: 'mysql-native' } );
 
 await runCase( 'mysql-port-collision', 'studio.runtime.mysql.lifecycle', 'mysql.port.collision', async () => {
  const name = 'mysql-port-collision';
@@ -428,25 +573,25 @@ await runCase( 'mysql-concurrent-install-lock', 'studio.runtime.mysql.lifecycle'
 
 await runCase( 'wpcli-db-query', 'studio.runtime.mysql.wpcli', 'wpcli.db.query', () =>
 	cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'query', 'SELECT 1' )
-);
+, { healthSite: 'mysql-native' } );
 
 await runCase( 'wpcli-db-import-export', 'studio.runtime.mysql.wpcli', 'wpcli.db.import.export', async () => {
  const exportPath = path.join( artifactsDir, 'wpcli-db-import-export.sql' );
  return runSequence( [
   () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'option', 'update', 'studio_mysql_fuzz_roundtrip', runId ),
-  () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'export', exportPath ),
-  () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'option', 'delete', 'studio_mysql_fuzz_roundtrip' ),
-  () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'import', exportPath ),
-  () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'option', 'get', 'studio_mysql_fuzz_roundtrip' ),
- ] );
-}, { metadata: { export_artifact: 'wpcli-db-import-export.sql' } } );
+   () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'export', exportPath ),
+   () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'option', 'delete', 'studio_mysql_fuzz_roundtrip' ),
+   () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'import', exportPath ),
+   () => verifyOptionEquals( 'mysql-native', 'studio_mysql_fuzz_roundtrip', runId ),
+  ] );
+}, { healthSite: 'mysql-native', metadata: { export_artifact: 'wpcli-db-import-export.sql', parity_probe: 'option-exact-roundtrip' } } );
 
 await runCase( 'wpcli-starts-mysql-when-needed', 'studio.runtime.mysql.wpcli', 'wpcli.starts.mysql.when-needed', () =>
  runSequence( [
   () => cli( 'site', 'stop', '--path', sitePath( 'mysql-native' ) ),
   () => cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'query', 'SELECT 1' ),
  ] ),
- { metadata: { intent: 'WP-CLI should ensure managed MySQL is running even when the site server is stopped' } }
+ { healthSite: 'mysql-native', metadata: { intent: 'WP-CLI should ensure managed MySQL is running even when the site server is stopped' } }
 );
 
 await runCase( 'loopback-wp-cron-idle', 'studio.runtime.mysql.loopback', 'loopback.wp-cron.idle', async () => {
@@ -456,7 +601,7 @@ await runCase( 'loopback-wp-cron-idle', 'studio.runtime.mysql.loopback', 'loopba
  }
  const site = await getSiteConfig( 'mysql-native' );
  return await requestSite( site, '/wp-cron.php?doing_wp_cron=studio-mysql-fuzz' );
-} );
+}, { healthSite: 'mysql-native' } );
 
 await runCase( 'loopback-async-post-fanout', 'studio.runtime.mysql.loopback', 'loopback.async.post.fanout', async () => {
  const site = await getSiteConfig( 'mysql-native' );
@@ -467,7 +612,7 @@ await runCase( 'loopback-async-post-fanout', 'studio.runtime.mysql.loopback', 'l
   )
  );
  return combineResults( results, Date.now() - started );
-}, { metadata: { fanout: 12 } } );
+}, { healthSite: 'mysql-native', metadata: { fanout: 12 } } );
 
 await runCase( 'loopback-client-abort-worker-survives', 'studio.runtime.mysql.loopback', 'loopback.client-abort.worker-survives', async () => {
  const site = await getSiteConfig( 'mysql-native' );
@@ -480,7 +625,7 @@ await runCase( 'loopback-client-abort-worker-survives', 'studio.runtime.mysql.lo
  }
  const health = await cli( 'wp', '--path', sitePath( 'mysql-native' ), 'db', 'query', 'SELECT 1' );
  return combineResults( [ aborted, health ], aborted.duration_ms + health.duration_ms );
-} );
+}, { healthSite: 'mysql-native' } );
 
 await runCase( 'binary-hash-mismatch-metadata', 'studio.mysql.binary.delivery', 'binary.hash.mismatch', () =>
  run( process.execPath, [
@@ -497,12 +642,32 @@ await runCase( 'binary-offline-unsupported-platform', 'studio.mysql.binary.deliv
   '-e',
   `import metadata from './packages/common/lib/mysql-binary-cdn-metadata.json' with { type: 'json' }; const unsupportedKey = 'aix-ppc64'; const found = Object.values(metadata.versions).some((version) => version.artifacts[unsupportedKey]); if (found) process.exit(1); console.error(JSON.stringify({unsupportedKey, message: 'MySQL 8.4 metadata has no artifact for synthetic unsupported offline platform'})); process.exit(1);`,
  ] ),
- { expectFailure: true, metadata: { synthetic_platform: 'aix-ppc64', offline_probe: true } }
+ { expectFailure: true, metadata: { synthetic_platform: 'aix-ppc64', offline_probe: true, expected_status: 'skipped' } }
 );
 
 await runCase( 'mysql-stop', 'studio.runtime.mysql.lifecycle', 'mysql.start.stop.restart', () =>
 	cli( 'site', 'stop', '--path', sitePath( 'mysql-native' ) )
 );
+
+const replayMetadata = {
+ command: replayCommand,
+ run_id: runId,
+ cwd: root,
+ node: process.version,
+ platform: process.platform,
+ arch: process.arch,
+ git_head: await gitValue( [ 'rev-parse', 'HEAD' ] ),
+ git_branch: await gitValue( [ 'branch', '--show-current' ] ),
+ selected_operations: [ ...selectedOperations ],
+ workload_id: process.env.HOMEBOY_FUZZ_WORKLOAD_ID || 'component-script-1',
+ env: {
+  HOMEBOY_FUZZ_ARTIFACTS_DIR: artifactsDir,
+  HOMEBOY_FUZZ_RESULTS_FILE: resultsFile,
+  HOMEBOY_FUZZ_EXECUTION_REQUEST_FILE: requestFile || null,
+  STUDIO_FUZZ_RUNTIME_ROOT: runtimeRoot,
+  STUDIO_FUZZ_COMMAND_TIMEOUT_MS: String( commandTimeoutMs ),
+ },
+};
 
 await fs.writeFile(
 	replayPath,
@@ -513,6 +678,7 @@ await fs.writeFile(
 			request_file: requestFile,
 			dev_config_dir: devConfigDir,
 			sites_root: sitesRoot,
+			metadata: replayMetadata,
 		},
 		null,
 		2
@@ -521,6 +687,9 @@ await fs.writeFile(
 
 const targetIds = new Set( cases.map( ( item ) => item.target_id ) );
 const operationIds = new Set( cases.map( ( item ) => item.operation_id ) );
+const skippedCases = cases.filter( ( item ) => item.observed.status === 'skipped' );
+const skippedTargets = [ ...new Set( skippedCases.map( ( item ) => item.target_id ) ) ];
+const skippedOperations = [ ...new Set( skippedCases.map( ( item ) => item.operation_id ) ) ];
 const campaign = {
 	schema: 'homeboy/fuzz-campaign/v1',
 	version: 1,
@@ -537,8 +706,8 @@ const campaign = {
 		declared_operations: operationIds.size,
 		executable_operations: operationIds.size,
 		proven_operations: operationIds.size,
-		skipped_targets: [],
-		skipped_operations: [],
+		skipped_targets: skippedTargets,
+		skipped_operations: skippedOperations,
 		surface_summaries: [],
 		kind_summaries: [],
 		artifact_ids: [ 'case-log', 'replay-data', 'result-envelope' ],
@@ -584,10 +753,12 @@ const campaign = {
 	metadata: {
 		status: findings.length ? 'failed' : 'passed',
 		success: findings.length === 0,
+		replay: replayMetadata,
 		case_counts: {
 			passed: cases.filter( ( item ) => item.observed.status === 'passed' ).length,
 			failed: cases.filter( ( item ) => item.observed.status === 'failed' ).length,
 			errored: cases.filter( ( item ) => item.observed.status === 'error' ).length,
+			skipped: skippedCases.length,
 		},
 		artifact_refs: [
 			{ kind: 'case_log', path: 'case-log.jsonl' },
