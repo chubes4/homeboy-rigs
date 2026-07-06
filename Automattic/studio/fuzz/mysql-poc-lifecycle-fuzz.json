@@ -1,0 +1,184 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "mysql-poc-lifecycle-fuzz",
+  "label": "Studio MySQL POC lifecycle fuzz lab workload",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "studio-cli-site-create-mysql",
+    "studio-cli-site-convert-mysql",
+    "studio-runtime-mysql-lifecycle",
+    "studio-runtime-mysql-wpcli",
+    "studio-runtime-mysql-loopback",
+    "studio-mysql-binary-delivery"
+  ],
+  "operations": [
+    "create.mysql.native",
+    "create.mysql.playground.rejected",
+    "create.sqlite.default.unchanged",
+    "convert.sqlite.mysql.empty",
+    "convert.sqlite.mysql.large",
+    "convert.sqlite.mysql.rollback",
+    "mysql.start.stop.restart",
+    "mysql.orphan.process.recovery",
+    "mysql.port.collision",
+    "mysql.concurrent.install.lock",
+    "wpcli.db.query",
+    "wpcli.db.import.export",
+    "wpcli.starts.mysql.when-needed",
+    "loopback.wp-cron.idle",
+    "loopback.async.post.fanout",
+    "loopback.client-abort.worker-survives",
+    "binary.metadata.platform.resolve",
+    "binary.hash.mismatch",
+    "binary.offline.unsupported-platform"
+  ],
+  "case_budget": 45,
+  "duration_budget_seconds": 1800,
+  "metadata": {
+    "kind": "studio-desktop-fuzz",
+    "execution_scope": "lab-only-destructive",
+    "local_execution_policy": "static-validation-only; do not run destructive runner locally",
+    "tracker": "github_pr:Automattic/studio#3997",
+    "inventory": "${package.root}/manifests/mysql-poc-inventory.json",
+    "isolation_proof": "${package.root}/proofs/mysql-poc-isolation-proof.json",
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Studio MySQL POC fuzzing is declared as a lab-only isolated mutation workload. The checked-in runner creates fresh temp Studio config/runtime roots, but reviewer-facing lab artifacts are required before this workload can be marked proven.",
+      "upstream_blockers": [
+        "Run through an approved destructive lab/offload environment and attach reviewer-facing Homeboy fuzz result artifacts."
+      ]
+    }
+  },
+  "target": {
+    "type": "desktop-app",
+    "slug": "studio",
+    "component": "studio"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/mysql-fuzz-runner.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "mysql-poc-lifecycle-fuzz:lab-campaign",
+      "surface_ids": [
+        "studio-cli-site-create-mysql",
+        "studio-cli-site-convert-mysql",
+        "studio-runtime-mysql-lifecycle",
+        "studio-runtime-mysql-wpcli",
+        "studio-runtime-mysql-loopback",
+        "studio-mysql-binary-delivery"
+      ],
+      "operations": [
+        "create.mysql.native",
+        "create.mysql.playground.rejected",
+        "create.sqlite.default.unchanged",
+        "convert.sqlite.mysql.empty",
+        "convert.sqlite.mysql.large",
+        "convert.sqlite.mysql.rollback",
+        "mysql.start.stop.restart",
+        "mysql.orphan.process.recovery",
+        "mysql.port.collision",
+        "mysql.concurrent.install.lock",
+        "wpcli.db.query",
+        "wpcli.db.import.export",
+        "wpcli.starts.mysql.when-needed",
+        "loopback.wp-cron.idle",
+        "loopback.async.post.fanout",
+        "loopback.client-abort.worker-survives",
+        "binary.metadata.platform.resolve",
+        "binary.hash.mismatch",
+        "binary.offline.unsupported-platform"
+      ],
+      "artifacts": [
+        {
+          "name": "case_log",
+          "path": "case-log.jsonl",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.case_log"
+          }
+        },
+        {
+          "name": "replay_data",
+          "path": "replay.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.replay"
+          }
+        },
+        {
+          "name": "result_envelope",
+          "path": "results.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "execution_scope": "lab-only-destructive"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 45,
+    "max_duration_seconds": 1800
+  },
+  "coverage": {
+    "surface_ids": [
+      "studio-cli-site-create-mysql",
+      "studio-cli-site-convert-mysql",
+      "studio-runtime-mysql-lifecycle",
+      "studio-runtime-mysql-wpcli",
+      "studio-runtime-mysql-loopback",
+      "studio-mysql-binary-delivery"
+    ],
+    "operations": [
+      "create.mysql.native",
+      "create.mysql.playground.rejected",
+      "create.sqlite.default.unchanged",
+      "convert.sqlite.mysql.empty",
+      "convert.sqlite.mysql.large",
+      "convert.sqlite.mysql.rollback",
+      "mysql.start.stop.restart",
+      "mysql.orphan.process.recovery",
+      "mysql.port.collision",
+      "mysql.concurrent.install.lock",
+      "wpcli.db.query",
+      "wpcli.db.import.export",
+      "wpcli.starts.mysql.when-needed",
+      "loopback.wp-cron.idle",
+      "loopback.async.post.fanout",
+      "loopback.client-abort.worker-survives",
+      "binary.metadata.platform.resolve",
+      "binary.hash.mismatch",
+      "binary.offline.unsupported-platform"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "case_log",
+        "role": "case_log",
+        "semantic_key": "fuzz.case_log",
+        "required": true
+      },
+      {
+        "name": "replay_data",
+        "role": "replay_data",
+        "semantic_key": "fuzz.replay",
+        "required": true
+      },
+      {
+        "name": "result_envelope",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
+}

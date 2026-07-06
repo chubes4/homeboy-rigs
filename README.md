@@ -264,6 +264,12 @@ Source-vs-frontend visual fidelity evidence is captured through WP Codebox `word
 
 The site-build workload also emits generated-theme UX gates in `generated-theme-ux-gates.json`. This first slice catches serialized `wp:freeform` count drift against the Static Site Importer report and CSS-hidden reveal content that lacks an editor override, which can make the Site Editor canvas appear blank even when the frontend looks acceptable. Remaining gates to automate are Site Editor above-the-fold visible text, footer utility links converted into responsive navigation overlays, and fixed/sticky chrome overlapping the WordPress admin bar.
 
+`studio-mysql-poc-fuzz-lab` owns the lab-only destructive Studio MySQL POC fuzz workload. The package includes the target inventory, runner, and isolation proof under `Automattic/studio/`; local validation is static-only. Execute it only through an approved Homeboy lab/offload path that provisions isolated temp Studio config/runtime roots:
+
+```bash
+homeboy fuzz --rig studio-mysql-poc-fuzz-lab --profile lab --shared-state /tmp/studio-mysql-poc-fuzz-lab
+```
+
 Mixed-source prompt variants such as `astro-docs-content-collection`, `markdown-blog-launch-site`, and `static-content-library` intentionally depend on Static Site Importer support for importing a source tree with `index.html`, `styles.css`, and plain `.md`/`.markdown` content files. They should be used against SSI branches that implement that mixed HTML shell plus Markdown content path; the prompts explicitly exclude MDX and do not require Studio changes.
 
 ### Studio Bench Harness Cleanup
