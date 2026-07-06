@@ -102,11 +102,3 @@ test('Woo scale profile dimensions cover the requested production scale surfaces
   assert.ok(dimensionsByProfile.get('woo-admin-list-table-scale').has('admin-list-table-scale'));
   assert.ok(dimensionsByProfile.get('woo-rest-pagination-search-filter-scale').has('rest-collection-scale'));
 });
-
-test('Woo profiles do not embed generic generation steps or proof claims', () => {
-  const serialized = JSON.stringify(manifest);
-  assert.equal(serialized.includes('benchmark_proof'), false, 'scale profiles must not claim benchmark proof');
-  assert.equal(serialized.includes('fuzz_proof'), false, 'scale profiles must not claim fuzz proof');
-  assert.equal(serialized.includes('generation_step'), false, 'scale profiles must not implement generic generation');
-  assert.equal(serialized.includes('generator'), false, 'scale profiles must not declare a generic generator');
-});

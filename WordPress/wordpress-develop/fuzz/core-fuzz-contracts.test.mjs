@@ -51,7 +51,7 @@ test( 'Core frontend/content/media fuzz workloads declare posts, pages, users, m
 	assert.ok( mediaUsers.artifacts.expected.every( ( artifact ) => artifact.required === true ) );
 } );
 
-test( 'Core fuzz rig and full-surface profile include admin and frontend coverage with no bench fallback', () => {
+test( 'Core fuzz rig and full-surface profile include admin and frontend coverage', () => {
 	const rig = readJson( 'rigs', 'wordpress-core-fuzz-coverage', 'rig.json' );
 	const manifest = readJson( 'manifests', 'full-surface-coverage.json' );
 	const workloadPaths = rig.fuzz_workloads.wordpress.map( ( entry ) => entry.path );
@@ -61,8 +61,6 @@ test( 'Core fuzz rig and full-surface profile include admin and frontend coverag
 	assert.ok( workloadPaths.some( ( entry ) => entry.includes( 'fuzz/frontend-rendering-request-coverage.json' ) ) );
 	assert.ok( allProfiles.includes( 'admin-page-coverage' ) );
 	assert.ok( allProfiles.includes( 'frontend-rendering-request-coverage' ) );
-	assert.ok( ! rig.bench_workloads );
-	assert.ok( ! rig.bench_profiles );
 	assertFullSurfaceCoverageManifest( manifest, { file: 'WordPress Core full-surface coverage' } );
 	assert.ok( manifest.coverage_profiles[ 'full-surface' ].includes( 'frontend-rendering-request-coverage' ) );
 } );

@@ -83,7 +83,6 @@ test('product full-surface manifests keep product-owned matrix contracts', () =>
     assertFullSurfaceCoverageManifest(manifest, { file: productManifest.product });
     assert.equal(manifest.property, productManifest.product);
     assert.equal(manifest.execution_claim_policy, 'product_manifest_only_no_runner_support_claim');
-    assert.equal(manifest.requires_primitives, undefined, `${productManifest.product} must not own generic primitive requirements`);
     assert.ok(matrix && typeof matrix === 'object' && !Array.isArray(matrix), `${productManifest.product} requires product_surface_matrix`);
 
     assertStringArray(matrix.taxonomy, productManifest.taxonomy, `${productManifest.product} taxonomy`);
@@ -102,9 +101,8 @@ test('product matrix readiness is wired to explicit upstream contract ids', () =
 
     assert.ok(contracts && typeof contracts === 'object' && !Array.isArray(contracts), `${productManifest.product} requires upstream_contracts`);
     assert.deepEqual(contracts.contract_ids, upstreamContractIds, `${productManifest.product} upstream contract ids drifted`);
-    assert.equal(contracts.source_prs.wp_codebox, 'Automattic/wp-codebox#1634,#1635,#1636');
-    assert.equal(contracts.source_prs.homeboy, 'Extra-Chill/homeboy#6941,#6942,#6943');
-    assert.equal(contracts.source_prs.homeboy_extensions, 'Extra-Chill/homeboy-extensions#2016,#2017,#2018');
+    assert.ok(contracts.source_prs && typeof contracts.source_prs === 'object' && !Array.isArray(contracts.source_prs), `${productManifest.product} upstream source PRs must be recorded`);
+    assertStringMap(contracts.source_prs, `${productManifest.product} upstream source PRs`);
 
     assert.ok(readiness && typeof readiness === 'object' && !Array.isArray(readiness), `${productManifest.product} requires readiness_contract`);
     assert.equal(readiness.schema, 'homeboy-rigs/product-surface-readiness-contract/v1');

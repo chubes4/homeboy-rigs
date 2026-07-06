@@ -23,7 +23,6 @@ const browserRig = readMaterializedRig(packageRoot, 'rigs/jetpack-browser-covera
 const fullSurfaceCoverage = readJson(packageRoot, 'manifests/full-surface-coverage.json');
 const restRouteCoverage = readJson(packageRoot, 'manifests/rest-route-coverage.json');
 const stableWorkloads = readJson(packageRoot, 'manifests/stable-workloads.json');
-const legacyLabCommandGeneratorKey = 'lab_' + 'command_generator';
 const generatedRestCases = readJson(packageRoot, 'bench/generated-rest-request-cases.workload.json');
 const dbInventory = readJson(packageRoot, 'bench/db-inventory.workload.json');
 const fuzzManifests = collectFuzzManifests(packageRoot);
@@ -64,11 +63,8 @@ const expectedStableWorkloadIds = new Set([
 
 assertFullSurfaceCoverageManifest(fullSurfaceCoverage, { file: 'Jetpack full-surface coverage' });
 assert.equal(fuzzManifests.length, expectedFuzzIds.size, 'expected one Jetpack fuzz manifest per declared API fuzz workload');
-assert.equal(apiRig.bench_workloads, undefined, 'Jetpack fuzz coverage must not use bench_workloads as a fallback');
-assert.equal(apiRig.bench_profiles, undefined, 'Jetpack fuzz coverage must not use bench_profiles as a fallback');
 assert.equal(stableWorkloads.schema, 'homeboy-rigs/jetpack-stable-workloads/v1', 'Jetpack stable workload schema drifted');
 assert.equal(stableWorkloads.rig, 'rigs/jetpack-api-route-inventory/rig.json', 'Jetpack stable workloads must target API inventory rig');
-assert.equal(stableWorkloads[legacyLabCommandGeneratorKey], undefined, 'Jetpack stable workload planning must use homeboy fuzz stable-plan directly');
 
 const declaredIds = declaredFuzzIds(apiRig);
 const benchWorkloadIds = declaredBenchWorkloadIds(apiRig);

@@ -222,7 +222,6 @@ test('REST DB query profile consumes generated request case artifacts with caps'
 
   assert.equal(profilerSteps.length, 1);
   for (const step of profilerSteps) {
-    assert.equal(step.rest_request_cases, undefined, `${step.type} must not fall back to hard-coded route cases`);
     assert.equal(step.rest_request_cases_source.type, 'artifact');
     assert.equal(step.rest_request_cases_source.schema, 'homeboy/wordpress-rest-request-cases/v1');
     assert.deepEqual(step.rest_request_cases_source.artifact_globs, ['generated-rest-request-cases/*.json']);

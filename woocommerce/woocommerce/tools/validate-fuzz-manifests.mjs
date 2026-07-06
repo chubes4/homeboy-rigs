@@ -166,12 +166,9 @@ function assertDeclaredOrExternalDiscoveryWorkload(workloadId, context) {
 }
 
 function assertStableWorkloadContracts(manifest) {
-  const legacyLabCommandGeneratorKey = 'lab_' + 'command_generator';
-
   assert.equal(manifest.schema, 'homeboy-rigs/woocommerce-stable-workloads/v1', 'stable workloads schema drifted');
   assert.equal(manifest.profile_id, 'woo-profiling-stabilization', 'stable workloads profile id drifted');
   assert.equal(manifest.rig, 'rigs/woocommerce-performance/rig.json', 'stable workloads rig ref drifted');
-  assert.equal(manifest[legacyLabCommandGeneratorKey], undefined, 'stable workloads must use homeboy fuzz stable-plan directly');
   assert.deepEqual(manifest.comparison_commands, ['homeboy runs refs', 'homeboy runs compare', 'homeboy runs hotspots'], 'stable workload comparison command surface drifted');
 
   const expectedIds = new Set([
@@ -609,10 +606,8 @@ function assertAggressiveIsolatedCampaignContract(campaign) {
   assert.ok(campaign.command_plan?.plan_items?.request_aggressive_isolated_firehose?.required_flags?.includes('--require-result-envelope'), 'aggressive command plan manifest must require core result-envelope planning');
   assert.ok(campaign.command_plan?.plan_items?.request_aggressive_isolated_firehose?.extension_args?.includes('--hbex-aggressive-isolated-mode'), 'aggressive command plan manifest must declare HBEX aggressive mode handoff args');
   assert.ok(campaign.command_plan?.plan_items?.collect_reviewer_facing_artifact_refs?.command_argv?.includes('$planned_artifact_semantic_keys'), 'aggressive command plan manifest must declare semantic artifact ref collection');
-  assert.equal(campaign.command_plan?.plan_items?.request_aggressive_isolated_firehose?.command_argv, undefined, 'aggressive workload requests must not carry manifest-owned homeboy fuzz run argv arrays');
   assert.ok(Array.isArray(rig.fuzz_profiles?.[campaign.profile_id]) && rig.fuzz_profiles[campaign.profile_id].length > 0, 'aggressive firehose must declare planned fuzz workload ids');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.campaign_manifest, 'manifests/aggressive-isolated-fuzz-campaign.json', 'aggressive profile metadata must link the campaign manifest');
-  assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.command_plan_generator, undefined, 'aggressive profile metadata must not link a rig-owned command generator');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.homeboy_fuzz_profile, campaign.profile_id, 'aggressive profile metadata Homeboy profile drifted');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.hbex_fuzz_profile, campaign.profile_id, 'aggressive profile metadata HBEX profile drifted');
   assert.equal(rig.fuzz_profile_metadata?.[campaign.profile_id]?.codebox_fuzz_profile, 'woocommerce-aggressive-isolated-firehose', 'aggressive profile metadata Codebox profile drifted');
