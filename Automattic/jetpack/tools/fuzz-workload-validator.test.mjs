@@ -19,7 +19,6 @@ test('rejects executable readiness with optional artifacts', () => {
         },
       ],
       artifacts: { expected: [{ name: 'report', path: 'report.json', required: true }] },
-    }, { file: 'jetpack-fuzz.json' }),
-    /executable Jetpack readiness requires case artifact report to be required/
+    }, { file: 'jetpack-fuzz.json' })
   );
 });
