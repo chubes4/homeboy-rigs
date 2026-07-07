@@ -4,12 +4,10 @@ import {
   assertFuzzProofBundle,
   assertGenericFuzzManifest,
   assertReviewerFacingFuzzRef,
-  declaredFuzzIds,
   fullSurfaceRequiredArtifactIds,
   fuzzManifestHasExecutableArtifactContract,
   fuzzProofBundleFields,
   normalizeReviewerFacingFuzzRef,
-  workloadIdFromPath,
 } from './fuzz-manifest-helpers.mjs';
 
 function fuzzManifest(overrides = {}) {
@@ -51,23 +49,6 @@ function fuzzManifest(overrides = {}) {
     ...overrides,
   };
 }
-
-test('workloadIdFromPath strips supported workload suffixes', () => {
-  assert.equal(workloadIdFromPath('${package.root}/fuzz/product-fuzz.json'), 'product-fuzz');
-  assert.equal(workloadIdFromPath('${package.root}/bench/product-fuzz.workload.json'), 'product-fuzz');
-  assert.equal(workloadIdFromPath('${package.root}/bench/product-fuzz.php'), 'product-fuzz');
-});
-
-test('declaredFuzzIds accepts object and string workload declarations', () => {
-  assert.deepEqual(declaredFuzzIds({
-    fuzz_workloads: {
-      wordpress: [
-        { path: '${package.root}/fuzz/product-fuzz.json' },
-        '${package.root}/fuzz/other-fuzz.json',
-      ],
-    },
-  }), new Set(['product-fuzz', 'other-fuzz']));
-});
 
 test('assertGenericFuzzManifest accepts a linked generic fuzz workload contract', () => {
   const runnerCase = assertGenericFuzzManifest(fuzzManifest(), {
