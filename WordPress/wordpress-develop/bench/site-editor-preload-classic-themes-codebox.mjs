@@ -1,6 +1,6 @@
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -239,12 +239,13 @@ async function runVariant({ scenario, candidate, runDir }) {
     if (Boolean(scenarioState.block_template_parts) !== scenario.blockTemplateParts) {
       throw new Error(`block-template-parts setup failed for ${scenario.id}: ${JSON.stringify(scenarioState)}`);
     }
-    const siteEditorRequests = browser.network.filter((entry) => {
+    const network = JSON.parse(await readFile(browser.artifacts.network.path, 'utf8'));
+    const siteEditorRequests = network.filter((entry) => {
       const url = new URL(entry.url);
       return url.pathname === '/wp-admin/site-editor.php';
     });
     const siteEditorRequest = siteEditorRequests.at(-1);
-    const clientFetches = browser.network.filter((entry) => ['fetch', 'xhr'].includes(entry.resource_type));
+    const clientFetches = network.filter((entry) => ['fetch', 'xhr'].includes(entry.resource_type));
     const restNetworkRequests = clientFetches.filter((entry) => /\/wp-json\/wp\/v2\//.test(entry.url));
     const preloaded = Array.isArray(observer?.paths) ? observer.paths : [];
     const classification = classifyPreloadHitWaste({
