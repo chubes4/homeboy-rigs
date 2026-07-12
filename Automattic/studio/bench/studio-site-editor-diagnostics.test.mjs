@@ -86,8 +86,13 @@ const {
   summarizeWordPressBootstrapTimeline,
 } = await import('./lib/wordpress-bootstrap-timeline.mjs');
 const {
+  buildClassicThemePreloadRollUp,
   buildSiteEditorPreloadComparison,
+  classifyPreloadHitWaste,
+  formatClassicThemePreloadRollUpMarkdown,
   installSiteEditorPreloadCandidateSource,
+  installSiteEditorPreloadCaptureSource,
+  normalizeRestEntry,
 } = await import('./lib/site-editor-preload-harness.mjs');
 const {
   pageProfilerPath,
@@ -1155,4 +1160,178 @@ test('buildSiteEditorPreloadComparison summarizes the bot-path delta', () => {
   assert.equal(comparison.baseline_measure_resource_count, 2);
   assert.equal(comparison.candidate_measure_resource_count, 0);
   assert.equal(comparison.baseline_slowest_measure_resources[0].duration_ms, 480);
+});
+
+// --- Classic-theme Site Editor preload evidence ---------------------------------
+
+const SITE_EDITOR_PHP_NEEDLE = 'block_editor_rest_api_preload( $preload_paths, $block_editor_context );';
+
+function minimalSiteEditorPhp() {
+  return `<?php
+$preload_paths = array();
+${SITE_EDITOR_PHP_NEEDLE}
+`;
+}
+
+test('installSiteEditorPreloadCandidateSource injects the verbatim WordPress/wordpress-develop#11766 block in pr-11766 mode', () => {
+  const patched = installSiteEditorPreloadCandidateSource(minimalSiteEditorPhp(), { mode: 'pr-11766' });
+  assert.match(patched, /HOMEBOY_SITE_EDITOR_PRELOAD_CANDIDATE \(pr-11766\): begin/);
+  // Verbatim PR variables (no homeboy_ namespacing) confirm fidelity.
+  assert.match(patched, /\$template_slugs = array\(\);/);
+  assert.match(patched, /\$front_page\s+= null;/);
+  assert.match(patched, /get_block_templates\(/);
+  assert.match(patched, /resolve_pattern_blocks\( parse_blocks/);
+  assert.match(patched, /'core\/template-part'/);
+  assert.match(patched, /'core\/query'/);
+  assert.match(patched, /rest_get_route_for_post_type_items\( 'page' \)/);
+  assert.match(patched, /\/wp\/v2\/taxonomies\?context=view/);
+  assert.match(patched, /11766 @ 360e7cbf02793323f9fa24fcbbea379a9ed7e4c9/);
+  assert.equal(installSiteEditorPreloadCandidateSource(patched, { mode: 'pr-11766' }), patched);
+});
+
+test('installSiteEditorPreloadCandidateSource honors the pr-11766 mode override over the env default', () => {
+  withEnv(
+    {
+      HOMEBOY_SITE_EDITOR_PRELOAD_MODE: 'broad',
+    },
+    () => {
+      const patched = installSiteEditorPreloadCandidateSource(minimalSiteEditorPhp(), { mode: 'pr-11766' });
+      assert.match(patched, /\$template_slugs = array\(\);/);
+      assert.doesNotMatch(patched, /get_block_templates\( array\(\), 'wp_template_part' \)/);
+    }
+  );
+});
+
+test('installSiteEditorPreloadCaptureSource injects a server-side snapshot of the preload paths', () => {
+  const patched = installSiteEditorPreloadCaptureSource(minimalSiteEditorPhp(), { capturePath: '/tmp/homeboy/preload.json' });
+  assert.match(patched, /HOMEBOY_SITE_EDITOR_PRELOAD_CAPTURE: begin/);
+  assert.match(patched, /file_put_contents\(\s*'\/tmp\/homeboy\/preload\.json'/);
+  assert.match(patched, /wp_json_encode\( array_values\( array_unique\( \$preload_paths \) \) \)/);
+  assert.equal(installSiteEditorPreloadCaptureSource(patched, { capturePath: '/tmp/homeboy/preload.json' }), patched);
+});
+
+test('installSiteEditorPreloadCaptureSource escapes single quotes in the capture path', () => {
+  const patched = installSiteEditorPreloadCaptureSource(minimalSiteEditorPhp(), { capturePath: "/tmp/it's/a/path.json" });
+  assert.match(patched, /file_put_contents\(\s*'\/tmp\/it\\'s\/a\/path\.json'/);
+});
+
+test('installSiteEditorPreloadCaptureSource is a no-op without a capture path', () => {
+  const source = minimalSiteEditorPhp();
+  assert.equal(installSiteEditorPreloadCaptureSource(source, {}), source);
+});
+
+test('installSiteEditorPreloadCaptureSource lands after the candidate block so it observes the augmented set', () => {
+  const candidatePatched = installSiteEditorPreloadCandidateSource(minimalSiteEditorPhp(), { mode: 'pr-11766' });
+  const captured = installSiteEditorPreloadCaptureSource(candidatePatched, { capturePath: '/tmp/cap.json' });
+  const candidateMarkerIndex = captured.indexOf('HOMEBOY_SITE_EDITOR_PRELOAD_CANDIDATE (pr-11766): end');
+  const captureMarkerIndex = captured.indexOf('HOMEBOY_SITE_EDITOR_PRELOAD_CAPTURE: begin');
+  const needleIndex = captured.indexOf(SITE_EDITOR_PHP_NEEDLE);
+  assert.ok(candidateMarkerIndex > -1 && captureMarkerIndex > -1 && needleIndex > -1);
+  assert.ok(candidateMarkerIndex < captureMarkerIndex, 'candidate block must precede capture block');
+  assert.ok(captureMarkerIndex < needleIndex, 'capture block must precede the preload call');
+});
+
+test('normalizeRestEntry decodes the wp-json root, template-part // ids, and drops _locale', () => {
+  const normalized = normalizeRestEntry('http://localhost:8881/wp-json/wp/v2/template-parts/twentytwentyone%2F%2Fheader?context=edit&_locale=user');
+  assert.equal(normalized.pathname, '/wp/v2/template-parts/twentytwentyone//header');
+  assert.equal(normalized.params.get('context'), 'edit');
+  assert.equal(normalized.params.has('_locale'), false);
+  assert.equal(normalized.method, 'GET');
+
+  const plain = normalizeRestEntry('/wp/v2/taxonomies?context=view');
+  assert.equal(plain.pathname, '/wp/v2/taxonomies');
+  assert.equal(plain.params.get('context'), 'view');
+});
+
+test('classifyPreloadHitWaste marks consumed preloads with subset query matching and wasted otherwise', () => {
+  const preloaded = [
+    '/wp/v2/template-parts/twentytwentyone//header?context=edit',
+    '/wp/v2/posts?context=edit&offset=0&order=desc&orderby=date&per_page=10',
+    '/wp/v2/types/post?context=edit',
+    '/wp/v2/taxonomies?context=view',
+  ];
+  const attempts = [
+    'http://site.test/wp-json/wp/v2/template-parts/twentytwentyone%2F%2Fheader?context=edit&_locale=user',
+    { url: 'http://site.test/wp-json/wp/v2/taxonomies?context=view&_locale=user', method: 'GET' },
+  ];
+  const result = classifyPreloadHitWaste({ preloaded, attempts });
+  assert.equal(result.preloaded, 4);
+  assert.equal(result.consumed, 2);
+  assert.equal(result.wasted, 2);
+  const byPath = new Map(result.rows.map((row) => [row.path, row]));
+  assert.equal(byPath.get('/wp/v2/template-parts/twentytwentyone//header?context=edit').consumed, true);
+  assert.equal(byPath.get('/wp/v2/taxonomies?context=view').consumed, true);
+  assert.equal(byPath.get('/wp/v2/types/post?context=edit').consumed, false);
+});
+
+test('classifyPreloadHitWaste treats a client fetch with extra args as a match', () => {
+  const result = classifyPreloadHitWaste({
+    preloaded: ['/wp/v2/posts?context=edit&per_page=10'],
+    attempts: ['http://site.test/wp-json/wp/v2/posts?context=edit&per_page=10&orderby=date&_locale=user'],
+  });
+  assert.equal(result.consumed, 1);
+  assert.equal(result.wasted, 0);
+});
+
+test('classifyPreloadHitWaste falls back to network requests when no apiFetch attempts are recorded', () => {
+  const result = classifyPreloadHitWaste({
+    preloaded: ['/wp/v2/settings'],
+    attempts: [],
+    networkRequests: [{ url: 'http://site.test/wp-json/wp/v2/settings?_locale=user', method: 'GET' }],
+  });
+  assert.equal(result.consumed, 1);
+  assert.equal(result.wasted, 0);
+});
+
+test('buildClassicThemePreloadRollUp reports per-scenario waste and candidate-vs-baseline timing deltas', () => {
+  const rollUp = buildClassicThemePreloadRollUp([
+    {
+      id: 'block',
+      theme: 'twentytwentyfive',
+      isBlockTheme: true,
+      baseline: { measure: { readyMs: 1000 }, classification: { preloaded: 2, consumed: 2, wasted: 0 }, restNetworkCount: 5 },
+      candidate: { measure: { readyMs: 900 }, classification: { preloaded: 4, consumed: 4, wasted: 0 }, restNetworkCount: 1 },
+    },
+    {
+      id: 'classic',
+      theme: 'twentytwentyone',
+      isBlockTheme: false,
+      baseline: { measure: { readyMs: 1200 }, classification: { preloaded: 2, consumed: 2, wasted: 0 }, restNetworkCount: 6 },
+      candidate: { measure: { readyMs: 1180 }, classification: { preloaded: 5, consumed: 2, wasted: 3 }, restNetworkCount: 5 },
+    },
+  ]);
+
+  assert.equal(rollUp.length, 2);
+  const block = rollUp[0];
+  assert.equal(block.scenario, 'block');
+  assert.equal(block.is_block_theme, true);
+  assert.equal(block.candidate_wasted, 0);
+  assert.equal(block.delta_ms, -100);
+  assert.equal(block.delta_pct, -10);
+  assert.equal(block.rest_network_delta, -4);
+
+  const classic = rollUp[1];
+  assert.equal(classic.scenario, 'classic');
+  assert.equal(classic.is_block_theme, false);
+  assert.equal(classic.candidate_preloaded, 5);
+  assert.equal(classic.candidate_consumed, 2);
+  assert.equal(classic.candidate_wasted, 3);
+  assert.equal(classic.delta_ms, -20);
+});
+
+test('formatClassicThemePreloadRollUpMarkdown renders a legible guard-decision table', () => {
+  const markdown = formatClassicThemePreloadRollUpMarkdown(
+    buildClassicThemePreloadRollUp([
+      {
+        id: 'classic',
+        theme: 'twentytwentyone',
+        isBlockTheme: false,
+        baseline: { measure: { readyMs: 1200 }, classification: { preloaded: 2, consumed: 2, wasted: 0 }, restNetworkCount: 6 },
+        candidate: { measure: { readyMs: 1180 }, classification: { preloaded: 5, consumed: 2, wasted: 3 }, restNetworkCount: 5 },
+      },
+    ])
+  );
+  assert.match(markdown, /\| scenario \| theme \| block theme \|/);
+  assert.match(markdown, /\| classic \| twentytwentyone \| no \| 5 \| 2 \| 3 \|/);
+  assert.match(markdown, /rest net delta/);
 });
