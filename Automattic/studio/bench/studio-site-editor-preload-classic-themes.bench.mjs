@@ -316,9 +316,9 @@ export default async function studioSiteEditorPreloadClassicThemesBench() {
   await mkdir(artifactDir, { recursive: true });
 
   const totalStarted = Date.now();
-  const { module: requestProfiler } = loadWordPressRequestProfiler();
-  const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({});
-  const { path: adminPageScenariosPath, module: adminPageScenarios } = loadWordPressAdminPageScenarios({});
+  const { path: profilerPath, module: requestProfiler } = loadWordPressRequestProfiler();
+  const { path: pageProfilerPath, module: pageProfiler } = loadWordPressPageProfiler({ profilerPath });
+  const { path: adminPageScenariosPath, module: adminPageScenarios } = loadWordPressAdminPageScenarios({ profilerPath, pageProfilerPath });
 
   const baselineSitePath = path.join(artifactDir, 'baseline-site');
   const candidateSitePath = path.join(artifactDir, 'candidate-site');
@@ -333,10 +333,6 @@ export default async function studioSiteEditorPreloadClassicThemesBench() {
   let candidateStatusResult;
   let baseline;
   let candidate;
-
-  // The candidate must execute the actual WordPress/wordpress-develop#11766
-  // derivation logic, so force the verbatim PR block regardless of env.
-  process.env.HOMEBOY_SITE_EDITOR_PRELOAD_MODE = 'pr-11766';
 
   try {
     const baselineSite = await createAndStatus(
@@ -396,6 +392,8 @@ export default async function studioSiteEditorPreloadClassicThemesBench() {
         {
           variant: currentVariant,
           studioPath: STUDIO_PATH,
+          profilerPath,
+          profilerAvailable: Boolean(requestProfiler),
           pageProfilerPath,
           pageProfilerAvailable: Boolean(pageProfiler),
           adminPageScenariosPath,
