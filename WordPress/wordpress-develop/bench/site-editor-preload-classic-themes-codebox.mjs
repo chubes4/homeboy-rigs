@@ -174,6 +174,18 @@ async function runVariant({ scenario, candidate, runDir }) {
       trace: true,
       screenshot: true,
       action: async ({ page, mark }) => {
+        const navigation = [];
+        let lastFetchOrXhrAt = Date.now();
+        page.on('response', (response) => {
+          if (response.request().isNavigationRequest()) {
+            navigation.push({ url: response.url(), status: response.status() });
+          }
+        });
+        page.on('request', (request) => {
+          if (['fetch', 'xhr'].includes(request.resourceType())) {
+            lastFetchOrXhrAt = Date.now();
+          }
+        });
         await page.goto(`${siteUrl}/wp-login.php`, { waitUntil: 'domcontentloaded', timeout: 120000 });
         await page.locator('#user_login').fill('admin');
         await page.locator('#user_pass').fill('password');
@@ -182,10 +194,29 @@ async function runVariant({ scenario, candidate, runDir }) {
           page.locator('#wp-submit').click(),
         ]);
         await mark('logged_in');
-        await page.goto(`${siteUrl}/wp-admin/site-editor.php`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-        await page.waitForLoadState('networkidle', { timeout: 120000 });
-        await page.waitForTimeout(1500);
-        await mark('site_editor_idle');
+        try {
+          await page.goto(`${siteUrl}/wp-admin/site-editor.php`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+          // Site Editor keeps background requests open. Its shell is the stable
+          // readiness signal for both direct loads and classic-theme redirects.
+          await page.locator('.edit-site-layout').waitFor({ state: 'visible', timeout: 120000 });
+          await mark('site_editor_ready');
+          await page.waitForTimeout(10000);
+          const quietDeadline = Date.now() + 5000;
+          while (Date.now() - lastFetchOrXhrAt < 1500 && Date.now() < quietDeadline) {
+            await page.waitForTimeout(250);
+          }
+          await mark('site_editor_waterfall_cutoff');
+        } catch (error) {
+          const evidence = {
+            error: error.message,
+            final_url: page.url(),
+            navigation,
+            html_excerpt: (await page.content()).slice(0, 5000),
+          };
+          await writeFile(path.join(runDir, 'site-editor-readiness-failure.json'), `${JSON.stringify(evidence, null, 2)}\n`);
+          await page.screenshot({ path: path.join(runDir, 'site-editor-readiness-failure.png'), fullPage: true });
+          throw new Error(`${error.message}; evidence=${path.join(runDir, 'site-editor-readiness-failure.json')}`);
+        }
         observer = await page.evaluate(async () => {
           const response = await fetch('/wp-json/homeboy-preload-evidence/v1/capture');
           if (!response.ok) throw new Error(`capture endpoint returned ${response.status}`);
@@ -226,7 +257,7 @@ async function runVariant({ scenario, candidate, runDir }) {
       restNetworkCount: restNetworkRequests.length,
       measure: {
         status: siteEditorRequest?.status || 0,
-        readyMs: browser.metrics.site_editor_idle_ms || 0,
+        readyMs: browser.metrics.site_editor_waterfall_cutoff_ms || 0,
         serverResponseMs: observer?.timing?.server_request_ms || 0,
       },
       clientFetches,
