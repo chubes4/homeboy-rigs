@@ -79,6 +79,8 @@ add_action( 'shutdown', static function () {
 ${btpPlugin}
 `;
   return `<?php
+$wp_load = '/wordpress/wp-load.php';
+require_once $wp_load;
 $site_editor = ABSPATH . 'wp-admin/site-editor.php';
 $source = file_get_contents( $site_editor );
 if ( false === strpos( $source, ${phpQuote(preloadCall)} ) ) {
