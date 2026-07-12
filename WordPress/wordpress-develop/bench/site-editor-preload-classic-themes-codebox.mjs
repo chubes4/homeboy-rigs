@@ -11,6 +11,7 @@ import {
   formatClassicThemePreloadRollUpMarkdown,
   installSiteEditorPreloadCandidateSource,
   installSiteEditorPreloadCaptureSource,
+  normalizeRestEntry,
 } from '../../../Automattic/studio/bench/lib/site-editor-preload-harness.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -36,6 +37,16 @@ const preloadCall = 'block_editor_rest_api_preload( $preload_paths, $block_edito
 
 function phpQuote(value) {
   return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function preloadKey(entry) {
+  const normalized = normalizeRestEntry(entry);
+  if (!normalized) return '';
+  const query = [...normalized.params.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
+  return `${normalized.method} ${normalized.pathname}?${query}`;
 }
 
 function captureInsertion({ candidate, capturePath }) {
@@ -174,6 +185,24 @@ async function runVariant({ scenario, candidate, runDir }) {
       trace: true,
       screenshot: true,
       action: async ({ page, mark }) => {
+        await page.addInitScript(() => {
+          window.__homeboyApiFetchAttempts = [];
+          const install = () => {
+            if (!window.wp?.apiFetch || window.wp.apiFetch.__homeboyPreloadCapture) return;
+            const original = window.wp.apiFetch;
+            const wrapped = (options = {}) => {
+              const request = typeof options === 'string' ? { path: options } : options;
+              window.__homeboyApiFetchAttempts.push({
+                path: request.path || request.url || '',
+                method: request.method || 'GET',
+              });
+              return original(options);
+            };
+            Object.assign(wrapped, original, { __homeboyPreloadCapture: true });
+            window.wp.apiFetch = wrapped;
+          };
+          setInterval(install, 5);
+        });
         const navigation = [];
         let lastFetchOrXhrAt = Date.now();
         page.on('response', (response) => {
@@ -194,6 +223,7 @@ async function runVariant({ scenario, candidate, runDir }) {
           page.locator('#wp-submit').click(),
         ]);
         await mark('logged_in');
+        await page.evaluate(() => { window.__homeboyApiFetchAttempts = []; });
         try {
           await page.goto(`${siteUrl}/wp-admin/site-editor.php`, { waitUntil: 'domcontentloaded', timeout: 120000 });
           // Site Editor keeps background requests open. Its shell is the stable
@@ -231,6 +261,7 @@ async function runVariant({ scenario, candidate, runDir }) {
           if (!response.ok) throw new Error(`scenario endpoint returned ${response.status}: ${await response.text()}`);
           return response.json();
         });
+        scenarioState.apiFetchAttempts = await page.evaluate(() => window.__homeboyApiFetchAttempts || []);
       },
     });
     if (scenarioState.theme !== scenario.theme || !scenarioState.theme_exists) {
@@ -250,6 +281,7 @@ async function runVariant({ scenario, candidate, runDir }) {
     const preloaded = Array.isArray(observer?.paths) ? observer.paths : [];
     const classification = classifyPreloadHitWaste({
       preloaded,
+      attempts: scenarioState.apiFetchAttempts,
       networkRequests: clientFetches,
     });
     return {
@@ -267,6 +299,7 @@ async function runVariant({ scenario, candidate, runDir }) {
       },
       clientFetches,
       restNetworkRequests,
+      apiFetchAttempts: scenarioState.apiFetchAttempts,
       browserArtifacts: browser.artifacts,
     };
   } finally {
@@ -291,6 +324,13 @@ async function main() {
         baseline,
         candidate,
       };
+      const baselineKeys = new Set(baseline.preloaded.map(preloadKey));
+      result.candidate_added = candidate.preloaded.filter((entry) => !baselineKeys.has(preloadKey(entry)));
+      result.candidate_added_classification = classifyPreloadHitWaste({
+        preloaded: result.candidate_added,
+        attempts: candidate.apiFetchAttempts,
+        networkRequests: candidate.clientFetches,
+      });
       allScenarios.push(result);
       await writeFile(path.join(runRoot, `${scenario.id}.json`), `${JSON.stringify(result, null, 2)}\n`);
     }
@@ -313,18 +353,20 @@ async function main() {
 function formatRollUp(scenarioResults, rollUp) {
   const rollUpById = new Map(rollUp.map((row) => [row.scenario, row]));
   const lines = [
-    '| scenario | preloaded | consumed | wasted | wasted paths | site-editor.php time baseline vs candidate | notes |',
+    '| scenario | PR-added preloaded | consumed | wasted | wasted paths | site-editor.php time baseline vs candidate | notes |',
     '| --- | ---: | ---: | ---: | --- | --- | --- |',
   ];
   for (const scenario of scenarioResults) {
     const row = rollUpById.get(scenario.id);
-    const wastedPaths = scenario.candidate.classification.rows
+    const added = scenario.candidate_added_classification;
+    const wastedPaths = added.rows
       .filter((item) => !item.consumed)
       .map((item) => item.path)
+      .filter(Boolean)
       .join('<br>') || 'none';
     const timing = `${Math.round(scenario.baseline.measure.serverResponseMs)} ms vs ${Math.round(scenario.candidate.measure.serverResponseMs)} ms`;
     const notes = `${scenario.isBlockTheme ? 'block theme' : 'classic theme'}; REST requests baseline/candidate ${scenario.baseline.restNetworkCount}/${scenario.candidate.restNetworkCount}; browser idle ${row.baseline_measure_ms}/${row.candidate_measure_ms} ms`;
-    lines.push(`| ${scenario.id} | ${row.candidate_preloaded} | ${row.candidate_consumed} | ${row.candidate_wasted} | ${wastedPaths} | ${timing} | ${notes} |`);
+    lines.push(`| ${scenario.id} | ${added.preloaded} | ${added.consumed} | ${added.wasted} | ${wastedPaths} | ${timing} | ${notes} |`);
   }
   return `${lines.join('\n')}\n`;
 }
