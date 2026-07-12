@@ -49,17 +49,21 @@ function preloadKey(entry) {
   return `${normalized.method} ${normalized.pathname}?${query}`;
 }
 
-function captureInsertion({ candidate, capturePath }) {
+function captureInsertion({ mode, capturePath }) {
   const seed = `<?php\n${preloadCall}`;
-  const withCandidate = candidate
-    ? installSiteEditorPreloadCandidateSource(seed, { mode: 'pr-11766' })
-    : seed;
+  let withCandidate = mode === 'baseline'
+    ? seed
+    : installSiteEditorPreloadCandidateSource(seed, { mode: 'pr-11766' });
+  if (mode === 'guarded') {
+    const candidateBlock = withCandidate.slice('<?php\n'.length, -preloadCall.length);
+    withCandidate = `<?php\nif ( wp_is_block_theme() ) {\n${candidateBlock}\n}\n${preloadCall}`;
+  }
   const transformed = installSiteEditorPreloadCaptureSource(withCandidate, { capturePath });
   return transformed.slice('<?php\n'.length, -preloadCall.length);
 }
 
-function blueprintSetupPhp({ scenario, candidate, capturePath, timingPath }) {
-  const insertion = captureInsertion({ candidate, capturePath });
+function blueprintSetupPhp({ scenario, mode, capturePath, timingPath }) {
+  const insertion = captureInsertion({ mode, capturePath });
   const btpPlugin = scenario.blockTemplateParts
     ? "add_action( 'after_setup_theme', static function () { add_theme_support( 'block-template-parts' ); } );"
     : '';
@@ -162,14 +166,14 @@ async function stopCodebox(child) {
   await new Promise((resolve) => child.once('exit', resolve));
 }
 
-async function runVariant({ scenario, candidate, runDir }) {
+async function runVariant({ scenario, mode, runDir }) {
   const capturePath = '/wordpress/wp-content/homeboy-preload-paths.json';
   const timingPath = '/wordpress/wp-content/homeboy-site-editor-timing.json';
   const blueprintPath = path.join(runDir, 'blueprint.json');
   await mkdir(runDir, { recursive: true });
   await writeFile(blueprintPath, `${JSON.stringify({ steps: [
     { step: 'login', username: 'admin', password: 'password' },
-    { step: 'runPHP', code: blueprintSetupPhp({ scenario, candidate, capturePath, timingPath }) },
+    { step: 'runPHP', code: blueprintSetupPhp({ scenario, mode, capturePath, timingPath }) },
   ] }, null, 2)}\n`);
 
   const port = await availablePort();
@@ -180,7 +184,7 @@ async function runVariant({ scenario, candidate, runDir }) {
     let observer;
     let scenarioState;
     const browser = await runBrowserBench({
-      id: `${scenario.id}-${candidate ? 'candidate' : 'baseline'}`,
+      id: `${scenario.id}-${mode}`,
       artifactsDir: path.join(runDir, 'browser'),
       trace: true,
       screenshot: true,
@@ -286,6 +290,7 @@ async function runVariant({ scenario, candidate, runDir }) {
     });
     return {
       id: scenario.id,
+      mode,
       theme: scenarioState.theme,
       isBlockTheme: Boolean(scenarioState.is_block_theme),
       blockTemplateParts: scenario.blockTemplateParts,
@@ -314,8 +319,9 @@ async function main() {
   try {
     const allScenarios = [];
     for (const scenario of scenarios) {
-      const baseline = await runVariant({ scenario, candidate: false, runDir: path.join(runRoot, scenario.id, 'baseline') });
-      const candidate = await runVariant({ scenario, candidate: true, runDir: path.join(runRoot, scenario.id, 'candidate') });
+      const baseline = await runVariant({ scenario, mode: 'baseline', runDir: path.join(runRoot, scenario.id, 'baseline') });
+      const candidate = await runVariant({ scenario, mode: 'candidate', runDir: path.join(runRoot, scenario.id, 'candidate') });
+      const guarded = await runVariant({ scenario, mode: 'guarded', runDir: path.join(runRoot, scenario.id, 'guarded') });
       const result = {
         id: scenario.id,
         theme: scenario.theme,
@@ -323,6 +329,7 @@ async function main() {
         blockTemplateParts: scenario.blockTemplateParts,
         baseline,
         candidate,
+        guarded,
       };
       const baselineKeys = new Set(baseline.preloaded.map(preloadKey));
       result.candidate_added = candidate.preloaded.filter((entry) => !baselineKeys.has(preloadKey(entry)));
@@ -330,6 +337,12 @@ async function main() {
         preloaded: result.candidate_added,
         attempts: candidate.apiFetchAttempts,
         networkRequests: candidate.clientFetches,
+      });
+      result.guarded_added = guarded.preloaded.filter((entry) => !baselineKeys.has(preloadKey(entry)));
+      result.guarded_added_classification = classifyPreloadHitWaste({
+        preloaded: result.guarded_added,
+        attempts: guarded.apiFetchAttempts,
+        networkRequests: guarded.clientFetches,
       });
       allScenarios.push(result);
       await writeFile(path.join(runRoot, `${scenario.id}.json`), `${JSON.stringify(result, null, 2)}\n`);
@@ -353,20 +366,26 @@ async function main() {
 function formatRollUp(scenarioResults, rollUp) {
   const rollUpById = new Map(rollUp.map((row) => [row.scenario, row]));
   const lines = [
-    '| scenario | PR-added preloaded | consumed | wasted | wasted paths | site-editor.php time baseline vs candidate | notes |',
-    '| --- | ---: | ---: | ---: | --- | --- | --- |',
+    '| scenario | baseline PR-added P/C/W | candidate PR-added P/C/W | guarded PR-added P/C/W | candidate wasted paths | guarded wasted paths | site-editor.php time baseline/candidate/guarded | notes |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |',
   ];
   for (const scenario of scenarioResults) {
     const row = rollUpById.get(scenario.id);
     const added = scenario.candidate_added_classification;
+    const guardedAdded = scenario.guarded_added_classification;
     const wastedPaths = added.rows
       .filter((item) => !item.consumed)
       .map((item) => item.path)
       .filter(Boolean)
       .join('<br>') || 'none';
-    const timing = `${Math.round(scenario.baseline.measure.serverResponseMs)} ms vs ${Math.round(scenario.candidate.measure.serverResponseMs)} ms`;
-    const notes = `${scenario.isBlockTheme ? 'block theme' : 'classic theme'}; REST requests baseline/candidate ${scenario.baseline.restNetworkCount}/${scenario.candidate.restNetworkCount}; browser idle ${row.baseline_measure_ms}/${row.candidate_measure_ms} ms`;
-    lines.push(`| ${scenario.id} | ${added.preloaded} | ${added.consumed} | ${added.wasted} | ${wastedPaths} | ${timing} | ${notes} |`);
+    const guardedWastedPaths = guardedAdded.rows
+      .filter((item) => !item.consumed)
+      .map((item) => item.path)
+      .filter(Boolean)
+      .join('<br>') || 'none';
+    const timing = `${Math.round(scenario.baseline.measure.serverResponseMs)} / ${Math.round(scenario.candidate.measure.serverResponseMs)} / ${Math.round(scenario.guarded.measure.serverResponseMs)} ms`;
+    const notes = `${scenario.isBlockTheme ? 'block theme' : 'classic theme'}; REST requests baseline/candidate/guarded ${scenario.baseline.restNetworkCount}/${scenario.candidate.restNetworkCount}/${scenario.guarded.restNetworkCount}; browser waterfall cutoff ${row.baseline_measure_ms}/${row.candidate_measure_ms}/${Math.round(scenario.guarded.measure.readyMs)} ms`;
+    lines.push(`| ${scenario.id} | 0/0/0 | ${added.preloaded}/${added.consumed}/${added.wasted} | ${guardedAdded.preloaded}/${guardedAdded.consumed}/${guardedAdded.wasted} | ${wastedPaths} | ${guardedWastedPaths} | ${timing} | ${notes} |`);
   }
   return `${lines.join('\n')}\n`;
 }
