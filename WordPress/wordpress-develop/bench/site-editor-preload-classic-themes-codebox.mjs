@@ -218,13 +218,17 @@ async function runVariant({ scenario, candidate, runDir }) {
           throw new Error(`${error.message}; evidence=${path.join(runDir, 'site-editor-readiness-failure.json')}`);
         }
         observer = await page.evaluate(async () => {
-          const response = await fetch('/wp-json/homeboy-preload-evidence/v1/capture');
-          if (!response.ok) throw new Error(`capture endpoint returned ${response.status}`);
+          const response = await fetch('/wp-json/homeboy-preload-evidence/v1/capture', {
+            headers: { 'X-WP-Nonce': window.wpApiSettings?.nonce || '' },
+          });
+          if (!response.ok) throw new Error(`capture endpoint returned ${response.status}: ${await response.text()}`);
           return response.json();
         });
         scenarioState = await page.evaluate(async () => {
-          const response = await fetch('/wp-json/homeboy-preload-evidence/v1/scenario');
-          if (!response.ok) throw new Error(`scenario endpoint returned ${response.status}`);
+          const response = await fetch('/wp-json/homeboy-preload-evidence/v1/scenario', {
+            headers: { 'X-WP-Nonce': window.wpApiSettings?.nonce || '' },
+          });
+          if (!response.ok) throw new Error(`scenario endpoint returned ${response.status}: ${await response.text()}`);
           return response.json();
         });
       },
