@@ -292,16 +292,6 @@ export function assertRequiredFuzzProofContracts(manifest, {
   }
 }
 
-function collectRequiredArtifactNames(manifest) {
-  return new Set([
-    ...(manifest.cases || []).flatMap((runnerCase) => runnerCase.artifacts || []),
-    ...(manifest.artifacts?.expected || []),
-  ]
-    .filter((artifact) => artifact?.required === true)
-    .map((artifact) => artifact?.name)
-    .filter(Boolean));
-}
-
 function assertStringArray(value, label) {
   assert.ok(Array.isArray(value), `${label} must be an array`);
   assert.ok(value.length > 0, `${label} must not be empty`);
