@@ -43,6 +43,9 @@
         "path": "${package.root}/bench/studio-site-editor-preload-comparison.bench.mjs"
       },
       {
+        "path": "${package.root}/bench/studio-site-editor-preload-classic-themes.bench.mjs"
+      },
+      {
         "path": "${package.root}/bench/studio-site-editor-preload-diagnostics.bench.mjs"
       }
     ]
