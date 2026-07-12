@@ -153,6 +153,7 @@ async function runVariant({ scenario, candidate, runDir }) {
   const capturePath = '/wordpress/wp-content/homeboy-preload-paths.json';
   const timingPath = '/wordpress/wp-content/homeboy-site-editor-timing.json';
   const blueprintPath = path.join(runDir, 'blueprint.json');
+  await mkdir(runDir, { recursive: true });
   await writeFile(blueprintPath, `${JSON.stringify({ steps: [
     { step: 'login', username: 'admin', password: 'password' },
     { step: 'runPHP', code: blueprintSetupPhp({ scenario, candidate, capturePath, timingPath }) },
