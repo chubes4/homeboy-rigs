@@ -1,0 +1,1 @@
+../../../shared/wordpress-helper-loader.mjs

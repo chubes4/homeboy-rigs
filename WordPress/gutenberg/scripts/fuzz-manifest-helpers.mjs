@@ -1,0 +1,1 @@
+../../../scripts/fuzz-manifest-helpers.mjs

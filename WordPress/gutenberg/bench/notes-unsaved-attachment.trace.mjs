@@ -3,8 +3,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { wpCodeboxBrowserArtifacts } from '../../../shared/wp-codebox/artifacts.mjs';
-import { runWpCodeboxRecipe } from '../../../shared/wp-codebox/recipe.mjs';
+import { wpCodeboxBrowserArtifacts } from '../shared/wp-codebox/artifacts.mjs';
+import { runWpCodeboxRecipe } from '../shared/wp-codebox/recipe.mjs';
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'gutenberg';
