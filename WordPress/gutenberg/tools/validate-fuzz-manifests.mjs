@@ -11,7 +11,7 @@ import {
   declaredFuzzIds,
   readMaterializedRig,
   readJson,
-} from '../../../scripts/fuzz-manifest-helpers.mjs';
+} from '../scripts/fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.join(__dirname, '..');

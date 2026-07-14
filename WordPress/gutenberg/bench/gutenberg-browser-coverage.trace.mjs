@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { runBrowserCoverageTrace } from '../../../shared/wp-codebox/browser-coverage-trace.mjs';
+import { runBrowserCoverageTrace } from '../shared/wp-codebox/browser-coverage-trace.mjs';
 
 const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const scenarioRoot = new URL( '../browser-scenarios/', import.meta.url ).pathname;
