@@ -1,0 +1,257 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "mysql-poc-lifecycle-fuzz",
+  "label": "Studio MySQL POC lifecycle fuzz lab workload",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "studio-cli-site-create-mysql",
+    "studio-cli-site-convert-mysql",
+    "studio-runtime-mysql-lifecycle",
+    "studio-runtime-mysql-wpcli",
+    "studio-runtime-mysql-loopback",
+    "studio-cli-site-management-mysql",
+    "studio-cli-site-artifacts-mysql",
+    "studio-mysql-binary-delivery"
+  ],
+  "operations": [
+    "create.mysql.native",
+    "create.mysql.playground.rejected",
+    "create.sqlite.default.unchanged",
+    "convert.sqlite.mysql.empty",
+    "convert.sqlite.mysql.large",
+    "convert.sqlite.mysql.rollback",
+    "mysql.start.stop.restart",
+    "mysql.orphan.process.recovery",
+    "mysql.port.collision",
+    "mysql.concurrent.install.lock",
+    "wpcli.db.query",
+    "wpcli.db.import.export",
+    "wpcli.starts.mysql.when-needed",
+    "site.list.status.mysql.json",
+    "site.set.mysql.settings",
+    "wpcli.content.crud.mysql",
+    "mysql.persistence.stop.start",
+    "studio.export.db.mysql",
+    "site.delete.mysql.no-files",
+    "loopback.wp-cron.idle",
+    "loopback.async.post.fanout",
+    "loopback.client-abort.worker-survives",
+    "binary.metadata.platform.resolve",
+    "binary.hash.mismatch",
+    "binary.offline.unsupported-platform"
+  ],
+  "case_budget": 60,
+  "duration_budget_seconds": 1800,
+  "metadata": {
+    "kind": "studio-desktop-fuzz",
+    "execution_scope": "lab-only-destructive",
+    "local_execution_policy": "static-validation-only; do not run destructive runner locally",
+    "classification_contract": {
+      "unsupported_platform": "Provider/platform unavailable or explicitly unsupported; expected unsupported probes are reported as skipped coverage, not product failures.",
+      "product_bug": "The Studio MySQL path accepted the scenario but violated an invariant or returned an unexpected failure.",
+      "rig_setup_failure": "The lab/component setup failed before the product invariant could be evaluated, such as npm/build, timeout, or lock setup failure.",
+      "unsupported_cli_surface": "The checked-out Studio CLI does not expose the requested command or option; classified separately from MySQL product/runtime failures.",
+      "rig_induced_fault": "The workload intentionally injected a negative condition, such as port collision or synthetic hash mismatch, to verify diagnostics.",
+      "product_guardrail": "The product intentionally rejected a risky operation and preserved state."
+    },
+    "replay_metadata": [
+      "homeboy fuzz replay command",
+      "run id",
+      "selected operation strata",
+      "component git head and branch",
+      "node/platform/arch",
+      "runtime root",
+      "artifact paths",
+      "execution request file"
+    ],
+    "post_case_diagnostics": {
+      "policy": "Health probes run after selected cases and are recorded separately from the primary result so they do not mask the primary failure/success.",
+      "probe": "wp db query SELECT 1 against the case site when a managed MySQL site should remain usable"
+    },
+    "case_invariants": {
+      "build-cli": ["Studio CLI bundle exists before destructive MySQL cases run", "NPM install/build failures classify as rig setup failures"],
+      "create-mysql-native": ["Native site creation accepts databaseEngine=mysql", "Site config includes managed MySQL metadata", "Mutable paths stay inside STUDIO_FUZZ_RUNTIME_ROOT"],
+      "create-mysql-playground-rejected": ["Sandbox runtime rejects MySQL explicitly", "Rejected creation does not leave a usable site config entry"],
+      "create-sqlite-default": ["Default site creation remains SQLite", "MySQL support does not change omitted database-engine behavior"],
+      "convert-sqlite-empty": ["Default SQLite content converts to MySQL", "Converted site remains addressable by Studio CLI"],
+      "convert-sqlite-large": ["CRUD-heavy seed survives conversion", "Published post/page counts and sentinel checksum match after conversion", "Converted database remains queryable"],
+      "convert-sqlite-rollback-on-kept-dropin": ["Failed conversion rolls back to SQLite", "Guarded db.php content remains present", "Partial MySQL config is not persisted"],
+      "mysql.start.stop.restart": ["Managed MySQL starts and stops cleanly", "WP-CLI can query the database after start", "Stop cleanup is recorded without masking earlier results"],
+      "mysql.port.collision": ["Port collision produces a controlled failure", "Colliding listener is released", "Site config is not corrupted"],
+      "mysql.orphan.process.recovery": ["Stopped MySQL site restarts cleanly", "WP-CLI reconnects after restart", "Recovery stop leaves the site manageable"],
+      "mysql.concurrent.install.lock": ["Concurrent site creation shares the binary install lock safely", "Lock contention is classified separately from data-loss failures"],
+      "wpcli.db.query": ["WP-CLI db query succeeds against managed MySQL", "SELECT 1 returns through the Studio runtime"],
+      "wpcli.db.import.export": ["Export artifact is created", "Import restores deleted sentinel option exactly", "Round-trip parity is verified"],
+      "wpcli.starts.mysql.when-needed": ["WP-CLI starts managed MySQL on demand", "Database query succeeds without manually starting the site"],
+      "site.list.status.mysql.json": ["studio site list --format json includes the MySQL site", "studio site status --format json reports the site", "JSON output remains machine-readable"],
+      "site.set.mysql.settings": ["studio site set updates persisted settings for the MySQL site", "Name and debug settings survive config reload", "MySQL metadata remains present"],
+      "wpcli.content.crud.mysql": ["WP-CLI creates and reads posts, options, users, terms, and comments", "CRUD sentinel data is internally consistent", "Transient CRUD fixtures are cleaned up"],
+      "mysql.persistence.stop.start": ["WP-CLI-created content persists after stop", "Content remains queryable after start", "Managed MySQL state survives the Studio lifecycle boundary"],
+      "studio.export.db.mysql": ["studio export --mode db creates a database artifact", "The artifact contains the persistence sentinel", "Export does not convert the site back to SQLite"],
+      "site.delete.mysql.no-files": ["studio site delete --no-files removes the site from Studio config", "Isolated site files remain for diagnostics", "Other campaign sites remain registered"],
+      "loopback.wp-cron.idle": ["Loopback wp-cron avoids 5xx responses", "Managed MySQL remains queryable"],
+      "loopback.async.post.fanout": ["Concurrent loopback requests avoid 5xx responses", "Fanout does not wedge MySQL", "Managed MySQL remains queryable"],
+      "loopback.client-abort.worker-survives": ["Intentional client abort is expected", "Worker/database path survives", "Follow-up WP-CLI query succeeds"],
+      "binary.hash.mismatch": ["Synthetic hash mismatch includes expected and actual SHA-256", "No network download or product mutation is required"],
+      "binary.offline.unsupported-platform": ["Synthetic unsupported platform is reported as skipped coverage", "Missing provider artifact is not counted as a product failure"]
+    },
+    "tracker": "github_pr:Automattic/studio#3997",
+    "inventory": "${package.root}/manifests/mysql-poc-inventory.json",
+    "isolation_proof": "${package.root}/proofs/mysql-poc-isolation-proof.json",
+    "readiness": {
+      "level": "declared",
+      "coverage_contract": "Studio MySQL POC fuzzing is declared as a lab-only isolated mutation workload. The checked-in runner creates fresh temp Studio config/runtime roots, but reviewer-facing lab artifacts are required before this workload can be marked proven.",
+      "upstream_blockers": [
+        "Run through an approved destructive lab/offload environment and attach reviewer-facing Homeboy fuzz result artifacts."
+      ]
+    }
+  },
+  "target": {
+    "type": "desktop-app",
+    "slug": "studio",
+    "component": "studio"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/mysql-fuzz-runner.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "mysql-poc-lifecycle-fuzz:lab-campaign",
+      "surface_ids": [
+        "studio-cli-site-create-mysql",
+        "studio-cli-site-convert-mysql",
+        "studio-runtime-mysql-lifecycle",
+        "studio-runtime-mysql-wpcli",
+        "studio-runtime-mysql-loopback",
+        "studio-cli-site-management-mysql",
+        "studio-cli-site-artifacts-mysql",
+        "studio-mysql-binary-delivery"
+      ],
+      "operations": [
+        "create.mysql.native",
+        "create.mysql.playground.rejected",
+        "create.sqlite.default.unchanged",
+        "convert.sqlite.mysql.empty",
+        "convert.sqlite.mysql.large",
+        "convert.sqlite.mysql.rollback",
+        "mysql.start.stop.restart",
+        "mysql.orphan.process.recovery",
+        "mysql.port.collision",
+        "mysql.concurrent.install.lock",
+        "wpcli.db.query",
+        "wpcli.db.import.export",
+        "wpcli.starts.mysql.when-needed",
+        "site.list.status.mysql.json",
+        "site.set.mysql.settings",
+        "wpcli.content.crud.mysql",
+        "mysql.persistence.stop.start",
+        "studio.export.db.mysql",
+        "site.delete.mysql.no-files",
+        "loopback.wp-cron.idle",
+        "loopback.async.post.fanout",
+        "loopback.client-abort.worker-survives",
+        "binary.metadata.platform.resolve",
+        "binary.hash.mismatch",
+        "binary.offline.unsupported-platform"
+      ],
+      "artifacts": [
+        {
+          "name": "case_log",
+          "path": "case-log.jsonl",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.case_log"
+          }
+        },
+        {
+          "name": "replay_data",
+          "path": "replay.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.replay"
+          }
+        },
+        {
+          "name": "result_envelope",
+          "path": "results.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "execution_scope": "lab-only-destructive"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 60,
+    "max_duration_seconds": 1800
+  },
+  "coverage": {
+    "surface_ids": [
+      "studio-cli-site-create-mysql",
+      "studio-cli-site-convert-mysql",
+      "studio-runtime-mysql-lifecycle",
+      "studio-runtime-mysql-wpcli",
+      "studio-runtime-mysql-loopback",
+      "studio-cli-site-management-mysql",
+      "studio-cli-site-artifacts-mysql",
+      "studio-mysql-binary-delivery"
+    ],
+    "operations": [
+      "create.mysql.native",
+      "create.mysql.playground.rejected",
+      "create.sqlite.default.unchanged",
+      "convert.sqlite.mysql.empty",
+      "convert.sqlite.mysql.large",
+      "convert.sqlite.mysql.rollback",
+      "mysql.start.stop.restart",
+      "mysql.orphan.process.recovery",
+      "mysql.port.collision",
+      "mysql.concurrent.install.lock",
+      "wpcli.db.query",
+      "wpcli.db.import.export",
+      "wpcli.starts.mysql.when-needed",
+      "site.list.status.mysql.json",
+      "site.set.mysql.settings",
+      "wpcli.content.crud.mysql",
+      "mysql.persistence.stop.start",
+      "studio.export.db.mysql",
+      "site.delete.mysql.no-files",
+      "loopback.wp-cron.idle",
+      "loopback.async.post.fanout",
+      "loopback.client-abort.worker-survives",
+      "binary.metadata.platform.resolve",
+      "binary.hash.mismatch",
+      "binary.offline.unsupported-platform"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "case_log",
+        "role": "case_log",
+        "semantic_key": "fuzz.case_log",
+        "required": true
+      },
+      {
+        "name": "replay_data",
+        "role": "replay_data",
+        "semantic_key": "fuzz.replay",
+        "required": true
+      },
+      {
+        "name": "result_envelope",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
+}

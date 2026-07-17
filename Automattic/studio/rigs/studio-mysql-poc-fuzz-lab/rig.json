@@ -1,0 +1,77 @@
+{
+  "id": "studio-mysql-poc-fuzz-lab",
+  "description": "Lab-only Studio MySQL POC fuzz workload package. The workload is destructive and should be executed only through approved Homeboy lab/offload isolation, not on a local user Studio profile.",
+  "components": {
+    "studio": {
+      "component_id": "studio",
+      "default_ref": "origin/implement-mysql-poc",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_MYSQL_POC_FUZZ_LAB__STUDIO}",
+      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__STUDIO_MYSQL_POC_FUZZ_LAB__STUDIO",
+      "branch": "implement-mysql-poc",
+      "extensions": {
+        "nodejs": {
+          "studio_bench_variant": "mysql-poc-fuzz-lab"
+        }
+      }
+    }
+  },
+  "resources": {
+    "exclusive": [
+      "studio-mysql-poc-fuzz-lab:${env.HOMEBOY_SETTINGS_STUDIO_MYSQL_POC_FUZZ_NAMESPACE}"
+    ],
+    "paths": [
+      "${components.studio.path}"
+    ]
+  },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "external",
+      "reason": "The destructive fuzz runner owns a per-run temp Studio runtime root, and lab/offload teardown owns environment cleanup. User Studio profiles and component checkouts are not cleanup targets."
+    }
+  },
+  "fuzz": {
+    "default_component": "studio"
+  },
+  "fuzz_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/fuzz/mysql-poc-lifecycle-fuzz.json"
+      }
+    ]
+  },
+  "fuzz_profiles": {
+    "lab": [
+      "mysql-poc-lifecycle-fuzz"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio MySQL fuzz workload manifest exists",
+        "file": "${package.root}/fuzz/mysql-poc-lifecycle-fuzz.json"
+      },
+      {
+        "kind": "check",
+        "label": "Studio MySQL fuzz runner exists",
+        "file": "${package.root}/fuzz/mysql-fuzz-runner.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Studio MySQL fuzz inventory exists",
+        "file": "${package.root}/manifests/mysql-poc-inventory.json"
+      },
+      {
+        "kind": "check",
+        "label": "Studio MySQL fuzz isolation proof exists",
+        "file": "${package.root}/proofs/mysql-poc-isolation-proof.json"
+      },
+      {
+        "kind": "check",
+        "label": "Studio MySQL fuzz lab README exists",
+        "file": "${package.root}/rigs/studio-mysql-poc-fuzz-lab/README.md"
+      }
+    ],
+    "down": []
+  }
+}
