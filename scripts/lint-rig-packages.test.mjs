@@ -547,6 +547,38 @@ test('reports inherited array directive outcomes through structured JSON', () =>
   assert.match(jsonErrorText(payload), /shared_paths\[1\] link and target must differ unless allow_self_target is true/);
 });
 
+test('rejects template parents outside the rig package source root', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: { 'generic-fuzz': fuzzWorkload() },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  mkdirSync(join(directory, 'shared'), { recursive: true });
+  writeJson(join(directory, 'shared', 'base.json'), {
+    lifecycle: {
+      cleanup: {
+        intent: 'external',
+        reason: 'The runner owns the declared resource boundary.',
+      },
+    },
+  });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    extends: '../../../../shared/base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [{ path: '${package.root}/fuzz/generic-fuzz.json' }],
+    },
+  });
+
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
+
+  assert.notEqual(result.status, 0);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 1);
+  assert.match(jsonErrorText(payload), /extends path ..\/..\/..\/..\/shared\/base\.json must stay inside the rig package source root/);
+});
+
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {
   const directory = createRigPackage({
     fuzzWorkloads: {

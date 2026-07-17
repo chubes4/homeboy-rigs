@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -137,7 +137,7 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     return;
   }
 
-  const materializedRig = materializeRigSpec(file, rig);
+  const materializedRig = materializeRigSpec(file, rig, new Set(), packageRootForRig(file));
 
   const pipelineCommands = Object.values(rig.pipeline || {})
     .flatMap((steps) => Array.isArray(steps) ? steps : [])
@@ -164,7 +164,7 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
 }
 
-function materializeRigSpec(file, rig, seen = new Set()) {
+function materializeRigSpec(file, rig, seen = new Set(), sourceRoot) {
   const extendPath = typeof rig.extends === 'string' ? rig.extends.trim() : '';
 
   if (!extendPath) {
@@ -184,6 +184,16 @@ function materializeRigSpec(file, rig, seen = new Set()) {
     return rig;
   }
 
+  if (sourceRoot) {
+    const canonicalSourceRoot = realpathSync(sourceRoot);
+    const canonicalParentFile = realpathSync(parentFile);
+    const parentPathFromSourceRoot = relative(canonicalSourceRoot, canonicalParentFile);
+    if (parentPathFromSourceRoot === '..' || parentPathFromSourceRoot.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || isAbsolute(parentPathFromSourceRoot)) {
+      failures.push(`${relative(root, file)}: extends path ${normalize(extendPath)} must stay inside the rig package source root`);
+      return rig;
+    }
+  }
+
   let parentRig;
   try {
     parentRig = JSON.parse(readFileSync(parentFile, 'utf8'));
@@ -193,7 +203,7 @@ function materializeRigSpec(file, rig, seen = new Set()) {
   }
 
   seen.add(parentFile);
-  const materializedParent = materializeRigSpec(parentFile, parentRig, seen);
+  const materializedParent = materializeRigSpec(parentFile, parentRig, seen, sourceRoot);
   seen.delete(parentFile);
 
   return deepMergeRigSpec(materializedParent, rig);
