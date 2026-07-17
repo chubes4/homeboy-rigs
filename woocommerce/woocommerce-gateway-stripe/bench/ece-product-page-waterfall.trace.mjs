@@ -22,7 +22,6 @@ const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 const componentId = process.env.HOMEBOY_COMPONENT_ID || 'woocommerce-gateway-stripe';
 const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || DEFAULT_ECE_SCENARIO_ID;
 const scenario = eceProductPageScenario(scenarioId);
-const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join(tmpdir(), 'wc-stripe-ece-waterfall-artifacts');
 const woocommercePath = process.env.HOMEBOY_WC_STRIPE_WOOCOMMERCE_PATH
   || process.env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_STRIPE_ECE_PRODUCT_PAGE__WOOCOMMERCE;
@@ -49,9 +48,6 @@ const fixtureBootstrapPath = fileURLToPath(new URL('./fixture-bootstrap.php', im
 if (!componentPath) {
   throw new Error('HOMEBOY_COMPONENT_PATH is required');
 }
-if (!resultsFile) {
-  throw new Error('HOMEBOY_TRACE_RESULTS_FILE is required');
-}
 if (!traceHelperDir) {
   throw new Error('HOMEBOY_TRACE_HELPER_DIR is required');
 }
@@ -71,16 +67,14 @@ const fixtureBootstrapSource = (await readFile(fixtureBootstrapPath, 'utf8'))
 const requestedAcceptedPaymentMethods = csvToJsonArray(acceptedPaymentMethods);
 
 process.env.HOMEBOY_TRACE_ARTIFACT_DIR ||= artifactDir;
-const { createTraceReporter } = await import(pathToFileURL(path.join(traceHelperDir, 'timeline.mjs')).href);
-const trace = createTraceReporter({
+const { createTraceWorkload } = await import(pathToFileURL(path.join(traceHelperDir, 'timeline.mjs')).href);
+const trace = createTraceWorkload({
   componentId,
   scenarioId,
-  resultsFile,
 });
 trace.recorder.timestampMs = () => Math.round(performance.now() - trace.recorder.start);
 
 await mkdir(artifactDir, { recursive: true });
-await mkdir(path.dirname(resultsFile), { recursive: true });
 
 const workDir = await mkdtemp(path.join(tmpdir(), 'wc-stripe-ece-waterfall.'));
 const setupFile = path.join(workDir, 'setup.php');
