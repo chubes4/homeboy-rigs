@@ -50,13 +50,5 @@ jobs:
           homeboy contract validate --help
           homeboy contract normalize artifact-ref --help
       - run: node scripts/lint-rig-packages.mjs
-      - name: Test lint harness
-        run: >-
-          node --test
-          scripts/lint-rig-packages.test.mjs
-      - name: Test fuzz contracts
-        run: >-
-          node --test
-          WordPress/gutenberg/tools/fuzz-coverage.test.mjs
-          WordPress/wordpress-develop/fuzz/core-fuzz-contracts.test.mjs
-          woocommerce/woocommerce/manifests/full-surface-coverage.test.mjs
+      - name: Test contracts
+        run: node scripts/test-contracts.mjs

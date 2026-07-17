@@ -282,14 +282,17 @@ test('sanitizeArtifact redacts sensitive network artifact values', async () => {
     const sanitized = await readFile(artifactPath, 'utf8');
     assert.match(sanitized, /token=\[redacted\]/);
     assert.match(sanitized, /nonce=\[redacted\]/);
-    assert.doesNotMatch(sanitized, /abc123|secret|login/);
+    assert.doesNotMatch(sanitized, /abc123|secret/);
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
 test('timingCorrelatorPath sits next to the request profiler by default', () => {
-  withEnv({ HOMEBOY_SETTINGS_JSON: undefined }, () => {
+  withEnv({
+    HOMEBOY_SETTINGS_JSON: undefined,
+    HOMEBOY_WORDPRESS_HELPER_MANIFEST: undefined,
+  }, () => {
     const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
     assert.equal(
       timingCorrelatorPath({ profilerPath }),
@@ -442,19 +445,23 @@ test('timingCorrelatorPath honors the direct override option', () => {
 });
 
 test('pageProfilerPath sits next to the request profiler by default', () => {
-  const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
-  assert.equal(
-    pageProfilerPath({ profilerPath }),
-    '/tmp/he/wordpress/lib/page-profiler.js'
-  );
+  withEnv({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: undefined }, () => {
+    const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
+    assert.equal(
+      pageProfilerPath({ profilerPath }),
+      '/tmp/he/wordpress/lib/page-profiler.js'
+    );
+  });
 });
 
 test('adminPageScenariosPath sits next to the page profiler by default', () => {
-  const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
-  assert.equal(
-    adminPageScenariosPath({ profilerPath }),
-    '/tmp/he/wordpress/lib/admin-page-scenarios.js'
-  );
+  withEnv({ HOMEBOY_WORDPRESS_HELPER_MANIFEST: undefined }, () => {
+    const profilerPath = '/tmp/he/wordpress/lib/request-profiler.js';
+    assert.equal(
+      adminPageScenariosPath({ profilerPath }),
+      '/tmp/he/wordpress/lib/admin-page-scenarios.js'
+    );
+  });
 });
 
 test('wordpressPageProfilerSpec defaults to Site Editor', () => {

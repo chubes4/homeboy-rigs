@@ -81,6 +81,22 @@ node scripts/lint-rig-packages.mjs
 
 GitHub Actions runs the package lint with PHP installed and injects Homeboy Extensions helper paths explicitly. Shared loaders fail with setup guidance when required paths are absent; they do not guess local sibling checkouts.
 
+## Tests
+
+The fast contract gate runs every committed Node test file matching
+`*.test.mjs`, `*.test.js`, or `*.test.cjs` through one deterministic entrypoint:
+
+```bash
+node scripts/test-contracts.mjs
+```
+
+It discovers tracked files with Git and runs test files serially so fixture
+environment variables remain hermetic. The current suite is entirely
+unit/contract coverage; no committed test file is classified as an integration
+test. Product runtime, browser, trace, benchmark, and fuzz workloads remain
+separate integration gates invoked through their documented `homeboy rig`,
+`homeboy bench`, `homeboy trace`, and `homeboy fuzz` commands.
+
 ## Automattic/studio
 
 `rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment for a prepared combined stack. It declares component paths, shared paths, services, resources, and workload dispatch; stack refresh/rebase, PHP-WASM compilation, tarball packaging, and Studio package rewrites are prepared outside the rig.
