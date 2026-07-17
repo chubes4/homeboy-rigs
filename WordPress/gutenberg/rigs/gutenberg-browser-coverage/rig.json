@@ -1,5 +1,7 @@
 {
-  "extends": "../../shared/wordpress-plugin/browser-coverage.base.json",
+  "shared_templates": ["../../../../shared/wordpress-plugin"],
+  "package_dependencies": ["../../shared/wordpress-plugin"],
+  "extends": "../../../../shared/wordpress-plugin/browser-coverage.base.json",
   "id": "gutenberg-browser-coverage",
   "description": "WP Codebox browser-actions request coverage for Gutenberg post editor, site editor, template editor, and patterns surfaces.",
   "components": {
@@ -18,5 +20,28 @@
   },
   "trace": {
     "default_component": "gutenberg"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs"
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": ["gutenberg-browser-coverage"],
+    "fuzzer": ["gutenberg-browser-coverage"],
+    "full-surface": ["gutenberg-browser-coverage"]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Gutenberg checkout exists",
+        "file": "${components.gutenberg.path}/gutenberg.php",
+        "component": "gutenberg",
+        "component_path_contains": "gutenberg"
+      }
+    ]
   }
 }

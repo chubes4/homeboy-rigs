@@ -1,5 +1,7 @@
 {
-  "extends": "../../shared/wordpress-plugin/browser-coverage.base.json",
+  "shared_templates": ["../../../../shared/wordpress-plugin"],
+  "package_dependencies": ["../../shared/wordpress-plugin"],
+  "extends": "../../../../shared/wordpress-plugin/browser-coverage.base.json",
   "id": "jetpack-browser-coverage",
   "description": "WP Codebox browser-actions request coverage for Jetpack dashboard, connection, modules, settings admin, and public module frontend surfaces.",
   "components": {
@@ -20,5 +22,27 @@
   },
   "trace": {
     "default_component": "jetpack"
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/jetpack-browser-coverage.trace.mjs"
+      }
+    ]
+  },
+  "trace_profiles": {
+    "smoke": ["jetpack-browser-coverage"],
+    "full-surface": ["jetpack-browser-coverage"]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Jetpack plugin checkout exists",
+        "file": "${components.jetpack.path}/jetpack.php",
+        "component": "jetpack",
+        "component_path_contains": "jetpack"
+      }
+    ]
   }
 }
