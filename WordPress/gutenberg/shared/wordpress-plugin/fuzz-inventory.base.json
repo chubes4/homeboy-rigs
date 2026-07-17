@@ -1,5 +1,5 @@
 {
-  "extends": "./wp-codebox-external-cleanup.base.json",
+  "extends": "../../../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
   "bench": {
     "warmup_iterations": 0
   },

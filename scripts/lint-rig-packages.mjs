@@ -137,7 +137,9 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
     return;
   }
 
-  const materializedRig = materializeRigSpec(file, rig, new Set(), packageRootForRig(file));
+  const packageRoot = packageRootForRig(file);
+  const sharedTemplateRoots = lintSharedTemplates(rel, file, rig, packageRoot);
+  const materializedRig = materializeRigSpec(file, rig, new Set(), packageRoot, sharedTemplateRoots);
 
   const pipelineCommands = Object.values(rig.pipeline || {})
     .flatMap((steps) => Array.isArray(steps) ? steps : [])
@@ -164,7 +166,7 @@ function lintRigPortability(file, fuzzWorkloadsByPackageRoot) {
   lintBenchProfiles(rel, file, rig, fuzzWorkloadsByPackageRoot);
 }
 
-function materializeRigSpec(file, rig, seen = new Set(), sourceRoot) {
+function materializeRigSpec(file, rig, seen = new Set(), sourceRoot, sharedTemplateRoots = []) {
   const extendPath = typeof rig.extends === 'string' ? rig.extends.trim() : '';
 
   if (!extendPath) {
@@ -187,9 +189,10 @@ function materializeRigSpec(file, rig, seen = new Set(), sourceRoot) {
   if (sourceRoot) {
     const canonicalSourceRoot = realpathSync(sourceRoot);
     const canonicalParentFile = realpathSync(parentFile);
-    const parentPathFromSourceRoot = relative(canonicalSourceRoot, canonicalParentFile);
-    if (parentPathFromSourceRoot === '..' || parentPathFromSourceRoot.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) || isAbsolute(parentPathFromSourceRoot)) {
-      failures.push(`${relative(root, file)}: extends path ${normalize(extendPath)} must stay inside the rig package source root`);
+    const parentIsPackageLocal = isPathInside(canonicalSourceRoot, canonicalParentFile);
+    const parentIsDeclaredSharedTemplate = sharedTemplateRoots.some((sharedTemplateRoot) => isPathInside(sharedTemplateRoot, canonicalParentFile));
+    if (!parentIsPackageLocal && !parentIsDeclaredSharedTemplate) {
+      failures.push(`${relative(root, file)}: extends path ${normalize(extendPath)} must stay inside the rig package source root or a declared shared_templates root`);
       return rig;
     }
   }
@@ -203,10 +206,78 @@ function materializeRigSpec(file, rig, seen = new Set(), sourceRoot) {
   }
 
   seen.add(parentFile);
-  const materializedParent = materializeRigSpec(parentFile, parentRig, seen, sourceRoot);
+  const materializedParent = materializeRigSpec(parentFile, parentRig, seen, sourceRoot, sharedTemplateRoots);
   seen.delete(parentFile);
 
   return deepMergeRigSpec(materializedParent, rig);
+}
+
+function lintSharedTemplates(rel, file, rig, packageRoot) {
+  if (rig.shared_templates === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(rig.shared_templates)) {
+    failures.push(`${rel}: shared_templates must be an array of repository-relative template roots`);
+    return [];
+  }
+
+  const canonicalRepositoryRoot = realpathSync(root);
+  const canonicalPackageRoot = realpathSync(packageRoot);
+  const packageDependencies = rig.package_dependencies;
+  if (!Array.isArray(packageDependencies)) {
+    failures.push(`${rel}: shared_templates requires matching package_dependencies for runner transport`);
+    return [];
+  }
+
+  const canonicalDependencies = [];
+  for (const dependency of packageDependencies) {
+    if (typeof dependency !== 'string' || dependency.trim() === '') {
+      failures.push(`${rel}: package_dependencies entries must be non-empty relative paths`);
+      continue;
+    }
+    const dependencyPath = resolve(canonicalPackageRoot, dependency);
+    if (!existsSync(dependencyPath)) {
+      failures.push(`${rel}: package_dependencies entry ${normalize(dependency)} does not exist`);
+      continue;
+    }
+    const canonicalDependency = realpathSync(dependencyPath);
+    if (!isPathInside(canonicalRepositoryRoot, canonicalDependency)) {
+      failures.push(`${rel}: package_dependencies entry ${normalize(dependency)} must stay inside the repository root`);
+      continue;
+    }
+    canonicalDependencies.push(canonicalDependency);
+  }
+
+  const sharedTemplateRoots = [];
+  for (const sharedTemplate of rig.shared_templates) {
+    if (typeof sharedTemplate !== 'string' || sharedTemplate.trim() === '') {
+      failures.push(`${rel}: shared_templates entries must be non-empty relative paths`);
+      continue;
+    }
+    const sharedTemplatePath = resolve(dirname(file), sharedTemplate);
+    if (!existsSync(sharedTemplatePath)) {
+      failures.push(`${rel}: shared_templates entry ${normalize(sharedTemplate)} does not exist`);
+      continue;
+    }
+    const canonicalSharedTemplate = realpathSync(sharedTemplatePath);
+    if (!isPathInside(canonicalRepositoryRoot, canonicalSharedTemplate)) {
+      failures.push(`${rel}: shared_templates entry ${normalize(sharedTemplate)} must stay inside the repository root`);
+      continue;
+    }
+    if (!canonicalDependencies.some((dependency) => dependency === canonicalSharedTemplate)) {
+      failures.push(`${rel}: shared_templates entry ${normalize(sharedTemplate)} requires a matching package_dependencies entry for runner transport`);
+      continue;
+    }
+    sharedTemplateRoots.push(canonicalSharedTemplate);
+  }
+
+  return sharedTemplateRoots;
+}
+
+function isPathInside(rootPath, candidatePath) {
+  const pathFromRoot = relative(rootPath, candidatePath);
+  return pathFromRoot === '' || (!pathFromRoot.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) && pathFromRoot !== '..' && !isAbsolute(pathFromRoot));
 }
 
 function deepMergeRigSpec(parent, child) {

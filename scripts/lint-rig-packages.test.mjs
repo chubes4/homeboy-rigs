@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -547,7 +547,7 @@ test('reports inherited array directive outcomes through structured JSON', () =>
   assert.match(jsonErrorText(payload), /shared_paths\[1\] link and target must differ unless allow_self_target is true/);
 });
 
-test('rejects template parents outside the rig package source root', () => {
+test('accepts template parents from declared repository shared roots with runner dependencies', () => {
   const directory = createRigPackage({
     fuzzWorkloads: { 'generic-fuzz': fuzzWorkload() },
   });
@@ -561,6 +561,31 @@ test('rejects template parents outside the rig package source root', () => {
       },
     },
   });
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    shared_templates: ['../../../../shared'],
+    package_dependencies: ['../../shared'],
+    extends: '../../../../shared/base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [{ path: '${package.root}/fuzz/generic-fuzz.json' }],
+    },
+  });
+
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
+
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(payload.ok, true);
+});
+
+test('rejects undeclared template parents outside the rig package source root', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: { 'generic-fuzz': fuzzWorkload() },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  mkdirSync(join(directory, 'shared'), { recursive: true });
+  writeJson(join(directory, 'shared', 'base.json'), {});
   writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
     extends: '../../../../shared/base.json',
     id: 'generic-rig',
@@ -576,7 +601,36 @@ test('rejects template parents outside the rig package source root', () => {
   assert.notEqual(result.status, 0);
   assert.equal(payload.ok, false);
   assert.equal(payload.error_count, 1);
-  assert.match(jsonErrorText(payload), /extends path ..\/..\/..\/..\/shared\/base\.json must stay inside the rig package source root/);
+  assert.match(jsonErrorText(payload), /extends path ..\/..\/..\/..\/shared\/base\.json must stay inside the rig package source root or a declared shared_templates root/);
+});
+
+test('rejects shared template symlink escapes outside the repository root', () => {
+  const directory = createRigPackage({
+    fuzzWorkloads: { 'generic-fuzz': fuzzWorkload() },
+  });
+  const packageRoot = join(directory, 'Vendor', 'product');
+  const escapedTemplateRoot = mkdtempSync(join(tmpdir(), 'homeboy-rigs-template-escape-'));
+  writeJson(join(escapedTemplateRoot, 'base.json'), {});
+  symlinkSync(escapedTemplateRoot, join(directory, 'shared'));
+  writeJson(join(packageRoot, 'rigs', 'generic-rig', 'rig.json'), {
+    shared_templates: ['../../../../shared'],
+    package_dependencies: ['../../shared'],
+    extends: '../../../../shared/base.json',
+    id: 'generic-rig',
+    description: 'Generic lint fixture rig.',
+    fuzz_workloads: {
+      generic: [{ path: '${package.root}/fuzz/generic-fuzz.json' }],
+    },
+  });
+
+  const result = runLint(directory, {}, ['--json']);
+  const payload = parseJsonOutput(result);
+
+  assert.notEqual(result.status, 0);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error_count, 3);
+  assert.match(jsonErrorText(payload), /package_dependencies entry ..\/..\/shared must stay inside the repository root/);
+  assert.match(jsonErrorText(payload), /shared_templates entry ..\/..\/..\/..\/shared must stay inside the repository root/);
 });
 
 test('accepts package-root scoped lint for rigs and fuzz directories', () => {

@@ -1,5 +1,5 @@
 {
-  "extends": "../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
+  "extends": "../../../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
   "components": {
     "woocommerce": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
