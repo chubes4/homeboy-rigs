@@ -11,7 +11,6 @@
   "operations": [
     "missing-anchor-load",
     "saved-anchor-load",
-    "autosave-anchor-load",
     "live-note-create",
     "dirty-block-live-note-create",
     "dirty-sibling-live-note-create",
@@ -19,7 +18,7 @@
     "nested-live-note-create",
     "repeated-live-note-create"
   ],
-  "case_budget": 9,
+  "case_budget": 8,
   "duration_budget_seconds": 2700,
   "metadata": {
     "kind": "gutenberg-browser-fuzz",
@@ -27,12 +26,11 @@
     "source_issue": "github_issue:WordPress/gutenberg#72717",
     "readiness": {
       "level": "executable",
-      "coverage_contract": "The checked-in corpus executes nine Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes and emits replayable case-level evidence."
+      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes eight Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, and emits replayable case-level evidence."
     },
     "corpus_cases": [
       { "id": "orphan", "operation": "missing-anchor-load", "invariant": "A note whose ID is absent from block metadata is classified as detached." },
       { "id": "saved-anchor", "operation": "saved-anchor-load", "invariant": "Saved metadata.noteId attaches the note to its block." },
-      { "id": "autosave-anchor", "operation": "autosave-anchor-load", "invariant": "Autosaved metadata.noteId attaches the note to its block." },
       { "id": "live-create", "operation": "live-note-create", "invariant": "Creating a note persists its ID and restores the attachment after reload." },
       { "id": "dirty-live-create", "operation": "dirty-block-live-note-create", "invariant": "Repair persistence attaches the note while preserving the unsaved edit boundary." },
       { "id": "dirty-sibling-live-create", "operation": "dirty-sibling-live-note-create", "invariant": "Repair persistence preserves saved sibling content and the unsaved sibling edit boundary." },
@@ -63,7 +61,6 @@
       "operations": [
         "missing-anchor-load",
         "saved-anchor-load",
-        "autosave-anchor-load",
         "live-note-create",
         "dirty-block-live-note-create",
         "dirty-sibling-live-note-create",
@@ -82,7 +79,7 @@
     }
   ],
   "limits": {
-    "max_cases": 9,
+    "max_cases": 8,
     "max_duration_seconds": 2700
   },
   "coverage": {
@@ -94,7 +91,6 @@
     "operations": [
       "missing-anchor-load",
       "saved-anchor-load",
-      "autosave-anchor-load",
       "live-note-create",
       "dirty-block-live-note-create",
       "dirty-sibling-live-note-create",

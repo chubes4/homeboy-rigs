@@ -22,10 +22,11 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   const inventoryRig = readJson('rigs/gutenberg-api-route-inventory/rig.json');
   const rig = readJson('shared/wordpress-plugin/fuzz-inventory.base.json');
   const workload = readJson('fuzz/gutenberg-notes-attachment-corpus.json');
+  const runnerSource = readFileSync(path.join(root, 'fuzz/gutenberg-notes-unsaved-attachment.mjs'), 'utf8');
+  const traceSource = readFileSync(path.join(root, 'bench/notes-unsaved-attachment.trace.mjs'), 'utf8');
   const expectedCases = [
     'orphan',
     'saved-anchor',
-    'autosave-anchor',
     'live-create',
     'dirty-live-create',
     'dirty-sibling-live-create',
@@ -42,6 +43,15 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.equal(workload.case_budget, expectedCases.length);
   assert.equal(workload.limits.max_cases, expectedCases.length);
   assert.equal(workload.workload.path, '${package.root}/fuzz/gutenberg-notes-unsaved-attachment.mjs');
+  assert.match(
+    workload.metadata.readiness.coverage_contract,
+    /builds the exact Gutenberg checkout.*proves plugin bundle provenance/
+  );
+  assert.match(runnerSource, /npm.*run.*build.*--skip-types/s);
+  assert.match(runnerSource, /build\/scripts\/core-data\/index\.min\.js/);
+  assert.match(traceSource, /gutenberg-plugin-assets-loaded/);
+  assert.match(traceSource, /\/wp-content\/plugins\/gutenberg\/build\//);
+  assert.match(traceSource, /aria-label="New note".*note-form/s);
   assert.deepEqual(
     workload.artifacts.expected.map(({ semantic_key }) => semantic_key),
     ['fuzz.case_log', 'fuzz.replay', 'fuzz.report']

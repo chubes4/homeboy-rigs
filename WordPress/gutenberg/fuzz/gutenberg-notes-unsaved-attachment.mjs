@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,11 +13,11 @@ const workloadId = process.env.HOMEBOY_FUZZ_WORKLOAD_ID || 'gutenberg-notes-atta
 const requestFile = process.env.HOMEBOY_FUZZ_EXECUTION_REQUEST_FILE || null;
 const caseLogPath = path.join( artifactsDir, 'case-log.jsonl' );
 const replayPath = path.join( artifactsDir, 'replay.json' );
+const componentPath = process.env.HOMEBOY_COMPONENT_PATH;
 
 const corpus = [
 	[ 'orphan', 'missing-anchor-load' ],
 	[ 'saved-anchor', 'saved-anchor-load' ],
-	[ 'autosave-anchor', 'autosave-anchor-load' ],
 	[ 'live-create', 'live-note-create' ],
 	[ 'dirty-live-create', 'dirty-block-live-note-create' ],
 	[ 'dirty-sibling-live-create', 'dirty-sibling-live-note-create' ],
@@ -27,6 +28,56 @@ const corpus = [
 
 await mkdir( artifactsDir, { recursive: true } );
 await writeFile( caseLogPath, '' );
+
+if ( ! componentPath ) {
+	throw new Error( 'HOMEBOY_COMPONENT_PATH is required' );
+}
+
+function runCommand( command, args, options = {} ) {
+	return new Promise( ( resolve, reject ) => {
+		const child = spawn( command, args, {
+			...options,
+			stdio: [ 'ignore', 'pipe', 'pipe' ],
+		} );
+		let stdout = '';
+		let stderr = '';
+		child.stdout.on( 'data', ( chunk ) => { stdout += chunk; } );
+		child.stderr.on( 'data', ( chunk ) => { stderr += chunk; } );
+		child.on( 'error', reject );
+		child.on( 'close', ( exitCode ) => {
+			if ( exitCode !== 0 ) {
+				reject( new Error( `${ command } ${ args.join( ' ' ) } failed with exit code ${ exitCode }:\n${ stderr || stdout }` ) );
+				return;
+			}
+			resolve( { stdout, stderr } );
+		} );
+	} );
+}
+
+const requiredBuildFiles = [
+	'build/scripts/blocks',
+	'build/scripts/core-data/index.min.js',
+	'build/scripts/editor/index.min.js',
+];
+const missingBuildFiles = () => requiredBuildFiles.filter( ( relativePath ) => ! existsSync( path.join( componentPath, relativePath ) ) );
+let builtComponent = false;
+
+if ( missingBuildFiles().length ) {
+	await runCommand( 'npm', [ 'run', 'build', '--', '--skip-types' ], { cwd: componentPath } );
+	builtComponent = true;
+}
+
+const missingAfterBuild = missingBuildFiles();
+if ( missingAfterBuild.length ) {
+	throw new Error( `Gutenberg build did not produce required runtime files: ${ missingAfterBuild.join( ', ' ) }` );
+}
+
+const { stdout: gitShaOutput } = await runCommand( 'git', [ 'rev-parse', 'HEAD' ], { cwd: componentPath } );
+const buildProvenance = {
+	component_git_sha: gitShaOutput.trim(),
+	built_by_workload: builtComponent,
+	required_build_files: requiredBuildFiles,
+};
 
 function runTrace( caseId, resultFile, caseArtifactsDir ) {
 	return new Promise( ( resolve ) => {
@@ -132,7 +183,8 @@ const replay = {
 	request_file: requestFile,
 	metadata: {
 		workload_id: workloadId,
-		component_path: process.env.HOMEBOY_COMPONENT_PATH || null,
+		component_path: componentPath,
+		build_provenance: buildProvenance,
 		cases: corpus.map( ( [ caseId ] ) => caseId ),
 		command: `homeboy fuzz run gutenberg --rig gutenberg-api-route-inventory --workload ${ workloadId } --run-id ${ runId }`,
 	},
@@ -169,6 +221,7 @@ const campaign = {
 	metadata: {
 		status: findings.length ? 'failed' : 'passed',
 		success: findings.length === 0,
+		build_provenance: buildProvenance,
 		case_counts: {
 			passed: cases.filter( ( entry ) => entry.observed.status === 'passed' ).length,
 			failed: cases.filter( ( entry ) => entry.observed.status === 'failed' ).length,

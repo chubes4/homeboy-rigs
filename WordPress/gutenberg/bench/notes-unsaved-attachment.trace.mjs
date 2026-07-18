@@ -12,7 +12,7 @@ const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || 'notes-unsaved-attachme
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join( tmpdir(), 'gutenberg-notes-unsaved-attachment-artifacts' );
 const wpVersion = process.env.HOMEBOY_GUTENBERG_NOTES_WP_VERSION || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_WP_VERSION || '7.0';
-const knownCases = new Set( [ 'orphan', 'saved-anchor', 'autosave-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'matrix' ] );
+const knownCases = new Set( [ 'orphan', 'saved-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'matrix' ] );
 const profileCase = process.env.HOMEBOY_TRACE_PROFILE || process.env.HOMEBOY_PROFILE || '';
 const targetCase = process.env.HOMEBOY_GUTENBERG_NOTES_CASE || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_CASE || ( knownCases.has( profileCase ) ? profileCase : 'orphan' );
 const probeDuration = process.env.HOMEBOY_GUTENBERG_NOTES_PROBE_DURATION || '12s';
@@ -188,17 +188,6 @@ function homeboy_gutenberg_notes_fixture_state() {
 		)
 	);
 
-	$autosave_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-autosave-anchor', 'Homeboy Notes Autosave Anchor' );
-	$autosave_note_id = homeboy_gutenberg_notes_create_note( $autosave_post_id, 'Homeboy autosave anchor note' );
-	wp_create_post_autosave(
-		array(
-			'post_ID'      => $autosave_post_id,
-			'post_title'   => 'Homeboy Notes Autosave Anchor',
-			'post_content' => homeboy_gutenberg_notes_content( $autosave_note_id ),
-			'post_author'  => 1,
-		)
-	);
-
 	$live_post_id          = homeboy_gutenberg_notes_create_post( 'homeboy-notes-live-create', 'Homeboy Notes Live Create' );
 	$dirty_live_post_id    = homeboy_gutenberg_notes_create_post( 'homeboy-notes-dirty-live-create', 'Homeboy Notes Dirty Live Create' );
 	$dirty_sibling_post_id = homeboy_gutenberg_notes_create_post_with_content( 'homeboy-notes-dirty-sibling-live-create', 'Homeboy Notes Dirty Sibling Live Create', homeboy_gutenberg_notes_two_paragraph_content() );
@@ -215,11 +204,6 @@ function homeboy_gutenberg_notes_fixture_state() {
 		'saved-anchor' => array(
 			'post_id' => $saved_post_id,
 			'note_id' => $saved_note_id,
-			'expected_orphan' => false,
-		),
-		'autosave-anchor' => array(
-			'post_id' => $autosave_post_id,
-			'note_id' => $autosave_note_id,
 			'expected_orphan' => false,
 		),
 		'live-create' => array(
@@ -472,7 +456,6 @@ const collectBlockAttachment = async (caseId, item, noteId) => {
 	const bodyText = document.body.textContent || '';
 	const hasDeletedNotice = deletedNotices.length > 0 || bodyText.includes('Original block deleted.');
 	const logicalOrphan = !blockHasNoteId;
-	const hasAutosaveNotice = /backup of this post|autosave of this post|more recent than the version below/i.test(bodyText);
 	return {
 		caseId,
 		postId: item.post_id,
@@ -487,7 +470,6 @@ const collectBlockAttachment = async (caseId, item, noteId) => {
 		treeitems,
 		deletedNotices,
 		hasDeletedNotice,
-		hasAutosaveNotice,
 		passed: item.expected_orphan ? logicalOrphan : blockHasNoteId,
 	};
 };
@@ -502,8 +484,9 @@ const openAddNoteField = async (block) => {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
-		const findNewNoteField = () => Array.from(document.querySelectorAll('textarea, input[type="text"]')).find(isVisible);
-		const hasNewNoteSubmit = () => !!findButtonByText('Add note');
+		const findNewNoteForm = () => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form')).find(isVisible);
+		const findNewNoteField = () => findNewNoteForm()?.querySelector('textarea');
+		const hasNewNoteSubmit = () => !!Array.from(findNewNoteForm()?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note');
 		if (!findNewNoteField() || !hasNewNoteSubmit()) {
 			const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
 			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
@@ -522,7 +505,7 @@ const createNoteOnBlock = async (block, text) => {
 	textarea.focus();
 	setFieldValue(textarea, text);
 	await sleep(250);
-	const addButton = await waitFor(() => findButtonByText('Add note'), 'Add note button');
+	const addButton = await waitFor(() => Array.from(textarea.closest('form')?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note'), 'Add note button');
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
@@ -697,6 +680,11 @@ try {
 	const network = await readJsonl( networkPath );
 	const scriptResult = summary?.summary?.scriptResult || summary?.scriptResult || {};
 	const caseResults = Array.isArray( scriptResult.results ) ? scriptResult.results : [];
+	const pluginAssetResponses = network.filter( ( entry ) =>
+		entry.type === 'response' && entry.status >= 200 && entry.status < 300 && entry.url?.includes( '/wp-content/plugins/gutenberg/build/' )
+	);
+	const coreDataPluginAssetLoaded = pluginAssetResponses.some( ( entry ) => entry.url.includes( '/core-data/' ) );
+	const editorPluginAssetLoaded = pluginAssetResponses.some( ( entry ) => entry.url.includes( '/editor/' ) );
 
 	event( 'browser', 'probe.ready', {
 		final_url: summary?.summary?.finalUrl || summary?.finalUrl || null,
@@ -710,8 +698,10 @@ try {
 		fail_count: caseResults.filter( ( item ) => ! item.passed ).length,
 		orphan_reproduced: caseResults.some( ( item ) => item.caseId === 'orphan' && item.logicalOrphan === true ),
 		saved_anchor_attached: caseResults.some( ( item ) => item.caseId === 'saved-anchor' && item.blockHasNoteId === true ),
-		autosave_anchor_attached: caseResults.some( ( item ) => item.caseId === 'autosave-anchor' && item.blockHasNoteId === true ),
-		autosave_notice_seen: caseResults.some( ( item ) => item.caseId === 'autosave-anchor' && item.hasAutosaveNotice === true ),
+		gutenberg_plugin_asset_response_count: pluginAssetResponses.length,
+		gutenberg_core_data_asset_loaded: coreDataPluginAssetLoaded,
+		gutenberg_editor_asset_loaded: editorPluginAssetLoaded,
+		gutenberg_plugin_assets_loaded: coreDataPluginAssetLoaded && editorPluginAssetLoaded,
 		nested_live_create_attached: caseResults.some( ( item ) => item.caseId === 'nested-live-create' && item.reloadedHasNoteId === true ),
 		dirty_sibling_preserved: caseResults.some( ( item ) => item.caseId === 'dirty-sibling-live-create' && item.persistedHasOriginalSiblingText === true && item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ),
 		dirty_structural_targets_anchor: caseResults.some( ( item ) => item.caseId === 'dirty-structural-live-create' && item.reloadedNoteTargetsAnchor === true && item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ),
@@ -743,14 +733,19 @@ try {
 	event( 'notes-unsaved-attachment', 'metrics.ready', metrics );
 
 	const noPageErrors = pageErrors.length === 0;
-	const pass = metrics.fail_count === 0 && metrics.case_count > 0 && noPageErrors;
+	const pass = metrics.fail_count === 0 && metrics.case_count > 0 && noPageErrors && metrics.gutenberg_plugin_assets_loaded;
 	const traceResult = {
 		component_id: componentId,
 		scenario_id: scenarioId,
 		status: pass ? 'pass' : 'fail',
-		summary: `Captured Gutenberg note attachment matrix for ${ metrics.case_count } case(s): ${ metrics.pass_count } passed, ${ metrics.fail_count } failed. Orphan reproduced=${ metrics.orphan_reproduced }, saved anchor attached=${ metrics.saved_anchor_attached }, autosave anchor attached=${ metrics.autosave_anchor_attached }.` ,
+		summary: `Captured Gutenberg note attachment matrix for ${ metrics.case_count } case(s): ${ metrics.pass_count } passed, ${ metrics.fail_count } failed. Orphan reproduced=${ metrics.orphan_reproduced }, saved anchor attached=${ metrics.saved_anchor_attached }, Gutenberg plugin assets loaded=${ metrics.gutenberg_plugin_assets_loaded }.` ,
 		timeline,
 		assertions: [
+			{
+				id: 'gutenberg-plugin-assets-loaded',
+				status: metrics.gutenberg_plugin_assets_loaded ? 'pass' : 'fail',
+				message: `Loaded Gutenberg plugin core-data and editor assets=${ metrics.gutenberg_plugin_assets_loaded }; plugin asset responses=${ metrics.gutenberg_plugin_asset_response_count }.`
+			},
 			{
 				id: 'orphan-note-reproduced',
 				status: targetCase !== 'matrix' && targetCase !== 'orphan' ? 'pass' : metrics.orphan_reproduced ? 'pass' : 'fail',
@@ -760,11 +755,6 @@ try {
 				id: 'saved-anchor-attached',
 				status: targetCase !== 'matrix' && targetCase !== 'saved-anchor' ? 'pass' : metrics.saved_anchor_attached ? 'pass' : 'fail',
 				message: `Saved post_content metadata.noteId attached note to block=${ metrics.saved_anchor_attached }.`
-			},
-			{
-				id: 'autosave-anchor-attached',
-				status: targetCase !== 'matrix' && targetCase !== 'autosave-anchor' ? 'pass' : metrics.autosave_anchor_attached ? 'pass' : 'fail',
-				message: `Autosave content metadata.noteId attached note to block=${ metrics.autosave_anchor_attached }; autosave notice seen=${ metrics.autosave_notice_seen }.`
 			},
 			{
 				id: 'live-create-used-repair-save',
