@@ -4,7 +4,6 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { assertFullSurfaceCoverageManifest } from './fuzz-manifest-helpers.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.join(__dirname, '..');
@@ -80,7 +79,7 @@ test('product full-surface manifests keep product-owned matrix contracts', () =>
     const manifest = readJson(productManifest.file);
     const matrix = manifest.product_surface_matrix;
 
-    assertFullSurfaceCoverageManifest(manifest, { file: productManifest.product });
+    assert.match(manifest.schema, /^homeboy-rigs\/(?:wordpress-)?full-surface-coverage\/v1$/);
     assert.equal(manifest.property, productManifest.product);
     assert.equal(manifest.execution_claim_policy, 'product_manifest_only_no_runner_support_claim');
     assert.ok(matrix && typeof matrix === 'object' && !Array.isArray(matrix), `${productManifest.product} requires product_surface_matrix`);

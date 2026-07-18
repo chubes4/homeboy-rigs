@@ -10,17 +10,13 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "generic_primitive": { "command": "wordpress.inventory-rest-routes", "status": "blocked" },
-    "workload_path": "${package.root}/bench/gutenberg-rest-route-inventory.php",
+    "generic_primitive": { "command": "wordpress.rest-route-inventory", "status": "supported" },
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "executable",
       "coverage_contract": "Gutenberg REST route inventory and permission-boundary classification for wp/v2 and __experimental editor routes.",
-      "upstream_blockers": [
-        "durable proof artifact links are required before promoting route inventory coverage to proven",
-        "Expose an artifact-compatible generic REST route inventory command before replacing the Gutenberg PHP workload."
-      ],
+        "upstream_blockers": ["durable proof artifact links are required before promoting route inventory coverage to proven"],
       "crud": {
         "create": { "level": "executable", "via": "mutation_isolation_artifact" },
         "read": { "level": "executable" },
@@ -32,9 +28,8 @@
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "workload": {
     "runner": "wp-codebox",
-    "type": "php",
-    "path": "${package.root}/bench/gutenberg-rest-route-inventory.php",
-    "entry": "gutenberg-rest-route-inventory"
+    "type": "declarative",
+    "command": "wordpress.rest-route-inventory"
   },
   "cases": [
     {
@@ -43,7 +38,7 @@
       "operations": ["rest-route-discovery", "namespace-coverage", "route-group-classification", "permission-boundary-classification"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
-        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-rest-route-inventory.php", "type=php"] }],
+        "action": [{ "command": "wordpress.rest-route-inventory", "args": ["namespaces=wp/v2,__experimental"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=rest_route_inventory"] }]
       },
       "artifacts": [{ "name": "rest_route_inventory", "path": "gutenberg-rest-route-inventory/rest_route_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],

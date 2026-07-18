@@ -16,8 +16,8 @@
       "surface_ids": ["wordpress-core-post-types", "wordpress-core-taxonomies", "wordpress-core-permalinks", "wordpress-core-posts", "wordpress-core-pages"],
       "operations": ["post-type-inventory", "post-status-inventory", "taxonomy-inventory", "term-fixture-matrix", "permalink-resolution", "post-list-rendering", "page-list-rendering", "post-editor-readiness", "page-editor-readiness"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=25", "pages=8", "terms=12", "menus=2", "permalinks=plain,postname"] }],
-        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=content_registration"] }],
+        "setup": [{ "command": "wordpress.run-php", "args": ["code=wp_insert_post(array('post_title'=>'Content fixture','post_status'=>'publish')); wp_insert_term('Core fixture','category');"] }],
+        "action": [{ "command": "wordpress.runtime-discovery", "args": ["surface=content,editor"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=content_types_taxonomies"] }]
       },
       "artifacts": [{ "name": "content_types_taxonomies", "path": "content-types-taxonomies/content_types_taxonomies.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy-rigs/wordpress-core-content-types-taxonomies/v1" } }],

@@ -29,7 +29,6 @@ Allowed local files:
 - `artifacts.mjs` delegates artifact resolution to the upstream artifact helper.
 - `recipe.mjs` delegates binary, command, and recipe-run behavior to the upstream
   recipe helper.
-- `browser-coverage-trace.mjs` is shared only for browser request-coverage traces
   that already match this repo's minimal scenario shape.
 
 Explicit boundaries:

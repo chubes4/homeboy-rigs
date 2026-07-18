@@ -4,6 +4,14 @@ import path from 'node:path';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const supportedTestFile = /\.test\.(?:mjs|js|cjs)$/;
+const wordpressRigScope = new Set([
+  'WordPress/gutenberg/fuzz/browser-scenarios.test.mjs',
+  'WordPress/gutenberg/tools/fuzz-coverage.test.mjs',
+  'WordPress/wordpress-develop/fuzz/core-fuzz-contracts.test.mjs',
+  'scripts/product-full-surface-matrix.test.mjs',
+  'woocommerce/woocommerce/manifests/scale-profiles.test.mjs',
+  'woocommerce/woocommerce/tools/db-api-fuzzer-artifacts.test.mjs',
+]);
 
 function committedTestFiles() {
   return execFileSync('git', ['ls-files', '-z'], {
@@ -15,7 +23,9 @@ function committedTestFiles() {
     .sort();
 }
 
-const testFiles = committedTestFiles();
+const testFiles = committedTestFiles().filter((file) => (
+  process.argv.includes('--scope=wordpress-rigs') ? wordpressRigScope.has(file) : true
+));
 
 if (testFiles.length === 0) {
   throw new Error('No committed Node contract test files found.');

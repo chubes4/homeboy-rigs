@@ -49,6 +49,9 @@ jobs:
           homeboy review lint --help
           homeboy contract validate --help
           homeboy contract normalize artifact-ref --help
-      - run: node scripts/lint-rig-packages.mjs
+      - run: homeboy rig lint WordPress/wordpress-develop --all
+      - run: homeboy rig lint WordPress/gutenberg --all
+      - run: homeboy rig lint Automattic/jetpack --all
+      - run: homeboy rig lint woocommerce/woocommerce --all
       - name: Test contracts
         run: node scripts/test-contracts.mjs

@@ -1,5 +1,10 @@
 {
-  "extends": "../../../../shared/wordpress-plugin/wp-codebox-external-cleanup.base.json",
+  "lifecycle": {
+    "cleanup": {
+      "intent": "external",
+      "reason": "WP Codebox sandbox teardown and the runner namespace own runtime cleanup; component checkouts are user-owned."
+    }
+  },
   "components": {
     "woocommerce": {
       "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
@@ -7,9 +12,6 @@
       "extensions": {
         "wordpress": {
           "wp_codebox_wordpress_version": "7.0",
-          "wp_codebox_source_path": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
-          "wp_codebox_source_subdir": "plugins/woocommerce",
-          "wp_codebox_mount_slug": "woocommerce",
           "wp_codebox_source_root": "${env.HOMEBOY_RIG_COMPONENT_CHECKOUT_ROOT__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
           "wp_codebox_source_subpath": "plugins/woocommerce",
           "wp_codebox_plugin_file": "woocommerce/woocommerce.php",
@@ -142,27 +144,11 @@
         "file": "${components.woocommerce.path}/plugins/woocommerce/includes/class-wc-shipping.php",
         "remediation": "Verify the selected component path is the WooCommerce monorepo checkout, not an empty or partial clone."
       },
-      {
-        "kind": "requirement",
-        "label": "WooCommerce Composer package autoloader exists or can be prepared",
-        "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
-        "prepare_phases": [
-          "up",
-          "bench_prepare"
-        ],
-        "remediation": "Materialize dependency step woocommerce-php-package-dependencies for the plugins/woocommerce runtime path."
-      },
-      {
-        "kind": "requirement",
-        "label": "WooCommerce generated feature config exists or can be prepared",
-        "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
-        "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
-        "prepare_phases": [
-          "up",
-          "bench_prepare"
-        ],
-        "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
+        {
+          "kind": "requirement",
+          "label": "WooCommerce generated feature config exists",
+          "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
+          "remediation": "Use a WooCommerce checkout with generated feature configuration before running feature-dependent scenarios."
       }
     ],
     "up": [],

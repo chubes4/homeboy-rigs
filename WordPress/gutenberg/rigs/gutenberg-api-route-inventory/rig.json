@@ -1,6 +1,4 @@
 {
-  "shared_templates": ["../../../../shared/wordpress-plugin"],
-  "package_dependencies": ["../../shared/wordpress-plugin"],
   "extends": "../../shared/wordpress-plugin/fuzz-inventory.base.json",
   "id": "gutenberg-api-route-inventory",
   "description": "Gutenberg REST route inventory scaffold for adapting generic Homeboy Extensions and WP Codebox API performance primitives.",

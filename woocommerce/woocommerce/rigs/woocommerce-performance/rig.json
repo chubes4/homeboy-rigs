@@ -1,6 +1,4 @@
 {
-  "shared_templates": ["../../../../shared/wordpress-plugin"],
-  "package_dependencies": ["../../shared/wordpress-plugin"],
   "extends": "./woocommerce-bench-admin-assets.base.json",
   "id": "woocommerce-performance",
   "description": "WooCommerce large-merchant performance and fuzz rig. Uses WordPress/WP Codebox runtimes for performance benchmarks plus declared fuzz workloads tied to concrete WooCommerce issues and coverage surfaces."

@@ -10,7 +10,7 @@
       "component": "woocommerce",
       "plugin": "woocommerce/woocommerce.php",
       "required_primitives": [
-        "wordpress.inventory-rest-routes",
+        "wordpress.rest-route-inventory",
         "wordpress.generate-rest-request-cases",
         "wordpress.profile-rest-db-queries",
         "wordpress.inventory-database",

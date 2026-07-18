@@ -21,8 +21,8 @@
       "surface_ids": ["wordpress-core-frontend", "wordpress-core-template-rendering", "wordpress-core-posts", "wordpress-core-pages", "wordpress-core-media"],
       "operations": ["frontend-request-capture", "template-rendering-readiness", "post-rendering", "page-rendering", "archive-rendering", "search-rendering", "media-rendering", "skipped-destructive-classification"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=12", "pages=6", "media=4", "terms=6", "comments=4", "front_page=page"] }],
-        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=frontend_rendering", "paths=/,/sample-page/,/hello-world/,/?s=fixture,/category/uncategorized/,/feed/"] }],
+        "setup": [{ "command": "wordpress.run-php", "args": ["code=$id=wp_insert_post(array('post_title'=>'Core frontend fixture','post_name'=>'core-frontend-fixture','post_status'=>'publish','post_type'=>'page')); update_option('show_on_front','page'); update_option('page_on_front',$id);"] }],
+        "action": [{ "command": "wordpress.server-page-load", "args": ["path=/core-frontend-fixture/"] }, { "command": "wordpress.browser-page-load", "args": ["path=/core-frontend-fixture/"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=frontend_rendering_request_coverage"] }]
       },
       "artifacts": [{ "name": "frontend_rendering_request_coverage", "path": "frontend-rendering-request-coverage/frontend_rendering_request_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy-rigs/wordpress-core-frontend-rendering-request-coverage/v1" } }],

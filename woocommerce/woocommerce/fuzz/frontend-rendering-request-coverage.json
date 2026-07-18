@@ -21,10 +21,9 @@
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
     "generic_primitive": {
-      "command": "wordpress.trace-browser-coverage",
-      "status": "blocked"
+      "command": "wordpress.browser-scenario",
+      "status": "supported"
     },
-    "workload_path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "fixture": {
@@ -34,11 +33,9 @@
       "activation": "woocommerce/woocommerce.php"
     },
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Frontend rendering coverage should be supplied by a generic browser coverage primitive, with WooCommerce contributing route lists and skip policies.",
-      "upstream_blockers": [
-        "Expose an artifact-compatible generic browser coverage command before replacing the WooCommerce trace workload."
-      ]
+      "level": "executable",
+      "coverage_contract": "Frontend rendering coverage runs through canonical Codebox browser scenarios with WooCommerce route lists and skip policies.",
+      "upstream_blockers": ["reviewer-facing execution artifacts are required before proven status"]
     }
   },
   "target": {
@@ -48,9 +45,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "json",
-    "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
-    "entry": "frontend-rendering-request-coverage"
+    "type": "declarative",
+    "command": "wordpress.browser-scenario"
   },
   "cases": [
     {
@@ -88,12 +84,8 @@
         },
         "execute": {
           "workload_ref": "default",
-          "path": "${package.root}/bench/woocommerce-browser-coverage.trace.mjs",
-          "type": "json",
-          "entry": "frontend-rendering-request-coverage",
-          "parameters": {
-            "surface": "frontend"
-          }
+          "command": "wordpress.browser-scenario",
+          "args": ["scenario-json={\"url\":\"/shop/\",\"steps\":[{\"kind\":\"navigate\",\"url\":\"/shop/\",\"waitFor\":\"load\"},{\"kind\":\"waitFor\",\"selector\":\"body\",\"timeout\":\"30s\"}],\"capture\":[\"network\",\"screenshot\"]}"]
         },
         "collect": [
           {

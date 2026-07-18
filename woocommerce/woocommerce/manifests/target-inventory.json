@@ -362,8 +362,7 @@
       },
       "owned_by": {
         "workloads": [
-          "frontend-rendering-request-coverage",
-          "woocommerce-browser-coverage"
+          "frontend-rendering-request-coverage"
         ],
         "profiles": [
           "full-surface"
@@ -490,7 +489,7 @@
   },
   "inventory_primitives": {
     "rest_routes": {
-      "command": "wordpress.inventory-rest-routes",
+      "command": "wordpress.rest-route-inventory",
       "status": "preferred",
       "artifact_schema": "homeboy/wordpress-rest-route-inventory/v1",
       "workload_ids": [
@@ -510,7 +509,7 @@
       ]
     },
     "frontend_pages": {
-      "command": "wordpress.trace-browser-coverage",
+      "command": "wordpress.browser-scenario",
       "status": "preferred",
       "artifact_schema": "wp-codebox/browser-request-coverage/v1",
       "workload_ids": [

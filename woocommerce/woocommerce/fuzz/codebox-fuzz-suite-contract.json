@@ -27,7 +27,7 @@
       "wp-codebox/fuzz-suite-result/v1"
     ],
     "required_primitive_contracts": [
-      "wordpress.inventory-rest-routes",
+      "wordpress.rest-route-inventory",
       "wordpress.generate-rest-request-cases",
       "wordpress.profile-rest-db-queries",
       "wordpress.inventory-database",

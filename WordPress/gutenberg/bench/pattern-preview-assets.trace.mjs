@@ -451,7 +451,7 @@ try {
 			},
 		},
 		inputs: {
-			extraPlugins: [
+			extra_plugins: [
 				{ source: componentPath, slug: 'gutenberg', pluginFile: 'gutenberg/gutenberg.php', activate: true },
 				{ source: fixturePluginDir, slug: 'gutenberg-pattern-asset-repro', pluginFile: 'gutenberg-pattern-asset-repro/pattern-assets-repro.php', activate: true },
 			],

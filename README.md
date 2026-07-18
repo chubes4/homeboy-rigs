@@ -74,9 +74,10 @@ homeboy rig check studio-combined
 `homeboy rig check` reports generic package lint failures such as unresolved conflict markers and invalid JSON before running the rig's own check pipeline. This repo also keeps a lightweight package lint for PHP syntax, portable source paths, generated rig drift, `fuzz_profiles` references that drift from `fuzz_workloads`, and WordPress plugin fuzz workload IDs accidentally reappearing in `bench_workloads` or `bench_profiles`:
 
 ```bash
-export HOMEBOY_NODEJS_WORKLOAD_UTILS=/path/to/homeboy-extensions/nodejs/scripts/bench/lib/workload-utils.mjs
-export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
-node scripts/lint-rig-packages.mjs
+homeboy rig lint WordPress/wordpress-develop --all
+homeboy rig lint WordPress/gutenberg --all
+homeboy rig lint Automattic/jetpack --all
+homeboy rig lint woocommerce/woocommerce --all
 ```
 
 GitHub Actions runs the package lint with PHP installed and injects Homeboy Extensions helper paths explicitly. Shared loaders fail with setup guidance when required paths are absent; they do not guess local sibling checkouts.
@@ -396,8 +397,7 @@ performance-observation contracts without adding a `homeboy bench` fallback.
 ```bash
 homeboy rig install ./WordPress/wordpress-develop
 homeboy rig check wordpress-core-fuzz-coverage
-export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
-node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
+homeboy rig lint WordPress/wordpress-develop --all
 ```
 
 ## WordPress/gutenberg
@@ -418,7 +418,7 @@ homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-rout
 
 ```bash
 homeboy fuzz list --rig gutenberg-api-route-inventory
-homeboy trace --rig gutenberg-browser-coverage --profile fuzzer
+homeboy fuzz --rig gutenberg-api-route-inventory --profile fuzzer
 ```
 
 ## Automattic/jetpack

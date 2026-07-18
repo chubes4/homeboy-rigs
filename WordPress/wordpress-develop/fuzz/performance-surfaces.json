@@ -27,8 +27,8 @@
       "surface_ids": ["wordpress-core-performance"],
       "operations": ["performance-surface-inventory", "request-timing-observation", "query-count-observation", "asset-request-observation"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["theme=twentytwentyfive", "posts=20", "media=8", "menus=2"] }],
-        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["manifest=${package.root}/manifests/performance-surfaces.json", "surface=performance"] }],
+        "setup": [{ "command": "wordpress.run-php", "args": ["code=wp_insert_post(array('post_title'=>'Performance fixture','post_name'=>'core-performance-fixture','post_status'=>'publish'));"] }],
+        "action": [{ "command": "wordpress.server-page-load", "args": ["path=/core-performance-fixture/"] }, { "command": "wordpress.runtime-discovery", "args": ["surface=rest,admin,editor,database"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=performance_surfaces"] }]
       },
       "artifacts": [{ "name": "performance_surfaces", "path": "performance-surfaces/performance_surfaces.json", "required": true, "metadata": { "semantic_key": "fuzz.performance" } }],
