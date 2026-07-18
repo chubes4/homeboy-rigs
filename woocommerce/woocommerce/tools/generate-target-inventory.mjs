@@ -120,7 +120,7 @@ const inventory = {
       workload_ids: coverage.coverage_profiles['full-surface'].authenticated_admin_pages,
     },
     frontend_pages: {
-      command: 'wordpress.trace-browser-coverage',
+      command: 'wordpress.browser-scenario',
       status: 'preferred',
       artifact_schema: coverage.surfaces.frontend_rendering.coverage_artifact,
       workload_ids: coverage.coverage_profiles['full-surface'].frontend_rendering,

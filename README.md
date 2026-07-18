@@ -418,7 +418,7 @@ homeboy bench --rig gutenberg-api-route-inventory --scenario gutenberg-rest-rout
 
 ```bash
 homeboy fuzz list --rig gutenberg-api-route-inventory
-homeboy trace --rig gutenberg-browser-coverage --profile fuzzer
+homeboy fuzz --rig gutenberg-api-route-inventory --profile fuzzer
 ```
 
 ## Automattic/jetpack

@@ -127,12 +127,8 @@
         ],
         "action": [
           {
-            "command": "wordpress.trace-browser-coverage",
-            "args": [
-              "surface=jetpack-public-modules",
-              "states=connected,disconnected",
-              "classify_skips=true"
-            ]
+            "command": "wordpress.browser-scenario",
+            "args": ["scenario-json={\"url\":\"/?p=1201\",\"steps\":[{\"kind\":\"navigate\",\"url\":\"/?p=1201\",\"waitFor\":\"load\"},{\"kind\":\"waitFor\",\"selector\":\"body\",\"timeout\":\"30s\"}],\"capture\":[\"network\",\"screenshot\"]}"]
           }
         ],
         "assert": [

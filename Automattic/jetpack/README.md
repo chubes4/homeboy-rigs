@@ -14,7 +14,7 @@ Check the rig package:
 
 ```sh
 homeboy rig check jetpack-api-route-inventory
-homeboy rig check jetpack-browser-coverage
+homeboy fuzz --rig jetpack-api-route-inventory --profile full-surface
 ```
 
 Validate manifest shape locally; run fuzz workloads only through the generic fuzz command in target Homeboy installs that expose it. Do not use `homeboy bench` as a fallback for these coverage manifests.

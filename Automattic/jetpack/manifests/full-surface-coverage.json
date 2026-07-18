@@ -75,7 +75,7 @@
   "gap_report": {
     "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
     "semantic_key": "fuzz.report",
-    "inputs": ["jetpack-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "jetpack-admin-page-coverage", "jetpack-public-module-frontend-coverage", "jetpack-browser-coverage"],
+    "inputs": ["jetpack-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "jetpack-admin-page-coverage", "jetpack-public-module-frontend-coverage"],
     "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
     "compare": {
       "rest": "registered Jetpack and WP.com routes minus generated safe request cases",
@@ -108,8 +108,7 @@
     "browser_requests": {
       "coverage_goal": "all_wp_admin_jetpack_screen_and_public_module_fetch_xhr_websocket_asset_requests",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
-      "trace_workload": "bench/jetpack-browser-coverage.trace.mjs",
-      "rig": "rigs/jetpack-browser-coverage/rig.json",
+      "workloads": ["fuzz/jetpack-admin-page-coverage.json", "fuzz/jetpack-public-module-frontend-coverage.json"],
       "scenarios": ["dashboard", "connection", "modules", "settings", "public_post_modules", "public_page_modules"]
     },
     "authenticated_admin_pages": {
@@ -293,15 +292,6 @@
         "notes": ["Installs the external HTTP guardrail before probes run", "Uses .invalid synthetic hosts for blocked probes", "Declares public-api.wordpress.com as an allowlisted boundary without making live service calls"]
       },
       "artifact_expectations": { "required": ["metrics", "guardrail collection"], "optional": ["captured request samples"] }
-    },
-    "jetpack-browser-coverage": {
-      "surface": "browser_requests",
-      "coverage_shape": "Jetpack dashboard, connection, modules, settings, public post, and public page browser request coverage",
-      "safety": {
-        "classification": "browser_fixture_trace",
-        "notes": ["Runs in WP Codebox browser coverage", "No WordPress.com OAuth fixture or live service account is provisioned"]
-      },
-      "artifact_expectations": { "required": ["browser request coverage artifact"], "optional": ["screenshots", "console logs"] }
     }
   }
 }

@@ -7,7 +7,7 @@
   "block_name_prefixes": ["woocommerce/"],
   "frontend_contexts": ["shop", "product", "cart", "checkout"],
   "owned_by": {
-    "workloads": ["frontend-rendering-request-coverage", "woocommerce-browser-coverage"],
+    "workloads": ["frontend-rendering-request-coverage"],
     "profiles": ["full-surface"]
   },
   "readiness": {

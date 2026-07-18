@@ -76,7 +76,7 @@
   "gap_report": {
     "schema": "homeboy-rigs/wordpress-coverage-gap-report/v1",
     "semantic_key": "fuzz.report",
-    "inputs": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "admin-page-coverage", "frontend-rendering-request-coverage", "woocommerce-browser-coverage"],
+    "inputs": ["woocommerce-rest-route-inventory", "generated-rest-request-cases", "rest-db-query-profile", "db-inventory", "admin-page-coverage", "frontend-rendering-request-coverage"],
     "required_fields": ["surface_type", "expected", "covered", "gaps", "status", "evidence_refs"],
     "compare": {
       "rest": "registered WooCommerce routes minus generated safe request cases and permission-boundary rows",
@@ -121,8 +121,7 @@
     "browser_requests": {
       "coverage_goal": "all_cart_checkout_product_admin_fetch_xhr_websocket_asset_requests",
       "coverage_artifact": "wp-codebox/browser-request-coverage/v1",
-      "trace_workload": "bench/woocommerce-browser-coverage.trace.mjs",
-      "rig": "rigs/woocommerce-browser-coverage/rig.json",
+      "workloads": ["fuzz/admin-page-coverage.json", "fuzz/frontend-rendering-request-coverage.json"],
       "scenarios": ["shop", "product", "cart", "checkout", "orders_admin", "products_admin", "analytics_admin"]
     },
     "authenticated_admin_pages": {
@@ -487,18 +486,6 @@
       "artifact_expectations": {
         "required": ["metrics", "performance hotspot summary artifact"],
         "optional": ["linked fuzz run ids", "baseline/candidate comparison pointers"]
-      }
-    },
-    "woocommerce-browser-coverage": {
-      "surface": "browser_requests",
-      "coverage_shape": "browser request coverage for shop, product, cart, checkout bootstrap, orders admin, products admin, and analytics admin scenarios",
-      "safety": {
-        "classification": "browser_fixture_trace",
-        "notes": ["Runs against a WP Codebox browser fixture with a synthetic virtual product", "Checkout coverage stops at page bootstrap/request coverage rather than payment completion"]
-      },
-      "artifact_expectations": {
-        "required": ["wp-codebox/browser-request-coverage/v1 artifact"],
-        "optional": ["scenario request logs", "trace timeline"]
       }
     }
   }

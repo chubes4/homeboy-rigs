@@ -206,7 +206,7 @@
             ]
           },
           {
-            "command": "wordpress.trace-browser-coverage",
+            "command": "wordpress.browser-scenario",
             "args": [
               "surface=jetpack-public-modules",
               "states=connected,disconnected",

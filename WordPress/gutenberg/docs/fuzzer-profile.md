@@ -9,7 +9,7 @@ The `fuzzer` profile composes the same surface classes as the Woo full-surface r
 - REST route coverage through `gutenberg-rest-route-fuzz` and `gutenberg-rest-request-cases-fuzz`, covering the declared `wp/v2` and `__experimental` Gutenberg-facing namespaces.
 - Safe `wp-admin` and editor page coverage through `gutenberg-admin-page-coverage`, plus browser request coverage through `block-editor-browser-coverage` and `site-editor-browser-coverage` manifests that point at the rig-owned browser scenarios for post editor, Site Editor, template editor, and patterns.
 - Dynamic block rendering coverage through `block-rendering-coverage` request cases.
-- Frontend rendering/request coverage through `frontend-rendering-request-coverage` and the disposable published fixture page created by `gutenberg-browser-coverage.trace.mjs`.
+- Frontend rendering/request coverage through `frontend-rendering-request-coverage` and the disposable published fixture page in `fixtures/browser-coverage.php`.
 - Block editor load/action probes through the browser action scenario files in `browser-scenarios/`.
 - DB inventory and REST query profiling through `gutenberg-db-inventory-fuzz` and `gutenberg-rest-db-query-profile-fuzz`, including request-case, route, method, query-type, table, stack, and caller attribution.
 - Runtime state inventory through `gutenberg-hooks-options-inventory`, including Gutenberg option prefixes, postmeta keys, block/editor/template/pattern post types, and pattern taxonomy state.
@@ -26,7 +26,7 @@ Install and check the rig package:
 ```sh
 homeboy rig install ./WordPress/gutenberg
 homeboy rig check gutenberg-api-route-inventory
-homeboy rig check gutenberg-browser-coverage
+homeboy fuzz --rig gutenberg-api-route-inventory --profile fuzzer
 ```
 
 Inspect and run fuzzer manifests through Homeboy's generic fuzz command:

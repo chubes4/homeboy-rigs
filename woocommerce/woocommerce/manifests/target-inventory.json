@@ -362,8 +362,7 @@
       },
       "owned_by": {
         "workloads": [
-          "frontend-rendering-request-coverage",
-          "woocommerce-browser-coverage"
+          "frontend-rendering-request-coverage"
         ],
         "profiles": [
           "full-surface"
@@ -510,7 +509,7 @@
       ]
     },
     "frontend_pages": {
-      "command": "wordpress.trace-browser-coverage",
+      "command": "wordpress.browser-scenario",
       "status": "preferred",
       "artifact_schema": "wp-codebox/browser-request-coverage/v1",
       "workload_ids": [

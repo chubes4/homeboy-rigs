@@ -10,16 +10,15 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs",
+    "fixture": "${package.root}/fixtures/browser-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report", "readiness": { "level": "executable", "coverage_contract": "Gutenberg block editor browser coverage is executable as a isolated_mutation fuzz workload for editor-page-load, block-editor-action-probe, browser-request-coverage. Proven status still requires reviewer-facing run artifacts and gap reports.", "upstream_blockers": ["reviewer-facing fuzz run artifacts and gap reports are required before proven status"] }
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
   "workload": {
     "runner": "wp-codebox",
-    "type": "trace",
-    "path": "${package.root}/bench/gutenberg-browser-coverage.trace.mjs",
-    "entry": "post_editor"
+    "type": "declarative",
+    "command": "wordpress.browser-scenario"
   },
   "cases": [
     {
@@ -27,8 +26,8 @@
       "surface_ids": ["gutenberg-block-editor", "wordpress-admin-pages", "browser-requests"],
       "operations": ["editor-page-load", "block-editor-action-probe", "browser-request-coverage"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
-        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/gutenberg-browser-coverage.trace.mjs", "type=trace", "scenario=post_editor"] }],
+        "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }, { "command": "wordpress.run-php", "args": ["code-file=${package.root}/fixtures/browser-coverage.php"] }],
+        "action": [{ "command": "wordpress.browser-scenario", "args": ["scenario-json={\"auth\":\"wordpress-admin\",\"url\":\"/wp-admin/post-new.php\",\"steps\":[{\"kind\":\"navigate\",\"url\":\"/wp-admin/post-new.php\",\"waitFor\":\"load\"},{\"kind\":\"waitFor\",\"selector\":\"body\",\"timeout\":\"30s\"},{\"kind\":\"screenshot\",\"name\":\"gutenberg-post-editor\"}],\"capture\":[\"network\",\"screenshot\"]}"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=block_editor_browser_coverage"] }]
       },
       "artifacts": [{ "name": "block_editor_browser_coverage", "path": "block-editor-browser-coverage/browser_request_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],
