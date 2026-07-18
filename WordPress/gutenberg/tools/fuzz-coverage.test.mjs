@@ -48,6 +48,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     /builds the exact Gutenberg checkout.*proves plugin bundle provenance/
   );
   assert.match(runnerSource, /npm.*run.*build.*--skip-types/s);
+  assert.match(runnerSource, /npm.*ci/s);
   assert.match(runnerSource, /build\/scripts\/core-data\/index\.min\.js/);
   assert.match(traceSource, /gutenberg-plugin-assets-loaded/);
   assert.match(traceSource, /\/wp-content\/plugins\/gutenberg\/build\//);

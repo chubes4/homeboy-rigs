@@ -60,9 +60,15 @@ const requiredBuildFiles = [
 	'build/scripts/editor/index.min.js',
 ];
 const missingBuildFiles = () => requiredBuildFiles.filter( ( relativePath ) => ! existsSync( path.join( componentPath, relativePath ) ) );
+const buildDependency = path.join( componentPath, 'node_modules/cross-spawn/package.json' );
+let hydratedDependencies = false;
 let builtComponent = false;
 
 if ( missingBuildFiles().length ) {
+	if ( ! existsSync( buildDependency ) ) {
+		await runCommand( 'npm', [ 'ci' ], { cwd: componentPath } );
+		hydratedDependencies = true;
+	}
 	await runCommand( 'npm', [ 'run', 'build', '--', '--skip-types' ], { cwd: componentPath } );
 	builtComponent = true;
 }
@@ -75,6 +81,7 @@ if ( missingAfterBuild.length ) {
 const { stdout: gitShaOutput } = await runCommand( 'git', [ 'rev-parse', 'HEAD' ], { cwd: componentPath } );
 const buildProvenance = {
 	component_git_sha: gitShaOutput.trim(),
+	dependencies_hydrated_by_workload: hydratedDependencies,
 	built_by_workload: builtComponent,
 	required_build_files: requiredBuildFiles,
 };
