@@ -37,6 +37,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
   assert.deepEqual(rig.fuzz_profiles['notes-attachment'], ['gutenberg-notes-attachment-corpus']);
   assert.equal(rig.fuzz_workloads.nodejs[0].path, '${package.root}/fuzz/gutenberg-notes-attachment-corpus.json');
+  assert.deepEqual(rig.fuzz_workloads.nodejs[0].env_provider_extensions, ['wordpress']);
   assert.deepEqual(workload.metadata.corpus_cases.map(({ id }) => id), expectedCases);
   assert.equal(workload.case_budget, expectedCases.length);
   assert.equal(workload.limits.max_cases, expectedCases.length);

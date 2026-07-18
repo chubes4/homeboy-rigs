@@ -10,7 +10,10 @@
   },
   "fuzz_workloads": {
     "nodejs": [
-      { "path": "${package.root}/fuzz/gutenberg-notes-attachment-corpus.json" }
+      {
+        "path": "${package.root}/fuzz/gutenberg-notes-attachment-corpus.json",
+        "env_provider_extensions": ["wordpress"]
+      }
     ],
     "wordpress": [
       { "path": "${package.root}/fuzz/gutenberg-rest-route-fuzz.json" },
