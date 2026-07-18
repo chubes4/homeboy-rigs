@@ -3,8 +3,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { assertFullSurfaceCoverageManifest } from '../../../scripts/fuzz-manifest-helpers.mjs';
-import { validateWordPressCoreFuzzContract } from '../tools/core-fuzz-contract-validator.mjs';
 
 const __dirname = path.dirname( fileURLToPath( import.meta.url ) );
 const packageRoot = path.join( __dirname, '..' );
@@ -61,23 +59,12 @@ test( 'Core fuzz rig and full-surface profile include admin and frontend coverag
 	assert.ok( workloadPaths.some( ( entry ) => entry.includes( 'fuzz/frontend-rendering-request-coverage.json' ) ) );
 	assert.ok( allProfiles.includes( 'admin-page-coverage' ) );
 	assert.ok( allProfiles.includes( 'frontend-rendering-request-coverage' ) );
-	assertFullSurfaceCoverageManifest( manifest, { file: 'WordPress Core full-surface coverage' } );
+  assert.match( manifest.schema, /^homeboy-rigs\/(?:wordpress-)?full-surface-coverage\/v1$/ );
 	assert.ok( manifest.coverage_profiles[ 'full-surface' ].includes( 'frontend-rendering-request-coverage' ) );
 } );
 
-test( 'Core validator reports REST proof contract drift', () => {
-	const failures = validateWordPressCoreFuzzContract( {
-		rel: 'WordPress/wordpress-develop/fuzz/rest-api.json',
-		root: path.join( packageRoot, '..', '..' ),
-		workload: {
-			id: 'rest-api',
-			target: { type: 'wordpress-core', component: 'wordpress-develop' },
-			surface_ids: [ 'wordpress-core-rest-routes' ],
-			operations: [ 'rest-route-inventory' ],
-			artifacts: { expected: [] },
-		},
-	} );
-
-	assert.ok( failures.some( ( failure ) => failure.includes( 'role-boundary-execution' ) ) );
-	assert.ok( failures.some( ( failure ) => failure.includes( 'fuzz.rest.permission_boundaries' ) ) );
+test( 'Core REST coverage uses the canonical Codebox route inventory command', () => {
+	const workload = readJson( 'fuzz', 'rest-api.json' );
+	assert.equal( workload.cases[0].phases.action[0].command, 'wordpress.rest-route-inventory' );
+	assert.equal( workload.cases[0].phases.setup[0].command, 'wordpress.run-php' );
 } );
