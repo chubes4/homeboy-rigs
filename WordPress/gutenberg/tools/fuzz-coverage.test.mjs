@@ -19,6 +19,7 @@ test('Gutenberg full-surface profile names proof-ready admin and frontend covera
 });
 
 test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
+  const inventoryRig = readJson('rigs/gutenberg-api-route-inventory/rig.json');
   const rig = readJson('shared/wordpress-plugin/fuzz-inventory.base.json');
   const workload = readJson('fuzz/gutenberg-notes-attachment-corpus.json');
   const expectedCases = [
@@ -33,6 +34,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     'double-live-create',
   ];
 
+  assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
   assert.deepEqual(rig.fuzz_profiles['notes-attachment'], ['gutenberg-notes-attachment-corpus']);
   assert.equal(rig.fuzz_workloads.nodejs[0].path, '${package.root}/fuzz/gutenberg-notes-attachment-corpus.json');
   assert.deepEqual(workload.metadata.corpus_cases.map(({ id }) => id), expectedCases);
