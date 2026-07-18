@@ -17,18 +17,16 @@
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
     "generic_primitive": {
-      "command": "wordpress.inventory-rest-routes",
-      "status": "blocked"
+      "command": "wordpress.rest-route-inventory",
+      "status": "supported"
     },
-    "workload_path": "${package.root}/bench/jetpack-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
       "level": "executable",
       "coverage_contract": "Jetpack REST route discovery and permission-boundary classification for local Jetpack and WP.com compatibility namespaces.",
       "upstream_blockers": [
-        "connected-site and WP.com-dependent route proof needs durable skipped/forbidden artifact links before proven status",
-        "Expose an artifact-compatible generic REST route inventory command before replacing the Jetpack PHP workload."
+        "connected-site and WP.com-dependent route proof needs durable skipped/forbidden artifact links before proven status"
       ],
       "crud": {
         "create": {
@@ -70,9 +68,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "php",
-    "path": "${package.root}/bench/jetpack-rest-route-inventory.php",
-    "entry": "jetpack-rest-route-inventory"
+    "type": "declarative",
+    "command": "wordpress.rest-route-inventory"
   },
   "cases": [
     {
@@ -96,11 +93,8 @@
         ],
         "action": [
           {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/jetpack-rest-route-inventory.php",
-              "type=php"
-            ]
+            "command": "wordpress.rest-route-inventory",
+            "args": ["namespaces=jetpack/v4,wpcom/v2"]
           }
         ],
         "assert": [

@@ -16,8 +16,8 @@
       "surface_ids": ["wordpress-core-database", "wordpress-core-rest-routes", "wordpress-core-options", "wordpress-core-postmeta", "wordpress-core-rewrites"],
       "operations": ["db-inventory", "schema-inventory", "rest-query-profile", "query-shape-attribution", "options-query-attribution", "postmeta-query-attribution", "rewrite-query-attribution"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["posts=20", "comments=20", "media=5", "terms=8", "postmeta=core-safe", "permalinks=postname", "options=autoload-sample"] }],
-        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=database", "rest_cases=${package.root}/manifests/rest-route-coverage.json", "attribute_tables=options,postmeta,termmeta,commentmeta", "attribute_rewrites=1"] }],
+        "setup": [{ "command": "wordpress.run-php", "args": ["code=wp_insert_post(array('post_title'=>'Database fixture','post_status'=>'publish')); update_option('core_fuzz_fixture','1');"] }],
+        "action": [{ "command": "wordpress.inventory-database", "args": ["tables=options,postmeta,termmeta,commentmeta", "include_rewrites=true"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=db_inventory_query_profile"] }]
       },
       "artifacts": [

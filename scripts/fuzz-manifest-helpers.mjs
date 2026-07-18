@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadWordPressHelperModule } from '../shared/wordpress-helper-loader.mjs';
@@ -28,99 +28,11 @@ export function readJson(root, ...parts) {
 
 export function readMaterializedRig(root, ...parts) {
   const file = path.join(root, ...parts);
-  return materializeRigSpec(file, JSON.parse(readFileSync(file, 'utf8')));
-}
-
-function materializeRigSpec(file, rig, seen = new Set()) {
-  const extendPath = typeof rig.extends === 'string' ? rig.extends.trim() : '';
-  if (!extendPath) {
-    return rig;
-  }
-
-  const parentFile = path.resolve(path.dirname(file), extendPath);
-  if (seen.has(parentFile)) {
-    throw new Error(`${file}: rig extends cycle includes ${parentFile}`);
-  }
-
-  seen.add(parentFile);
-  const parentRig = JSON.parse(readFileSync(parentFile, 'utf8'));
-  const materializedParent = materializeRigSpec(parentFile, parentRig, seen);
-  seen.delete(parentFile);
-
-  return deepMergeRigSpec(materializedParent, rig);
-}
-
-function deepMergeRigSpec(parent, child) {
-  if (Array.isArray(parent) && isArrayMergeDirective(child)) {
-    return applyArrayMergeDirective(parent, child);
-  }
-
-  if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
-    return child;
-  }
-
-  if (!child || typeof child !== 'object' || Array.isArray(child)) {
-    return child;
-  }
-
-  const merged = { ...parent };
-  for (const [key, value] of Object.entries(child)) {
-    if (key === 'extends') {
-      continue;
-    }
-
-    const parentValue = merged[key];
-    merged[key] = parentValue && value && shouldRecurseMerge(parentValue, value)
-      ? deepMergeRigSpec(parentValue, value)
-      : value;
-  }
-
-  return merged;
-}
-
-function shouldRecurseMerge(parentValue, childValue) {
-  if (Array.isArray(parentValue) && isArrayMergeDirective(childValue)) {
-    return true;
-  }
-
-  return typeof parentValue === 'object'
-    && typeof childValue === 'object'
-    && !Array.isArray(parentValue)
-    && !Array.isArray(childValue);
-}
-
-function isArrayMergeDirective(value) {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    && (Object.hasOwn(value, '$append') || Object.hasOwn(value, '$merge_by'));
-}
-
-function applyArrayMergeDirective(parent, directive) {
-  if (Object.hasOwn(directive, '$append')) {
-    return [...parent, ...asDirectiveEntries(directive.$append)];
-  }
-
-  const key = typeof directive.$merge_by === 'string' ? directive.$merge_by.trim() : '';
-  const entries = asDirectiveEntries(directive.entries);
-  if (!key) {
-    return directive;
-  }
-
-  const merged = [...parent];
-  for (const entry of entries) {
-    const entryKey = entry && typeof entry === 'object' && !Array.isArray(entry) ? entry[key] : undefined;
-    const index = merged.findIndex((candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate) && candidate[key] === entryKey);
-    if (entryKey === undefined || index === -1) {
-      merged.push(entry);
-      continue;
-    }
-    merged[index] = deepMergeRigSpec(merged[index], entry);
-  }
-
-  return merged;
-}
-
-function asDirectiveEntries(value) {
-  return Array.isArray(value) ? value : [];
+  const output = execFileSync(process.env.HOMEBOY_BIN || 'homeboy', ['rig', 'materialize', file], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  return JSON.parse(output).data.payload.rig;
 }
 
 export function workloadIdFromPath(workloadPath) {

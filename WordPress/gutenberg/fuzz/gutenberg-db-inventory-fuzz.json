@@ -10,14 +10,13 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "generic_primitive": { "command": "wordpress.inventory-database", "status": "blocked" },
-    "workload_path": "${package.root}/bench/db-inventory.workload.json",
+    "generic_primitive": { "command": "wordpress.inventory-database", "status": "supported" },
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
-    "readiness": { "level": "declared", "coverage_contract": "Database inventory should be supplied by a generic WordPress database inventory primitive, with Gutenberg contributing option prefixes, postmeta keys, entity types, and artifact expectations.", "upstream_blockers": ["Expose an artifact-compatible generic database inventory command before replacing the Gutenberg JSON workload."] }
+    "readiness": { "level": "executable", "coverage_contract": "Database inventory runs through the canonical Codebox primitive with Gutenberg option prefixes, postmeta keys, entity types, and artifact expectations.", "upstream_blockers": ["reviewer-facing execution artifacts are required before proven status"] }
   },
   "target": { "type": "wordpress-plugin", "slug": "gutenberg", "component": "gutenberg" },
-  "workload": { "runner": "wp-codebox", "type": "json", "path": "${package.root}/bench/db-inventory.workload.json", "entry": "db-inventory" },
+  "workload": { "runner": "wp-codebox", "type": "declarative", "command": "wordpress.inventory-database" },
   "cases": [
     {
       "case_id": "gutenberg-db-inventory-fuzz:default",
@@ -25,7 +24,7 @@
       "operations": ["database-inventory", "fixture-state-classification", "option-prefix-inventory", "postmeta-key-inventory", "gutenberg-entity-inventory"],
       "phases": {
         "setup": [{ "command": "wordpress.ensure-plugin-active", "args": ["plugin=gutenberg/gutenberg.php"] }],
-        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/db-inventory.workload.json", "type=json"] }],
+        "action": [{ "command": "wordpress.inventory-database", "args": ["option_prefixes=gutenberg_,wp_global_styles", "postmeta_keys=_wp_block_template"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=db_inventory"] }]
       },
       "artifacts": [{ "name": "db_inventory", "path": "db-inventory/db_inventory.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }],

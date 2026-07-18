@@ -108,7 +108,7 @@ const inventory = {
   },
   inventory_primitives: {
     rest_routes: {
-      command: 'wordpress.inventory-rest-routes',
+      command: 'wordpress.rest-route-inventory',
       status: 'preferred',
       artifact_schema: 'homeboy/wordpress-rest-route-inventory/v1',
       workload_ids: coverage.coverage_profiles['full-surface'].rest_api,

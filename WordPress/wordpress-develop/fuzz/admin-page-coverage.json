@@ -23,8 +23,8 @@
       "surface_ids": ["wordpress-core-admin-pages", "wordpress-core-role-boundaries"],
       "operations": ["safe-admin-page-enumeration", "admin-page-discovery", "browser-readiness", "permission-boundary-classification", "query-attribution", "skipped-destructive-classification"],
       "phases": {
-        "setup": [{ "command": "wordpress.ensure-core-fixture", "args": ["administrator=1", "editor=1", "author=1", "contributor=1", "subscriber=1", "posts=12", "pages=6", "media=4"] }],
-        "action": [{ "command": "wordpress.run-declarative-fuzz", "args": ["surface=admin_pages", "enumeration=registered-menu-and-submenu", "roles=administrator,editor,author,contributor,subscriber", "paths=/wp-admin/index.php,/wp-admin/edit.php,/wp-admin/edit.php?post_type=page,/wp-admin/post-new.php,/wp-admin/post-new.php?post_type=page,/wp-admin/upload.php,/wp-admin/media-new.php,/wp-admin/users.php,/wp-admin/user-new.php,/wp-admin/profile.php,/wp-admin/themes.php,/wp-admin/plugins.php,/wp-admin/options-general.php,/wp-admin/site-editor.php"] }],
+        "setup": [{ "command": "wordpress.run-php", "args": ["code=wp_insert_post(array('post_title'=>'Admin fixture','post_status'=>'publish'));"] }],
+        "action": [{ "command": "wordpress.fuzz-admin-pages", "args": ["roles=administrator,editor,author,contributor,subscriber", "safe_methods=GET,HEAD"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=admin_page_coverage"] }]
       },
       "artifacts": [{ "name": "admin_page_coverage", "path": "admin-page-coverage/admin_page_coverage.json", "required": true, "metadata": { "semantic_key": "fuzz.report", "schema": "homeboy-rigs/wordpress-core-admin-page-coverage/v1" } }],

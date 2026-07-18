@@ -17,18 +17,15 @@
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
     "generic_primitive": {
-      "command": "wordpress.inventory-rest-routes",
-      "status": "blocked"
+      "command": "wordpress.rest-route-inventory",
+      "status": "supported"
     },
-    "workload_path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "REST route inventory should be supplied by a generic WordPress route inventory primitive, with WooCommerce contributing namespaces and artifact expectations.",
-      "upstream_blockers": [
-        "Expose an artifact-compatible generic REST route inventory command before replacing the WooCommerce PHP workload."
-      ]
+      "level": "executable",
+      "coverage_contract": "REST route inventory runs through the canonical Codebox primitive with WooCommerce namespaces and artifact expectations.",
+      "upstream_blockers": ["reviewer-facing execution artifacts are required before proven status"]
     },
     "fixture": {
       "runtime": "wp-codebox",
@@ -44,9 +41,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "php",
-    "path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
-    "entry": "woocommerce-rest-route-inventory"
+    "type": "declarative",
+    "command": "wordpress.rest-route-inventory"
   },
   "plan": {
     "schema": "wordpress-fuzz-plan/v1",
@@ -61,9 +57,9 @@
             "id": "woocommerce-rest-route-inventory:default",
             "operation_id": "route-discovery",
             "required_capabilities": [
-              "wordpress.inventory-rest-routes"
+                "wordpress.rest-route-inventory"
             ],
-            "command": "wordpress.inventory-rest-routes",
+            "command": "wordpress.rest-route-inventory",
             "input": {
               "plugin": "woocommerce/woocommerce.php",
               "namespaces": [
@@ -84,12 +80,11 @@
           }
         ],
         "metadata": {
-          "primitive": "wordpress.inventory-rest-routes"
+          "primitive": "wordpress.rest-route-inventory"
         }
       }
     ],
     "metadata": {
-      "blocked_until": "wordpress.inventory-rest-routes"
     }
   },
   "cases": [
@@ -124,9 +119,8 @@
         },
         "execute": {
           "workload_ref": "default",
-          "path": "${package.root}/bench/woocommerce-rest-route-inventory.php",
-          "type": "php",
-          "entry": "woocommerce-rest-route-inventory"
+          "command": "wordpress.rest-route-inventory",
+          "args": ["namespaces=wc/v1,wc/v2,wc/v3,wc/store/v1,wc/store/v2,wc-admin,wc-analytics"]
         },
         "collect": [
           {

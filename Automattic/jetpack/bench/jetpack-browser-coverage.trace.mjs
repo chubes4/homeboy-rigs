@@ -16,7 +16,7 @@ await runBrowserCoverageTrace( {
 		{ step: 'login', username: 'admin', password: 'password' },
 	],
 	inputs: {
-		extraPlugins: [
+		extra_plugins: [
 			{ source: componentPath, slug: 'jetpack', pluginFile: 'jetpack/jetpack.php', activate: true },
 		],
 	},

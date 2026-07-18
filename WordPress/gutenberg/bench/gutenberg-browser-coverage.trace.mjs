@@ -16,7 +16,7 @@ await runBrowserCoverageTrace( {
 		{ step: 'login', username: 'admin', password: 'password' },
 	],
 	inputs: {
-		extraPlugins: [
+		extra_plugins: [
 			{ source: componentPath, slug: 'gutenberg', pluginFile: 'gutenberg/gutenberg.php', activate: true },
 		],
 	},

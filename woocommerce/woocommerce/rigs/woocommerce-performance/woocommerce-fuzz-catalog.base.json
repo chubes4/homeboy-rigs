@@ -219,7 +219,7 @@
       "stable_workload_contracts_manifest": "manifests/stable-workloads.json",
       "source_gap_report": "manifests/full-surface-coverage.json#gap_report",
       "required_primitives": [
-        "wordpress.inventory-rest-routes",
+        "wordpress.rest-route-inventory",
         "wordpress.generate-rest-request-cases",
         "wordpress.profile-rest-db-queries",
         "wordpress.inventory-database",
@@ -447,30 +447,5 @@
       }
     }
   },
-  "pipeline": {
-    "fuzz_prepare": {
-      "$append": [
-        {
-          "kind": "requirement",
-          "label": "WooCommerce Composer package autoloader exists or can be prepared",
-          "file": "${components.woocommerce.path}/plugins/woocommerce/vendor/autoload_packages.php",
-          "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" composer \"${components.woocommerce.path}/plugins/woocommerce\"",
-          "prepare_phases": [
-            "fuzz_prepare"
-          ],
-          "remediation": "Materialize dependency step woocommerce-php-package-dependencies for the plugins/woocommerce runtime path."
-        },
-        {
-          "kind": "requirement",
-          "label": "WooCommerce generated feature config exists or can be prepared",
-          "file": "${components.woocommerce.path}/plugins/woocommerce/includes/react-admin/feature-config.php",
-          "prepare_command": "bash \"${package.root}/tools/prepare-runtime-dependency.sh\" feature-config \"${components.woocommerce.path}/plugins/woocommerce\"",
-          "prepare_phases": [
-            "fuzz_prepare"
-          ],
-          "remediation": "Ensure PHP is available, then run: homeboy rig up woocommerce-performance"
-        }
-      ]
-    }
-  }
+  "pipeline": {}
 }

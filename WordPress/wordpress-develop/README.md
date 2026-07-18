@@ -14,8 +14,7 @@ Validate the rig package without running workloads:
 
 ```sh
 homeboy rig check wordpress-core-fuzz-coverage
-export HOMEBOY_WORDPRESS_HELPER_MANIFEST=/path/to/homeboy-extensions/wordpress/lib/helper-manifest.js
-node scripts/lint-rig-packages.mjs WordPress/wordpress-develop
+homeboy rig lint WordPress/wordpress-develop --all
 ```
 
 The suite intentionally declares `fuzz_workloads` and `fuzz_profiles` only. It does not register `bench_workloads` or `bench_profiles`, so there is no benchmark fallback path. These manifests are D/E coverage contracts until `homeboy fuzz run` artifacts prove the surfaces.

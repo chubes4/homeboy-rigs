@@ -18,9 +18,8 @@
     "wordpress_runner": "wp-codebox",
     "generic_primitive": {
       "command": "wordpress.inventory-database",
-      "status": "blocked"
+      "status": "supported"
     },
-    "workload_path": "${package.root}/bench/db-inventory.workload.json",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "fixture": {
@@ -30,11 +29,9 @@
       "activation": "woocommerce/woocommerce.php"
     },
     "readiness": {
-      "level": "declared",
-      "coverage_contract": "Database inventory should be supplied by a generic WordPress database inventory primitive, with WooCommerce contributing table prefixes and artifact expectations.",
-      "upstream_blockers": [
-        "Expose an artifact-compatible generic database inventory command before replacing the WooCommerce JSON workload."
-      ]
+      "level": "executable",
+      "coverage_contract": "Database inventory runs through the canonical Codebox primitive with WooCommerce table prefixes and artifact expectations.",
+      "upstream_blockers": ["reviewer-facing execution artifacts are required before proven status"]
     }
   },
   "target": {
@@ -44,9 +41,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "json",
-    "path": "${package.root}/bench/db-inventory.workload.json",
-    "entry": "db-inventory"
+    "type": "declarative",
+    "command": "wordpress.inventory-database"
   },
   "cases": [
     {
@@ -80,9 +76,8 @@
         },
         "execute": {
           "workload_ref": "default",
-          "path": "${package.root}/bench/db-inventory.workload.json",
-          "type": "json",
-          "entry": "db-inventory"
+            "command": "wordpress.inventory-database",
+            "args": ["table_prefixes=wc_,woocommerce_"]
         },
         "collect": [
           {
