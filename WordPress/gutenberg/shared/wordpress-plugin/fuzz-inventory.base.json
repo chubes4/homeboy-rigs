@@ -9,6 +9,9 @@
     "warmup_iterations": 0
   },
   "fuzz_workloads": {
+    "nodejs": [
+      { "path": "${package.root}/fuzz/gutenberg-notes-attachment-corpus.json" }
+    ],
     "wordpress": [
       { "path": "${package.root}/fuzz/gutenberg-rest-route-fuzz.json" },
       { "path": "${package.root}/fuzz/gutenberg-rest-request-cases-fuzz.json" },
@@ -25,6 +28,9 @@
     ]
   },
   "fuzz_profiles": {
+    "notes-attachment": [
+      "gutenberg-notes-attachment-corpus"
+    ],
     "smoke": [
       "gutenberg-rest-route-fuzz",
       "gutenberg-rest-request-cases-fuzz",
@@ -43,7 +49,8 @@
       "gutenberg-rest-db-query-profile-fuzz",
       "gutenberg-hooks-options-inventory",
       "gutenberg-editor-performance-observation",
-      "gutenberg-external-http-guardrail-fuzz"
+      "gutenberg-external-http-guardrail-fuzz",
+      "gutenberg-notes-attachment-corpus"
     ],
     "full-surface": [
       "gutenberg-rest-route-fuzz",
@@ -57,7 +64,8 @@
       "gutenberg-rest-db-query-profile-fuzz",
       "gutenberg-hooks-options-inventory",
       "gutenberg-editor-performance-observation",
-      "gutenberg-external-http-guardrail-fuzz"
+      "gutenberg-external-http-guardrail-fuzz",
+      "gutenberg-notes-attachment-corpus"
     ]
   },
   "pipeline": {

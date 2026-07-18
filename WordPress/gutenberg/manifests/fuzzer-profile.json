@@ -23,7 +23,8 @@
       "gutenberg-rest-db-query-profile-fuzz",
       "gutenberg-hooks-options-inventory",
       "gutenberg-editor-performance-observation",
-      "gutenberg-external-http-guardrail-fuzz"
+      "gutenberg-external-http-guardrail-fuzz",
+      "gutenberg-notes-attachment-corpus"
     ]
   },
   "surfaces": {
@@ -49,6 +50,12 @@
       ],
       "captures": ["steps", "console", "errors", "network", "html", "screenshot", "dom-snapshot"],
       "gap_rule": "Report editor screens that load but produce failed browser actions, browser errors, or no request coverage."
+    },
+    "block_notes_attachment_persistence": {
+      "workloads": ["gutenberg-notes-attachment-corpus"],
+      "corpus": "fuzz/gutenberg-notes-attachment-corpus.json#metadata/corpus_cases",
+      "trace_workload": "bench/notes-unsaved-attachment.trace.mjs",
+      "gap_rule": "Report declared Block Notes attachment cases without case-level execution, replay, and result-envelope artifacts."
     },
     "frontend_rendering_request_coverage": {
       "workloads": ["frontend-rendering-request-coverage"],

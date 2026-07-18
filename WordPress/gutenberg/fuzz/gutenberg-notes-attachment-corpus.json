@@ -1,0 +1,113 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-notes-attachment-corpus",
+  "label": "Gutenberg Block Notes attachment persistence corpus",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "gutenberg-block-editor",
+    "gutenberg-block-notes",
+    "gutenberg-collaboration-persistence"
+  ],
+  "operations": [
+    "missing-anchor-load",
+    "saved-anchor-load",
+    "autosave-anchor-load",
+    "live-note-create",
+    "dirty-block-live-note-create",
+    "dirty-sibling-live-note-create",
+    "dirty-structural-live-note-create",
+    "nested-live-note-create",
+    "repeated-live-note-create"
+  ],
+  "case_budget": 9,
+  "duration_budget_seconds": 2700,
+  "metadata": {
+    "kind": "gutenberg-browser-fuzz",
+    "tracker": "github_pr:WordPress/gutenberg#79020",
+    "source_issue": "github_issue:WordPress/gutenberg#72717",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "The checked-in corpus executes nine Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes and emits replayable case-level evidence."
+    },
+    "corpus_cases": [
+      { "id": "orphan", "operation": "missing-anchor-load", "invariant": "A note whose ID is absent from block metadata is classified as detached." },
+      { "id": "saved-anchor", "operation": "saved-anchor-load", "invariant": "Saved metadata.noteId attaches the note to its block." },
+      { "id": "autosave-anchor", "operation": "autosave-anchor-load", "invariant": "Autosaved metadata.noteId attaches the note to its block." },
+      { "id": "live-create", "operation": "live-note-create", "invariant": "Creating a note persists its ID and restores the attachment after reload." },
+      { "id": "dirty-live-create", "operation": "dirty-block-live-note-create", "invariant": "Repair persistence attaches the note while preserving the unsaved edit boundary." },
+      { "id": "dirty-sibling-live-create", "operation": "dirty-sibling-live-note-create", "invariant": "Repair persistence preserves saved sibling content and the unsaved sibling edit boundary." },
+      { "id": "dirty-structural-live-create", "operation": "dirty-structural-live-note-create", "invariant": "Repair persistence targets the intended anchor across an unsaved structural insertion." },
+      { "id": "nested-live-create", "operation": "nested-live-note-create", "invariant": "A note attached to a nested block remains attached after reload." },
+      { "id": "double-live-create", "operation": "repeated-live-note-create", "invariant": "Repeated note creation persists and restores every note ID." }
+    ]
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "gutenberg",
+    "component": "gutenberg"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/gutenberg-notes-unsaved-attachment.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "gutenberg-notes-attachment-corpus:corpus",
+      "surface_ids": [
+        "gutenberg-block-editor",
+        "gutenberg-block-notes",
+        "gutenberg-collaboration-persistence"
+      ],
+      "operations": [
+        "missing-anchor-load",
+        "saved-anchor-load",
+        "autosave-anchor-load",
+        "live-note-create",
+        "dirty-block-live-note-create",
+        "dirty-sibling-live-note-create",
+        "dirty-structural-live-note-create",
+        "nested-live-note-create",
+        "repeated-live-note-create"
+      ],
+      "artifacts": [
+        { "name": "case_log", "path": "case-log.jsonl", "required": true, "metadata": { "semantic_key": "fuzz.case_log" } },
+        { "name": "replay_data", "path": "replay.json", "required": true, "metadata": { "semantic_key": "fuzz.replay" } },
+        { "name": "result_envelope", "path": "results.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 9,
+    "max_duration_seconds": 2700
+  },
+  "coverage": {
+    "surface_ids": [
+      "gutenberg-block-editor",
+      "gutenberg-block-notes",
+      "gutenberg-collaboration-persistence"
+    ],
+    "operations": [
+      "missing-anchor-load",
+      "saved-anchor-load",
+      "autosave-anchor-load",
+      "live-note-create",
+      "dirty-block-live-note-create",
+      "dirty-sibling-live-note-create",
+      "dirty-structural-live-note-create",
+      "nested-live-note-create",
+      "repeated-live-note-create"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      { "name": "case_log", "role": "case_log", "semantic_key": "fuzz.case_log", "required": true },
+      { "name": "replay_data", "role": "replay_data", "semantic_key": "fuzz.replay", "required": true },
+      { "name": "result_envelope", "role": "result_envelope", "semantic_key": "fuzz.report", "required": true }
+    ]
+  }
+}
