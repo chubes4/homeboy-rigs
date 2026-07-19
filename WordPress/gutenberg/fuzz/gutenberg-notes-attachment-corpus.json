@@ -16,9 +16,10 @@
     "dirty-sibling-live-note-create",
     "dirty-structural-live-note-create",
     "nested-live-note-create",
-    "repeated-live-note-create"
+    "repeated-live-note-create",
+    "inline-range-note-persistence"
   ],
-  "case_budget": 8,
+  "case_budget": 9,
   "duration_budget_seconds": 2700,
   "metadata": {
     "kind": "gutenberg-browser-fuzz",
@@ -26,7 +27,7 @@
     "source_issue": "github_issue:WordPress/gutenberg#72717",
     "readiness": {
       "level": "executable",
-      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes eight Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, and emits replayable case-level evidence."
+      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes nine Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, and emits replayable case-level evidence."
     },
     "corpus_cases": [
       { "id": "orphan", "operation": "missing-anchor-load", "invariant": "A note whose ID is absent from block metadata is classified as detached." },
@@ -36,7 +37,8 @@
       { "id": "dirty-sibling-live-create", "operation": "dirty-sibling-live-note-create", "invariant": "Repair persistence preserves saved sibling content and the unsaved sibling edit boundary." },
       { "id": "dirty-structural-live-create", "operation": "dirty-structural-live-note-create", "invariant": "Repair persistence targets the intended anchor across an unsaved structural insertion." },
       { "id": "nested-live-create", "operation": "nested-live-note-create", "invariant": "A note attached to a nested block remains attached after reload." },
-      { "id": "double-live-create", "operation": "repeated-live-note-create", "invariant": "Repeated note creation persists and restores every note ID." }
+      { "id": "double-live-create", "operation": "repeated-live-note-create", "invariant": "Repeated note creation persists and restores every note ID." },
+      { "id": "inline-range-live-create", "operation": "inline-range-note-persistence", "invariant": "A clean-post note created from a rich-text range persists through the targeted note path and reloads with its metadata, core/note marker, and note entity block attachment." }
     ]
   },
   "target": {
@@ -66,7 +68,8 @@
         "dirty-sibling-live-note-create",
         "dirty-structural-live-note-create",
         "nested-live-note-create",
-        "repeated-live-note-create"
+        "repeated-live-note-create",
+        "inline-range-note-persistence"
       ],
       "artifacts": [
         { "name": "case_log", "path": "case-log.jsonl", "required": true, "metadata": { "semantic_key": "fuzz.case_log" } },
@@ -79,7 +82,7 @@
     }
   ],
   "limits": {
-    "max_cases": 8,
+    "max_cases": 9,
     "max_duration_seconds": 2700
   },
   "coverage": {
@@ -96,7 +99,8 @@
       "dirty-sibling-live-note-create",
       "dirty-structural-live-note-create",
       "nested-live-note-create",
-      "repeated-live-note-create"
+      "repeated-live-note-create",
+      "inline-range-note-persistence"
     ]
   },
   "artifacts": {

@@ -33,6 +33,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     'dirty-structural-live-create',
     'nested-live-create',
     'double-live-create',
+    'inline-range-live-create',
   ];
 
   assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
@@ -53,6 +54,10 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /gutenberg-plugin-assets-loaded/);
   assert.match(traceSource, /\/wp-content\/plugins\/gutenberg\/build\//);
   assert.match(traceSource, /aria-label="New note".*note-form/s);
+  assert.match(traceSource, /inline-range-live-create/);
+  assert.match(traceSource, /core\/note/);
+  assert.match(traceSource, /reloadedNoteEntityResolvesToAttachment/);
+  assert.match(traceSource, /targetedPersistenceObserved/);
   assert.deepEqual(
     workload.artifacts.expected.map(({ semantic_key }) => semantic_key),
     ['fuzz.case_log', 'fuzz.replay', 'fuzz.report']

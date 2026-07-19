@@ -12,7 +12,7 @@ const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || 'notes-unsaved-attachme
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join( tmpdir(), 'gutenberg-notes-unsaved-attachment-artifacts' );
 const wpVersion = process.env.HOMEBOY_GUTENBERG_NOTES_WP_VERSION || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_WP_VERSION || '7.0';
-const knownCases = new Set( [ 'orphan', 'saved-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'matrix' ] );
+const knownCases = new Set( [ 'orphan', 'saved-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'inline-range-live-create', 'matrix' ] );
 const profileCase = process.env.HOMEBOY_TRACE_PROFILE || process.env.HOMEBOY_PROFILE || '';
 const targetCase = process.env.HOMEBOY_GUTENBERG_NOTES_CASE || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_CASE || ( knownCases.has( profileCase ) ? profileCase : 'orphan' );
 const probeDuration = process.env.HOMEBOY_GUTENBERG_NOTES_PROBE_DURATION || '12s';
@@ -194,6 +194,7 @@ function homeboy_gutenberg_notes_fixture_state() {
 	$dirty_structural_post_id = homeboy_gutenberg_notes_create_post_with_content( 'homeboy-notes-dirty-structural-live-create', 'Homeboy Notes Dirty Structural Live Create', homeboy_gutenberg_notes_two_paragraph_content() );
 	$nested_live_post_id   = homeboy_gutenberg_notes_create_post_with_content( 'homeboy-notes-nested-live-create', 'Homeboy Notes Nested Live Create', homeboy_gutenberg_notes_nested_content() );
 	$double_live_post_id   = homeboy_gutenberg_notes_create_post( 'homeboy-notes-double-live-create', 'Homeboy Notes Double Live Create' );
+	$inline_range_live_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-inline-range-live-create', 'Homeboy Notes Inline Range Live Create' );
 
 	$state = array(
 		'orphan' => array(
@@ -233,6 +234,11 @@ function homeboy_gutenberg_notes_fixture_state() {
 		),
 		'double-live-create' => array(
 			'post_id' => $double_live_post_id,
+			'note_id' => 0,
+			'expected_orphan' => false,
+		),
+		'inline-range-live-create' => array(
+			'post_id' => $inline_range_live_post_id,
 			'note_id' => 0,
 			'expected_orphan' => false,
 		),
@@ -362,6 +368,10 @@ const getBlockText = (block) => {
 	const content = block?.attributes?.content;
 	return typeof content === 'string' ? content : content?.toString?.() || '';
 };
+const getCoreNoteMarkers = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
+	const value = targetWindow.wp.richText?.create?.({ html: getBlockText(block) });
+	return (value?.formats || []).flatMap((formats) => (formats || []).filter((format) => format?.type === 'core/note').map((format) => ({ clientId: block.clientId, attributes: format.attributes || {} })));
+});
 const getAllBlockText = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).map(getBlockText).join('\\n');
 const getTargetBlock = (caseId, targetWindow = window) => {
 	const blocks = targetWindow.wp.data.select('core/block-editor').getBlocks();
@@ -426,12 +436,20 @@ const collectReloadedEditorState = async (caseId, postId, noteId, dirtyText) => 
 	await waitForFrameEditorReady(frameWindow, frameDocument, caseId);
 	const reloadedBlockNoteIds = getBlockNoteIds(frameWindow);
 	const reloadedNoteBlockTexts = getBlocksWithNoteId(noteId, frameWindow).map(getBlockText);
+	const reloadedAttachmentBlock = getBlocksWithNoteId(noteId, frameWindow)[0] || null;
+	const reloadedCoreNoteMarkers = getCoreNoteMarkers(frameWindow).filter((marker) => marker.clientId === reloadedAttachmentBlock?.clientId && Number(marker.attributes?.['data-id']) === Number(noteId));
+	const reloadedNoteEntity = await waitFor(() => frameWindow.wp.data.select('core')?.getEntityRecord?.('root', 'comment', Number(noteId)), 'reloaded note entity ' + noteId);
 	const reloadedBlockText = getAllBlockText(frameWindow);
 	return {
 		reloadedBlockNoteIds,
 		reloadedHasNoteId: reloadedBlockNoteIds.includes(Number(noteId)),
 		reloadedNoteBlockTexts,
 		reloadedNoteTargetsAnchor: reloadedNoteBlockTexts.some((text) => text.includes('Homeboy note anchor target')),
+		reloadedAttachmentBlockClientId: reloadedAttachmentBlock?.clientId || null,
+		reloadedCoreNoteMarkers,
+		reloadedHasCoreNoteMarker: reloadedCoreNoteMarkers.length > 0,
+		reloadedNoteEntity: reloadedNoteEntity ? { id: reloadedNoteEntity.id, post: reloadedNoteEntity.post } : null,
+		reloadedNoteEntityResolvesToAttachment: Number(reloadedNoteEntity?.id) === Number(noteId) && Number(reloadedNoteEntity?.post) === Number(postId) && !!reloadedAttachmentBlock,
 		reloadedBlockText,
 		reloadedHasDirtyText: reloadedBlockText.includes(dirtyText) || (frameDocument.body.textContent || '').includes(dirtyText),
 	};
@@ -509,6 +527,42 @@ const createNoteOnBlock = async (block, text) => {
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
+};
+const selectRichTextRange = (block) => {
+	const editable = document.querySelector('[data-block="' + block.clientId + '"] [contenteditable="true"]');
+	const text = 'note anchor';
+	const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
+	let node;
+	while ((node = walker.nextNode())) {
+		const start = node.textContent.indexOf(text);
+		if (start === -1) continue;
+		editable.focus();
+		const range = document.createRange();
+		range.setStart(node, start);
+		range.setEnd(node, start + text.length);
+		const selection = window.getSelection();
+		selection.removeAllRanges();
+		selection.addRange(range);
+		document.dispatchEvent(new Event('selectionchange', { bubbles: true }));
+		return selection.toString();
+	}
+	throw new Error('Could not select rich-text note anchor range');
+};
+const createNoteOnRichTextRange = async (block, text) => {
+	const beforeIds = new Set(getBlockNoteIds());
+	if (selectRichTextRange(block) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
+	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
+		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
+	}
+	const textarea = await waitFor(() => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form textarea')).find(isVisible), 'rich-text range note textarea');
+	textarea.focus();
+	setFieldValue(textarea, text);
+	const addButton = await waitFor(() => Array.from(textarea.closest('form')?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note'), 'rich-text range Add note button');
+	addButton.click();
+	await waitFor(() => document.body.textContent.includes(text), 'created rich-text range note thread ' + text);
+	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new rich-text range note id in block metadata');
+	await waitFor(() => getCoreNoteMarkers().some((marker) => marker.clientId === block.clientId && Number(marker.attributes?.['data-id']) === Number(noteId)), 'core/note rich-text marker for note ' + noteId);
+	return noteId;
 };
 const collectLiveCreateCase = async (caseId) => {
 	const item = fixtureState[caseId];
@@ -595,6 +649,30 @@ const collectLiveCreateCase = async (caseId) => {
 		observedRequests: observedRequests.filter((request) => request.url.includes('/wp-sync/v1/save') || request.url.includes('/wp-json/wp/v2/posts/')).slice(-20),
 	};
 };
+const collectInlineRangeLiveCreateCase = async () => {
+	const caseId = 'inline-range-live-create';
+	const item = fixtureState[caseId];
+	if (!item) throw new Error('Missing fixture case ' + caseId);
+	await waitForEditorReady(caseId);
+	const cleanPostBeforeCreate = !window.wp.data.select('core/editor').isEditedPostDirty?.();
+	const block = await waitFor(() => getTargetBlock(caseId), 'rich-text range target block');
+	const noteId = await createNoteOnRichTextRange(block, 'Homeboy inline range note');
+	const targetedPersistenceObserved = await waitFor(() => observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.status >= 200 && request.status < 300 && request.body.includes('_crdt_document') && request.body.includes('metadata') && !request.body.includes('"content"')), 'targeted note metadata persistence');
+	const fullPostSaveObserved = observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.body.includes('"content"'));
+	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, 'Homeboy dirty edit that must stay unsaved.');
+	return {
+		caseId,
+		postId: item.post_id,
+		noteId,
+		cleanPostBeforeCreate,
+		targetedPersistenceObserved,
+		fullPostSaveObserved,
+		...reloaded,
+		logicalOrphan: !reloaded.reloadedHasNoteId,
+		passed: cleanPostBeforeCreate && targetedPersistenceObserved && !fullPostSaveObserved && reloaded.reloadedHasNoteId && reloaded.reloadedHasCoreNoteMarker && reloaded.reloadedNoteEntityResolvesToAttachment,
+		observedRequests: observedRequests.filter((request) => request.url.includes('/wp-json/wp/v2/posts/') || request.url.includes('/wp-json/wp/v2/comments')).slice(-20),
+	};
+};
 const collectCase = async (caseId) => {
 	const item = fixtureState[caseId];
 	if (!item) {
@@ -602,6 +680,9 @@ const collectCase = async (caseId) => {
 	}
 	if (liveCreateCases.includes(caseId)) {
 		return collectLiveCreateCase(caseId);
+	}
+	if (caseId === 'inline-range-live-create') {
+		return collectInlineRangeLiveCreateCase();
 	}
 	return collectBlockAttachment(caseId, item, Number(item.note_id));
 };
@@ -706,6 +787,7 @@ try {
 		dirty_sibling_preserved: caseResults.some( ( item ) => item.caseId === 'dirty-sibling-live-create' && item.persistedHasOriginalSiblingText === true && item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ),
 		dirty_structural_targets_anchor: caseResults.some( ( item ) => item.caseId === 'dirty-structural-live-create' && item.reloadedNoteTargetsAnchor === true && item.persistedHasDirtyText === false && item.reloadedHasDirtyText === false ),
 		double_live_create_attached: caseResults.some( ( item ) => item.caseId === 'double-live-create' && item.persistedHasAllNoteIds === true && item.reloadedHasAllNoteIds === true ),
+		inline_range_note_persisted: caseResults.some( ( item ) => item.caseId === 'inline-range-live-create' && item.cleanPostBeforeCreate === true && item.targetedPersistenceObserved === true && item.fullPostSaveObserved === false && item.reloadedHasNoteId === true && item.reloadedHasCoreNoteMarker === true && item.reloadedNoteEntityResolvesToAttachment === true ),
 		page_error_count: pageErrors.length,
 		network_response_count: network.filter( ( entry ) => entry.type === 'response' ).length,
 		sync_save_response_count: network.filter( ( entry ) => entry.type === 'response' && JSON.stringify( entry ).includes( '/wp-sync/v1/save' ) ).length,
@@ -785,6 +867,11 @@ try {
 				id: 'double-live-create-preserved-all-notes',
 				status: targetCase !== 'matrix' && targetCase !== 'double-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'double-live-create' || ( item.persistedHasAllNoteIds === true && item.reloadedHasAllNoteIds === true ) ) ? 'pass' : 'fail',
 				message: `Double live-create persisted and reloaded all note IDs=${ caseResults.filter( ( item ) => item.caseId === 'double-live-create' ).every( ( item ) => item.persistedHasAllNoteIds === true && item.reloadedHasAllNoteIds === true ) }.`
+			},
+			{
+				id: 'inline-range-note-persisted-after-reload',
+				status: targetCase !== 'matrix' && targetCase !== 'inline-range-live-create' ? 'pass' : caseResults.every( ( item ) => item.caseId !== 'inline-range-live-create' || ( item.cleanPostBeforeCreate === true && item.targetedPersistenceObserved === true && item.fullPostSaveObserved === false && item.reloadedHasNoteId === true && item.reloadedHasCoreNoteMarker === true && item.reloadedNoteEntityResolvesToAttachment === true ) ) ? 'pass' : 'fail',
+				message: `Inline range note used targeted persistence without a full post save and reloaded metadata.noteId=${ caseResults.filter( ( item ) => item.caseId === 'inline-range-live-create' ).every( ( item ) => item.reloadedHasNoteId === true ) }, core/note=${ caseResults.filter( ( item ) => item.caseId === 'inline-range-live-create' ).every( ( item ) => item.reloadedHasCoreNoteMarker === true ) }, and entity attachment=${ caseResults.filter( ( item ) => item.caseId === 'inline-range-live-create' ).every( ( item ) => item.reloadedNoteEntityResolvesToAttachment === true ) }.`
 			},
 			{
 				id: 'page-errors-recorded',

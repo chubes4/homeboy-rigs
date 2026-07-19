@@ -24,6 +24,7 @@ const corpus = [
 	[ 'dirty-structural-live-create', 'dirty-structural-live-note-create' ],
 	[ 'nested-live-create', 'nested-live-note-create' ],
 	[ 'double-live-create', 'repeated-live-note-create' ],
+	[ 'inline-range-live-create', 'inline-range-note-persistence' ],
 ];
 
 await mkdir( artifactsDir, { recursive: true } );

@@ -106,6 +106,12 @@
       "settings": {
         "gutenberg_notes_case": "double-live-create"
       }
+    },
+    "inline-range-live-create": {
+      "scenario": "notes-unsaved-attachment",
+      "settings": {
+        "gutenberg_notes_case": "inline-range-live-create"
+      }
     }
   },
   "pipeline": {
