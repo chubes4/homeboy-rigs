@@ -560,7 +560,17 @@ const createNoteOnRichTextRange = async (block, text) => {
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
-	const textarea = await waitFor(() => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form textarea')).find(isVisible), 'rich-text range note textarea');
+	const findNewNoteField = () => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form textarea')).find(isVisible);
+	await sleep(500);
+	if (!findNewNoteField()) {
+		const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
+		const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
+		if (!optionsButton) throw new Error('Could not find rich-text toolbar options button');
+		optionsButton.click();
+		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'rich-text Add note menu item');
+		addNoteMenuItem.click();
+	}
+	const textarea = await waitFor(findNewNoteField, 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
 	const addButton = await waitFor(() => Array.from(textarea.closest('form')?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note'), 'rich-text range Add note button');
