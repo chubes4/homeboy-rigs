@@ -528,31 +528,37 @@ const createNoteOnBlock = async (block, text) => {
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
 };
-const selectRichTextRange = (block) => {
-	const editable = document.querySelector('[data-block="' + block.clientId + '"] [contenteditable="true"]');
+const findRichTextEditable = (block) => {
+	const selector = '[data-block="' + block.clientId + '"][contenteditable="true"], [data-block="' + block.clientId + '"] [contenteditable="true"]';
+	const documents = [ document, ...Array.from(document.querySelectorAll('iframe')).map((iframe) => iframe.contentDocument).filter(Boolean) ];
+	return documents.map((editorDocument) => editorDocument.querySelector(selector)).find((editable) => editable?.textContent?.includes('note anchor'));
+};
+const selectRichTextRange = (editable) => {
 	const text = 'note anchor';
-	const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
+	const editorDocument = editable.ownerDocument;
+	const walker = editorDocument.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
 	let node;
 	while ((node = walker.nextNode())) {
 		const start = node.textContent.indexOf(text);
 		if (start === -1) continue;
 		editable.focus();
-		const range = document.createRange();
+		const range = editorDocument.createRange();
 		range.setStart(node, start);
 		range.setEnd(node, start + text.length);
-		const selection = window.getSelection();
+		const selection = editorDocument.defaultView.getSelection();
 		selection.removeAllRanges();
 		selection.addRange(range);
-		document.dispatchEvent(new Event('selectionchange', { bubbles: true }));
+		editorDocument.dispatchEvent(new Event('selectionchange', { bubbles: true }));
 		return selection.toString();
 	}
 	throw new Error('Could not select rich-text note anchor range');
 };
 const createNoteOnRichTextRange = async (block, text) => {
 	const beforeIds = new Set(getBlockNoteIds());
-	if (selectRichTextRange(block) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
+	const editable = await waitFor(() => findRichTextEditable(block), 'rich-text note anchor editable');
+	if (selectRichTextRange(editable) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
-		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
+		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 	const textarea = await waitFor(() => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form textarea')).find(isVisible), 'rich-text range note textarea');
 	textarea.focus();
