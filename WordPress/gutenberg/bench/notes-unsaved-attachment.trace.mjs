@@ -660,6 +660,17 @@ const collectInlineRangeLiveCreateCase = async () => {
 	const item = fixtureState[caseId];
 	if (!item) throw new Error('Missing fixture case ' + caseId);
 	await waitForEditorReady(caseId);
+	try {
+		if (window.wp.data.select('core/preferences')?.get('core/edit-post', 'welcomeGuide')) {
+			window.wp.data.dispatch('core/preferences').set('core/edit-post', 'welcomeGuide', false);
+		}
+	} catch (error) {}
+	try {
+		if (window.wp.data.select('core/edit-post')?.isFeatureActive?.('welcomeGuide')) {
+			window.wp.data.dispatch('core/edit-post').toggleFeature('welcomeGuide');
+		}
+	} catch (error) {}
+	await sleep(500);
 	const cleanPostBeforeCreate = !window.wp.data.select('core/editor').isEditedPostDirty?.();
 	const block = await waitFor(() => getTargetBlock(caseId), 'rich-text range target block');
 	const noteId = await createNoteOnRichTextRange(block, 'Homeboy inline range note');
