@@ -871,7 +871,7 @@ const collectCrdtPeerLineageCase = async () => {
 	await sleep(1000);
 	const peer = readPeerState(peerWindow, noteId);
 	iframe.remove();
-	return { caseId, postId: item.post_id, noteId, parentBlockCount, parentText, peer, passed: peer.noteIds.includes(noteId) && peer.attachmentCount === 1 && peer.blockCount === parentBlockCount && peer.blockTexts.join('\n') === parentText, actorTimeline: [...actorTimeline], observedRequests: observedRequests.filter((request) => request.route === 'post-rest' || request.route === 'sync-save') };
+	return { caseId, postId: item.post_id, noteId, parentBlockCount, parentText, peer, passed: peer.noteIds.includes(noteId) && peer.attachmentCount === 1 && peer.blockCount === parentBlockCount && peer.blockTexts.join('\\n') === parentText, actorTimeline: [...actorTimeline], observedRequests: observedRequests.filter((request) => request.route === 'post-rest' || request.route === 'sync-save') };
 };
 const collectCase = async (caseId) => {
 	const item = fixtureState[caseId];
