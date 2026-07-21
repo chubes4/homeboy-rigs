@@ -24,6 +24,16 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   const workload = readJson('fuzz/gutenberg-notes-attachment-corpus.json');
   const runnerSource = readFileSync(path.join(root, 'fuzz/gutenberg-notes-unsaved-attachment.mjs'), 'utf8');
   const traceSource = readFileSync(path.join(root, 'bench/notes-unsaved-attachment.trace.mjs'), 'utf8');
+  const browserScriptStart = traceSource.indexOf('const browserScript = `') + 'const browserScript = `'.length;
+  const browserScriptEnd = traceSource.indexOf('`;\n\ntry {', browserScriptStart);
+  const browserScriptTemplate = traceSource.slice(browserScriptStart, browserScriptEnd);
+  const browserScript = Function(
+    'readinessTimeoutMs',
+    'targetCase',
+    'process',
+    `return \`${browserScriptTemplate}\``
+  )(20000, 'orphan', { env: { HOMEBOY_SEED: '1' } });
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const expectedCases = [
     'orphan',
     'saved-anchor',
@@ -76,6 +86,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /crdt-peer-lineage/);
   assert.match(traceSource, /actorTimeline/);
   assert.match(traceSource, /HOMEBOY_SEED/);
+  assert.doesNotThrow(() => new AsyncFunction(browserScript));
   assert.match(runnerSource, /seed: process\.env\.HOMEBOY_SEED/);
   assert.deepEqual(
     workload.artifacts.expected.map(({ semantic_key }) => semantic_key),
