@@ -50,6 +50,9 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     'store-coherence',
     'repair-sync-race',
     'crdt-peer-lineage',
+    'repair-failure-recovery',
+    'concurrent-note-repairs',
+    'inline-pending-edit',
   ];
 
   assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
@@ -85,6 +88,9 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /store-coherence/);
   assert.match(traceSource, /repair-sync-race/);
   assert.match(traceSource, /crdt-peer-lineage/);
+  assert.match(traceSource, /repair-failure-recovery/);
+  assert.match(traceSource, /concurrent-note-repairs/);
+  assert.match(traceSource, /inline-pending-edit/);
   assert.match(traceSource, /actorTimeline/);
   assert.match(traceSource, /HOMEBOY_SEED/);
   assert.doesNotThrow(() => new AsyncFunction(browserScript));
