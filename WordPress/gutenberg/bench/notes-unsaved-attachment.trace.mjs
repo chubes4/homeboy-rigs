@@ -575,7 +575,7 @@ const openAddNoteField = async (block) => {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
-		const findNewNoteForm = () => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form')).find(isVisible);
+		const findNewNoteForm = () => Array.from(document.querySelectorAll('.editor-collab-sidebar-panel__note-form')).find((form) => isVisible(form) && form.querySelector('textarea'));
 		const findNewNoteField = () => findNewNoteForm()?.querySelector('textarea');
 		const hasNewNoteSubmit = () => !!Array.from(findNewNoteForm()?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note');
 		if (!findNewNoteField() || !hasNewNoteSubmit()) {
@@ -633,7 +633,7 @@ const createNoteOnRichTextRange = async (block, text) => {
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
-	const findNewNoteField = () => Array.from(document.querySelectorAll('[role="treeitem"][aria-label="New note"] .editor-collab-sidebar-panel__note-form textarea')).find(isVisible);
+	const findNewNoteField = () => Array.from(document.querySelectorAll('.editor-collab-sidebar-panel__note-form textarea')).find(isVisible);
 	await sleep(500);
 	if (!findNewNoteField()) {
 		const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
