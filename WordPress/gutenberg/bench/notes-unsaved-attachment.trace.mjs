@@ -347,24 +347,25 @@ window.fetch = async (input, init = {}) => {
 	const rawBody = typeof init.body === 'string' ? init.body : '';
 	let payload = null;
 	try { payload = rawBody ? JSON.parse(rawBody) : null; } catch (error) {}
-	const route = url.includes('/wp-sync/v1/save') ? 'sync-save' : url.includes('/wp-json/wp/v2/posts/') ? 'post-rest' : url.includes('/wp-json/wp/v2/comments') ? 'comment-rest' : 'other';
+	const route = url.includes('/wp-sync/v1/save-entity') ? 'entity-save' : url.includes('/wp-sync/v1/save') ? 'sync-save' : url.includes('/wp-json/wp/v2/posts/') ? 'post-rest' : url.includes('/wp-json/wp/v2/comments') ? 'comment-rest' : 'other';
 	const payloadKeys = Object.keys(payload || {}).sort();
 	const semantics = {
 		has_crdt_document: typeof payload?.meta?._crdt_document === 'string' || typeof payload?.doc === 'string',
 		has_metadata: JSON.stringify(payload || {}).includes('metadata'),
 		has_content: Object.prototype.hasOwnProperty.call(payload || {}, 'content'),
+		entity_id: String(payload?.room || '').split(':').at(-1),
 		payload_keys: payloadKeys,
-		is_targeted_repair: payloadKeys.length === 2 && payloadKeys.includes('content') && payloadKeys.includes('meta') && typeof payload?.meta?._crdt_document === 'string',
+		is_targeted_repair: route === 'entity-save' && typeof payload?.content === 'string' && typeof payload?.expected_content === 'string' && typeof payload?.doc === 'string',
 		is_full_editor_save: Object.prototype.hasOwnProperty.call(payload || {}, 'content') && typeof payload?.meta?._crdt_document !== 'string',
 	};
-	const raceDelay = currentCase === 'repair-sync-race' && (route === 'sync-save' || route === 'post-rest')
+	const raceDelay = currentCase === 'repair-sync-race' && (route === 'sync-save' || route === 'entity-save')
 		? ((Array.from(seed || '0').reduce((total, character) => total + character.charCodeAt(0), 0) + (route === 'sync-save' ? 1 : 0)) % 2 ? 180 : 25)
 		: 0;
 	if (raceDelay) {
 		actorEvent('parent', 'request-delayed', { route, delay_ms: raceDelay, seed });
 		await sleep(raceDelay);
 	}
-	const holdConcurrentRepair = currentCase === 'concurrent-note-repairs' && route === 'post-rest' && semantics.is_targeted_repair && heldRepairCount++ === 0;
+	const holdConcurrentRepair = currentCase === 'concurrent-note-repairs' && semantics.is_targeted_repair && heldRepairCount++ === 0;
 	const holdPendingComment = currentCase === 'inline-pending-edit' && route === 'comment-rest' && method === 'POST';
 	if (holdConcurrentRepair || holdPendingComment) {
 		actorEvent('parent', 'request-held', { route, semantics });
@@ -373,7 +374,7 @@ window.fetch = async (input, init = {}) => {
 	}
 	actorEvent('parent', 'request-start', { route, method, semantics });
 	try {
-		if (forcedRepairFailurePending && route === 'post-rest' && semantics.is_targeted_repair) {
+		if (forcedRepairFailurePending && semantics.is_targeted_repair) {
 			forcedRepairFailurePending = false;
 			const response = new Response(JSON.stringify({ code: 'forced_attachment_failure', message: 'Forced attachment repair failure.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
 			observedRequests.push({ t_ms: Math.round(performance.now()), url, method, status: response.status, route, semantics, body: rawBody.slice(0, 500), forced_failure: true });
@@ -810,7 +811,7 @@ const collectLiveCreateCase = async (caseId) => {
 	let persistedHasOriginalSiblingText = persistedContent.includes('Homeboy sibling text that must stay saved.');
 	let repairSaveObserved = false;
 	try {
-		repairSaveObserved = await waitFor(() => observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.status >= 200 && request.status < 300 && request.semantics.is_targeted_repair), 'repair entity save after live note create');
+		repairSaveObserved = await waitFor(() => observedRequests.some((request) => request.method === 'POST' && request.status >= 200 && request.status < 300 && request.semantics.is_targeted_repair && request.semantics.entity_id === String(item.post_id)), 'repair entity save after live note create');
 	} catch (error) {}
 	try {
 		persistedHasNoteId = await waitFor(async () => {
@@ -864,7 +865,7 @@ const collectInlineRangeLiveCreateCase = async () => {
 	const cleanPostBeforeCreate = !window.wp.data.select('core/editor').isEditedPostDirty?.();
 	const block = await waitFor(() => getTargetBlock(caseId), 'rich-text range target block');
 	const noteId = await createNoteOnRichTextRange(block, 'Homeboy inline range note');
-	const targetedPersistenceObserved = await waitFor(() => observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.status >= 200 && request.status < 300 && request.semantics.is_targeted_repair), 'targeted note metadata persistence');
+	const targetedPersistenceObserved = await waitFor(() => observedRequests.some((request) => request.method === 'POST' && request.status >= 200 && request.status < 300 && request.semantics.is_targeted_repair && request.semantics.entity_id === String(item.post_id)), 'targeted note metadata persistence');
 	const fullPostSaveObserved = observedRequests.some((request) => request.url.includes('/wp-json/wp/v2/posts/' + item.post_id) && request.method === 'POST' && request.semantics.is_full_editor_save);
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, 'Homeboy dirty edit that must stay unsaved.');
 	return {
@@ -877,14 +878,14 @@ const collectInlineRangeLiveCreateCase = async () => {
 		...reloaded,
 		logicalOrphan: !reloaded.reloadedHasNoteId,
 		passed: cleanPostBeforeCreate && targetedPersistenceObserved && !fullPostSaveObserved && reloaded.reloadedHasNoteId && reloaded.reloadedHasCoreNoteMarker && reloaded.reloadedNoteEntityResolvesToAttachment,
-		observedRequests: observedRequests.filter((request) => request.url.includes('/wp-json/wp/v2/posts/') || request.url.includes('/wp-json/wp/v2/comments')).slice(-20),
+		observedRequests: observedRequests.filter((request) => request.route === 'entity-save' || request.url.includes('/wp-json/wp/v2/posts/') || request.url.includes('/wp-json/wp/v2/comments')).slice(-20),
 	};
 };
 const waitForPersistedNoteIds = async (postId, noteIds) => waitFor(async () => {
 	const content = await getPostContent(postId);
 	return noteIds.every((noteId) => contentHasNoteId(content, noteId));
 }, 'persisted note IDs ' + noteIds.join(','));
-const postRequests = (postId) => observedRequests.filter((request) => request.url.includes('/wp-json/wp/v2/posts/' + postId) && request.method === 'POST');
+const postRequests = (postId) => observedRequests.filter((request) => request.method === 'POST' && (request.url.includes('/wp-json/wp/v2/posts/' + postId) || (request.route === 'entity-save' && request.semantics.entity_id === String(postId))));
 const collectNoSavedMatchCase = async () => {
 	const caseId = 'no-saved-match';
 	const item = fixtureState[caseId];
@@ -959,7 +960,7 @@ const collectRepairSyncRaceCase = async () => {
 	await syncSave;
 	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, secondNoteId, '');
-	const raceRequests = observedRequests.filter((request) => request.route === 'post-rest' || request.route === 'sync-save');
+	const raceRequests = observedRequests.filter((request) => request.route === 'entity-save' || request.route === 'post-rest' || request.route === 'sync-save');
 	const delayedRoutes = actorTimeline.filter((entry) => entry.event === 'request-delayed').map((entry) => entry.data.route);
 	const targetedRepairs = raceRequests.filter((request) => request.method === 'POST' && request.semantics.is_targeted_repair);
 	const competingEntitySaves = raceRequests.filter((request) => request.method === 'POST' && request.semantics.has_crdt_document && !request.semantics.is_targeted_repair);
@@ -1005,7 +1006,7 @@ const collectConcurrentNoteRepairsCase = async () => {
 	await waitForEditorReady(caseId);
 	const target = getTargetBlock(caseId);
 	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note');
-	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'post-rest'), 'first targeted repair hold');
+	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'entity-save'), 'first targeted repair hold');
 	const secondCreation = await createConcurrentNoteRepair(target, 'Homeboy overlapping repair note');
 	await waitFor(() => getBlockNoteIds().length === 2, 'second local note attachment while first repair is held');
 	releaseHeldRequest();
