@@ -409,9 +409,10 @@ const setFieldValue = (field, value) => {
 	field.dispatchEvent(new ownerWindow.Event('change', { bubbles: true }));
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
-const findNewNoteField = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable="true"]'))).find((field) => {
+const getNoteFieldCandidates = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable], [role="textbox"]')));
+const findNewNoteField = (existingFields) => getNoteFieldCandidates().find((field) => {
 	const prompt = field.getAttribute('placeholder') || field.getAttribute('data-placeholder') || field.getAttribute('aria-label') || '';
-	return isVisible(field) && prompt.startsWith('Add a note');
+	return isVisible(field) && (prompt.startsWith('Add a note') || (existingFields && !existingFields.has(field) && field.getAttribute('role') === 'textbox'));
 });
 const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
 const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
@@ -583,6 +584,7 @@ const collectBlockAttachment = async (caseId, item, noteId) => {
 	};
 };
 const openAddNoteField = async (block) => {
+	const existingFields = new Set(getNoteFieldCandidates());
 	window.wp.data.dispatch('core/block-editor').selectBlock(block.clientId);
 	const blockElement = document.querySelector('[data-block="' + block.clientId + '"]');
 	blockElement?.scrollIntoView({ block: 'center' });
@@ -594,7 +596,7 @@ const openAddNoteField = async (block) => {
 	}
 		await sleep(500);
 		const hasNewNoteSubmit = () => isVisible(findButtonByText('Add note'));
-		if (!findNewNoteField() || !hasNewNoteSubmit()) {
+		if (!findNewNoteField(existingFields) || !hasNewNoteSubmit()) {
 			const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 			if (!optionsButton) {
@@ -605,9 +607,9 @@ const openAddNoteField = async (block) => {
 		addNoteMenuItem.click();
 	}
 	try {
-		return await waitFor(findNewNoteField, 'new note textarea');
+		return await waitFor(() => findNewNoteField(existingFields), 'new note textarea');
 	} catch (error) {
-		const candidates = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable="true"]'))).filter(isVisible).map((field) => ({
+		const candidates = getNoteFieldCandidates().filter(isVisible).map((field) => ({
 			tag: field.tagName,
 			placeholder: field.getAttribute('placeholder'),
 			dataPlaceholder: field.getAttribute('data-placeholder'),
@@ -657,11 +659,12 @@ const createNoteOnRichTextRange = async (block, text) => {
 	const beforeIds = new Set(getBlockNoteIds());
 	const editable = await waitFor(() => findRichTextEditable(block), 'rich-text note anchor editable');
 	if (selectRichTextRange(editable) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
+	const existingFields = new Set(getNoteFieldCandidates());
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 	await sleep(500);
-	if (!findNewNoteField()) {
+	if (!findNewNoteField(existingFields)) {
 		const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 		const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 		if (!optionsButton) throw new Error('Could not find rich-text toolbar options button');
@@ -669,7 +672,7 @@ const createNoteOnRichTextRange = async (block, text) => {
 		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'rich-text Add note menu item');
 		addNoteMenuItem.click();
 	}
-	const textarea = await waitFor(findNewNoteField, 'rich-text range note textarea');
+	const textarea = await waitFor(() => findNewNoteField(existingFields), 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
 	const addButton = await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'rich-text range Add note button');
