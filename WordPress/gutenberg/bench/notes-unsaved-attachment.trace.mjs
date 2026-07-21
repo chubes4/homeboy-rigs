@@ -377,22 +377,24 @@ const waitFor = async (predicate, label) => {
 	}
 	throw new Error('Timed out waiting for ' + label);
 };
-const findButtonByText = (text) => Array.from(document.querySelectorAll('button')).find((button) => (button.textContent || '').trim() === text);
+const getEditorDocuments = () => [ document, ...Array.from(document.querySelectorAll('iframe')).map((iframe) => iframe.contentDocument).filter(Boolean) ];
+const findButtonByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('button'))).find((button) => (button.textContent || '').trim() === text);
 const isVisible = (node) => {
 	const rect = node?.getBoundingClientRect?.();
 	return !!rect && rect.width > 0 && rect.height > 0;
 };
-const findMenuItemByText = (text) => Array.from(document.querySelectorAll('[role="menuitem"], button')).find((node) => (node.textContent || '').trim().startsWith(text) && isVisible(node));
+const findMenuItemByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('[role="menuitem"], button'))).find((node) => (node.textContent || '').trim().startsWith(text) && isVisible(node));
 const setFieldValue = (field, value) => {
-	const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+	const ownerWindow = field.ownerDocument.defaultView;
+	const prototype = field instanceof ownerWindow.HTMLTextAreaElement ? ownerWindow.HTMLTextAreaElement.prototype : ownerWindow.HTMLInputElement.prototype;
 	const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
 	if (setter) {
 		setter.call(field, value);
 	} else {
 		field.value = value;
 	}
-	field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
-	field.dispatchEvent(new Event('change', { bubbles: true }));
+	field.dispatchEvent(new ownerWindow.InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+	field.dispatchEvent(new ownerWindow.Event('change', { bubbles: true }));
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
 const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
@@ -575,10 +577,10 @@ const openAddNoteField = async (block) => {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
-		const findNewNoteField = () => Array.from(document.querySelectorAll('textarea')).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
+		const findNewNoteField = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea'))).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
 		const hasNewNoteSubmit = () => isVisible(findButtonByText('Add note'));
 		if (!findNewNoteField() || !hasNewNoteSubmit()) {
-			const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
+			const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 			if (!optionsButton) {
 			throw new Error('Could not find block toolbar options button; toolbar buttons=' + toolbarButtons.map((button) => button.getAttribute('aria-label') || button.textContent || '').join(', '));
@@ -602,8 +604,7 @@ const createNoteOnBlock = async (block, text) => {
 };
 const findRichTextEditable = (block) => {
 	const selector = '[data-block="' + block.clientId + '"][contenteditable="true"], [data-block="' + block.clientId + '"] [contenteditable="true"]';
-	const documents = [ document, ...Array.from(document.querySelectorAll('iframe')).map((iframe) => iframe.contentDocument).filter(Boolean) ];
-	return documents.map((editorDocument) => editorDocument.querySelector(selector)).find((editable) => editable?.textContent?.includes('note anchor'));
+	return getEditorDocuments().map((editorDocument) => editorDocument.querySelector(selector)).find((editable) => editable?.textContent?.includes('note anchor'));
 };
 const selectRichTextRange = (editable) => {
 	const text = 'note anchor';
@@ -632,10 +633,10 @@ const createNoteOnRichTextRange = async (block, text) => {
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
-	const findNewNoteField = () => Array.from(document.querySelectorAll('textarea')).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
+	const findNewNoteField = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea'))).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
 	await sleep(500);
 	if (!findNewNoteField()) {
-		const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
+		const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 		const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 		if (!optionsButton) throw new Error('Could not find rich-text toolbar options button');
 		optionsButton.click();
