@@ -604,7 +604,19 @@ const openAddNoteField = async (block) => {
 		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'Add note menu item');
 		addNoteMenuItem.click();
 	}
-	return waitFor(findNewNoteField, 'new note textarea');
+	try {
+		return await waitFor(findNewNoteField, 'new note textarea');
+	} catch (error) {
+		const candidates = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable="true"]'))).filter(isVisible).map((field) => ({
+			tag: field.tagName,
+			placeholder: field.getAttribute('placeholder'),
+			dataPlaceholder: field.getAttribute('data-placeholder'),
+			ariaLabel: field.getAttribute('aria-label'),
+			role: field.getAttribute('role'),
+			className: field.className,
+		}));
+		throw new Error(error.message + '; visible editor fields=' + JSON.stringify(candidates.slice(0, 30)));
+	}
 };
 const createNoteOnBlock = async (block, text) => {
 	const beforeIds = new Set(getBlockNoteIds());
