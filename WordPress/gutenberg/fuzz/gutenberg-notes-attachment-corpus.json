@@ -1,0 +1,137 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "gutenberg-notes-attachment-corpus",
+  "label": "Gutenberg Block Notes attachment persistence corpus",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "gutenberg-block-editor",
+    "gutenberg-block-notes",
+    "gutenberg-collaboration-persistence"
+  ],
+  "operations": [
+    "missing-anchor-load",
+    "saved-anchor-load",
+    "live-note-create",
+    "dirty-block-live-note-create",
+    "dirty-sibling-live-note-create",
+    "dirty-structural-live-note-create",
+    "nested-live-note-create",
+    "repeated-live-note-create",
+    "inline-range-note-persistence",
+    "no-saved-match-live-mutation",
+    "ambiguous-contentless-siblings",
+    "empty-saved-content-unsaved-note",
+    "store-coherence-before-dependent-operation",
+    "repair-sync-order-race",
+    "crdt-peer-lineage-reload"
+  ],
+  "case_budget": 15,
+  "duration_budget_seconds": 2700,
+  "metadata": {
+    "kind": "gutenberg-browser-fuzz",
+    "tracker": "github_pr:WordPress/gutenberg#79020",
+    "source_issue": "github_issue:WordPress/gutenberg#72717",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes fifteen Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, captures actor and request timelines, and emits replayable case-level evidence."
+    },
+    "corpus_cases": [
+      { "id": "orphan", "operation": "missing-anchor-load", "invariant": "A note whose ID is absent from block metadata is classified as detached." },
+      { "id": "saved-anchor", "operation": "saved-anchor-load", "invariant": "Saved metadata.noteId attaches the note to its block." },
+      { "id": "live-create", "operation": "live-note-create", "invariant": "Creating a note persists its ID and restores the attachment after reload." },
+      { "id": "dirty-live-create", "operation": "dirty-block-live-note-create", "invariant": "Repair persistence attaches the note while preserving the unsaved edit boundary." },
+      { "id": "dirty-sibling-live-create", "operation": "dirty-sibling-live-note-create", "invariant": "Repair persistence preserves saved sibling content and the unsaved sibling edit boundary." },
+      { "id": "dirty-structural-live-create", "operation": "dirty-structural-live-note-create", "invariant": "Repair persistence targets the intended anchor across an unsaved structural insertion." },
+      { "id": "nested-live-create", "operation": "nested-live-note-create", "invariant": "A note attached to a nested block remains attached after reload." },
+      { "id": "double-live-create", "operation": "repeated-live-note-create", "invariant": "Repeated note creation persists and restores every note ID." },
+      { "id": "inline-range-live-create", "operation": "inline-range-note-persistence", "invariant": "A clean-post note created from a rich-text range persists through the targeted note path and reloads with its metadata, core/note marker, and note entity block attachment." },
+      { "id": "no-saved-match", "operation": "no-saved-match-live-mutation", "invariant": "When a live target no longer matches any saved block, repair never attaches the note to a known-invalid saved block." },
+      { "id": "ambiguous-contentless", "operation": "ambiguous-contentless-siblings", "invariant": "Identical contentless siblings retain the selected sibling as the exact note attachment target after an unsaved path shift." },
+      { "id": "empty-saved-content", "operation": "empty-saved-content-unsaved-note", "invariant": "An empty saved document plus an unsaved inserted note target produces no parse error or unintended full editor save." },
+      { "id": "store-coherence", "operation": "store-coherence-before-dependent-operation", "invariant": "Block-editor and editor stores agree on the repaired attachment before a dependent second note operation." },
+      { "id": "repair-sync-race", "operation": "repair-sync-order-race", "invariant": "Seeded REST and wp-sync request ordering converges with every created note ID attached." },
+      { "id": "crdt-peer-lineage", "operation": "crdt-peer-lineage-reload", "invariant": "A second same-origin editor peer reloads persisted CRDT lineage without duplicate blocks or text and retains the attachment." }
+    ]
+  },
+  "target": {
+    "type": "wordpress-plugin",
+    "slug": "gutenberg",
+    "component": "gutenberg"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/gutenberg-notes-unsaved-attachment.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "gutenberg-notes-attachment-corpus:corpus",
+      "surface_ids": [
+        "gutenberg-block-editor",
+        "gutenberg-block-notes",
+        "gutenberg-collaboration-persistence"
+      ],
+      "operations": [
+        "missing-anchor-load",
+        "saved-anchor-load",
+        "live-note-create",
+        "dirty-block-live-note-create",
+        "dirty-sibling-live-note-create",
+        "dirty-structural-live-note-create",
+        "nested-live-note-create",
+        "repeated-live-note-create",
+        "inline-range-note-persistence",
+        "no-saved-match-live-mutation",
+        "ambiguous-contentless-siblings",
+        "empty-saved-content-unsaved-note",
+        "store-coherence-before-dependent-operation",
+        "repair-sync-order-race",
+        "crdt-peer-lineage-reload"
+      ],
+      "artifacts": [
+        { "name": "case_log", "path": "case-log.jsonl", "required": true, "metadata": { "semantic_key": "fuzz.case_log" } },
+        { "name": "replay_data", "path": "replay.json", "required": true, "metadata": { "semantic_key": "fuzz.replay" } },
+        { "name": "result_envelope", "path": "results.json", "required": true, "metadata": { "semantic_key": "fuzz.report" } }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 15,
+    "max_duration_seconds": 2700
+  },
+  "coverage": {
+    "surface_ids": [
+      "gutenberg-block-editor",
+      "gutenberg-block-notes",
+      "gutenberg-collaboration-persistence"
+    ],
+    "operations": [
+      "missing-anchor-load",
+      "saved-anchor-load",
+      "live-note-create",
+      "dirty-block-live-note-create",
+      "dirty-sibling-live-note-create",
+      "dirty-structural-live-note-create",
+      "nested-live-note-create",
+      "repeated-live-note-create",
+      "inline-range-note-persistence",
+      "no-saved-match-live-mutation",
+      "ambiguous-contentless-siblings",
+      "empty-saved-content-unsaved-note",
+      "store-coherence-before-dependent-operation",
+      "repair-sync-order-race",
+      "crdt-peer-lineage-reload"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      { "name": "case_log", "role": "case_log", "semantic_key": "fuzz.case_log", "required": true },
+      { "name": "replay_data", "role": "replay_data", "semantic_key": "fuzz.replay", "required": true },
+      { "name": "result_envelope", "role": "result_envelope", "semantic_key": "fuzz.report", "required": true }
+    ]
+  }
+}
