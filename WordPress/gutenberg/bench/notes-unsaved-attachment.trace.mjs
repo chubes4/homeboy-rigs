@@ -390,6 +390,18 @@ const isVisible = (node) => {
 	return !!rect && rect.width > 0 && rect.height > 0;
 };
 const findMenuItemByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('[role="menuitem"], button'))).find((node) => (node.textContent || '').trim().startsWith(text) && isVisible(node));
+const waitForAddNoteButton = async () => {
+	try {
+		return await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'Add note button');
+	} catch (error) {
+		const buttons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('button'))).filter(isVisible).map((button) => ({
+			text: (button.textContent || '').trim(),
+			ariaLabel: button.getAttribute('aria-label'),
+			disabled: button.disabled,
+		}));
+		throw new Error(error.message + '; visible buttons=' + JSON.stringify(buttons.slice(-30)));
+	}
+};
 const setFieldValue = (field, value) => {
 	const ownerWindow = field.ownerDocument.defaultView;
 	if (field.isContentEditable) {
@@ -626,7 +638,7 @@ const createNoteOnBlock = async (block, text) => {
 	textarea.focus();
 	setFieldValue(textarea, text);
 	await sleep(250);
-	const addButton = await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'Add note button');
+	const addButton = await waitForAddNoteButton();
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
@@ -675,7 +687,7 @@ const createNoteOnRichTextRange = async (block, text) => {
 	const textarea = await waitFor(() => findNewNoteField(existingFields), 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
-	const addButton = await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'rich-text range Add note button');
+	const addButton = await waitForAddNoteButton();
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created rich-text range note thread ' + text);
 	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new rich-text range note id in block metadata');
