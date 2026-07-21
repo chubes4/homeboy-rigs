@@ -12,7 +12,7 @@ const scenarioId = process.env.HOMEBOY_TRACE_SCENARIO || 'notes-unsaved-attachme
 const resultsFile = process.env.HOMEBOY_TRACE_RESULTS_FILE;
 const artifactDir = process.env.HOMEBOY_TRACE_ARTIFACT_DIR || path.join( tmpdir(), 'gutenberg-notes-unsaved-attachment-artifacts' );
 const wpVersion = process.env.HOMEBOY_GUTENBERG_NOTES_WP_VERSION || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_WP_VERSION || '7.0';
-const knownCases = new Set( [ 'orphan', 'saved-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'inline-range-live-create', 'no-saved-match', 'ambiguous-contentless', 'empty-saved-content', 'store-coherence', 'repair-sync-race', 'crdt-peer-lineage', 'matrix' ] );
+const knownCases = new Set( [ 'orphan', 'saved-anchor', 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create', 'inline-range-live-create', 'no-saved-match', 'ambiguous-contentless', 'empty-saved-content', 'store-coherence', 'repair-sync-race', 'crdt-peer-lineage', 'repair-failure-recovery', 'concurrent-note-repairs', 'inline-pending-edit', 'matrix' ] );
 const profileCase = process.env.HOMEBOY_TRACE_PROFILE || process.env.HOMEBOY_PROFILE || '';
 const targetCase = process.env.HOMEBOY_GUTENBERG_NOTES_CASE || process.env.HOMEBOY_SETTINGS_GUTENBERG_NOTES_CASE || ( knownCases.has( profileCase ) ? profileCase : 'orphan' );
 const probeDuration = process.env.HOMEBOY_GUTENBERG_NOTES_PROBE_DURATION || '12s';
@@ -205,6 +205,9 @@ function homeboy_gutenberg_notes_fixture_state() {
 	$store_coherence_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-store-coherence', 'Homeboy Notes Store Coherence' );
 	$repair_sync_race_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-repair-sync-race', 'Homeboy Notes Repair Sync Race' );
 	$crdt_peer_lineage_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-crdt-peer-lineage', 'Homeboy Notes CRDT Peer Lineage' );
+	$repair_failure_recovery_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-repair-failure-recovery', 'Homeboy Notes Repair Failure Recovery' );
+	$concurrent_note_repairs_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-concurrent-note-repairs', 'Homeboy Notes Concurrent Repairs' );
+	$inline_pending_edit_post_id = homeboy_gutenberg_notes_create_post( 'homeboy-notes-inline-pending-edit', 'Homeboy Notes Inline Pending Edit' );
 
 	$state = array(
 		'orphan' => array(
@@ -258,6 +261,9 @@ function homeboy_gutenberg_notes_fixture_state() {
 		'store-coherence' => array( 'post_id' => $store_coherence_post_id, 'note_id' => 0, 'expected_orphan' => false ),
 		'repair-sync-race' => array( 'post_id' => $repair_sync_race_post_id, 'note_id' => 0, 'expected_orphan' => false ),
 		'crdt-peer-lineage' => array( 'post_id' => $crdt_peer_lineage_post_id, 'note_id' => 0, 'expected_orphan' => false ),
+		'repair-failure-recovery' => array( 'post_id' => $repair_failure_recovery_post_id, 'note_id' => 0, 'expected_orphan' => false ),
+		'concurrent-note-repairs' => array( 'post_id' => $concurrent_note_repairs_post_id, 'note_id' => 0, 'expected_orphan' => false ),
+		'inline-pending-edit' => array( 'post_id' => $inline_pending_edit_post_id, 'note_id' => 0, 'expected_orphan' => false ),
 	);
 
 	update_option( 'homeboy_gutenberg_notes_fixture_state', $state, false );
@@ -329,6 +335,10 @@ const currentCase = new URL(location.href).searchParams.get('homeboy_notes_case'
 const observedRequests = [];
 const actorTimeline = [];
 const actorEvent = (actor, event, data = {}) => actorTimeline.push({ t_ms: Math.round(performance.now()), actor, event, data });
+let releaseHeldRequest;
+const heldRequest = new Promise((resolve) => { releaseHeldRequest = resolve; });
+let heldRepairCount = 0;
+let forcedRepairFailurePending = currentCase === 'repair-failure-recovery';
 const originalFetch = window.fetch.bind(window);
 window.fetch = async (input, init = {}) => {
 	const request = input instanceof Request ? input : null;
@@ -337,7 +347,7 @@ window.fetch = async (input, init = {}) => {
 	const rawBody = typeof init.body === 'string' ? init.body : '';
 	let payload = null;
 	try { payload = rawBody ? JSON.parse(rawBody) : null; } catch (error) {}
-	const route = url.includes('/wp-sync/v1/save') ? 'sync-save' : url.includes('/wp-json/wp/v2/posts/') ? 'post-rest' : 'other';
+	const route = url.includes('/wp-sync/v1/save') ? 'sync-save' : url.includes('/wp-json/wp/v2/posts/') ? 'post-rest' : url.includes('/wp-json/wp/v2/comments') ? 'comment-rest' : 'other';
 	const payloadKeys = Object.keys(payload || {}).sort();
 	const semantics = {
 		has_crdt_document: typeof payload?.meta?._crdt_document === 'string' || typeof payload?.doc === 'string',
@@ -354,8 +364,22 @@ window.fetch = async (input, init = {}) => {
 		actorEvent('parent', 'request-delayed', { route, delay_ms: raceDelay, seed });
 		await sleep(raceDelay);
 	}
+	const holdConcurrentRepair = currentCase === 'concurrent-note-repairs' && route === 'post-rest' && semantics.is_targeted_repair && heldRepairCount++ === 0;
+	const holdPendingComment = currentCase === 'inline-pending-edit' && route === 'comment-rest' && method === 'POST';
+	if (holdConcurrentRepair || holdPendingComment) {
+		actorEvent('parent', 'request-held', { route, semantics });
+		await heldRequest;
+		actorEvent('parent', 'request-released', { route, semantics });
+	}
 	actorEvent('parent', 'request-start', { route, method, semantics });
 	try {
+		if (forcedRepairFailurePending && route === 'post-rest' && semantics.is_targeted_repair) {
+			forcedRepairFailurePending = false;
+			const response = new Response(JSON.stringify({ code: 'forced_attachment_failure', message: 'Forced attachment repair failure.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+			observedRequests.push({ t_ms: Math.round(performance.now()), url, method, status: response.status, route, semantics, body: rawBody.slice(0, 500), forced_failure: true });
+			actorEvent('parent', 'request-finish', { route, method, status: response.status, semantics, forced_failure: true });
+			return response;
+		}
 		const response = await originalFetch(input, init);
 		observedRequests.push({ t_ms: Math.round(performance.now()), url, method, status: response.status, route, semantics, body: rawBody.slice(0, 500) });
 		actorEvent('parent', 'request-finish', { route, method, status: response.status, semantics });
@@ -643,6 +667,44 @@ const createNoteOnBlock = async (block, text) => {
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
 };
+const createConcurrentNoteRepair = async (block, text) => {
+	const coreDispatch = window.wp.data.dispatch('core');
+	const editorSelect = window.wp.data.select('core/editor');
+	const liveBlock = window.wp.data.select('core/block-editor').getBlock(block.clientId);
+	const savedNote = await coreDispatch.saveEntityRecord('root', 'comment', {
+		post: editorSelect.getCurrentPostId(),
+		content: text,
+		status: 'hold',
+		type: 'note',
+		parent: 0,
+	}, { throwOnError: true });
+	const existingIds = Array.isArray(liveBlock.attributes.metadata?.noteId) ? liveBlock.attributes.metadata.noteId : [liveBlock.attributes.metadata?.noteId].filter(Boolean);
+	const noteIds = [...new Set([...existingIds, savedNote.id])];
+	window.wp.data.dispatch('core/block-editor').updateBlockAttributes(liveBlock.clientId, { metadata: { ...liveBlock.attributes.metadata, noteId: noteIds } });
+	const { unlock } = window.wp.privateApis.__dangerousOptInToUnstableAPIsOnlyForCoreModules(
+		'I acknowledge private features are not for use in themes or plugins and doing so will break in the next version of WordPress.',
+		'@wordpress/core-data'
+	);
+	const repair = unlock(window.wp.data.dispatch('core')).persistEntityBlockAttributes(
+		'postType',
+		editorSelect.getCurrentPostType(),
+		editorSelect.getCurrentPostId(),
+		{
+			record: editorSelect.getCurrentPost(),
+			blockPath: [0],
+			isMatch: (candidate) => candidate.name === liveBlock.name && getBlockText(candidate) === getBlockText(liveBlock),
+			matchCount: 1,
+			matchIndex: 0,
+			blockCount: 1,
+			blockName: liveBlock.name,
+			attributes: (savedAttributes) => {
+				const savedIds = Array.isArray(savedAttributes.metadata?.noteId) ? savedAttributes.metadata.noteId : [savedAttributes.metadata?.noteId].filter(Boolean);
+				return { metadata: { ...savedAttributes.metadata, noteId: [...new Set([...savedIds, ...noteIds])] } };
+			},
+		}
+	);
+	return { noteId: savedNote.id, repair };
+};
 const findRichTextEditable = (block) => {
 	const selector = '[data-block="' + block.clientId + '"][contenteditable="true"], [data-block="' + block.clientId + '"] [contenteditable="true"]';
 	return getEditorDocuments().map((editorDocument) => editorDocument.querySelector(selector)).find((editable) => editable?.textContent?.includes('note anchor'));
@@ -667,7 +729,7 @@ const selectRichTextRange = (editable) => {
 	}
 	throw new Error('Could not select rich-text note anchor range');
 };
-const createNoteOnRichTextRange = async (block, text) => {
+const beginNoteOnRichTextRange = async (block, text) => {
 	const beforeIds = new Set(getBlockNoteIds());
 	const editable = await waitFor(() => findRichTextEditable(block), 'rich-text note anchor editable');
 	if (selectRichTextRange(editable) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
@@ -689,6 +751,10 @@ const createNoteOnRichTextRange = async (block, text) => {
 	setFieldValue(textarea, text);
 	const addButton = await waitForAddNoteButton();
 	addButton.click();
+	return beforeIds;
+};
+const createNoteOnRichTextRange = async (block, text) => {
+	const beforeIds = await beginNoteOnRichTextRange(block, text);
 	await waitFor(() => document.body.textContent.includes(text), 'created rich-text range note thread ' + text);
 	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new rich-text range note id in block metadata');
 	await waitFor(() => getCoreNoteMarkers().some((marker) => marker.clientId === block.clientId && Number(marker.attributes?.['data-id']) === Number(noteId)), 'core/note rich-text marker for note ' + noteId);
@@ -920,6 +986,57 @@ const collectCrdtPeerLineageCase = async () => {
 	iframe.remove();
 	return { caseId, postId: item.post_id, noteId, parentBlockCount, parentText, peer, passed: peer.noteIds.includes(noteId) && peer.attachmentCount === 1 && peer.blockCount === parentBlockCount && peer.blockTexts.join('\\n') === parentText, actorTimeline: [...actorTimeline], observedRequests: observedRequests.filter((request) => request.route === 'post-rest' || request.route === 'sync-save') };
 };
+const collectRepairFailureRecoveryCase = async () => {
+	const caseId = 'repair-failure-recovery';
+	const item = fixtureState[caseId];
+	await waitForEditorReady(caseId);
+	const target = getTargetBlock(caseId);
+	const firstNoteId = await createNoteOnBlock(target, 'Homeboy failed repair note');
+	const surfacedFailure = await waitFor(() => (window.wp.data.select('core/notices')?.getNotices?.() || []).some((notice) => String(notice.content || '').includes('Forced attachment repair failure')), 'failed repair notice');
+	const secondNoteId = await createNoteOnBlock(target, 'Homeboy repair recovery note');
+	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
+	const reloaded = await collectReloadedEditorState(caseId, item.post_id, secondNoteId, '');
+	const forcedFailure = postRequests(item.post_id).some((request) => request.forced_failure);
+	return { caseId, postId: item.post_id, noteIds: [firstNoteId, secondNoteId], surfacedFailure: !!surfacedFailure, forcedFailure, ...reloaded, passed: !!surfacedFailure && forcedFailure && reloaded.reloadedBlockNoteIds.includes(firstNoteId) && reloaded.reloadedBlockNoteIds.includes(secondNoteId), actorTimeline: [...actorTimeline], observedRequests: postRequests(item.post_id) };
+};
+const collectConcurrentNoteRepairsCase = async () => {
+	const caseId = 'concurrent-note-repairs';
+	const item = fixtureState[caseId];
+	await waitForEditorReady(caseId);
+	const target = getTargetBlock(caseId);
+	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note');
+	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'post-rest'), 'first targeted repair hold');
+	const secondCreation = await createConcurrentNoteRepair(target, 'Homeboy overlapping repair note');
+	await waitFor(() => getBlockNoteIds().length === 2, 'second local note attachment while first repair is held');
+	releaseHeldRequest();
+	await secondCreation.repair;
+	const secondNoteId = secondCreation.noteId;
+	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
+	const reloaded = await collectReloadedEditorState(caseId, item.post_id, secondNoteId, '');
+	const heldAndReleased = actorTimeline.some((entry) => entry.event === 'request-held') && actorTimeline.some((entry) => entry.event === 'request-released');
+	return { caseId, postId: item.post_id, noteIds: [firstNoteId, secondNoteId], heldAndReleased, ...reloaded, passed: heldAndReleased && reloaded.reloadedBlockNoteIds.includes(firstNoteId) && reloaded.reloadedBlockNoteIds.includes(secondNoteId), actorTimeline: [...actorTimeline], observedRequests: postRequests(item.post_id) };
+};
+const collectInlinePendingEditCase = async () => {
+	const caseId = 'inline-pending-edit';
+	const item = fixtureState[caseId];
+	await waitForEditorReady(caseId);
+	const target = getTargetBlock(caseId);
+	const noteText = 'Homeboy stale inline range note';
+	await beginNoteOnRichTextRange(target, noteText);
+	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'comment-rest'), 'pending note comment hold');
+	const dirtyText = 'Homeboy text changed while note creation was pending.';
+	window.wp.data.dispatch('core/block-editor').updateBlockAttributes(target.clientId, { content: dirtyText });
+	await waitFor(() => getBlockText(getTargetBlock(caseId)) === dirtyText, 'pending inline dirty edit');
+	releaseHeldRequest();
+	const surfacedFailure = await waitFor(() => (window.wp.data.select('core/notices')?.getNotices?.() || []).some((notice) => String(notice.content || '').includes('selected text changed')), 'stale inline selection notice');
+	const noteId = await waitFor(() => {
+		const notes = window.wp.data.select('core').getEntityRecords('root', 'comment', { post: item.post_id, type: 'note', status: 'all', per_page: -1 }) || [];
+		return notes.find((note) => String(note.content?.rendered || note.content?.raw || note.content || '').includes(noteText))?.id;
+	}, 'created stale inline note entity');
+	const persistedContent = await getPostContent(item.post_id);
+	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, dirtyText);
+	return { caseId, postId: item.post_id, noteId, dirtyText, surfacedFailure: !!surfacedFailure, persistedContent, ...reloaded, logicalOrphan: !reloaded.reloadedHasNoteId, passed: !!surfacedFailure && !contentHasNoteId(persistedContent, noteId) && !persistedContent.includes(dirtyText) && !reloaded.reloadedHasNoteId && !reloaded.reloadedHasCoreNoteMarker && !reloaded.reloadedHasDirtyText, actorTimeline: [...actorTimeline], observedRequests: observedRequests.filter((request) => request.route === 'comment-rest' || request.route === 'post-rest') };
+};
 const collectCase = async (caseId) => {
 	const item = fixtureState[caseId];
 	if (!item) {
@@ -937,6 +1054,9 @@ const collectCase = async (caseId) => {
 	if (caseId === 'store-coherence') return collectStoreCoherenceCase();
 	if (caseId === 'repair-sync-race') return collectRepairSyncRaceCase();
 	if (caseId === 'crdt-peer-lineage') return collectCrdtPeerLineageCase();
+	if (caseId === 'repair-failure-recovery') return collectRepairFailureRecoveryCase();
+	if (caseId === 'concurrent-note-repairs') return collectConcurrentNoteRepairsCase();
+	if (caseId === 'inline-pending-edit') return collectInlinePendingEditCase();
 	return collectBlockAttachment(caseId, item, Number(item.note_id));
 };
 const results = [await collectCase(currentCase)];
