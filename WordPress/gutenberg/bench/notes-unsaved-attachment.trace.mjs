@@ -596,13 +596,13 @@ const collectBlockAttachment = async (caseId, item, noteId) => {
 	};
 };
 const openAddNoteField = async (block) => {
-	const existingFields = new Set(getNoteFieldCandidates());
 	window.wp.data.dispatch('core/block-editor').selectBlock(block.clientId);
 	const blockElement = document.querySelector('[data-block="' + block.clientId + '"]');
 	blockElement?.scrollIntoView({ block: 'center' });
 	blockElement?.focus();
 	blockElement?.click();
 	await sleep(250);
+	const existingFields = new Set(getNoteFieldCandidates());
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
