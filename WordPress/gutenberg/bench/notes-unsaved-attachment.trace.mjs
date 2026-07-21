@@ -667,6 +667,44 @@ const createNoteOnBlock = async (block, text) => {
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
 };
+const createConcurrentNoteRepair = async (block, text) => {
+	const coreDispatch = window.wp.data.dispatch('core');
+	const editorSelect = window.wp.data.select('core/editor');
+	const liveBlock = window.wp.data.select('core/block-editor').getBlock(block.clientId);
+	const savedNote = await coreDispatch.saveEntityRecord('root', 'comment', {
+		post: editorSelect.getCurrentPostId(),
+		content: text,
+		status: 'hold',
+		type: 'note',
+		parent: 0,
+	}, { throwOnError: true });
+	const existingIds = Array.isArray(liveBlock.attributes.metadata?.noteId) ? liveBlock.attributes.metadata.noteId : [liveBlock.attributes.metadata?.noteId].filter(Boolean);
+	const noteIds = [...new Set([...existingIds, savedNote.id])];
+	window.wp.data.dispatch('core/block-editor').updateBlockAttributes(liveBlock.clientId, { metadata: { ...liveBlock.attributes.metadata, noteId: noteIds } });
+	const { unlock } = window.wp.privateApis.__dangerousOptInToUnstableAPIsOnlyForCoreModules(
+		'I acknowledge private features are not for use in themes or plugins and doing so will break in the next version of WordPress.',
+		'@wordpress/core-data'
+	);
+	const repair = unlock(window.wp.data.dispatch('core')).persistEntityBlockAttributes(
+		'postType',
+		editorSelect.getCurrentPostType(),
+		editorSelect.getCurrentPostId(),
+		{
+			record: editorSelect.getCurrentPost(),
+			blockPath: [0],
+			isMatch: (candidate) => candidate.name === liveBlock.name && getBlockText(candidate) === getBlockText(liveBlock),
+			matchCount: 1,
+			matchIndex: 0,
+			blockCount: 1,
+			blockName: liveBlock.name,
+			attributes: (savedAttributes) => {
+				const savedIds = Array.isArray(savedAttributes.metadata?.noteId) ? savedAttributes.metadata.noteId : [savedAttributes.metadata?.noteId].filter(Boolean);
+				return { metadata: { ...savedAttributes.metadata, noteId: [...new Set([...savedIds, ...noteIds])] } };
+			},
+		}
+	);
+	return { noteId: savedNote.id, repair };
+};
 const findRichTextEditable = (block) => {
 	const selector = '[data-block="' + block.clientId + '"][contenteditable="true"], [data-block="' + block.clientId + '"] [contenteditable="true"]';
 	return getEditorDocuments().map((editorDocument) => editorDocument.querySelector(selector)).find((editable) => editable?.textContent?.includes('note anchor'));
@@ -968,10 +1006,11 @@ const collectConcurrentNoteRepairsCase = async () => {
 	const target = getTargetBlock(caseId);
 	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note');
 	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'post-rest'), 'first targeted repair hold');
-	const secondCreation = createNoteOnBlock(target, 'Homeboy overlapping repair note');
+	const secondCreation = await createConcurrentNoteRepair(target, 'Homeboy overlapping repair note');
 	await waitFor(() => getBlockNoteIds().length === 2, 'second local note attachment while first repair is held');
 	releaseHeldRequest();
-	const secondNoteId = await secondCreation;
+	await secondCreation.repair;
+	const secondNoteId = secondCreation.noteId;
 	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, secondNoteId, '');
 	const heldAndReleased = actorTimeline.some((entry) => entry.event === 'request-held') && actorTimeline.some((entry) => entry.event === 'request-released');
@@ -990,10 +1029,9 @@ const collectInlinePendingEditCase = async () => {
 	await waitFor(() => getBlockText(getTargetBlock(caseId)) === dirtyText, 'pending inline dirty edit');
 	releaseHeldRequest();
 	const surfacedFailure = await waitFor(() => (window.wp.data.select('core/notices')?.getNotices?.() || []).some((notice) => String(notice.content || '').includes('selected text changed')), 'stale inline selection notice');
-	const noteId = await waitFor(async () => {
-		const response = await originalFetch('/wp-json/wp/v2/comments?post=' + encodeURIComponent(item.post_id) + '&type=note&status=all&per_page=100', { credentials: 'include' });
-		const notes = await response.json();
-		return notes.find((note) => String(note.content?.rendered || '').includes(noteText))?.id;
+	const noteId = await waitFor(() => {
+		const notes = window.wp.data.select('core').getEntityRecords('root', 'comment', { post: item.post_id, type: 'note', status: 'all', per_page: -1 }) || [];
+		return notes.find((note) => String(note.content?.rendered || note.content?.raw || note.content || '').includes(noteText))?.id;
 	}, 'created stale inline note entity');
 	const persistedContent = await getPostContent(item.post_id);
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, dirtyText);

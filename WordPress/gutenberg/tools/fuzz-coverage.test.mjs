@@ -24,6 +24,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   const workload = readJson('fuzz/gutenberg-notes-attachment-corpus.json');
   const runnerSource = readFileSync(path.join(root, 'fuzz/gutenberg-notes-unsaved-attachment.mjs'), 'utf8');
   const traceSource = readFileSync(path.join(root, 'bench/notes-unsaved-attachment.trace.mjs'), 'utf8');
+  const multiAuthorTraceSource = readFileSync(path.join(root, 'bench/notes-multi-author-convergence.trace.mjs'), 'utf8');
   const browserScriptStart = traceSource.indexOf('const browserScript = `') + 'const browserScript = `'.length;
   const browserScriptEnd = traceSource.indexOf('`;\n\ntry {', browserScriptStart);
   const browserScriptTemplate = traceSource.slice(browserScriptStart, browserScriptEnd);
@@ -53,6 +54,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     'repair-failure-recovery',
     'concurrent-note-repairs',
     'inline-pending-edit',
+    'multi-author-convergence',
   ];
 
   assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
@@ -91,6 +93,12 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /repair-failure-recovery/);
   assert.match(traceSource, /concurrent-note-repairs/);
   assert.match(traceSource, /inline-pending-edit/);
+  assert.match(multiAuthorTraceSource, /wordpress\.browser-scenario/);
+  assert.match(multiAuthorTraceSource, /actorCount = 12/);
+  assert.match(multiAuthorTraceSource, /fixtureUsers/);
+  assert.match(multiAuthorTraceSource, /userSessions/);
+  assert.match(multiAuthorTraceSource, /browserActors/);
+  assert.match(multiAuthorTraceSource, /cross-session-note-convergence/);
   assert.match(traceSource, /actorTimeline/);
   assert.match(traceSource, /HOMEBOY_SEED/);
   assert.doesNotThrow(() => new AsyncFunction(browserScript));
