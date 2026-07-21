@@ -23,9 +23,12 @@
     "empty-saved-content-unsaved-note",
     "store-coherence-before-dependent-operation",
     "repair-sync-order-race",
-    "crdt-peer-lineage-reload"
+    "crdt-peer-lineage-reload",
+    "failed-repair-recovery",
+    "concurrent-note-repair-ordering",
+    "inline-pending-edit-safe-refusal"
   ],
-  "case_budget": 15,
+  "case_budget": 18,
   "duration_budget_seconds": 2700,
   "metadata": {
     "kind": "gutenberg-browser-fuzz",
@@ -33,7 +36,7 @@
     "source_issue": "github_issue:WordPress/gutenberg#72717",
     "readiness": {
       "level": "executable",
-      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes fifteen Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, captures actor and request timelines, and emits replayable case-level evidence."
+      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes eighteen Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, captures actor and request timelines, and emits replayable case-level evidence."
     },
     "corpus_cases": [
       { "id": "orphan", "operation": "missing-anchor-load", "invariant": "A note whose ID is absent from block metadata is classified as detached." },
@@ -50,7 +53,10 @@
       { "id": "empty-saved-content", "operation": "empty-saved-content-unsaved-note", "invariant": "An empty saved document plus an unsaved inserted note target produces no parse error or unintended full editor save." },
       { "id": "store-coherence", "operation": "store-coherence-before-dependent-operation", "invariant": "Block-editor and editor stores agree on the repaired attachment before a dependent second note operation." },
       { "id": "repair-sync-race", "operation": "repair-sync-order-race", "invariant": "Seeded REST and wp-sync request ordering converges with every created note ID attached." },
-      { "id": "crdt-peer-lineage", "operation": "crdt-peer-lineage-reload", "invariant": "A second same-origin editor peer reloads persisted CRDT lineage without duplicate blocks or text and retains the attachment." }
+      { "id": "crdt-peer-lineage", "operation": "crdt-peer-lineage-reload", "invariant": "A second same-origin editor peer reloads persisted CRDT lineage without duplicate blocks or text and retains the attachment." },
+      { "id": "repair-failure-recovery", "operation": "failed-repair-recovery", "invariant": "A failed targeted repair is surfaced and a later repair recovers both durable note attachments without a full editor save." },
+      { "id": "concurrent-note-repairs", "operation": "concurrent-note-repair-ordering", "invariant": "A second note created while the first targeted repair is held preserves both IDs after queued persistence and reload." },
+      { "id": "inline-pending-edit", "operation": "inline-pending-edit-safe-refusal", "invariant": "Changing selected rich text while comment creation is pending refuses stale offsets without persisting a wrong marker or the dirty edit." }
     ]
   },
   "target": {
@@ -87,7 +93,10 @@
         "empty-saved-content-unsaved-note",
         "store-coherence-before-dependent-operation",
         "repair-sync-order-race",
-        "crdt-peer-lineage-reload"
+        "crdt-peer-lineage-reload",
+        "failed-repair-recovery",
+        "concurrent-note-repair-ordering",
+        "inline-pending-edit-safe-refusal"
       ],
       "artifacts": [
         { "name": "case_log", "path": "case-log.jsonl", "required": true, "metadata": { "semantic_key": "fuzz.case_log" } },
@@ -100,7 +109,7 @@
     }
   ],
   "limits": {
-    "max_cases": 15,
+    "max_cases": 18,
     "max_duration_seconds": 2700
   },
   "coverage": {
@@ -124,7 +133,10 @@
       "empty-saved-content-unsaved-note",
       "store-coherence-before-dependent-operation",
       "repair-sync-order-race",
-      "crdt-peer-lineage-reload"
+      "crdt-peer-lineage-reload",
+      "failed-repair-recovery",
+      "concurrent-note-repair-ordering",
+      "inline-pending-edit-safe-refusal"
     ]
   },
   "artifacts": {

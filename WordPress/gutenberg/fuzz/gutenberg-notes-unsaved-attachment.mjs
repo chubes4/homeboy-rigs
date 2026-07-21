@@ -31,6 +31,9 @@ const corpus = [
 	[ 'store-coherence', 'store-coherence-before-dependent-operation' ],
 	[ 'repair-sync-race', 'repair-sync-order-race' ],
 	[ 'crdt-peer-lineage', 'crdt-peer-lineage-reload' ],
+	[ 'repair-failure-recovery', 'failed-repair-recovery' ],
+	[ 'concurrent-note-repairs', 'concurrent-note-repair-ordering' ],
+	[ 'inline-pending-edit', 'inline-pending-edit-safe-refusal' ],
 ];
 
 await mkdir( artifactsDir, { recursive: true } );
