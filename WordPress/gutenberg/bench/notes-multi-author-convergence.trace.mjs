@@ -112,7 +112,10 @@ const reachBarrier = async (stage) => {
 	});
 	if (!response.ok) throw new Error(actor + ' barrier POST failed: HTTP ' + response.status);
 	await waitFor(async () => {
-		const state = await fetch('/wp-json/homeboy-gutenberg-notes/v1/barrier?stage=' + encodeURIComponent(stage), { credentials: 'include' }).then((result) => result.json());
+		const state = await fetch('/wp-json/homeboy-gutenberg-notes/v1/barrier?stage=' + encodeURIComponent(stage), {
+			credentials: 'include',
+			headers: { 'X-WP-Nonce': window.wpApiSettings?.nonce || '' },
+		}).then((result) => result.json());
 		return state.count === ${ actorCount };
 	}, stage + ' barrier', 45000);
 };
