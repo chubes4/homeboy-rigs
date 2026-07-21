@@ -827,6 +827,9 @@ const collectNoSavedMatchCase = async () => {
 	const liveOnlyText = 'Homeboy live target with no saved match.';
 	window.wp.data.dispatch('core/block-editor').updateBlockAttributes(target.clientId, { content: liveOnlyText });
 	await waitFor(() => getBlockText(getTargetBlock(caseId)) === liveOnlyText, 'live-only target mutation');
+	const inserted = window.wp.blocks.createBlock('core/paragraph', { content: 'Homeboy live-only path shift.' });
+	window.wp.data.dispatch('core/block-editor').insertBlock(inserted, 0);
+	await waitFor(() => window.wp.data.select('core/block-editor').getBlocks()[1]?.clientId === target.clientId, 'live-only target path shift');
 	const noteId = await createNoteOnBlock(target, 'Homeboy no saved match note');
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, noteId, liveOnlyText);
 	const wrongSavedBlockAttached = reloaded.reloadedHasNoteId;
@@ -885,7 +888,9 @@ const collectRepairSyncRaceCase = async () => {
 	await waitForEditorReady(caseId);
 	const target = getTargetBlock(caseId);
 	const firstNoteId = await createNoteOnBlock(target, 'Homeboy race first note');
+	const syncSave = window.wp.data.dispatch('core/editor').savePost();
 	const secondNoteId = await createNoteOnBlock(target, 'Homeboy race second note');
+	await syncSave;
 	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
 	const reloaded = await collectReloadedEditorState(caseId, item.post_id, secondNoteId, '');
 	const raceRequests = observedRequests.filter((request) => request.route === 'post-rest' || request.route === 'sync-save');
