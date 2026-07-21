@@ -575,9 +575,8 @@ const openAddNoteField = async (block) => {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
-		const findNewNoteForm = () => Array.from(document.querySelectorAll('.editor-collab-sidebar-panel__note-form')).find((form) => isVisible(form) && form.querySelector('textarea'));
-		const findNewNoteField = () => findNewNoteForm()?.querySelector('textarea');
-		const hasNewNoteSubmit = () => !!Array.from(findNewNoteForm()?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note');
+		const findNewNoteField = () => Array.from(document.querySelectorAll('textarea')).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
+		const hasNewNoteSubmit = () => isVisible(findButtonByText('Add note'));
 		if (!findNewNoteField() || !hasNewNoteSubmit()) {
 			const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
 			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
@@ -596,7 +595,7 @@ const createNoteOnBlock = async (block, text) => {
 	textarea.focus();
 	setFieldValue(textarea, text);
 	await sleep(250);
-	const addButton = await waitFor(() => Array.from(textarea.closest('form')?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note'), 'Add note button');
+	const addButton = await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'Add note button');
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
@@ -633,7 +632,7 @@ const createNoteOnRichTextRange = async (block, text) => {
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
-	const findNewNoteField = () => Array.from(document.querySelectorAll('.editor-collab-sidebar-panel__note-form textarea')).find(isVisible);
+	const findNewNoteField = () => Array.from(document.querySelectorAll('textarea')).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
 	await sleep(500);
 	if (!findNewNoteField()) {
 		const toolbarButtons = Array.from(document.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button')).filter(isVisible);
@@ -646,7 +645,7 @@ const createNoteOnRichTextRange = async (block, text) => {
 	const textarea = await waitFor(findNewNoteField, 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
-	const addButton = await waitFor(() => Array.from(textarea.closest('form')?.querySelectorAll('button') || []).find((button) => (button.textContent || '').trim() === 'Add note'), 'rich-text range Add note button');
+	const addButton = await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'rich-text range Add note button');
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created rich-text range note thread ' + text);
 	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new rich-text range note id in block metadata');
