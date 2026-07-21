@@ -377,7 +377,13 @@ const waitFor = async (predicate, label) => {
 	}
 	throw new Error('Timed out waiting for ' + label);
 };
-const getEditorDocuments = () => [ document, ...Array.from(document.querySelectorAll('iframe')).map((iframe) => iframe.contentDocument).filter(Boolean) ];
+const getEditorDocuments = () => {
+	const documents = [ document ];
+	for (let index = 0; index < documents.length; index++) {
+		documents.push(...Array.from(documents[index].querySelectorAll('iframe')).map((iframe) => iframe.contentDocument).filter((frameDocument) => frameDocument && !documents.includes(frameDocument)));
+	}
+	return documents;
+};
 const findButtonByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('button'))).find((button) => (button.textContent || '').trim() === text);
 const isVisible = (node) => {
 	const rect = node?.getBoundingClientRect?.();
@@ -386,6 +392,12 @@ const isVisible = (node) => {
 const findMenuItemByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('[role="menuitem"], button'))).find((node) => (node.textContent || '').trim().startsWith(text) && isVisible(node));
 const setFieldValue = (field, value) => {
 	const ownerWindow = field.ownerDocument.defaultView;
+	if (field.isContentEditable) {
+		field.textContent = value;
+		field.dispatchEvent(new ownerWindow.InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+		field.dispatchEvent(new ownerWindow.Event('change', { bubbles: true }));
+		return;
+	}
 	const prototype = field instanceof ownerWindow.HTMLTextAreaElement ? ownerWindow.HTMLTextAreaElement.prototype : ownerWindow.HTMLInputElement.prototype;
 	const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
 	if (setter) {
@@ -397,6 +409,10 @@ const setFieldValue = (field, value) => {
 	field.dispatchEvent(new ownerWindow.Event('change', { bubbles: true }));
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
+const findNewNoteField = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable="true"]'))).find((field) => {
+	const prompt = field.getAttribute('placeholder') || field.getAttribute('data-placeholder') || field.getAttribute('aria-label') || '';
+	return isVisible(field) && prompt.startsWith('Add a note');
+});
 const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
 const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
 	const noteId = block?.attributes?.metadata?.noteId;
@@ -577,7 +593,6 @@ const openAddNoteField = async (block) => {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
-		const findNewNoteField = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea'))).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
 		const hasNewNoteSubmit = () => isVisible(findButtonByText('Add note'));
 		if (!findNewNoteField() || !hasNewNoteSubmit()) {
 			const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
@@ -633,7 +648,6 @@ const createNoteOnRichTextRange = async (block, text) => {
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
-	const findNewNoteField = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea'))).find((textarea) => isVisible(textarea) && (textarea.getAttribute('placeholder') || '').startsWith('Add a note'));
 	await sleep(500);
 	if (!findNewNoteField()) {
 		const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
