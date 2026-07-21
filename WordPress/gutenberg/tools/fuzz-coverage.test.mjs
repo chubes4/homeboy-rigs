@@ -34,6 +34,12 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     'nested-live-create',
     'double-live-create',
     'inline-range-live-create',
+    'no-saved-match',
+    'ambiguous-contentless',
+    'empty-saved-content',
+    'store-coherence',
+    'repair-sync-race',
+    'crdt-peer-lineage',
   ];
 
   assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
@@ -43,6 +49,10 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.deepEqual(workload.metadata.corpus_cases.map(({ id }) => id), expectedCases);
   assert.equal(workload.case_budget, expectedCases.length);
   assert.equal(workload.limits.max_cases, expectedCases.length);
+  assert.deepEqual(workload.operations, workload.coverage.operations);
+  for (const caseId of expectedCases) {
+    assert.match(runnerSource, new RegExp(`\\[ '${caseId}',`));
+  }
   assert.equal(workload.workload.path, '${package.root}/fuzz/gutenberg-notes-unsaved-attachment.mjs');
   assert.match(
     workload.metadata.readiness.coverage_contract,
@@ -58,6 +68,15 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /core\/note/);
   assert.match(traceSource, /reloadedNoteEntityResolvesToAttachment/);
   assert.match(traceSource, /targetedPersistenceObserved/);
+  assert.match(traceSource, /no-saved-match/);
+  assert.match(traceSource, /ambiguous-contentless/);
+  assert.match(traceSource, /empty-saved-content/);
+  assert.match(traceSource, /store-coherence/);
+  assert.match(traceSource, /repair-sync-race/);
+  assert.match(traceSource, /crdt-peer-lineage/);
+  assert.match(traceSource, /actorTimeline/);
+  assert.match(traceSource, /HOMEBOY_SEED/);
+  assert.match(runnerSource, /seed: process\.env\.HOMEBOY_SEED/);
   assert.deepEqual(
     workload.artifacts.expected.map(({ semantic_key }) => semantic_key),
     ['fuzz.case_log', 'fuzz.replay', 'fuzz.report']

@@ -25,6 +25,12 @@ const corpus = [
 	[ 'nested-live-create', 'nested-live-note-create' ],
 	[ 'double-live-create', 'repeated-live-note-create' ],
 	[ 'inline-range-live-create', 'inline-range-note-persistence' ],
+	[ 'no-saved-match', 'no-saved-match-live-mutation' ],
+	[ 'ambiguous-contentless', 'ambiguous-contentless-siblings' ],
+	[ 'empty-saved-content', 'empty-saved-content-unsaved-note' ],
+	[ 'store-coherence', 'store-coherence-before-dependent-operation' ],
+	[ 'repair-sync-race', 'repair-sync-order-race' ],
+	[ 'crdt-peer-lineage', 'crdt-peer-lineage-reload' ],
 ];
 
 await mkdir( artifactsDir, { recursive: true } );
@@ -99,6 +105,7 @@ function runTrace( caseId, resultFile, caseArtifactsDir ) {
 				HOMEBOY_TRACE_SCENARIO: 'notes-unsaved-attachment',
 				HOMEBOY_TRACE_RESULTS_FILE: resultFile,
 				HOMEBOY_TRACE_ARTIFACT_DIR: caseArtifactsDir,
+				HOMEBOY_SEED: process.env.HOMEBOY_SEED || '',
 			},
 			stdio: [ 'ignore', 'pipe', 'pipe' ],
 		} );
@@ -191,6 +198,7 @@ const replay = {
 	request_file: requestFile,
 	metadata: {
 		workload_id: workloadId,
+		seed: process.env.HOMEBOY_SEED || null,
 		component_path: componentPath,
 		build_provenance: buildProvenance,
 		cases: corpus.map( ( [ caseId ] ) => caseId ),
