@@ -27,9 +27,10 @@
     "failed-repair-recovery",
     "concurrent-note-repair-ordering",
     "inline-pending-edit-safe-refusal",
-    "twelve-authenticated-author-convergence"
+    "twelve-authenticated-author-convergence",
+    "conditional-content-crdt-atomicity"
   ],
-  "case_budget": 19,
+  "case_budget": 20,
   "duration_budget_seconds": 2700,
   "metadata": {
     "kind": "gutenberg-browser-fuzz",
@@ -37,7 +38,7 @@
     "source_issue": "github_issue:WordPress/gutenberg#72717",
     "readiness": {
       "level": "executable",
-      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes nineteen Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, captures actor and request timelines, and emits replayable case-level evidence."
+      "coverage_contract": "The checked-in corpus builds the exact Gutenberg checkout, executes twenty Block Notes attachment and persistence cases in disposable WP Codebox browser runtimes, proves plugin bundle provenance, captures actor and request timelines, and emits replayable case-level evidence."
     },
     "corpus_cases": [
       { "id": "orphan", "operation": "missing-anchor-load", "invariant": "A note whose ID is absent from block metadata is classified as detached." },
@@ -58,7 +59,8 @@
       { "id": "repair-failure-recovery", "operation": "failed-repair-recovery", "invariant": "A failed targeted repair is surfaced and a later repair recovers both durable note attachments without a full editor save." },
       { "id": "concurrent-note-repairs", "operation": "concurrent-note-repair-ordering", "invariant": "A second note created while the first targeted repair is held preserves both IDs after queued persistence and reload." },
       { "id": "inline-pending-edit", "operation": "inline-pending-edit-safe-refusal", "invariant": "Changing selected rich text while comment creation is pending refuses stale offsets without persisting a wrong marker or the dirty edit." },
-      { "id": "multi-author-convergence", "operation": "twelve-authenticated-author-convergence", "invariant": "Twelve independently authenticated editors converge on all surviving note attachments, lifecycle history, and saved content without persisting unrelated dirty state." }
+      { "id": "multi-author-convergence", "operation": "twelve-authenticated-author-convergence", "invariant": "Twelve independently authenticated editors converge on all surviving note attachments, lifecycle history, and saved content without persisting unrelated dirty state." },
+      { "id": "cas-atomicity", "operation": "conditional-content-crdt-atomicity", "invariant": "When a second conditional writer commits while the first writer is paused before CRDT metadata persistence, final post content and the CRDT snapshot belong to the same winning writer." }
     ]
   },
   "target": {
@@ -99,7 +101,8 @@
         "failed-repair-recovery",
         "concurrent-note-repair-ordering",
         "inline-pending-edit-safe-refusal",
-        "twelve-authenticated-author-convergence"
+        "twelve-authenticated-author-convergence",
+        "conditional-content-crdt-atomicity"
       ],
       "artifacts": [
         { "name": "case_log", "path": "case-log.jsonl", "required": true, "metadata": { "semantic_key": "fuzz.case_log" } },
@@ -112,7 +115,7 @@
     }
   ],
   "limits": {
-    "max_cases": 19,
+    "max_cases": 20,
     "max_duration_seconds": 2700
   },
   "coverage": {
@@ -140,7 +143,8 @@
       "failed-repair-recovery",
       "concurrent-note-repair-ordering",
       "inline-pending-edit-safe-refusal",
-      "twelve-authenticated-author-convergence"
+      "twelve-authenticated-author-convergence",
+      "conditional-content-crdt-atomicity"
     ]
   },
   "artifacts": {

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const packageRoot = path.resolve( path.dirname( fileURLToPath( import.meta.url ) ), '..' );
 const tracePath = path.join( packageRoot, 'bench/notes-unsaved-attachment.trace.mjs' );
 const multiAuthorTracePath = path.join( packageRoot, 'bench/notes-multi-author-convergence.trace.mjs' );
+const casAtomicityTracePath = path.join( packageRoot, 'bench/notes-cas-atomicity.trace.mjs' );
 const artifactsDir = process.env.HOMEBOY_FUZZ_ARTIFACTS_DIR || path.join( packageRoot, 'artifacts/fuzz/notes-unsaved-attachment' );
 const resultsFile = process.env.HOMEBOY_FUZZ_RESULTS_FILE || path.join( artifactsDir, 'results.json' );
 const runId = process.env.HOMEBOY_FUZZ_RUN_ID || `gutenberg-notes-${ Date.now() }`;
@@ -36,6 +37,7 @@ const corpus = [
 	[ 'concurrent-note-repairs', 'concurrent-note-repair-ordering' ],
 	[ 'inline-pending-edit', 'inline-pending-edit-safe-refusal' ],
 	[ 'multi-author-convergence', 'twelve-authenticated-author-convergence' ],
+	[ 'cas-atomicity', 'conditional-content-crdt-atomicity' ],
 ];
 
 await mkdir( artifactsDir, { recursive: true } );
@@ -101,7 +103,8 @@ const buildProvenance = {
 function runTrace( caseId, resultFile, caseArtifactsDir ) {
 	return new Promise( ( resolve ) => {
 		const started = performance.now();
-		const child = spawn( process.execPath, [ caseId === 'multi-author-convergence' ? multiAuthorTracePath : tracePath ], {
+		const caseTracePath = caseId === 'multi-author-convergence' ? multiAuthorTracePath : caseId === 'cas-atomicity' ? casAtomicityTracePath : tracePath;
+		const child = spawn( process.execPath, [ caseTracePath ], {
 			cwd: packageRoot,
 			env: {
 				...process.env,
