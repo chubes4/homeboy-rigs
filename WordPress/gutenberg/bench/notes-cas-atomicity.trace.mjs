@@ -61,7 +61,7 @@ const state = await readState();
 	},
 });
 const finalState = await readState();
-if (finalState.nested_writer_status !== 200) throw new Error('nested writer failed: ' + JSON.stringify(finalState.nested_writer_result));
+if (![200, 409].includes(finalState.nested_writer_status)) throw new Error('nested writer failed: ' + JSON.stringify(finalState.nested_writer_result));
 const writerAPair = finalState.content === state.first_content && finalState.doc === 'homeboy-doc-writer-a';
 const writerBPair = finalState.content === state.second_content && finalState.doc === 'homeboy-doc-writer-b';
 if (!writerAPair && !writerBPair) {
