@@ -95,6 +95,10 @@ add_action( 'init', function () {
 	update_option( 'wp_collaboration_enabled', '1' );
 	homeboy_notes_cas_post_id();
 } );
+add_action( 'admin_enqueue_scripts', function () {
+	wp_enqueue_script( 'wp-api-fetch' );
+	wp_add_inline_script( 'wp-api-fetch', 'window.wp.apiFetch.use( window.wp.apiFetch.createNonceMiddleware( ' . wp_json_encode( wp_create_nonce( 'wp_rest' ) ) . ' ) );', 'after' );
+} );
 add_filter( 'update_post_metadata', function ( $check, $object_id, $meta_key ) {
 	if ( '_crdt_document' !== $meta_key || homeboy_notes_cas_post_id() !== (int) $object_id || 'writer-a' !== ( $_SERVER['HTTP_X_HOMEBOY_CAS_ACTOR'] ?? '' ) || ! empty( $GLOBALS['homeboy_notes_nested_writer'] ) ) return $check;
 	update_option( 'homeboy_notes_writer_a_blocked', 1, false );
