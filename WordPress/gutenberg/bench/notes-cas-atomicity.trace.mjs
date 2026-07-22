@@ -93,6 +93,14 @@ function homeboy_notes_cas_post_id() {
 }
 add_action( 'init', function () {
 	update_option( 'wp_collaboration_enabled', '1' );
+	if ( ! username_exists( 'notes-cas-writer-b' ) ) {
+		wp_insert_user( array(
+			'user_login' => 'notes-cas-writer-b',
+			'user_pass' => wp_generate_password( 24 ),
+			'user_email' => 'notes-cas-writer-b@example.test',
+			'role' => 'editor',
+		) );
+	}
 	homeboy_notes_cas_post_id();
 } );
 add_action( 'admin_enqueue_scripts', function () {
