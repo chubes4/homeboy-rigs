@@ -43,32 +43,22 @@ const waitFor = async (predicate, label, timeout = 30000) => {
 	}
 	throw new Error(actor + ' timed out waiting for ' + label);
 };
-await waitFor(() => window.wp?.apiFetch && window.wpApiSettings?.nonce, 'authenticated REST client');
-const request = async (path, options = {}) => {
-	const response = await fetch('/wp-json' + path, {
-		...options,
-		credentials: 'include',
-		headers: {
-			'Content-Type': 'application/json',
-			'X-WP-Nonce': window.wpApiSettings.nonce,
-			'X-Homeboy-CAS-Actor': actor,
-			...(options.headers || {}),
-		},
-	});
-	const body = await response.json();
-	if (!response.ok) throw new Error(actor + ' request failed: HTTP ' + response.status + ' ' + JSON.stringify(body));
-	return body;
-};
+await waitFor(() => window.wp?.apiFetch, 'authenticated REST client');
+const request = (path, options = {}) => window.wp.apiFetch({
+	path,
+	...options,
+	headers: { 'X-Homeboy-CAS-Actor': actor, ...(options.headers || {}) },
+});
 const readState = () => request('/homeboy-gutenberg-notes/v1/cas-state');
 const state = await readState();
 	await request('/wp-sync/v1/save-entity', {
 	method: 'POST',
-	body: JSON.stringify({
+	data: {
 		room: 'postType/post:' + state.post_id,
 		expected_content: state.initial_content,
 		content: state.first_content,
 		doc: 'homeboy-doc-writer-a',
-	}),
+	},
 });
 const finalState = await readState();
 if (finalState.nested_writer_status !== 200) throw new Error('nested writer failed: ' + JSON.stringify(finalState.nested_writer_result));
