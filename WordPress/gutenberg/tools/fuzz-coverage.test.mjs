@@ -26,6 +26,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   const traceSource = readFileSync(path.join(root, 'bench/notes-unsaved-attachment.trace.mjs'), 'utf8');
   const multiAuthorTraceSource = readFileSync(path.join(root, 'bench/notes-multi-author-convergence.trace.mjs'), 'utf8');
   const casAtomicityTraceSource = readFileSync(path.join(root, 'bench/notes-cas-atomicity.trace.mjs'), 'utf8');
+  const twoWorkerAtomicityTraceSource = readFileSync(path.join(root, 'bench/notes-two-worker-atomicity.trace.mjs'), 'utf8');
   const browserScriptStart = traceSource.indexOf('const browserScript = `') + 'const browserScript = `'.length;
   const browserScriptEnd = traceSource.indexOf('`;\n\ntry {', browserScriptStart);
   const browserScriptTemplate = traceSource.slice(browserScriptStart, browserScriptEnd);
@@ -57,6 +58,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
     'inline-pending-edit',
     'multi-author-convergence',
     'cas-atomicity',
+    'two-worker-atomicity',
   ];
 
   assert.deepEqual(inventoryRig.components.gutenberg.extensions.nodejs, {});
@@ -102,6 +104,9 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(multiAuthorTraceSource, /browserActors/);
   assert.match(casAtomicityTraceSource, /update_post_metadata/);
   assert.match(casAtomicityTraceSource, /torn content\/CRDT pair/);
+  assert.match(twoWorkerAtomicityTraceSource, /CONNECTION_ID\(\)/);
+  assert.match(twoWorkerAtomicityTraceSource, /independent-php-workers/);
+  assert.match(twoWorkerAtomicityTraceSource, /independent-database-connections/);
   assert.match(multiAuthorTraceSource, /cross-session-note-convergence/);
   assert.match(traceSource, /actorTimeline/);
   assert.match(traceSource, /HOMEBOY_SEED/);
