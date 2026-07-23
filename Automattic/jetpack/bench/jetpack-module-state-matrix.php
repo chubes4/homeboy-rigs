@@ -157,15 +157,16 @@ return function (): array {
 				'blocked_attempts' => $network_calls,
 			),
 		);
-		if (
-			true !== $result['module_state']['active_after_activation'] ||
-			false !== $result['module_state']['active_after_deactivation'] ||
-			$result['module_state']['before_value'] !== $result['module_state']['after_value'] ||
-			true !== $result['owner_health']['before_role_drift_pass'] ||
-			false !== $result['owner_health']['after_role_drift_pass'] ||
-			! empty( $network_calls )
-		) {
-			throw new RuntimeException( 'Jetpack module-state fixture did not satisfy its local execution contract.' );
+		$result['contract_checks'] = array(
+			'module_activated' => true === $result['module_state']['active_after_activation'],
+			'module_deactivated' => false === $result['module_state']['active_after_deactivation'],
+			'module_state_restored' => $result['module_state']['before_value'] === $result['module_state']['after_value'],
+			'owner_healthy_before_drift' => true === $result['owner_health']['before_role_drift_pass'],
+			'owner_unhealthy_after_drift' => false === $result['owner_health']['after_role_drift_pass'],
+			'no_outbound_http_attempts' => empty( $network_calls ),
+		);
+		if ( in_array( false, $result['contract_checks'], true ) ) {
+			throw new RuntimeException( 'Jetpack module-state fixture contract checks failed: ' . wp_json_encode( $result['contract_checks'] ) );
 		}
 	} catch ( Throwable $error ) {
 		$failure = $error;
