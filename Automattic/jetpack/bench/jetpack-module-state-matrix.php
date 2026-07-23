@@ -49,6 +49,7 @@ return function (): array {
 	$result           = array();
 	$failure          = null;
 	$manager          = new \Automattic\Jetpack\Connection\Manager( 'jetpack' );
+	$modules          = new \Automattic\Jetpack\Modules();
 	$block_http       = static function ( $preempt, $args, $url ) use ( &$network_calls ) {
 		$network_calls[] = esc_url_raw( $url );
 		return new WP_Error( 'homeboy_jetpack_module_state_network_blocked', 'Outbound HTTP is blocked by the local module-state fixture.' );
@@ -68,7 +69,8 @@ return function (): array {
 		}
 
 		// Keep the fixture representative without using a real WordPress.com identity.
-		if ( ! \Jetpack::update_active_modules( array( 'markdown', 'shortcodes' ) ) ) {
+		$module_seed = array( 'markdown', 'shortcodes' );
+		if ( ! $modules->update_active( $module_seed ) && $module_seed !== get_option( 'jetpack_active_modules', array() ) ) {
 			throw new RuntimeException( 'Jetpack module-state fixture could not seed active modules.' );
 		}
 		Jetpack_Options::update_option( 'id', 6950001 );
@@ -94,16 +96,11 @@ return function (): array {
 		$health_tests   = new \Automattic\Jetpack\Connection\Connection_Health_Tests();
 		$healthy_result = $health_tests->run_test( 'test__master_user_can_manage_options' );
 
-		$available_modules = \Jetpack::get_available_modules();
-		$toggle_candidates = array_values( array_diff( array_intersect( array( 'contact-form', 'markdown', 'shortcodes' ), $available_modules ), $module_before ) );
-		if ( empty( $toggle_candidates ) ) {
-			throw new RuntimeException( 'No local Jetpack module toggle candidate is available.' );
-		}
-		$toggle_module = $toggle_candidates[0];
-		\Jetpack::activate_module( $toggle_module, false, false );
-		$active_after_activation = \Jetpack::is_module_active( $toggle_module );
-		\Jetpack::deactivate_module( $toggle_module );
-		$active_after_deactivation = \Jetpack::is_module_active( $toggle_module );
+		$toggle_module = 'contact-form';
+		$modules->update_active( array_merge( $module_before, array( $toggle_module ) ) );
+		$active_after_activation = in_array( $toggle_module, get_option( 'jetpack_active_modules', array() ), true );
+		$modules->update_active( $module_before );
+		$active_after_deactivation = in_array( $toggle_module, get_option( 'jetpack_active_modules', array() ), true );
 		$module_after = get_option( 'jetpack_active_modules', array() );
 
 		$owner = get_userdata( $owner_id );
@@ -124,7 +121,7 @@ return function (): array {
 		$result = array(
 			'schema' => 'homeboy-rigs/jetpack-module-state-matrix/v1',
 			'fixture' => array(
-				'module_seed' => array( 'markdown', 'shortcodes' ),
+				'module_seed' => $module_seed,
 				'placeholder_connection_owner_id' => $owner_id,
 				'connection' => 'local-placeholder-only',
 			),
@@ -159,6 +156,7 @@ return function (): array {
 		if (
 			true !== $result['module_state']['active_after_activation'] ||
 			false !== $result['module_state']['active_after_deactivation'] ||
+			$result['module_state']['before_value'] !== $result['module_state']['after_value'] ||
 			true !== $result['owner_health']['before_role_drift_pass'] ||
 			false !== $result['owner_health']['after_role_drift_pass'] ||
 			! empty( $network_calls )
