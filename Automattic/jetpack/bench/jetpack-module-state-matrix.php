@@ -80,7 +80,7 @@ return function (): array {
 		Jetpack_Options::update_option( 'id', 6950001 );
 		Jetpack_Options::update_option( 'blog_token', 'fixture.module-state.blog-token' );
 		Jetpack_Options::update_option( 'master_user', $owner_id );
-		Jetpack_Options::update_option( 'user_tokens', array( $owner_id => 'fixture.module-state.owner.' . $owner_id ) );
+		Jetpack_Options::update_option( 'user_tokens', array( $owner_id => 'module-state.owner.' . $owner_id ) );
 		update_option( 'jetpack_sync_settings', array( 'full_sync' => 'fixture-disabled', 'sent' => false ) );
 		$manager->reset_connection_status();
 
