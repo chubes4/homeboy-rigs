@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -142,4 +142,22 @@ test('product matrices do not define generic runner or Codebox behavior', () => 
     const manifest = readJson(productManifest.file);
     visit(manifest.product_surface_matrix, [productManifest.product, 'product_surface_matrix']);
   }
+});
+
+test('Jetpack module-state matrix resolves to a real PHP Codebox workload', () => {
+  const workloadPath = 'Automattic/jetpack/fuzz/jetpack-module-state-matrix.json';
+  const workload = readJson(workloadPath);
+  const phpWorkload = '${package.root}/bench/jetpack-module-state-matrix.php';
+  const action = workload.cases[0].phases.action;
+
+  assert.equal(workload.metadata.workload_path, phpWorkload);
+  assert.equal(workload.workload.type, 'php');
+  assert.equal(workload.workload.path, phpWorkload);
+  assert.ok(existsSync(path.join(repoRoot, 'Automattic/jetpack/bench/jetpack-module-state-matrix.php')));
+  assert.deepEqual(action, [{
+    command: 'wordpress.run-workload',
+    args: [`path=${phpWorkload}`, 'type=php'],
+  }]);
+  assert.deepEqual(workload.artifacts.expected.map(({ name }) => name), ['module_state_matrix']);
+  assert.equal(workload.metadata.readiness.mutation.rollback_required, true);
 });
