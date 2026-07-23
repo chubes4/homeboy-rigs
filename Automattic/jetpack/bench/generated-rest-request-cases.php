@@ -134,7 +134,27 @@ return function (): array {
 		'total_elapsed_ms'     => ( microtime( true ) - $started ) * 1000,
 	);
 
-	$artifacts    = array();
+	$request_cases_payload = array(
+		'schema'     => 'homeboy/wordpress-rest-request-cases/v1',
+		'run_id'     => $run_id,
+		'plugin'     => 'jetpack',
+		'generation' => array(
+			'source'       => 'static-generated-rest-request-cases.workload.json',
+			'safe_methods' => array( 'GET' ),
+			'namespaces'    => array( 'jetpack/v4', 'wpcom/v2' ),
+		),
+		'cases'      => $workload['rest_request_cases'],
+		'responses'  => $responses,
+		'metrics'    => $summary,
+	);
+	$skip_reasons_payload = array(
+		'schema'       => 'homeboy/wordpress-rest-skip-reasons/v1',
+		'run_id'       => $run_id,
+		'plugin'       => 'jetpack',
+		'skip_reasons' => $skip_reasons,
+		'metrics'      => array( 'skipped_case_count' => count( $skip_reasons ) ),
+	);
+
 	$shared_state = getenv( 'WP_CODEBOX_BENCH_SHARED_STATE' );
 	if ( $shared_state ) {
 		$artifact_dir = rtrim( $shared_state, '/' ) . '/generated-rest-request-cases';
@@ -143,42 +163,13 @@ return function (): array {
 		$request_cases_path = $artifact_dir . '/rest_request_cases.json';
 		file_put_contents(
 			$request_cases_path,
-			wp_json_encode(
-				array(
-					'schema'          => 'homeboy/wordpress-rest-request-cases/v1',
-					'run_id'          => $run_id,
-					'plugin'          => 'jetpack',
-					'generation'      => array(
-						'source'       => 'static-generated-rest-request-cases.workload.json',
-						'safe_methods' => array( 'GET' ),
-						'namespaces'    => array( 'jetpack/v4', 'wpcom/v2' ),
-					),
-					'cases'           => $workload['rest_request_cases'],
-					'responses'       => $responses,
-					'metrics'         => $summary,
-				),
-				JSON_PRETTY_PRINT
-			) . "\n"
+			wp_json_encode( $request_cases_payload, JSON_PRETTY_PRINT ) . "\n"
 		);
 
 		$skip_reasons_path = $artifact_dir . '/rest_skip_reasons.json';
 		file_put_contents(
 			$skip_reasons_path,
-			wp_json_encode(
-				array(
-					'schema'       => 'homeboy/wordpress-rest-skip-reasons/v1',
-					'run_id'       => $run_id,
-					'plugin'       => 'jetpack',
-					'skip_reasons' => $skip_reasons,
-					'metrics'      => array( 'skipped_case_count' => count( $skip_reasons ) ),
-				),
-				JSON_PRETTY_PRINT
-			) . "\n"
-		);
-
-		$artifacts = array(
-			'rest_request_cases' => array( 'path' => $request_cases_path, 'kind' => 'json' ),
-			'rest_skip_reasons'  => array( 'path' => $skip_reasons_path, 'kind' => 'json' ),
+			wp_json_encode( $skip_reasons_payload, JSON_PRETTY_PRINT ) . "\n"
 		);
 	}
 
@@ -191,7 +182,10 @@ return function (): array {
 			'skip_reason_codes'   => $workload['metadata']['skip_reason_codes'] ?? array(),
 			'real_wpcom_credentials_allowed' => false,
 		),
-		'artifacts' => $artifacts,
+		'artifacts' => array(
+			'rest_request_cases' => $request_cases_payload,
+			'rest_skip_reasons'  => $skip_reasons_payload,
+		),
 	);
 };
 

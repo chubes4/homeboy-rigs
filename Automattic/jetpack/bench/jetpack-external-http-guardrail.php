@@ -40,5 +40,10 @@ return function (): array {
 				),
 			)
 		);
-	return $payload;
+	return array(
+		'metrics'   => $payload['summary'] ?? array(),
+		'artifacts' => array(
+			'external_http_guardrail' => $payload,
+		),
+	);
 };
