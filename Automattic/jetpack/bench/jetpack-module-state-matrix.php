@@ -54,8 +54,12 @@ return function (): array {
 		$network_calls[] = esc_url_raw( $url );
 		return new WP_Error( 'homeboy_jetpack_module_state_network_blocked', 'Outbound HTTP is blocked by the local module-state fixture.' );
 	};
+	$register_fixture_modules = static function ( $available ): array {
+		return array_values( array_unique( array_merge( $available, array( 'markdown', 'shortcodes', 'contact-form' ) ) ) );
+	};
 
 	add_filter( 'pre_http_request', $block_http, 10, 3 );
+	add_filter( 'jetpack_get_available_standalone_modules', $register_fixture_modules );
 	try {
 		$owner_id = wp_insert_user(
 			array(
@@ -97,10 +101,10 @@ return function (): array {
 		$healthy_result = $health_tests->run_test( 'test__master_user_can_manage_options' );
 
 		$toggle_module = 'contact-form';
-		$modules->update_active( array_merge( $module_before, array( $toggle_module ) ) );
-		$active_after_activation = in_array( $toggle_module, get_option( 'jetpack_active_modules', array() ), true );
-		$modules->update_active( $module_before );
-		$active_after_deactivation = in_array( $toggle_module, get_option( 'jetpack_active_modules', array() ), true );
+		$modules->activate( $toggle_module, false, false );
+		$active_after_activation = $modules->is_active( $toggle_module );
+		$modules->deactivate( $toggle_module );
+		$active_after_deactivation = $modules->is_active( $toggle_module );
 		$module_after = get_option( 'jetpack_active_modules', array() );
 
 		$owner = get_userdata( $owner_id );
@@ -167,6 +171,7 @@ return function (): array {
 		$failure = $error;
 	} finally {
 		remove_filter( 'pre_http_request', $block_http, 10 );
+		remove_filter( 'jetpack_get_available_standalone_modules', $register_fixture_modules );
 		foreach ( $snapshot as $option_name => $entry ) {
 			$restored = $entry['describe']['present']
 				? update_option( $option_name, $entry['value'] ) || get_option( $option_name ) === $entry['value']
