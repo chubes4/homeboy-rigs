@@ -20,7 +20,10 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "generic_primitive": {
+      "command": "wordpress.browser-scenario",
+      "status": "supported"
+    },
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
@@ -38,9 +41,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "generic",
-    "path": "${package.root}/manifests/full-surface-coverage.json",
-    "entry": "jetpack-public-module-frontend-coverage"
+    "type": "declarative",
+    "command": "wordpress.browser-scenario"
   },
   "cases": [
     {

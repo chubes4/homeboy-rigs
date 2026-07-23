@@ -10,7 +10,7 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "workload_path": "${package.root}/bench/jetpack-sync-queue-coverage.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "network_policy": "block_all_synthetic_external_requests",
@@ -47,7 +47,7 @@
     }
   },
   "target": { "type": "wordpress-plugin", "slug": "jetpack", "component": "jetpack" },
-  "workload": { "runner": "wp-codebox", "type": "generic", "path": "${package.root}/manifests/full-surface-coverage.json", "entry": "wordpress-plugin-sync-queue-coverage" },
+  "workload": { "runner": "wp-codebox", "type": "php", "path": "${package.root}/bench/jetpack-sync-queue-coverage.php", "entry": "jetpack-sync-queue-coverage" },
   "cases": [
     {
       "case_id": "jetpack-sync-queue-coverage:default",
@@ -85,7 +85,7 @@
           { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] },
           { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }
         ],
-        "action": [{ "command": "wordpress.fuzz-plugin-sync-queue", "args": ["remote_dispatch=false", "force_http_guardrail=true", "connected_remote_state_provisioning_required=true", "rollback_required=false"] }],
+        "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-sync-queue-coverage.php", "type=php"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=sync_queue_coverage"] }]
       },
       "artifacts": [

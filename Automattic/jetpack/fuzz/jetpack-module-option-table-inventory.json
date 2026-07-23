@@ -20,7 +20,10 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "generic_primitive": {
+      "command": "wordpress.inventory-plugin-module-options-tables",
+      "status": "supported"
+    },
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "readiness": {
@@ -69,9 +72,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "generic",
-    "path": "${package.root}/manifests/full-surface-coverage.json",
-    "entry": "wordpress-plugin-module-option-table-inventory"
+    "type": "declarative",
+    "command": "wordpress.inventory-plugin-module-options-tables"
   },
   "cases": [
     {
