@@ -102,8 +102,7 @@
       },
       "phases": {
         "setup": [
-          { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] },
-          { "command": "wordpress.ensure-external-http-guardrail", "args": ["allowlist=", "block_network=true"] }
+          { "command": "wordpress.ensure-plugin-active", "args": ["plugin=jetpack/jetpack.php"] }
         ],
         "action": [{ "command": "wordpress.run-workload", "args": ["path=${package.root}/bench/jetpack-cron-sync-actions.php", "type=php"] }],
         "assert": [{ "command": "wordpress.collect-workload-result", "args": ["artifact=cron_sync_actions"] }]

@@ -118,30 +118,6 @@
           "unsupported_fixture"
         ]
       },
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=jetpack/jetpack.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.browser-scenario",
-            "args": ["scenario-json={\"url\":\"/?p=1201\",\"steps\":[{\"kind\":\"navigate\",\"url\":\"/?p=1201\",\"waitFor\":\"load\"},{\"kind\":\"waitFor\",\"selector\":\"body\",\"timeout\":\"30s\"}],\"capture\":[\"network\",\"screenshot\"]}"]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=public_module_frontend_coverage"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "public_module_frontend_coverage",
@@ -170,6 +146,49 @@
       ],
       "metadata": {
         "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "jetpack/jetpack.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "command": "wordpress.browser-scenario",
+          "parameters": {
+            "scenario-json": {
+              "url": "/?p=1201",
+              "steps": [
+                {
+                  "kind": "navigate",
+                  "url": "/?p=1201",
+                  "waitFor": "load"
+                },
+                {
+                  "kind": "waitFor",
+                  "selector": "body",
+                  "timeout": "30s"
+                }
+              ],
+              "capture": [
+                "network",
+                "screenshot"
+              ]
+            }
+          }
+        },
+        "collect": [
+          {
+            "artifact": "public_module_frontend_coverage"
+          },
+          {
+            "artifact": "public_module_request_matrix"
+          },
+          {
+            "artifact": "public_module_skip_reasons"
+          }
+        ]
       }
     }
   ],

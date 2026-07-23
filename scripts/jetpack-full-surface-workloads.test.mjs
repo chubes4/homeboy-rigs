@@ -41,6 +41,13 @@ test('every Jetpack full-surface workload resolves to an executable implementati
     const { relativePath, workload } = resolved;
     const executable = workload.workload;
     assert.ok(executable && typeof executable === 'object', `${relativePath} must declare workload`);
+    for (const fuzzCase of workload.cases ?? []) {
+      const phaseSteps = Object.values(fuzzCase.phases ?? {}).flat();
+      assert.ok(
+        phaseSteps.every((step) => step.command !== 'wordpress.ensure-external-http-guardrail'),
+        `${workloadId} must enforce HTTP isolation through an executable workload or registered recipe command`,
+      );
+    }
 
     if (executable.type === 'php') {
       assert.match(executable.path, /^\$\{package\.root\}\/.*\.php$/);
@@ -54,6 +61,11 @@ test('every Jetpack full-surface workload resolves to an executable implementati
       assert.ok(existsSync(path.join(repoRoot, jsonPath)), `${workloadId} JSON workload must exist`);
       const jsonWorkload = readJson(jsonPath);
       assert.ok(Array.isArray(jsonWorkload.run) || Array.isArray(jsonWorkload.steps), `${workloadId} JSON workload must define run or steps`);
+      for (const fuzzCase of workload.cases ?? []) {
+        assert.equal(fuzzCase.phases, undefined, `${workloadId} JSON case must use runner-neutral intent lowering`);
+        assert.equal(fuzzCase.intent?.execute?.path, executable.path, `${workloadId} intent path must match workload path`);
+        assert.equal(fuzzCase.intent?.execute?.type, 'json', `${workloadId} intent must hydrate its JSON workload`);
+      }
       continue;
     }
 
@@ -61,5 +73,11 @@ test('every Jetpack full-surface workload resolves to an executable implementati
     assert.equal(workload.metadata?.generic_primitive?.status, 'supported', `${workloadId} declarative primitive must be explicitly supported`);
     assert.equal(executable.command, workload.metadata.generic_primitive.command, `${workloadId} workload command must match its supported primitive`);
     assert.ok(supportedGenericPrimitives.has(executable.command), `${workloadId} must use a supported WordPress primitive`);
+    if (executable.command === 'wordpress.browser-scenario') {
+      for (const fuzzCase of workload.cases ?? []) {
+        assert.equal(fuzzCase.phases, undefined, `${workloadId} browser case must use runner-neutral intent lowering`);
+        assert.ok(fuzzCase.intent?.execute?.parameters?.['scenario-json'], `${workloadId} browser case must provide scenario-json parameters`);
+      }
+    }
   }
 });
