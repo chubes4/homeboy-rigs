@@ -415,9 +415,13 @@ const isVisible = (node) => {
 	return !!rect && rect.width > 0 && rect.height > 0;
 };
 const findMenuItemByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('[role="menuitem"], button'))).find((node) => (node.textContent || '').trim().startsWith(text) && isVisible(node));
-const waitForAddNoteButton = async () => {
+const getAddNoteButton = (field) => Array.from(field?.closest('form.editor-collab-sidebar-panel__note-form')?.querySelectorAll('button[type="submit"]') || []).find((button) => (button.textContent || '').trim() === 'Add note');
+const waitForAddNoteButton = async (field) => {
 	try {
-		return await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'Add note button');
+		return await waitFor(() => {
+			const button = getAddNoteButton(field);
+			return field?.isConnected && isVisible(field) && isVisible(button) && !button.disabled && button;
+		}, 'enabled Add note button for active composer');
 	} catch (error) {
 		const buttons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('button'))).filter(isVisible).map((button) => ({
 			text: (button.textContent || '').trim(),
@@ -447,9 +451,11 @@ const setFieldValue = (field, value) => {
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
 const getNoteFieldCandidates = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable], [role="textbox"]')));
-const findNewNoteField = (existingFields) => getNoteFieldCandidates().find((field) => {
-	const prompt = field.getAttribute('placeholder') || field.getAttribute('data-placeholder') || field.getAttribute('aria-label') || '';
-	return isVisible(field) && (prompt.startsWith('Add a note') || (existingFields && !existingFields.has(field) && field.getAttribute('role') === 'textbox'));
+const isAddNoteField = (field) => {
+	return Boolean(getAddNoteButton(field));
+};
+const findNewNoteField = () => getNoteFieldCandidates().find((field) => {
+	return isVisible(field) && isAddNoteField(field);
 });
 const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
 const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
@@ -491,14 +497,14 @@ const getDirtyBlock = (caseId, targetWindow = window) => {
 const getPostContent = async (postId) => {
 	if (window.wp?.apiFetch) {
 		const post = await window.wp.apiFetch({ path: '/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit' });
-		return post.content?.raw || post.content?.rendered || '';
+		return post.content?.raw ?? post.content?.rendered ?? '';
 	}
 	const response = await fetch('/wp-json/wp/v2/posts/' + encodeURIComponent(postId), { credentials: 'include' });
 	if (!response.ok) {
 		throw new Error('Failed to fetch post: HTTP ' + response.status);
 	}
 	const post = await response.json();
-	return post.content?.raw || post.content?.rendered || '';
+	return post.content?.raw ?? post.content?.rendered ?? '';
 };
 const contentHasNoteId = (content, noteId) => {
 	const noteIdIndex = content.indexOf('"noteId"');
@@ -627,13 +633,12 @@ const openAddNoteField = async (block) => {
 	blockElement?.focus();
 	blockElement?.click();
 	await sleep(250);
-	const existingFields = new Set(getNoteFieldCandidates());
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
 		const hasNewNoteSubmit = () => isVisible(findButtonByText('Add note'));
-		if (!findNewNoteField(existingFields) || !hasNewNoteSubmit()) {
+		if (!findNewNoteField() || !hasNewNoteSubmit()) {
 			const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 			if (!optionsButton) {
@@ -644,7 +649,7 @@ const openAddNoteField = async (block) => {
 		addNoteMenuItem.click();
 	}
 	try {
-		return await waitFor(() => findNewNoteField(existingFields), 'new note textarea');
+		return await waitFor(() => findNewNoteField(), 'new note textarea');
 	} catch (error) {
 		const candidates = getNoteFieldCandidates().filter(isVisible).map((field) => ({
 			tag: field.tagName,
@@ -657,16 +662,19 @@ const openAddNoteField = async (block) => {
 		throw new Error(error.message + '; visible editor fields=' + JSON.stringify(candidates.slice(0, 30)));
 	}
 };
-const createNoteOnBlock = async (block, text) => {
+const createNoteOnBlock = async (block, text, { waitForComposerClose = true } = {}) => {
 	const beforeIds = new Set(getBlockNoteIds());
 	const textarea = await openAddNoteField(block);
 	textarea.focus();
 	setFieldValue(textarea, text);
-	await sleep(250);
-	const addButton = await waitForAddNoteButton();
+	const addButton = await waitForAddNoteButton(textarea);
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
-	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
+	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
+	if (waitForComposerClose) {
+		await waitFor(() => !textarea.isConnected, 'submitted note composer to close');
+	}
+	return noteId;
 };
 const createConcurrentNoteRepair = async (block, text) => {
 	const coreDispatch = window.wp.data.dispatch('core');
@@ -734,12 +742,11 @@ const beginNoteOnRichTextRange = async (block, text) => {
 	const beforeIds = new Set(getBlockNoteIds());
 	const editable = await waitFor(() => findRichTextEditable(block), 'rich-text note anchor editable');
 	if (selectRichTextRange(editable) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
-	const existingFields = new Set(getNoteFieldCandidates());
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 	await sleep(500);
-	if (!findNewNoteField(existingFields)) {
+	if (!findNewNoteField()) {
 		const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 		const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 		if (!optionsButton) throw new Error('Could not find rich-text toolbar options button');
@@ -747,10 +754,10 @@ const beginNoteOnRichTextRange = async (block, text) => {
 		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'rich-text Add note menu item');
 		addNoteMenuItem.click();
 	}
-	const textarea = await waitFor(() => findNewNoteField(existingFields), 'rich-text range note textarea');
+	const textarea = await waitFor(() => findNewNoteField(), 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
-	const addButton = await waitForAddNoteButton();
+	const addButton = await waitForAddNoteButton(textarea);
 	addButton.click();
 	return beforeIds;
 };
@@ -930,7 +937,9 @@ const collectEmptySavedContentCase = async () => {
 	const persistedContent = await getPostContent(item.post_id);
 	const fullPostSaveObserved = postRequests(item.post_id).some((request) => request.semantics.is_full_editor_save);
 	const errorNotices = (window.wp.data.select('core/notices')?.getNotices?.() || []).filter((notice) => notice.status === 'error').map((notice) => notice.content || notice.id);
-	return { caseId, postId: item.post_id, noteId, persistedContent, fullPostSaveObserved, errorNotices, editorDirty: window.wp.data.select('core/editor').isEditedPostDirty?.(), passed: persistedContent === '' && !fullPostSaveObserved && errorNotices.length === 0, actorTimeline: [...actorTimeline], observedRequests: postRequests(item.post_id) };
+	const editorDirty = window.wp.data.select('core/editor').isEditedPostDirty?.();
+	const expectedError = 'The note was added, but its block attachment could not be saved.';
+	return { caseId, postId: item.post_id, noteId, persistedContent, fullPostSaveObserved, errorNotices, editorDirty, passed: persistedContent === '' && !fullPostSaveObserved && editorDirty === true && errorNotices.includes(expectedError), actorTimeline: [...actorTimeline], observedRequests: postRequests(item.post_id) };
 };
 const collectStoreCoherenceCase = async () => {
 	const caseId = 'store-coherence';
@@ -992,7 +1001,7 @@ const collectRepairFailureRecoveryCase = async () => {
 	const item = fixtureState[caseId];
 	await waitForEditorReady(caseId);
 	const target = getTargetBlock(caseId);
-	const firstNoteId = await createNoteOnBlock(target, 'Homeboy failed repair note');
+	const firstNoteId = await createNoteOnBlock(target, 'Homeboy failed repair note', { waitForComposerClose: false });
 	const surfacedFailure = await waitFor(() => (window.wp.data.select('core/notices')?.getNotices?.() || []).some((notice) => String(notice.content || '').includes('Forced attachment repair failure')), 'failed repair notice');
 	const secondNoteId = await createNoteOnBlock(target, 'Homeboy repair recovery note');
 	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
@@ -1005,7 +1014,7 @@ const collectConcurrentNoteRepairsCase = async () => {
 	const item = fixtureState[caseId];
 	await waitForEditorReady(caseId);
 	const target = getTargetBlock(caseId);
-	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note');
+	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note', { waitForComposerClose: false });
 	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'entity-save'), 'first targeted repair hold');
 	const secondCreation = await createConcurrentNoteRepair(target, 'Homeboy overlapping repair note');
 	await waitFor(() => getBlockNoteIds().length === 2, 'second local note attachment while first repair is held');
@@ -1165,7 +1174,7 @@ try {
 		inline_range_note_persisted: caseResults.some( ( item ) => item.caseId === 'inline-range-live-create' && item.cleanPostBeforeCreate === true && item.targetedPersistenceObserved === true && item.fullPostSaveObserved === false && item.reloadedHasNoteId === true && item.reloadedHasCoreNoteMarker === true && item.reloadedNoteEntityResolvesToAttachment === true ),
 		no_saved_match_avoids_wrong_sibling: caseResults.some( ( item ) => item.caseId === 'no-saved-match' && item.wrongSavedBlockAttached === false && item.fullPostSaveObserved === false ),
 		ambiguous_contentless_targets_second_sibling: caseResults.some( ( item ) => item.caseId === 'ambiguous-contentless' && item.reloadedAttachmentIndex === 1 ),
-		empty_saved_content_has_no_full_save: caseResults.some( ( item ) => item.caseId === 'empty-saved-content' && item.persistedContent === '' && item.fullPostSaveObserved === false && item.errorNotices.length === 0 ),
+		empty_saved_content_fails_closed: caseResults.some( ( item ) => item.caseId === 'empty-saved-content' && item.passed ),
 		store_coherence_before_dependent_operation: caseResults.some( ( item ) => item.caseId === 'store-coherence' && item.blockStoreHasFirstNote === true && item.editorStoreHasFirstNote === true && item.coreDataStoreHasFirstNote === true ),
 		repair_sync_race_converged: caseResults.some( ( item ) => item.caseId === 'repair-sync-race' && item.passed === true && item.exercisedRepairAndSave === true && item.delayedRoutes.includes( 'post-rest' ) ),
 		crdt_peer_lineage_stable: caseResults.some( ( item ) => item.caseId === 'crdt-peer-lineage' && item.passed === true && item.peer.attachmentCount === 1 ),
@@ -1266,8 +1275,8 @@ try {
 			},
 			{
 				id: 'empty-saved-content-no-parse-or-full-save',
-				status: targetCase !== 'empty-saved-content' || metrics.empty_saved_content_has_no_full_save ? 'pass' : 'fail',
-				message: `Empty saved content remained empty without a full editor save=${ metrics.empty_saved_content_has_no_full_save }.`
+				status: targetCase !== 'empty-saved-content' || metrics.empty_saved_content_fails_closed ? 'pass' : 'fail',
+				message: `Empty saved content failed closed without deriving a target or performing a full editor save=${ metrics.empty_saved_content_fails_closed }.`
 			},
 			{
 				id: 'core-data-editor-store-coherence-before-dependent-operation',

@@ -82,8 +82,16 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(runnerSource, /build\/scripts\/core-data\/index\.min\.js/);
   assert.match(traceSource, /gutenberg-plugin-assets-loaded/);
   assert.match(traceSource, /\/wp-content\/plugins\/gutenberg\/build\//);
-  assert.match(traceSource, /contenteditable.*data-placeholder.*Add a note/s);
-  assert.match(traceSource, /existingFields && !existingFields\.has\(field\)/);
+  assert.match(traceSource, /form\.editor-collab-sidebar-panel__note-form/);
+  assert.match(traceSource, /button\[type="submit"\].*Add note/s);
+  assert.match(traceSource, /waitForAddNoteButton\(textarea\)/);
+  assert.match(traceSource, /field\?\.isConnected.*!button\.disabled/s);
+  assert.match(traceSource, /!textarea\.isConnected.*submitted note composer to close/s);
+  assert.equal((traceSource.match(/waitForComposerClose: false/g) || []).length, 2);
+  assert.match(traceSource, /isVisible\(field\) && isAddNoteField\(field\)/);
+  assert.doesNotMatch(traceSource, /existingFields\.has\(field\)/);
+  assert.doesNotMatch(traceSource, /field\.getAttribute\('role'\) === 'textbox'/);
+  assert.match(traceSource, /content\?\.raw \?\? post\.content\?\.rendered/);
   assert.match(traceSource, /inline-range-live-create/);
   assert.match(traceSource, /core\/note/);
   assert.match(traceSource, /reloadedNoteEntityResolvesToAttachment/);
@@ -91,6 +99,8 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /no-saved-match/);
   assert.match(traceSource, /ambiguous-contentless/);
   assert.match(traceSource, /empty-saved-content/);
+  assert.match(traceSource, /empty_saved_content_fails_closed/);
+  assert.match(traceSource, /block attachment could not be saved/);
   assert.match(traceSource, /store-coherence/);
   assert.match(traceSource, /repair-sync-race/);
   assert.match(traceSource, /crdt-peer-lineage/);
