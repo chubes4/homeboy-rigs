@@ -8,6 +8,7 @@ const wordpressRigScope = new Set([
   'WordPress/gutenberg/fuzz/browser-scenarios.test.mjs',
   'WordPress/gutenberg/tools/fuzz-coverage.test.mjs',
   'WordPress/wordpress-develop/fuzz/core-fuzz-contracts.test.mjs',
+  'scripts/jetpack-full-surface-workloads.test.mjs',
   'scripts/product-full-surface-matrix.test.mjs',
   'woocommerce/woocommerce/manifests/scale-profiles.test.mjs',
   'woocommerce/woocommerce/tools/db-api-fuzzer-artifacts.test.mjs',

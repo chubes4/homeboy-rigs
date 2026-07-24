@@ -234,13 +234,6 @@
             "args": [
               "plugin=jetpack/jetpack.php"
             ]
-          },
-          {
-            "command": "wordpress.ensure-external-http-guardrail",
-            "args": [
-              "allowlist=public-api.wordpress.com",
-              "block_network=true"
-            ]
           }
         ],
         "action": [

@@ -8,20 +8,19 @@
     "jetpack-settings"
   ],
   "operations": [
-    "module-discovery",
-    "module-group-inventory",
-    "module-activate-deactivate-disposable-mutation",
-    "settings-state-classification",
-    "dependency-classification",
-    "connected-state-blocker-classification",
-    "disposable-destructive-contract-classification"
+    "module-state-seed",
+    "module-activate-deactivate-local-mutation",
+    "settings-before-after-hash",
+    "connection-owner-health-evaluation",
+    "remote-connection-boundary-classification",
+    "fixture-state-restoration"
   ],
   "case_budget": 80,
   "duration_budget_seconds": 900,
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "workload_path": "${package.root}/bench/jetpack-module-state-matrix.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "mutation_policy": "upstream_disposable_destructive_contract",
@@ -29,12 +28,12 @@
       "status": "required",
       "contract": "wordpress-disposable-destructive-contract",
       "fixture_scope": "wp-codebox-disposable-wordpress",
-      "rollback_required": false,
+      "rollback_required": true,
       "remote_state_allowed": false
     },
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Jetpack module discovery, grouping, dependency, settings-state, connected-state blocker, and local disposable activation/deactivation through the upstream destructive contract. WP.com remote-state effects stay blocked until explicit provisioning exists.",
+      "coverage_contract": "Runs a PHP WP Codebox fixture that seeds non-empty local module and settings state, toggles one locally available module, evaluates placeholder connection-owner health before and after capability drift, records before/after values and hashes, and restores every option and user.",
       "upstream_blockers": [
         "true WP.com connected-state behavior requires an explicit OAuth app, sandbox blog, service account, or exact equivalent before remote-state effects can run"
       ],
@@ -53,32 +52,19 @@
         }
       },
       "mutation": {
-        "safety_boundary": "Executes local module state writes only in a disposable WP Codebox WordPress runtime through the upstream destructive contract. Connection-dependent remote effects are classified as provisioning-blocked.",
-        "rollback_required": false,
-        "disposable_sandbox_boundary_artifacts": ["disposable_sandbox_boundary"],
-        "mutation_isolation_artifacts": ["module_state_disposable_mutation_contract", "module_option_before_after_rows"],
-        "delete_boundary_artifacts": ["delete_boundary_artifact"],
-        "destructive_case_ledgers": ["destructive_case_ledger"],
-        "teardown_discard_evidence": ["sandbox_teardown_evidence"],
-        "artifact_bundle_refs": ["artifact_bundle_ref"],
-        "rollback_artifacts": [],
-        "disposable_contract_artifacts": [
-          "module_state_disposable_mutation_contract",
-          "module_option_before_after_rows"
-        ]
+        "safety_boundary": "Executes local module and placeholder connection-owner writes only in a disposable WP Codebox runtime. The PHP workload blocks outbound HTTP and restores all options and the temporary user before returning.",
+        "rollback_required": true,
+        "rollback_artifacts": ["module_state_matrix"],
+        "remote_connection_behavior": "provisioned_connected_state_required"
       }
     },
     "artifact_expectations": {
       "required": [
-        "module_matrix",
-        "module_group_rows",
-        "dependency_rows",
-        "connected_state_blockers",
-        "disposable_mutation_contract_rows"
+        "module_state_matrix"
       ],
       "optional": [
-        "settings_state_rows",
-        "executed_local_toggle_rows"
+        "module_and_settings_before_after_hashes",
+        "cleanup_assertion"
       ]
     }
   },
@@ -89,9 +75,9 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "generic",
-    "path": "${package.root}/manifests/full-surface-coverage.json",
-    "entry": "wordpress-plugin-module-state-matrix"
+    "type": "php",
+    "path": "${package.root}/bench/jetpack-module-state-matrix.php",
+    "entry": "jetpack-module-state-matrix"
   },
   "cases": [
     {
@@ -101,87 +87,20 @@
         "jetpack-settings"
       ],
       "operations": [
-        "module-discovery",
-        "module-group-inventory",
-          "module-activate-deactivate-disposable-mutation",
-        "settings-state-classification",
-        "dependency-classification",
-        "connected-state-blocker-classification",
-          "disposable-destructive-contract-classification"
+        "module-state-seed",
+        "module-activate-deactivate-local-mutation",
+        "settings-before-after-hash",
+        "connection-owner-health-evaluation",
+        "remote-connection-boundary-classification",
+        "fixture-state-restoration"
       ],
       "inputs": {
-        "module_allowlist": [
-          "stats",
-          "publicize",
-          "related-posts",
-          "markdown",
-          "shortcodes",
-          "widget-visibility",
-          "photon",
-          "sitemaps",
-          "protect",
-          "monitor",
-          "subscriptions",
-          "comments",
-          "likes",
-          "carousel",
-          "contact-form",
-          "tiled-gallery"
-        ],
-        "module_groups": {
-          "traffic": [
-            "stats",
-            "related-posts",
-            "sitemaps"
-          ],
-          "sharing": [
-            "publicize",
-            "sharing",
-            "likes"
-          ],
-          "writing": [
-            "markdown",
-            "shortcodes",
-            "contact-form"
-          ],
-          "media": [
-            "photon",
-            "carousel",
-            "tiled-gallery"
-          ],
-          "security": [
-            "protect",
-            "monitor"
-          ],
-          "community": [
-            "subscriptions",
-            "comments",
-            "widget-visibility"
-          ]
-        },
-        "connected_state_blockers": [
-          "publicize",
-          "protect",
-          "monitor",
-          "stats",
-          "subscriptions"
-        ],
-        "connected_state_required_for_mutation": false,
-        "connected_remote_state_provisioning_required": true,
-        "runtime_isolation_required_for_mutation": true,
-        "external_dispatch": false,
-        "execute_mutations": true,
-        "mutation_mode": "upstream_disposable_destructive_contract",
-        "rollback_required": false,
-        "disposable_destructive_contract": [
-          "run only inside wp-codebox disposable WordPress",
-          "record module option before and after value shape",
-          "classify WP.com remote effects as provisioned_connected_state_required"
-        ],
-        "skip_reason_codes": [
-          "connection_required",
-          "credential_unavailable"
-        ]
+        "module_seed": ["markdown", "shortcodes"],
+        "toggle_candidates": ["markdown", "shortcodes", "contact-form"],
+        "settings_options": ["jetpack_options", "jetpack_private_options", "jetpack_sync_settings"],
+        "network_calls_allowed": false,
+        "real_wpcom_credentials_allowed": false,
+        "restore_original_values": true
       },
       "phases": {
         "setup": [
@@ -194,15 +113,10 @@
         ],
         "action": [
           {
-            "command": "wordpress.fuzz-plugin-module-state",
+            "command": "wordpress.run-workload",
             "args": [
-              "external_dispatch=false",
-              "execute_mutations=true",
-              "mutation_mode=upstream_disposable_destructive_contract",
-              "connected_state_required_for_mutation=false",
-              "connected_remote_state_provisioning_required=true",
-              "runtime_isolation_required_for_mutation=true",
-              "rollback_required=false"
+              "path=${package.root}/bench/jetpack-module-state-matrix.php",
+              "type=php"
             ]
           }
         ],
@@ -223,19 +137,23 @@
           "metadata": {
             "semantic_key": "fuzz.report"
           }
-        },
-        {
-          "name": "module_state_disposable_mutation_contract",
-          "path": "jetpack-module-state-matrix/module_state_disposable_mutation_contract.json",
-          "required": true,
-          "metadata": {
-              "semantic_key": "fuzz.disposable_destructive_contract"
-          }
         }
       ],
       "metadata": {
         "safety_class": "isolated_mutation",
         "mutation_policy": "upstream_disposable_destructive_contract"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": { "activation": "jetpack/jetpack.php" },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/jetpack-module-state-matrix.php",
+          "type": "php",
+          "entry": "jetpack-module-state-matrix"
+        },
+        "collect": [{ "artifact": "module_state_matrix" }]
       }
     }
   ],
@@ -249,13 +167,12 @@
       "jetpack-settings"
     ],
     "operations": [
-      "module-discovery",
-      "module-group-inventory",
-      "module-activate-deactivate-disposable-mutation",
-      "settings-state-classification",
-      "dependency-classification",
-      "connected-state-blocker-classification",
-      "disposable-destructive-contract-classification"
+      "module-state-seed",
+      "module-activate-deactivate-local-mutation",
+      "settings-before-after-hash",
+      "connection-owner-health-evaluation",
+      "remote-connection-boundary-classification",
+      "fixture-state-restoration"
     ]
   },
   "artifacts": {
@@ -264,12 +181,6 @@
         "name": "module_state_matrix",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": true
-      },
-      {
-        "name": "module_state_disposable_mutation_contract",
-        "role": "disposable_destructive_contract",
-        "semantic_key": "fuzz.disposable_destructive_contract",
         "required": true
       }
     ]

@@ -21,7 +21,7 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "workload_path": "${package.root}/bench/jetpack-options-matrix.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "mutation_policy": "upstream_disposable_destructive_contract",
@@ -90,9 +90,9 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "generic",
-    "path": "${package.root}/manifests/full-surface-coverage.json",
-    "entry": "wordpress-plugin-option-matrix"
+    "type": "php",
+    "path": "${package.root}/bench/jetpack-options-matrix.php",
+    "entry": "jetpack-options-matrix"
   },
   "cases": [
     {
@@ -208,15 +208,10 @@
         ],
         "action": [
           {
-            "command": "wordpress.fuzz-plugin-options",
+            "command": "wordpress.run-workload",
             "args": [
-              "secret_placeholders_only=true",
-              "execute_mutations=true",
-              "mutation_mode=upstream_disposable_destructive_contract",
-              "connected_state_required_for_mutation=false",
-              "connected_remote_state_provisioning_required=true",
-              "runtime_isolation_required_for_mutation=true",
-              "rollback_required=false"
+              "path=${package.root}/bench/jetpack-options-matrix.php",
+              "type=php"
             ]
           }
         ],

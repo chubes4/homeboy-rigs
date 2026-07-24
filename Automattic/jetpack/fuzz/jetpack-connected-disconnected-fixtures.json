@@ -1,179 +1,57 @@
 {
   "schema": "homeboy/fuzz-workload/v1",
   "id": "jetpack-connected-disconnected-fixtures",
-  "label": "Jetpack connected and disconnected fixture coverage",
+  "label": "Jetpack local connection-owner mismatch fixture",
   "safety_class": "isolated_mutation",
   "surface_ids": [
     "jetpack-connection",
     "jetpack-modules",
-    "jetpack-sync",
-    "wordpress-options"
+    "wordpress-options",
+    "wordpress-users"
   ],
   "operations": [
-    "local-placeholder-connected-fixture-state",
-    "disconnected-fixture-state",
-    "token-placeholder-serialization",
-    "skip-reason-classification"
+    "local-connection-owner-capability-drift",
+    "connection-health-evaluation",
+    "module-state-no-change-evidence",
+    "fixture-state-restoration"
   ],
-  "case_budget": 80,
-  "duration_budget_seconds": 900,
+  "case_budget": 1,
+  "duration_budget_seconds": 300,
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "workload_path": "${package.root}/bench/jetpack-connection-owner-mismatch.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
-    "fixture_states": [
-      "connected",
-      "disconnected"
-    ],
-    "fixture_state_contract": {
-      "connected": {
-        "description": "Synthetic local connected-site shape with placeholder blog/user IDs and fake token material only. This is not true WP.com connected-state support.",
-        "required_options": [
-          "jetpack_options",
-          "jetpack_private_options",
-          "jetpack_active_modules"
-        ],
-        "expected_connection_state": "locally_connected_without_wpcom_sandbox",
-        "allowed_secret_values": [
-          "__JETPACK_FAKE_BLOG_TOKEN__",
-          "__JETPACK_FAKE_USER_TOKEN__"
-        ],
-        "expected_skip_reasons": [
-          "credential_unavailable",
-          "external_service_required"
-        ],
-        "network_calls_allowed": false
-      },
-      "disconnected": {
-        "description": "Clean local disconnected-site shape with connection options absent or reset to empty defaults.",
-        "required_absent_options": [
-          "jetpack_private_options.blog_token",
-          "jetpack_private_options.user_tokens"
-        ],
-        "expected_connection_state": "disconnected_without_wpcom_sandbox",
-        "expected_skip_reasons": [
-          "connection_required",
-          "disconnected_expected"
-        ],
-        "network_calls_allowed": false
-      }
+    "anchor": {
+      "github_issue": "https://github.com/chubes4/homeboy-rigs/issues/693",
+      "zendesk_ticket": "11206186"
     },
-    "fake_token_policy": {
+    "fixture": {
+      "runtime": "wp-codebox",
+      "scope": "disposable-wordpress",
+      "connection": "local-placeholder-only",
+      "network_calls_allowed": false,
       "real_wpcom_credentials_allowed": false,
-      "real_tokens_allowed": false,
-      "placeholder_tokens_only": true,
-      "redact_token_fields": [
-        "blog_token",
-        "user_token",
-        "token",
-        "secret",
-        "access_token"
-      ],
-      "redaction_placeholder": "[redacted:jetpack-fixture-token]",
-      "artifact_must_not_contain_patterns": [
-        "Bearer ",
-        "token_secret",
-        "oauth_token_secret",
-        "public-api.wordpress.com/rest/v1.1/me"
-      ]
-    },
-    "wpcom_sandbox_blockers": [
-      "No WP.com OAuth application, sandbox blog, or service account is provisioned for this fixture lane.",
-      "Connected behavior that requires public-api.wordpress.com must be reported as a skip, not exercised with live credentials.",
-      "The Jetpack external HTTP guardrail owns network blocking proof for this lane."
-    ],
-    "connected_remote_state_contract": {
-      "level": "blocked_until_provisioned",
-      "required_provisioning": [
-        "wpcom_oauth_app",
-        "wpcom_sandbox_blog",
-        "wpcom_service_account"
-      ],
-      "exact_equivalent_allowed": true,
-      "guessed_support_allowed": false,
-      "local_placeholder_state_is_remote_support": false,
-      "blocker_reason_code": "provisioned_connected_state_required"
-    },
-    "module_availability_expectations": {
-      "available_in_both_states": [
-        "shortcodes",
-        "markdown",
-        "widget-visibility"
-      ],
-      "connected_fixture_may_enable": [
-        "stats",
-        "publicize",
-        "related-posts",
-        "protect"
-      ],
-      "requires_connected_or_wpcom_service": [
-        "stats",
-        "publicize",
-        "protect"
-      ],
-      "unavailable_reason": "credential_unavailable"
-    },
-    "reset_contract": {
-      "snapshot_before_mutation": true,
-      "restore_original_values": true,
-      "rollback_required": false,
-      "reset_after_each_state": true,
-      "option_patterns": [
-        "jetpack_options",
-        "jetpack_private_options",
-        "jetpack_active_modules",
-        "jetpack_sync_settings_*"
-      ],
-      "transient_patterns": [
-        "jetpack_%",
-        "jp_%"
-      ],
-      "failure_policy": "fail_if_fixture_state_leaks_after_assert"
-    },
-    "mutation_policy": "upstream_disposable_destructive_contract",
-    "artifact_expectations": {
-      "required": [
-        "connected_fixture_rows",
-        "disconnected_fixture_rows",
-        "token_placeholder_serialization",
-        "skip_reason_rows",
-        "fixture_reset_rows",
-        "redaction_rows"
-      ],
-      "optional": [
-        "module_state_diffs",
-        "sync_queue_diffs"
-      ]
-    },
-    "proof_artifact_expectations": {
-      "connection_fixture_matrix": [
-        "state",
-        "connection_state",
-        "option_snapshot_hash",
-        "module_expectations",
-        "skip_reasons"
-      ],
-      "connection_skip_reasons": [
-        "state",
-        "surface",
-        "reason_code",
-        "blocked_by_wpcom_sandbox"
-      ],
-      "connection_reset_report": [
-        "state",
-        "restored_options",
-        "restored_transients",
-        "leaked_keys",
-        "passed"
-      ]
+      "placeholder_tokens_only": true
     },
     "readiness": {
       "level": "executable",
-      "coverage_contract": "Jetpack local placeholder connected and disconnected fixture states using placeholder tokens, redaction checks, skip-reason classification, and fixture reset artifacts. True WP.com connected-state behavior is blocked until explicit OAuth app, sandbox blog, service account, or exact equivalent provisioning exists.",
+      "coverage_contract": "Creates a temporary local administrator owner with placeholder Jetpack tokens, proves the owner health check passes, downgrades that owner to subscriber, proves the health check fails without changing jetpack_active_modules, and restores all fixture state.",
       "upstream_blockers": [
-        "Reviewer-facing fuzz run artifacts are required before this workload can be marked proven."
+        "True WordPress.com connection behavior requires provisioned credentials and remains outside this local fixture."
+      ],
+      "mutation": {
+        "safety_boundary": "Mutates only local WP Codebox state and restores it before returning.",
+        "rollback_required": true,
+        "rollback_artifacts": [
+          "connection_owner_mismatch"
+        ]
+      }
+    },
+    "artifact_expectations": {
+      "required": [
+        "connection_owner_mismatch"
       ]
     }
   },
@@ -184,9 +62,9 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "generic",
-    "path": "${package.root}/manifests/full-surface-coverage.json",
-    "entry": "jetpack-connected-disconnected-fixtures"
+    "type": "php",
+    "path": "${package.root}/bench/jetpack-connection-owner-mismatch.php",
+    "entry": "jetpack-connection-owner-mismatch"
   },
   "cases": [
     {
@@ -194,88 +72,26 @@
       "surface_ids": [
         "jetpack-connection",
         "jetpack-modules",
-        "jetpack-sync",
-        "wordpress-options"
+        "wordpress-options",
+        "wordpress-users"
       ],
       "operations": [
-          "local-placeholder-connected-fixture-state",
-        "disconnected-fixture-state",
-        "token-placeholder-serialization",
-        "skip-reason-classification"
+        "local-connection-owner-capability-drift",
+        "connection-health-evaluation",
+        "module-state-no-change-evidence",
+        "fixture-state-restoration"
       ],
       "inputs": {
-        "states": [
-          "connected",
-          "disconnected"
-        ],
-        "fixture_states": [
-          "connected",
-          "disconnected"
-        ],
-        "explicit_fixture_states": {
-          "connected": "synthetic_placeholder_connection_without_wpcom_sandbox",
-          "disconnected": "clean_local_disconnect_without_wpcom_sandbox"
-        },
         "connection_options": [
           "jetpack_options",
           "jetpack_private_options",
-          "jetpack_active_modules",
-          "jetpack_sync_settings_sync_wait_time"
+          "jetpack_active_modules"
         ],
-        "fixture_options": [
-          "jetpack_options",
-          "jetpack_private_options",
-          "jetpack_active_modules",
-          "jetpack_sync_settings_*"
-        ],
-        "redact_option_fields": [
-          "blog_token",
-          "user_token",
-          "token",
-          "secret",
-          "access_token"
-        ],
-        "allowed_fake_tokens": [
-          "__JETPACK_FAKE_BLOG_TOKEN__",
-          "__JETPACK_FAKE_USER_TOKEN__"
-        ],
-        "real_wpcom_credentials_allowed": false,
-        "real_tokens_allowed": false,
+        "owner_role_before_drift": "administrator",
+        "owner_role_after_drift": "subscriber",
         "network_calls_allowed": false,
-        "wpcom_sandbox_required": false,
-        "connected_remote_state_provisioning_required": true,
-        "guessed_connected_state_support_allowed": false,
-        "secret_placeholders_only": true,
-        "restore_original_values": true,
-        "reset_after_each_state": true,
-        "rollback_required": false,
-        "module_availability_expectations": {
-          "available_in_both_states": [
-            "shortcodes",
-            "markdown",
-            "widget-visibility"
-          ],
-          "connected_fixture_may_enable": [
-            "stats",
-            "publicize",
-            "related-posts",
-            "protect"
-          ],
-          "requires_connected_or_wpcom_service": [
-            "stats",
-            "publicize",
-            "protect"
-          ]
-        },
-        "skip_reason_codes": [
-          "credential_unavailable",
-          "external_service_required",
-          "connection_required",
-          "disconnected_expected",
-          "connected_required",
-          "destructive_action",
-          "unsupported_fixture"
-        ]
+        "real_wpcom_credentials_allowed": false,
+        "restore_original_values": true
       },
       "phases": {
         "setup": [
@@ -288,14 +104,10 @@
         ],
         "action": [
           {
-            "command": "wordpress.fuzz-plugin-connection-fixtures",
+            "command": "wordpress.run-workload",
             "args": [
-              "states=connected,disconnected",
-              "secret_placeholders_only=true",
-              "restore_original_values=true",
-              "rollback_required=false",
-              "connected_remote_state_provisioning_required=true",
-              "classify_skips=true"
+              "path=${package.root}/bench/jetpack-connection-owner-mismatch.php",
+              "type=php"
             ]
           }
         ],
@@ -303,79 +115,68 @@
           {
             "command": "wordpress.collect-workload-result",
             "args": [
-              "artifact=connection_fixture_matrix"
+              "artifact=connection_owner_mismatch"
             ]
           }
         ]
       },
       "artifacts": [
         {
-          "name": "connection_fixture_matrix",
-          "path": "jetpack-connected-disconnected-fixtures/connection_fixture_matrix.json",
+          "name": "connection_owner_mismatch",
+          "path": "jetpack-connected-disconnected-fixtures/connection_owner_mismatch.json",
           "required": true,
           "metadata": {
             "semantic_key": "fuzz.report"
           }
-        },
-        {
-          "name": "connection_skip_reasons",
-          "path": "jetpack-connected-disconnected-fixtures/connection_skip_reasons.json",
-          "required": true,
-          "metadata": {
-            "semantic_key": "fuzz.skip_reasons"
-          }
-        },
-        {
-          "name": "connection_fixture_reset_report",
-          "path": "jetpack-connected-disconnected-fixtures/connection_fixture_reset_report.json",
-          "required": true,
-          "metadata": {
-            "semantic_key": "fuzz.fixture_reset_report"
-          }
         }
       ],
       "metadata": {
-        "safety_class": "isolated_mutation",
-        "mutation_policy": "upstream_disposable_destructive_contract"
+        "safety_class": "isolated_mutation"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "jetpack/jetpack.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/jetpack-connection-owner-mismatch.php",
+          "type": "php",
+          "entry": "jetpack-connection-owner-mismatch"
+        },
+        "collect": [
+          {
+            "artifact": "connection_owner_mismatch"
+          }
+        ]
       }
     }
   ],
   "limits": {
-    "max_cases": 80,
-    "max_duration_seconds": 900
+    "max_cases": 1,
+    "max_duration_seconds": 300
   },
   "coverage": {
     "surface_ids": [
       "jetpack-connection",
       "jetpack-modules",
-      "jetpack-sync",
-      "wordpress-options"
+      "wordpress-options",
+      "wordpress-users"
     ],
     "operations": [
-      "local-placeholder-connected-fixture-state",
-      "disconnected-fixture-state",
-      "token-placeholder-serialization",
-      "skip-reason-classification"
+      "local-connection-owner-capability-drift",
+      "connection-health-evaluation",
+      "module-state-no-change-evidence",
+      "fixture-state-restoration"
     ]
   },
   "artifacts": {
     "expected": [
       {
-        "name": "connection_fixture_matrix",
+        "name": "connection_owner_mismatch",
         "role": "fuzz_report",
         "semantic_key": "fuzz.report",
-        "required": true
-      },
-      {
-        "name": "connection_skip_reasons",
-        "role": "safety_report",
-        "semantic_key": "fuzz.skip_reasons",
-        "required": true
-      },
-      {
-        "name": "connection_fixture_reset_report",
-        "role": "fixture_reset_report",
-        "semantic_key": "fuzz.fixture_reset_report",
         "required": true
       }
     ]

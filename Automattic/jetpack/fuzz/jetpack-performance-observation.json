@@ -24,7 +24,7 @@
   "metadata": {
     "kind": "wordpress-plugin-fuzz",
     "wordpress_runner": "wp-codebox",
-    "workload_path": "${package.root}/manifests/full-surface-coverage.json",
+    "workload_path": "${package.root}/bench/jetpack-performance-observation.php",
     "expected_artifact_role": "fuzz_report",
     "expected_artifact_semantic_key": "fuzz.report",
     "relative_hotspot_artifacts": {
@@ -95,8 +95,8 @@
   },
   "workload": {
     "runner": "wp-codebox",
-    "type": "generic",
-    "path": "${package.root}/manifests/full-surface-coverage.json",
+    "type": "php",
+    "path": "${package.root}/bench/jetpack-performance-observation.php",
     "entry": "jetpack-performance-observation"
   },
   "cases": [
@@ -188,53 +188,8 @@
           {
             "command": "wordpress.run-workload",
             "args": [
-              "path=${package.root}/bench/rest-db-query-profile.workload.json",
-              "type=json",
-              "artifact=rest_db_query_profile"
-            ]
-          },
-          {
-            "command": "wordpress.fuzz-admin-pages",
-            "args": [
-              "safe_methods=GET",
-              "get_first=true",
-              "submit_forms=false",
-              "follow_redirects=false",
-              "max_pages=40",
-              "enumerate_menus=true",
-              "classify_skips=true"
-            ]
-          },
-          {
-            "command": "wordpress.browser-scenario",
-            "args": [
-              "surface=jetpack-public-modules",
-              "states=connected,disconnected",
-              "classify_skips=true",
-              "artifact=public_module_frontend_coverage"
-            ]
-          },
-          {
-            "command": "wordpress.ensure-external-http-guardrail",
-            "args": [
-              "allowlist=public-api.wordpress.com",
-              "block_network=true"
-            ]
-          },
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/jetpack-external-http-guardrail.php",
-              "type=php",
-              "artifact=external_http_guardrail"
-            ]
-          },
-          {
-            "command": "wordpress.summarize-fuzz-artifacts",
-            "args": [
-              "surface=jetpack-performance",
-              "include=timing,queries,assets,sync,http,skips",
-              "artifact=jetpack_performance_observation,jetpack_performance_surface_summary"
+              "path=${package.root}/bench/jetpack-performance-observation.php",
+              "type=php"
             ]
           }
         ],

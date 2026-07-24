@@ -124,33 +124,6 @@
           "credential_unavailable"
         ]
       },
-      "phases": {
-        "setup": [
-          {
-            "command": "wordpress.ensure-plugin-active",
-            "args": [
-              "plugin=jetpack/jetpack.php"
-            ]
-          }
-        ],
-        "action": [
-          {
-            "command": "wordpress.run-workload",
-            "args": [
-              "path=${package.root}/bench/rest-db-query-profile.workload.json",
-              "type=json"
-            ]
-          }
-        ],
-        "assert": [
-          {
-            "command": "wordpress.collect-workload-result",
-            "args": [
-              "artifact=rest_db_query_profile"
-            ]
-          }
-        ]
-      },
       "artifacts": [
         {
           "name": "rest_db_query_profile",
@@ -170,6 +143,24 @@
       ],
       "metadata": {
         "safety_class": "read_only"
+      },
+      "intent": {
+        "schema": "homeboy/fuzz-workload-intent/v1",
+        "type": "wordpress-plugin-workload",
+        "plugin": {
+          "activation": "jetpack/jetpack.php"
+        },
+        "execute": {
+          "workload_ref": "default",
+          "path": "${package.root}/bench/rest-db-query-profile.workload.json",
+          "type": "json",
+          "entry": "rest-db-query-profile"
+        },
+        "collect": [
+          {
+            "artifact": "rest_db_query_profile"
+          }
+        ]
       }
     }
   ],
