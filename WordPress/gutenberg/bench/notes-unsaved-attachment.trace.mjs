@@ -415,9 +415,13 @@ const isVisible = (node) => {
 	return !!rect && rect.width > 0 && rect.height > 0;
 };
 const findMenuItemByText = (text) => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('[role="menuitem"], button'))).find((node) => (node.textContent || '').trim().startsWith(text) && isVisible(node));
-const waitForAddNoteButton = async () => {
+const getAddNoteButton = (field) => Array.from(field?.closest('form.editor-collab-sidebar-panel__note-form')?.querySelectorAll('button[type="submit"]') || []).find((button) => (button.textContent || '').trim() === 'Add note');
+const waitForAddNoteButton = async (field) => {
 	try {
-		return await waitFor(() => isVisible(findButtonByText('Add note')) && findButtonByText('Add note'), 'Add note button');
+		return await waitFor(() => {
+			const button = getAddNoteButton(field);
+			return field?.isConnected && isVisible(field) && isVisible(button) && !button.disabled && button;
+		}, 'enabled Add note button for active composer');
 	} catch (error) {
 		const buttons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('button'))).filter(isVisible).map((button) => ({
 			text: (button.textContent || '').trim(),
@@ -448,8 +452,7 @@ const setFieldValue = (field, value) => {
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
 const getNoteFieldCandidates = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable], [role="textbox"]')));
 const isAddNoteField = (field) => {
-	const form = field.closest('form.editor-collab-sidebar-panel__note-form');
-	return Boolean(form && Array.from(form.querySelectorAll('button[type="submit"]')).some((button) => isVisible(button) && (button.textContent || '').trim() === 'Add note'));
+	return Boolean(getAddNoteButton(field));
 };
 const findNewNoteField = () => getNoteFieldCandidates().find((field) => {
 	return isVisible(field) && isAddNoteField(field);
@@ -664,8 +667,7 @@ const createNoteOnBlock = async (block, text) => {
 	const textarea = await openAddNoteField(block);
 	textarea.focus();
 	setFieldValue(textarea, text);
-	await sleep(250);
-	const addButton = await waitForAddNoteButton();
+	const addButton = await waitForAddNoteButton(textarea);
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
@@ -751,7 +753,7 @@ const beginNoteOnRichTextRange = async (block, text) => {
 	const textarea = await waitFor(() => findNewNoteField(), 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
-	const addButton = await waitForAddNoteButton();
+	const addButton = await waitForAddNoteButton(textarea);
 	addButton.click();
 	return beforeIds;
 };

@@ -84,6 +84,8 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /\/wp-content\/plugins\/gutenberg\/build\//);
   assert.match(traceSource, /form\.editor-collab-sidebar-panel__note-form/);
   assert.match(traceSource, /button\[type="submit"\].*Add note/s);
+  assert.match(traceSource, /waitForAddNoteButton\(textarea\)/);
+  assert.match(traceSource, /field\?\.isConnected.*!button\.disabled/s);
   assert.match(traceSource, /isVisible\(field\) && isAddNoteField\(field\)/);
   assert.doesNotMatch(traceSource, /existingFields\.has\(field\)/);
   assert.doesNotMatch(traceSource, /field\.getAttribute\('role'\) === 'textbox'/);
