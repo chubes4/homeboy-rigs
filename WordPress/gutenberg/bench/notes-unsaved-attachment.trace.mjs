@@ -670,7 +670,9 @@ const createNoteOnBlock = async (block, text) => {
 	const addButton = await waitForAddNoteButton(textarea);
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
-	return waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
+	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
+	await waitFor(() => !textarea.isConnected, 'submitted note composer to close');
+	return noteId;
 };
 const createConcurrentNoteRepair = async (block, text) => {
 	const coreDispatch = window.wp.data.dispatch('core');
