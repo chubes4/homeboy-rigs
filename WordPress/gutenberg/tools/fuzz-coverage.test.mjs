@@ -83,7 +83,9 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /gutenberg-plugin-assets-loaded/);
   assert.match(traceSource, /\/wp-content\/plugins\/gutenberg\/build\//);
   assert.match(traceSource, /contenteditable.*data-placeholder.*Add a note/s);
-  assert.match(traceSource, /existingFields && !existingFields\.has\(field\)/);
+  assert.match(traceSource, /isAddNoteField\(field\).*existingFields\.has\(field\)/s);
+  assert.doesNotMatch(traceSource, /field\.getAttribute\('role'\) === 'textbox'/);
+  assert.match(traceSource, /content\?\.raw \?\? post\.content\?\.rendered/);
   assert.match(traceSource, /inline-range-live-create/);
   assert.match(traceSource, /core\/note/);
   assert.match(traceSource, /reloadedNoteEntityResolvesToAttachment/);
@@ -91,6 +93,8 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /no-saved-match/);
   assert.match(traceSource, /ambiguous-contentless/);
   assert.match(traceSource, /empty-saved-content/);
+  assert.match(traceSource, /empty_saved_content_fails_closed/);
+  assert.match(traceSource, /block attachment could not be saved/);
   assert.match(traceSource, /store-coherence/);
   assert.match(traceSource, /repair-sync-race/);
   assert.match(traceSource, /crdt-peer-lineage/);

@@ -447,9 +447,12 @@ const setFieldValue = (field, value) => {
 };
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
 const getNoteFieldCandidates = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable], [role="textbox"]')));
-const findNewNoteField = (existingFields) => getNoteFieldCandidates().find((field) => {
+const isAddNoteField = (field) => {
 	const prompt = field.getAttribute('placeholder') || field.getAttribute('data-placeholder') || field.getAttribute('aria-label') || '';
-	return isVisible(field) && (prompt.startsWith('Add a note') || (existingFields && !existingFields.has(field) && field.getAttribute('role') === 'textbox'));
+	return prompt.startsWith('Add a note');
+};
+const findNewNoteField = (existingFields) => getNoteFieldCandidates().find((field) => {
+	return isVisible(field) && isAddNoteField(field) && (!existingFields || !existingFields.has(field));
 });
 const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
 const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
@@ -491,14 +494,14 @@ const getDirtyBlock = (caseId, targetWindow = window) => {
 const getPostContent = async (postId) => {
 	if (window.wp?.apiFetch) {
 		const post = await window.wp.apiFetch({ path: '/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit' });
-		return post.content?.raw || post.content?.rendered || '';
+		return post.content?.raw ?? post.content?.rendered ?? '';
 	}
 	const response = await fetch('/wp-json/wp/v2/posts/' + encodeURIComponent(postId), { credentials: 'include' });
 	if (!response.ok) {
 		throw new Error('Failed to fetch post: HTTP ' + response.status);
 	}
 	const post = await response.json();
-	return post.content?.raw || post.content?.rendered || '';
+	return post.content?.raw ?? post.content?.rendered ?? '';
 };
 const contentHasNoteId = (content, noteId) => {
 	const noteIdIndex = content.indexOf('"noteId"');
@@ -930,7 +933,9 @@ const collectEmptySavedContentCase = async () => {
 	const persistedContent = await getPostContent(item.post_id);
 	const fullPostSaveObserved = postRequests(item.post_id).some((request) => request.semantics.is_full_editor_save);
 	const errorNotices = (window.wp.data.select('core/notices')?.getNotices?.() || []).filter((notice) => notice.status === 'error').map((notice) => notice.content || notice.id);
-	return { caseId, postId: item.post_id, noteId, persistedContent, fullPostSaveObserved, errorNotices, editorDirty: window.wp.data.select('core/editor').isEditedPostDirty?.(), passed: persistedContent === '' && !fullPostSaveObserved && errorNotices.length === 0, actorTimeline: [...actorTimeline], observedRequests: postRequests(item.post_id) };
+	const editorDirty = window.wp.data.select('core/editor').isEditedPostDirty?.();
+	const expectedError = 'The note was added, but its block attachment could not be saved.';
+	return { caseId, postId: item.post_id, noteId, persistedContent, fullPostSaveObserved, errorNotices, editorDirty, passed: persistedContent === '' && !fullPostSaveObserved && editorDirty === true && errorNotices.includes(expectedError), actorTimeline: [...actorTimeline], observedRequests: postRequests(item.post_id) };
 };
 const collectStoreCoherenceCase = async () => {
 	const caseId = 'store-coherence';
@@ -1165,7 +1170,7 @@ try {
 		inline_range_note_persisted: caseResults.some( ( item ) => item.caseId === 'inline-range-live-create' && item.cleanPostBeforeCreate === true && item.targetedPersistenceObserved === true && item.fullPostSaveObserved === false && item.reloadedHasNoteId === true && item.reloadedHasCoreNoteMarker === true && item.reloadedNoteEntityResolvesToAttachment === true ),
 		no_saved_match_avoids_wrong_sibling: caseResults.some( ( item ) => item.caseId === 'no-saved-match' && item.wrongSavedBlockAttached === false && item.fullPostSaveObserved === false ),
 		ambiguous_contentless_targets_second_sibling: caseResults.some( ( item ) => item.caseId === 'ambiguous-contentless' && item.reloadedAttachmentIndex === 1 ),
-		empty_saved_content_has_no_full_save: caseResults.some( ( item ) => item.caseId === 'empty-saved-content' && item.persistedContent === '' && item.fullPostSaveObserved === false && item.errorNotices.length === 0 ),
+		empty_saved_content_fails_closed: caseResults.some( ( item ) => item.caseId === 'empty-saved-content' && item.passed ),
 		store_coherence_before_dependent_operation: caseResults.some( ( item ) => item.caseId === 'store-coherence' && item.blockStoreHasFirstNote === true && item.editorStoreHasFirstNote === true && item.coreDataStoreHasFirstNote === true ),
 		repair_sync_race_converged: caseResults.some( ( item ) => item.caseId === 'repair-sync-race' && item.passed === true && item.exercisedRepairAndSave === true && item.delayedRoutes.includes( 'post-rest' ) ),
 		crdt_peer_lineage_stable: caseResults.some( ( item ) => item.caseId === 'crdt-peer-lineage' && item.passed === true && item.peer.attachmentCount === 1 ),
@@ -1266,8 +1271,8 @@ try {
 			},
 			{
 				id: 'empty-saved-content-no-parse-or-full-save',
-				status: targetCase !== 'empty-saved-content' || metrics.empty_saved_content_has_no_full_save ? 'pass' : 'fail',
-				message: `Empty saved content remained empty without a full editor save=${ metrics.empty_saved_content_has_no_full_save }.`
+				status: targetCase !== 'empty-saved-content' || metrics.empty_saved_content_fails_closed ? 'pass' : 'fail',
+				message: `Empty saved content failed closed without deriving a target or performing a full editor save=${ metrics.empty_saved_content_fails_closed }.`
 			},
 			{
 				id: 'core-data-editor-store-coherence-before-dependent-operation',
