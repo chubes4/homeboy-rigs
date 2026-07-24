@@ -451,8 +451,8 @@ const isAddNoteField = (field) => {
 	const form = field.closest('form.editor-collab-sidebar-panel__note-form');
 	return Boolean(form && Array.from(form.querySelectorAll('button[type="submit"]')).some((button) => isVisible(button) && (button.textContent || '').trim() === 'Add note'));
 };
-const findNewNoteField = (existingFields) => getNoteFieldCandidates().find((field) => {
-	return isVisible(field) && isAddNoteField(field) && (!existingFields || !existingFields.has(field));
+const findNewNoteField = () => getNoteFieldCandidates().find((field) => {
+	return isVisible(field) && isAddNoteField(field);
 });
 const liveCreateCases = [ 'live-create', 'dirty-live-create', 'dirty-sibling-live-create', 'dirty-structural-live-create', 'nested-live-create', 'double-live-create' ];
 const getBlockNoteIds = (targetWindow = window) => flattenBlocks(targetWindow.wp.data.select('core/block-editor').getBlocks()).flatMap((block) => {
@@ -630,13 +630,12 @@ const openAddNoteField = async (block) => {
 	blockElement?.focus();
 	blockElement?.click();
 	await sleep(250);
-	const existingFields = new Set(getNoteFieldCandidates());
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		(document.activeElement || document).dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 		await sleep(500);
 		const hasNewNoteSubmit = () => isVisible(findButtonByText('Add note'));
-		if (!findNewNoteField(existingFields) || !hasNewNoteSubmit()) {
+		if (!findNewNoteField() || !hasNewNoteSubmit()) {
 			const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 			const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 			if (!optionsButton) {
@@ -647,7 +646,7 @@ const openAddNoteField = async (block) => {
 		addNoteMenuItem.click();
 	}
 	try {
-		return await waitFor(() => findNewNoteField(existingFields), 'new note textarea');
+		return await waitFor(() => findNewNoteField(), 'new note textarea');
 	} catch (error) {
 		const candidates = getNoteFieldCandidates().filter(isVisible).map((field) => ({
 			tag: field.tagName,
@@ -737,12 +736,11 @@ const beginNoteOnRichTextRange = async (block, text) => {
 	const beforeIds = new Set(getBlockNoteIds());
 	const editable = await waitFor(() => findRichTextEditable(block), 'rich-text note anchor editable');
 	if (selectRichTextRange(editable) !== 'note anchor') throw new Error('Rich-text range selection did not match note anchor');
-	const existingFields = new Set(getNoteFieldCandidates());
 	for (const combo of [{ metaKey: true }, { ctrlKey: true }]) {
 		editable.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', code: 'KeyM', altKey: true, bubbles: true, cancelable: true, ...combo }));
 	}
 	await sleep(500);
-	if (!findNewNoteField(existingFields)) {
+	if (!findNewNoteField()) {
 		const toolbarButtons = getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('.block-editor-block-toolbar button, .block-editor-block-contextual-toolbar button'))).filter(isVisible);
 		const optionsButton = toolbarButtons.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).at(-1);
 		if (!optionsButton) throw new Error('Could not find rich-text toolbar options button');
@@ -750,7 +748,7 @@ const beginNoteOnRichTextRange = async (block, text) => {
 		const addNoteMenuItem = await waitFor(() => findMenuItemByText('Add note'), 'rich-text Add note menu item');
 		addNoteMenuItem.click();
 	}
-	const textarea = await waitFor(() => findNewNoteField(existingFields), 'rich-text range note textarea');
+	const textarea = await waitFor(() => findNewNoteField(), 'rich-text range note textarea');
 	textarea.focus();
 	setFieldValue(textarea, text);
 	const addButton = await waitForAddNoteButton();
