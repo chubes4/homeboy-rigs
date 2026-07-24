@@ -662,7 +662,7 @@ const openAddNoteField = async (block) => {
 		throw new Error(error.message + '; visible editor fields=' + JSON.stringify(candidates.slice(0, 30)));
 	}
 };
-const createNoteOnBlock = async (block, text) => {
+const createNoteOnBlock = async (block, text, { waitForComposerClose = true } = {}) => {
 	const beforeIds = new Set(getBlockNoteIds());
 	const textarea = await openAddNoteField(block);
 	textarea.focus();
@@ -671,7 +671,9 @@ const createNoteOnBlock = async (block, text) => {
 	addButton.click();
 	await waitFor(() => document.body.textContent.includes(text), 'created live note thread ' + text);
 	const noteId = await waitFor(() => getBlockNoteIds().find((id) => !beforeIds.has(id)), 'new live note id in edited block metadata');
-	await waitFor(() => !textarea.isConnected, 'submitted note composer to close');
+	if (waitForComposerClose) {
+		await waitFor(() => !textarea.isConnected, 'submitted note composer to close');
+	}
 	return noteId;
 };
 const createConcurrentNoteRepair = async (block, text) => {
@@ -999,7 +1001,7 @@ const collectRepairFailureRecoveryCase = async () => {
 	const item = fixtureState[caseId];
 	await waitForEditorReady(caseId);
 	const target = getTargetBlock(caseId);
-	const firstNoteId = await createNoteOnBlock(target, 'Homeboy failed repair note');
+	const firstNoteId = await createNoteOnBlock(target, 'Homeboy failed repair note', { waitForComposerClose: false });
 	const surfacedFailure = await waitFor(() => (window.wp.data.select('core/notices')?.getNotices?.() || []).some((notice) => String(notice.content || '').includes('Forced attachment repair failure')), 'failed repair notice');
 	const secondNoteId = await createNoteOnBlock(target, 'Homeboy repair recovery note');
 	await waitForPersistedNoteIds(item.post_id, [firstNoteId, secondNoteId]);
@@ -1012,7 +1014,7 @@ const collectConcurrentNoteRepairsCase = async () => {
 	const item = fixtureState[caseId];
 	await waitForEditorReady(caseId);
 	const target = getTargetBlock(caseId);
-	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note');
+	const firstNoteId = await createNoteOnBlock(target, 'Homeboy held repair note', { waitForComposerClose: false });
 	await waitFor(() => actorTimeline.some((entry) => entry.event === 'request-held' && entry.data.route === 'entity-save'), 'first targeted repair hold');
 	const secondCreation = await createConcurrentNoteRepair(target, 'Homeboy overlapping repair note');
 	await waitFor(() => getBlockNoteIds().length === 2, 'second local note attachment while first repair is held');

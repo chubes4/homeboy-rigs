@@ -87,6 +87,7 @@ test('Block Notes fuzz rig owns its complete adversarial corpus', () => {
   assert.match(traceSource, /waitForAddNoteButton\(textarea\)/);
   assert.match(traceSource, /field\?\.isConnected.*!button\.disabled/s);
   assert.match(traceSource, /!textarea\.isConnected.*submitted note composer to close/s);
+  assert.equal((traceSource.match(/waitForComposerClose: false/g) || []).length, 2);
   assert.match(traceSource, /isVisible\(field\) && isAddNoteField\(field\)/);
   assert.doesNotMatch(traceSource, /existingFields\.has\(field\)/);
   assert.doesNotMatch(traceSource, /field\.getAttribute\('role'\) === 'textbox'/);
