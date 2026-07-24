@@ -448,8 +448,8 @@ const setFieldValue = (field, value) => {
 const flattenBlocks = (blocks) => blocks.flatMap((block) => [block, ...flattenBlocks(block.innerBlocks || [])]);
 const getNoteFieldCandidates = () => getEditorDocuments().flatMap((editorDocument) => Array.from(editorDocument.querySelectorAll('textarea, input, [contenteditable], [role="textbox"]')));
 const isAddNoteField = (field) => {
-	const prompt = field.getAttribute('placeholder') || field.getAttribute('data-placeholder') || field.getAttribute('aria-label') || '';
-	return prompt.startsWith('Add a note');
+	const form = field.closest('form.editor-collab-sidebar-panel__note-form');
+	return Boolean(form && Array.from(form.querySelectorAll('button[type="submit"]')).some((button) => isVisible(button) && (button.textContent || '').trim() === 'Add note'));
 };
 const findNewNoteField = (existingFields) => getNoteFieldCandidates().find((field) => {
 	return isVisible(field) && isAddNoteField(field) && (!existingFields || !existingFields.has(field));
