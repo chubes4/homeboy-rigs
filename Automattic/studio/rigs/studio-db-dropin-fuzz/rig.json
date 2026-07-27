@@ -1,0 +1,55 @@
+{
+  "id": "studio-db-dropin-fuzz",
+  "description": "Isolated filesystem state-machine fuzzing for Studio SQLite db.php classification and installation.",
+  "components": {
+    "studio": {
+      "component_id": "studio",
+      "default_ref": "origin/trunk",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_DB_DROPIN_FUZZ__STUDIO}",
+      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__STUDIO_DB_DROPIN_FUZZ__STUDIO",
+      "extensions": {
+        "nodejs": {}
+      }
+    }
+  },
+  "resources": {
+    "paths": [
+      "${components.studio.path}"
+    ]
+  },
+  "fuzz": {
+    "default_component": "studio"
+  },
+  "fuzz_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/fuzz/db-dropin-state-machine-fuzz.json"
+      }
+    ]
+  },
+  "fuzz_profiles": {
+    "isolated": [
+      "db-dropin-state-machine-fuzz"
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio db.php fuzz workload manifest exists",
+        "file": "${package.root}/fuzz/db-dropin-state-machine-fuzz.json"
+      },
+      {
+        "kind": "check",
+        "label": "Studio db.php fuzz runner exists",
+        "file": "${package.root}/fuzz/db-dropin-fuzz-runner.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Studio SQLite integration source exists",
+        "file": "${components.studio.path}/packages/common/lib/sqlite-integration.ts"
+      }
+    ],
+    "down": []
+  }
+}

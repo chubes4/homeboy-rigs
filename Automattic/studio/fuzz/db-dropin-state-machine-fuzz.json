@@ -1,0 +1,143 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "db-dropin-state-machine-fuzz",
+  "label": "Studio SQLite db.php state-machine fuzz workload",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "studio-sqlite-dropin-filesystem"
+  ],
+  "operations": [
+    "sqlite.destination.classify",
+    "sqlite.dropin.classify",
+    "sqlite.integration.install",
+    "sqlite.integration.keep-updated"
+  ],
+  "case_budget": 84,
+  "duration_budget_seconds": 120,
+  "metadata": {
+    "kind": "studio-filesystem-fuzz",
+    "execution_scope": "isolated-temp-filesystem",
+    "tracker": "github_issue:Automattic/studio#4355",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "The runner executes all declared operations against the selected Studio checkout and emits replayable case and dimension coverage evidence.",
+      "upstream_blockers": [
+        "Attach a reviewer-facing Homeboy run before promoting readiness to proven."
+      ]
+    },
+    "dimensions": [
+      "destination-artifact-combinations",
+      "dropin-content-spoofing",
+      "custom-dropin-preservation",
+      "filesystem-blocker-recovery",
+      "symlink-containment",
+      "intentional-mysql-non-mutation"
+    ]
+  },
+  "target": {
+    "type": "typescript-class",
+    "slug": "sqlite-integration-provider",
+    "component": "studio"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/db-dropin-fuzz-runner.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "db-dropin-state-machine-fuzz:campaign",
+      "surface_ids": [
+        "studio-sqlite-dropin-filesystem"
+      ],
+      "operations": [
+        "sqlite.destination.classify",
+        "sqlite.dropin.classify",
+        "sqlite.integration.install",
+        "sqlite.integration.keep-updated"
+      ],
+      "artifacts": [
+        {
+          "name": "case_log",
+          "path": "case-log.jsonl",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.case_log"
+          }
+        },
+        {
+          "name": "replay_data",
+          "path": "replay.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.replay"
+          }
+        },
+        {
+          "name": "coverage_summary",
+          "path": "coverage-summary.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.coverage_summary"
+          }
+        },
+        {
+          "name": "result_envelope",
+          "path": "results.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "execution_scope": "isolated-temp-filesystem"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 84,
+    "max_duration_seconds": 120
+  },
+  "coverage": {
+    "surface_ids": [
+      "studio-sqlite-dropin-filesystem"
+    ],
+    "operations": [
+      "sqlite.destination.classify",
+      "sqlite.dropin.classify",
+      "sqlite.integration.install",
+      "sqlite.integration.keep-updated"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "case_log",
+        "role": "case_log",
+        "semantic_key": "fuzz.case_log",
+        "required": true
+      },
+      {
+        "name": "replay_data",
+        "role": "replay_data",
+        "semantic_key": "fuzz.replay",
+        "required": true
+      },
+      {
+        "name": "coverage_summary",
+        "role": "coverage_summary",
+        "semantic_key": "fuzz.coverage_summary",
+        "required": true
+      },
+      {
+        "name": "result_envelope",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
+}
