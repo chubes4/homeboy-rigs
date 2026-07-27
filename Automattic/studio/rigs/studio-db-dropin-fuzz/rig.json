@@ -17,6 +17,36 @@
       "${components.studio.path}"
     ]
   },
+  "requirements": {
+    "dependency_materialization": [
+      {
+        "id": "studio-cli-fuzz-dependencies",
+        "command": "npm ci --ignore-scripts && npm run cli:build",
+        "component": "studio",
+        "cwd": "${components.studio.path}",
+        "inputs": {
+          "manifest": "${components.studio.path}/package.json",
+          "lockfile": "${components.studio.path}/package-lock.json"
+        },
+        "expected_outputs": [
+          {
+            "path": "${components.studio.path}/node_modules/tar",
+            "kind": "dir"
+          },
+          {
+            "path": "${components.studio.path}/apps/cli/dist/cli/main.mjs",
+            "kind": "file"
+          }
+        ],
+        "cache_key_inputs": [
+          "${components.studio.path}/package.json",
+          "${components.studio.path}/package-lock.json",
+          "${components.studio.path}/apps/cli/package.json"
+        ],
+        "safety": "network_access"
+      }
+    ]
+  },
   "fuzz": {
     "default_component": "studio"
   },
@@ -59,6 +89,14 @@
         "kind": "check",
         "label": "Studio SQLite integration source exists",
         "file": "${components.studio.path}/packages/common/lib/sqlite-integration.ts"
+      }
+    ],
+    "fuzz_prepare": [
+      {
+        "kind": "requirement",
+        "id": "studio-cli-fuzz-runtime-ready",
+        "file": "${components.studio.path}/apps/cli/dist/cli/main.mjs",
+        "label": "Studio CLI fuzz runtime is built"
       }
     ],
     "down": []
