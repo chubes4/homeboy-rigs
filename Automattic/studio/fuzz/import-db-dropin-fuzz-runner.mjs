@@ -369,6 +369,7 @@ try {
     case_ids: results.map( ( result ) => result.id ),
   } );
   writeJson( path.join( artifactsDir, 'coverage-summary.json' ), coverageSummary );
+  writeJson( path.join( artifactsDir, 'results.json' ), campaign );
   writeJson( resultsFile, campaign );
   console.log( `Wrote PR 4356 import fuzz artifacts (${ results.length } cases, ${ findings.length } findings).` );
 } finally {
