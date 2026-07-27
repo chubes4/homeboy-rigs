@@ -24,12 +24,18 @@
     "nodejs": [
       {
         "path": "${package.root}/fuzz/db-dropin-state-machine-fuzz.json"
+      },
+      {
+        "path": "${package.root}/fuzz/import-db-dropin-pr-4356-fuzz.json"
       }
     ]
   },
   "fuzz_profiles": {
-    "isolated": [
+    "provider": [
       "db-dropin-state-machine-fuzz"
+    ],
+    "pr-4356": [
+      "import-db-dropin-pr-4356-fuzz"
     ]
   },
   "pipeline": {
@@ -43,6 +49,11 @@
         "kind": "check",
         "label": "Studio db.php fuzz runner exists",
         "file": "${package.root}/fuzz/db-dropin-fuzz-runner.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Studio import-boundary fuzz runner exists",
+        "file": "${package.root}/fuzz/import-db-dropin-fuzz-runner.mjs"
       },
       {
         "kind": "check",

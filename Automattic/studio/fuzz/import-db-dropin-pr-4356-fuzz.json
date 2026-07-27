@@ -1,0 +1,139 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "import-db-dropin-pr-4356-fuzz",
+  "label": "Studio PR 4356 database import boundary fuzz workload",
+  "safety_class": "isolated_mutation",
+  "surface_ids": [
+    "studio-cli-database-import"
+  ],
+  "operations": [
+    "import.sqlite.foreign-dropin",
+    "import.mysql.reject-before-mutation"
+  ],
+  "case_budget": 19,
+  "duration_budget_seconds": 600,
+  "metadata": {
+    "kind": "studio-cli-import-fuzz",
+    "execution_scope": "isolated-cli-config-and-sites",
+    "tracker": "github_pr:Automattic/studio#4356",
+    "scope_contract": "Exercise only the foreign backup db.php recovery and intentional-MySQL pre-mutation rejection changed by PR 4356.",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "The real built Studio CLI imports generated Jetpack backup variants into isolated sites and compares intentional-MySQL filesystem snapshots byte-for-byte.",
+      "upstream_blockers": [
+        "Attach reviewer-facing Homeboy run evidence before merging PR 4356."
+      ]
+    },
+    "dimensions": [
+      "seven-nonempty-sqlite-artifact-topologies",
+      "foreign-dropin-payload-shapes",
+      "jetpack-backup-import",
+      "raw-sql-import",
+      "repeated-import-idempotency",
+      "running-site-restoration",
+      "intentional-mysql-byte-parity"
+    ]
+  },
+  "target": {
+    "type": "cli-command",
+    "slug": "studio-import",
+    "component": "studio"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/import-db-dropin-fuzz-runner.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "import-db-dropin-pr-4356-fuzz:campaign",
+      "surface_ids": [
+        "studio-cli-database-import"
+      ],
+      "operations": [
+        "import.sqlite.foreign-dropin",
+        "import.mysql.reject-before-mutation"
+      ],
+      "artifacts": [
+        {
+          "name": "case_log",
+          "path": "case-log.jsonl",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.case_log"
+          }
+        },
+        {
+          "name": "replay_data",
+          "path": "replay.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.replay"
+          }
+        },
+        {
+          "name": "coverage_summary",
+          "path": "coverage-summary.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.coverage_summary"
+          }
+        },
+        {
+          "name": "result_envelope",
+          "path": "results.json",
+          "required": true,
+          "metadata": {
+            "semantic_key": "fuzz.report"
+          }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "execution_scope": "isolated-cli-config-and-sites"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 19,
+    "max_duration_seconds": 600
+  },
+  "coverage": {
+    "surface_ids": [
+      "studio-cli-database-import"
+    ],
+    "operations": [
+      "import.sqlite.foreign-dropin",
+      "import.mysql.reject-before-mutation"
+    ]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "case_log",
+        "role": "case_log",
+        "semantic_key": "fuzz.case_log",
+        "required": true
+      },
+      {
+        "name": "replay_data",
+        "role": "replay_data",
+        "semantic_key": "fuzz.replay",
+        "required": true
+      },
+      {
+        "name": "coverage_summary",
+        "role": "coverage_summary",
+        "semantic_key": "fuzz.coverage_summary",
+        "required": true
+      },
+      {
+        "name": "result_envelope",
+        "role": "fuzz_report",
+        "semantic_key": "fuzz.report",
+        "required": true
+      }
+    ]
+  }
+}
