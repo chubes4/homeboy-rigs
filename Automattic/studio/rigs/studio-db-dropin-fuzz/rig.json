@@ -21,7 +21,7 @@
     "dependency_materialization": [
       {
         "id": "studio-cli-fuzz-dependencies",
-        "command": "npm ci --ignore-scripts && npm run cli:build",
+        "command": "npm ci --ignore-scripts && node --experimental-strip-types ./scripts/download-wp-server-files.ts && npm run cli:build",
         "component": "studio",
         "cwd": "${components.studio.path}",
         "inputs": {
@@ -36,12 +36,17 @@
           {
             "path": "${components.studio.path}/apps/cli/dist/cli/main.mjs",
             "kind": "file"
+          },
+          {
+            "path": "${components.studio.path}/apps/cli/dist/cli/wp-files/sqlite-database-integration/db.copy",
+            "kind": "file"
           }
         ],
         "cache_key_inputs": [
           "${components.studio.path}/package.json",
           "${components.studio.path}/package-lock.json",
-          "${components.studio.path}/apps/cli/package.json"
+          "${components.studio.path}/apps/cli/package.json",
+          "${components.studio.path}/scripts/download-wp-server-files.ts"
         ],
         "safety": "network_access"
       }
@@ -95,7 +100,7 @@
       {
         "kind": "requirement",
         "id": "studio-cli-fuzz-runtime-ready",
-        "file": "${components.studio.path}/apps/cli/dist/cli/main.mjs",
+        "file": "${components.studio.path}/apps/cli/dist/cli/wp-files/sqlite-database-integration/db.copy",
         "label": "Studio CLI fuzz runtime is built"
       }
     ],
