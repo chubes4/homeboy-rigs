@@ -387,6 +387,55 @@ homeboy rig check playground-cli-diagnostics
 homeboy bench --rig playground-cli-diagnostics --scenario playground-cli-runphp-errors --iterations 1
 ```
 
+`rigs/playground-browser-cold-boot/rig.json` measures a browser-cold visit to
+`https://playground.wordpress.net/`. Every sample launches a fresh Playwright
+browser and ephemeral profile, starts its primary clock immediately before
+top-level navigation, and stops at the first non-empty WordPress document in
+Playground's nested `#wp` frame. This includes Playground shell, worker, PHP,
+WordPress, Blueprint, and nested navigation work, while excluding browser launch
+and artifact serialization from `cold_boot_ms`.
+
+The workload also reports top-level response and DOMContentLoaded, wrapper
+availability, nested WordPress navigation/paint timings, request and transfer
+metrics, long tasks, and console errors. It retains a Playwright trace,
+screenshot, network log, browser performance profile, bottleneck summary, and
+raw measurement JSON. Browser cache, service-worker state, and Playground
+storage are cold; DNS, operating-system caches, and CDN edge state are outside
+the browser profile and must be controlled by the benchmark environment when
+those layers are under test.
+
+```bash
+homeboy rig install ./WordPress/wordpress-playground
+homeboy rig check playground-browser-cold-boot
+
+# Independent cold boots with a cross-run p50/p95 distribution.
+homeboy --placement lab bench --rig playground-browser-cold-boot \
+  --scenario playground-browser-cold-boot \
+  --iterations 1 \
+  --runs 5 \
+  --warmup 0 \
+  --shared-state /tmp/playground-browser-cold-boot
+```
+
+The rig is self-contained and does not require a WordPress Playground source
+checkout. Its component is bundled with the installed rig package, so Homeboy
+can materialize the same harness on Lab while the target URL identifies the
+deployed Playground build under test.
+
+Override `playground_cold_boot_target_url` to probe a local deployment, PR
+preview, bare Blueprint, or optimized production path. The target may include a
+query string and Blueprint fragment. `playground_cold_boot_browser` and
+`playground_cold_boot_timeout_ms` select the browser engine and readiness
+deadline:
+
+```bash
+homeboy --placement local bench --rig playground-browser-cold-boot \
+  --scenario playground-browser-cold-boot \
+  --setting playground_cold_boot_target_url=http://127.0.0.1:5400/website-server/ \
+  --iterations 1 --runs 5 --warmup 0 \
+  --shared-state /tmp/playground-browser-cold-boot-local
+```
+
 ## WordPress/wordpress-develop
 
 Canonical WordPress Core fuzz package. `rigs/wordpress-core-fuzz-coverage/rig.json`
