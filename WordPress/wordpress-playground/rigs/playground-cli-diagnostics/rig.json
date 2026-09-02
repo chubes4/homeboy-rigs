@@ -20,7 +20,7 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "manual",
+      "intent": "external",
       "reason": "The rig may install dependencies into the user-owned Playground checkout; removing that checkout state is an operator decision."
     }
   },

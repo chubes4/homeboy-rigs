@@ -1,0 +1,44 @@
+{
+  "id": "playground-browser-cold-boot",
+  "description": "Measures browser-cold WordPress Playground startup from navigation until the nested WordPress document renders, with browser trace and request evidence.",
+  "components": {
+    "playground-browser-cold-boot": {
+      "path": "${package.root}/browser-cold-boot",
+      "branch": "main",
+      "extensions": {
+        "nodejs": {
+          "settings": {
+            "playground_cold_boot_target_url": "https://playground.wordpress.net/",
+            "playground_cold_boot_browser": "chromium",
+            "playground_cold_boot_timeout_ms": 120000
+          }
+        }
+      }
+    }
+  },
+  "bench": {
+    "default_component": "playground-browser-cold-boot",
+    "warmup_iterations": 0
+  },
+  "resources": {
+    "paths": [
+      "${components.playground-browser-cold-boot.path}"
+    ]
+  },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "external",
+      "reason": "The browser helper closes each ephemeral browser and context; Homeboy owns retained benchmark artifacts."
+    }
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Cold-boot browser workload exists",
+        "file": "${components.playground-browser-cold-boot.path}/bench/playground-browser-cold-boot.bench.mjs"
+      }
+    ],
+    "down": []
+  }
+}

@@ -185,7 +185,7 @@ they do not change readiness levels or convert declarations into proof.
 
 The `full-surface` profile also links discovery manifests for route families,
 Woo blocks, admin action families, and DB/API hotspot artifact IO through
-`fuzz_profile_metadata` and the generated `manifests/target-inventory.json`.
+`x-fuzz-profile-metadata` and the generated `manifests/target-inventory.json`.
 Those manifests are inventory contracts, not new executable workload IDs. The
 validator allows explicit external discovery references, such as the browser
 coverage rig, while rejecting drift from declared Woo fuzz workloads.
