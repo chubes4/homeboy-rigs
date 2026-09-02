@@ -145,7 +145,7 @@
       ]
     }
   },
-  "fuzz_profile_metadata": {
+  "x-fuzz-profile-metadata": {
     "full-surface": {
       "description": "WooCommerce full-surface fuzz inventory. Discovery manifests extend the executable fuzz workload list with declared REST route-family, block, admin action, and DB/API hotspot artifact contracts without claiming additional runner coverage.",
       "target_inventory_manifest": "manifests/target-inventory.json",
