@@ -6,6 +6,34 @@ const DEFAULT_TARGET_URL = 'https://playground.wordpress.net/';
 const DEFAULT_TIMEOUT_MS = 120000;
 const VIEWPORT_SELECTOR = '#playground-viewport:visible,.playground-viewport:visible';
 
+function requestMilestoneName(request) {
+  const url = request.url();
+  if (url.includes('playground-worker-endpoint-')) {
+    return 'worker_script';
+  }
+  if (/\.wasm(?:[?#]|$)/.test(url)) {
+    return 'php_wasm';
+  }
+  if (/\/wp-[^/]+\.tar-[^/]+\.zst(?:[?#]|$)/.test(url)) {
+    return 'wordpress_archive';
+  }
+  if (/\/blueprints?\/.*blueprint\.json(?:[?#]|$)/i.test(url)) {
+    return 'blueprint';
+  }
+  if (request.resourceType() === 'document' && /\/scope:[^/]+\//.test(url)) {
+    return 'wordpress_document';
+  }
+  return null;
+}
+
+function elapsed(startedAt) {
+  return performance.now() - startedAt;
+}
+
+function phaseDuration(start, end) {
+  return start > 0 && end >= start ? end - start : 0;
+}
+
 function validateTargetUrl(value) {
   const target = new URL(value || DEFAULT_TARGET_URL);
   if (!['http:', 'https:'].includes(target.protocol)) {
@@ -79,8 +107,11 @@ export default async function playgroundBrowserColdBootBench() {
   let navigationResponseMs = 0;
   let topLevelDomContentLoadedMs = 0;
   let wrapperReadyMs = 0;
+  let clientConnectedMs = 0;
+  let runtimeReadyMs = 0;
   let coldBootMs = 0;
   let nestedNavigation = {};
+  const requestMilestones = {};
 
   const browserResult = await runBrowserBench({
     id,
@@ -93,6 +124,37 @@ export default async function playgroundBrowserColdBootBench() {
     waitForNetworkIdle: false,
     action: async ({ page, mark }) => {
       const navigationStarted = performance.now();
+      page.on('request', (request) => {
+        const name = requestMilestoneName(request);
+        if (!name) {
+          return;
+        }
+        requestMilestones[name] ??= {};
+        requestMilestones[name].request_start_ms ??= elapsed(navigationStarted);
+        requestMilestones[name].url = request.url();
+      });
+      page.on('response', (response) => {
+        const name = requestMilestoneName(response.request());
+        if (!name) {
+          return;
+        }
+        requestMilestones[name] ??= {};
+        requestMilestones[name].response_ms = elapsed(navigationStarted);
+        requestMilestones[name].status = response.status();
+        requestMilestones[name].url = response.url();
+        requestMilestones[name].content_encoding = response.headers()['content-encoding'] || '';
+        requestMilestones[name].content_length = Number(response.headers()['content-length'] || 0);
+      });
+      page.on('requestfinished', (request) => {
+        const name = requestMilestoneName(request);
+        if (!name) {
+          return;
+        }
+        requestMilestones[name] ??= {};
+        requestMilestones[name].complete_ms = elapsed(navigationStarted);
+        requestMilestones[name].url = request.url();
+      });
+
       const response = await page.goto(targetUrl, { waitUntil: 'commit', timeout: timeoutMs });
       responseStatus = response?.status() || 0;
       navigationResponseMs = performance.now() - navigationStarted;
@@ -106,6 +168,14 @@ export default async function playgroundBrowserColdBootBench() {
       await wrapper.waitFor({ state: 'visible', timeout: timeoutMs });
       wrapperReadyMs = performance.now() - navigationStarted;
       await mark('playground_wrapper_ready');
+
+      await page.waitForFunction(() => Boolean(window.playground), undefined, { timeout: timeoutMs });
+      clientConnectedMs = elapsed(navigationStarted);
+      await mark('playground_client_connected');
+
+      await page.evaluate(async () => window.playground.isReady());
+      runtimeReadyMs = elapsed(navigationStarted);
+      await mark('playground_runtime_ready');
 
       const wordpressBody = page
         .frameLocator(VIEWPORT_SELECTOR)
@@ -131,8 +201,20 @@ export default async function playgroundBrowserColdBootBench() {
       navigation_response_ms: navigationResponseMs,
       top_level_domcontentloaded_ms: topLevelDomContentLoadedMs,
       playground_wrapper_ready_ms: wrapperReadyMs,
+      playground_client_connected_ms: clientConnectedMs,
+      playground_runtime_ready_ms: runtimeReadyMs,
       cold_boot_ms: coldBootMs,
+      runtime_to_render_ms: phaseDuration(runtimeReadyMs, coldBootMs),
+      blueprint_to_wordpress_navigation_ms: phaseDuration(
+        requestMilestones.blueprint?.complete_ms || runtimeReadyMs,
+        requestMilestones.wordpress_document?.request_start_ms || 0
+      ),
+      wordpress_navigation_to_render_ms: phaseDuration(
+        requestMilestones.wordpress_document?.request_start_ms || 0,
+        coldBootMs
+      ),
       nested_wordpress: nestedNavigation,
+      request_milestones: requestMilestones,
     },
     response_status: responseStatus,
   };
@@ -151,7 +233,34 @@ export default async function playgroundBrowserColdBootBench() {
       navigation_response_ms: navigationResponseMs,
       top_level_domcontentloaded_ms: topLevelDomContentLoadedMs,
       playground_wrapper_ready_ms: wrapperReadyMs,
+      playground_client_connected_ms: clientConnectedMs,
+      playground_runtime_ready_ms: runtimeReadyMs,
       cold_boot_ms: coldBootMs,
+      runtime_to_render_ms: phaseDuration(runtimeReadyMs, coldBootMs),
+      worker_script_download_ms: phaseDuration(
+        requestMilestones.worker_script?.request_start_ms || 0,
+        requestMilestones.worker_script?.complete_ms || 0
+      ),
+      php_wasm_download_ms: phaseDuration(
+        requestMilestones.php_wasm?.request_start_ms || 0,
+        requestMilestones.php_wasm?.complete_ms || 0
+      ),
+      wordpress_archive_download_ms: phaseDuration(
+        requestMilestones.wordpress_archive?.request_start_ms || 0,
+        requestMilestones.wordpress_archive?.complete_ms || 0
+      ),
+      blueprint_download_ms: phaseDuration(
+        requestMilestones.blueprint?.request_start_ms || 0,
+        requestMilestones.blueprint?.complete_ms || 0
+      ),
+      blueprint_to_wordpress_navigation_ms: phaseDuration(
+        requestMilestones.blueprint?.complete_ms || runtimeReadyMs,
+        requestMilestones.wordpress_document?.request_start_ms || 0
+      ),
+      wordpress_navigation_to_render_ms: phaseDuration(
+        requestMilestones.wordpress_document?.request_start_ms || 0,
+        coldBootMs
+      ),
       nested_wordpress_domcontentloaded_ms: nestedNavigation.domcontentloaded_ms || 0,
       nested_wordpress_load_ms: nestedNavigation.load_ms || 0,
       nested_wordpress_ttfb_ms: nestedNavigation.ttfb_ms || 0,
@@ -171,6 +280,7 @@ export default async function playgroundBrowserColdBootBench() {
       browser_cache: 'ephemeral-profile',
       service_worker_state: 'ephemeral-profile',
       readiness: 'nested-wordpress-body-non-empty',
+      request_milestones: requestMilestones,
     },
   });
 }
