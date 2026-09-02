@@ -396,10 +396,11 @@ WordPress, Blueprint, and nested navigation work, while excluding browser launch
 and artifact serialization from `cold_boot_ms`.
 
 The workload also reports top-level response and DOMContentLoaded, wrapper and
-Playground client availability, runtime readiness, Blueprint-to-navigation time,
-nested WordPress rendering, core asset download timings, request and transfer
-metrics, long tasks, and console errors. This separates the reusable PHP and
-WordPress runtime boot from Blueprint execution and the final rendered-site path.
+Playground client availability, runtime readiness, archive-complete-to-runtime
+boot, runtime-to-navigation Blueprint work, nested WordPress rendering, core
+asset download timings, request and transfer metrics, long tasks, and console
+errors. This separates the reusable PHP and WordPress runtime boot from Blueprint
+execution and the final rendered-site path.
 It retains a Playwright trace,
 screenshot, network log, browser performance profile, bottleneck summary, and
 raw measurement JSON. Browser cache, service-worker state, and Playground

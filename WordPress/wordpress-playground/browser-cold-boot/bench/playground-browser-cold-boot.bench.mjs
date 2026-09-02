@@ -205,8 +205,16 @@ export default async function playgroundBrowserColdBootBench() {
       playground_runtime_ready_ms: runtimeReadyMs,
       cold_boot_ms: coldBootMs,
       runtime_to_render_ms: phaseDuration(runtimeReadyMs, coldBootMs),
-      blueprint_to_wordpress_navigation_ms: phaseDuration(
+      blueprint_available_to_wordpress_navigation_ms: phaseDuration(
         requestMilestones.blueprint?.complete_ms || runtimeReadyMs,
+        requestMilestones.wordpress_document?.request_start_ms || 0
+      ),
+      runtime_post_archive_ms: phaseDuration(
+        requestMilestones.wordpress_archive?.complete_ms || 0,
+        runtimeReadyMs
+      ),
+      runtime_to_wordpress_navigation_ms: phaseDuration(
+        runtimeReadyMs,
         requestMilestones.wordpress_document?.request_start_ms || 0
       ),
       wordpress_navigation_to_render_ms: phaseDuration(
@@ -241,20 +249,33 @@ export default async function playgroundBrowserColdBootBench() {
         requestMilestones.worker_script?.request_start_ms || 0,
         requestMilestones.worker_script?.complete_ms || 0
       ),
+      worker_script_complete_ms:
+        requestMilestones.worker_script?.complete_ms || 0,
       php_wasm_download_ms: phaseDuration(
         requestMilestones.php_wasm?.request_start_ms || 0,
         requestMilestones.php_wasm?.complete_ms || 0
       ),
+      php_wasm_complete_ms: requestMilestones.php_wasm?.complete_ms || 0,
       wordpress_archive_download_ms: phaseDuration(
         requestMilestones.wordpress_archive?.request_start_ms || 0,
         requestMilestones.wordpress_archive?.complete_ms || 0
       ),
+      wordpress_archive_complete_ms:
+        requestMilestones.wordpress_archive?.complete_ms || 0,
       blueprint_download_ms: phaseDuration(
         requestMilestones.blueprint?.request_start_ms || 0,
         requestMilestones.blueprint?.complete_ms || 0
       ),
-      blueprint_to_wordpress_navigation_ms: phaseDuration(
+      blueprint_available_to_wordpress_navigation_ms: phaseDuration(
         requestMilestones.blueprint?.complete_ms || runtimeReadyMs,
+        requestMilestones.wordpress_document?.request_start_ms || 0
+      ),
+      runtime_post_archive_ms: phaseDuration(
+        requestMilestones.wordpress_archive?.complete_ms || 0,
+        runtimeReadyMs
+      ),
+      runtime_to_wordpress_navigation_ms: phaseDuration(
+        runtimeReadyMs,
         requestMilestones.wordpress_document?.request_start_ms || 0
       ),
       wordpress_navigation_to_render_ms: phaseDuration(
