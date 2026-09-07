@@ -1,0 +1,84 @@
+{
+  "id": "tb-backend-api-fuzz",
+  "description": "Isolated Express API fuzzing for TrickBook backend against local Docker Mongo.",
+  "components": {
+    "tb-backend": {
+      "component_id": "tb-backend",
+      "default_ref": "origin/staging",
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__TB_BACKEND_API_FUZZ__TB_BACKEND}",
+      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__TB_BACKEND_API_FUZZ__TB_BACKEND",
+      "extensions": {
+        "nodejs": {}
+      }
+    }
+  },
+  "resources": {
+    "paths": ["${components.tb-backend.path}"]
+  },
+  "requirements": {
+    "dependency_materialization": [
+      {
+        "id": "tb-backend-npm",
+        "command": "npm ci --ignore-scripts",
+        "component": "tb-backend",
+        "cwd": "${components.tb-backend.path}",
+        "inputs": {
+          "manifest": "${components.tb-backend.path}/package.json",
+          "lockfile": "${components.tb-backend.path}/package-lock.json"
+        },
+        "expected_outputs": [
+          {
+            "path": "${components.tb-backend.path}/node_modules/express",
+            "kind": "dir"
+          }
+        ],
+        "cache_key_inputs": [
+          "${components.tb-backend.path}/package.json",
+          "${components.tb-backend.path}/package-lock.json"
+        ],
+        "safety": "network_access"
+      }
+    ]
+  },
+  "fuzz": {
+    "default_component": "tb-backend"
+  },
+  "fuzz_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/fuzz/tb-backend-api-fuzz.json"
+      }
+    ]
+  },
+  "fuzz_profiles": {
+    "isolated": ["tb-backend-api-fuzz"]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "TrickBook API fuzz workload manifest exists",
+        "file": "${package.root}/fuzz/tb-backend-api-fuzz.json"
+      },
+      {
+        "kind": "check",
+        "label": "TrickBook API fuzz runner exists",
+        "file": "${package.root}/fuzz/api-fuzz-runner.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "TB-Backend entrypoint exists",
+        "file": "${components.tb-backend.path}/index.js"
+      }
+    ],
+    "fuzz_prepare": [
+      {
+        "kind": "requirement",
+        "id": "tb-backend-npm-ready",
+        "file": "${components.tb-backend.path}/node_modules/express",
+        "label": "TB-Backend node_modules are installed"
+      }
+    ],
+    "down": []
+  }
+}

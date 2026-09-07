@@ -1,0 +1,94 @@
+{
+  "schema": "homeboy/fuzz-workload/v1",
+  "id": "tb-backend-api-fuzz",
+  "label": "TrickBook backend isolated API fuzz",
+  "safety_class": "isolated_mutation",
+  "surface_ids": ["tb-backend-express-api"],
+  "operations": ["http.get", "http.post"],
+  "case_budget": 21,
+  "duration_budget_seconds": 180,
+  "metadata": {
+    "kind": "express-api-fuzz",
+    "execution_scope": "isolated-docker-mongo",
+    "tracker": "github:wbaxterh/TB-Backend",
+    "readiness": {
+      "level": "executable",
+      "coverage_contract": "Unauthenticated Express routes: deny vs no-500 vs leak oracles against local Docker Mongo.",
+      "upstream_blockers": [
+        "Attach a reviewer-facing Homeboy run before promoting readiness to proven."
+      ]
+    }
+  },
+  "target": {
+    "type": "express-api",
+    "slug": "tb-backend",
+    "component": "tb-backend"
+  },
+  "workload": {
+    "runner": "nodejs",
+    "type": "module",
+    "path": "${package.root}/fuzz/api-fuzz-runner.mjs",
+    "entry": "main"
+  },
+  "cases": [
+    {
+      "case_id": "tb-backend-api-fuzz:campaign",
+      "surface_ids": ["tb-backend-express-api"],
+      "operations": ["http.get", "http.post"],
+      "artifacts": [
+        {
+          "name": "case_log",
+          "path": "case-log.jsonl",
+          "required": true,
+          "metadata": { "semantic_key": "fuzz.case_log" }
+        },
+        {
+          "name": "replay_data",
+          "path": "replay-data.json",
+          "required": true,
+          "metadata": { "semantic_key": "fuzz.replay" }
+        },
+        {
+          "name": "server_log",
+          "path": "server.log",
+          "required": true,
+          "metadata": { "semantic_key": "fuzz.server_log" }
+        }
+      ],
+      "metadata": {
+        "safety_class": "isolated_mutation",
+        "execution_scope": "isolated-docker-mongo"
+      }
+    }
+  ],
+  "limits": {
+    "max_cases": 21,
+    "max_duration_seconds": 180
+  },
+  "coverage": {
+    "surface_ids": ["tb-backend-express-api"],
+    "operations": ["http.get", "http.post"]
+  },
+  "artifacts": {
+    "expected": [
+      {
+        "name": "case_log",
+        "role": "case_log",
+        "semantic_key": "fuzz.case_log",
+        "required": true
+      },
+      {
+        "name": "replay_data",
+        "role": "replay_data",
+        "semantic_key": "fuzz.replay",
+        "required": true
+      },
+      {
+        "name": "server_log",
+        "role": "text",
+        "semantic_key": "fuzz.server_log",
+        "required": true
+      }
+    ]
+  }
+}
