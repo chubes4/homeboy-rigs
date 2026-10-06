@@ -5,8 +5,6 @@
     "studio": {
       "component_id": "studio",
       "default_ref": "origin/trunk",
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_DB_DROPIN_FUZZ__STUDIO}",
-      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__STUDIO_DB_DROPIN_FUZZ__STUDIO",
       "extensions": {
         "nodejs": {}
       }

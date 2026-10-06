@@ -3,7 +3,6 @@
   "description": "Gutenberg Block Notes unsaved attachment repro rig for WordPress/gutenberg#72717.",
   "components": {
     "gutenberg": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__GUTENBERG_NOTES_UNSAVED_ATTACHMENT__GUTENBERG}",
       "branch": "trunk"
     }
   },

@@ -7,7 +7,6 @@
   },
   "components": {
     "woocommerce": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WOOCOMMERCE_PERFORMANCE__WOOCOMMERCE}",
       "branch": "trunk",
       "extensions": {
         "wordpress": {

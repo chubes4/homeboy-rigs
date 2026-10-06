@@ -3,7 +3,6 @@
   "description": "WordPress Core coverage/fuzz rig suite using generic Homeboy fuzz workload manifests and no bench fallback.",
   "components": {
     "wordpress-develop": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__WORDPRESS_CORE_FUZZ_COVERAGE__WORDPRESS_DEVELOP}",
       "branch": "trunk",
       "extensions": {
         "wordpress": {
