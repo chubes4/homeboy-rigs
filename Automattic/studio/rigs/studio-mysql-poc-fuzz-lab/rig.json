@@ -5,8 +5,6 @@
     "studio": {
       "component_id": "studio",
       "default_ref": "origin/implement-mysql-poc",
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_MYSQL_POC_FUZZ_LAB__STUDIO}",
-      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__STUDIO_MYSQL_POC_FUZZ_LAB__STUDIO",
       "branch": "implement-mysql-poc",
       "extensions": {
         "nodejs": {

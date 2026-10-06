@@ -3,7 +3,6 @@
   "description": "Studio WordPress admin profile for the Data Machine Pipelines page with a configurable scale fixture.",
   "components": {
     "studio": {
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_DATAMACHINE_PIPELINES_SCALE__STUDIO}",
       "branch": "dev/combined-fixes",
       "extensions": {
         "nodejs": {

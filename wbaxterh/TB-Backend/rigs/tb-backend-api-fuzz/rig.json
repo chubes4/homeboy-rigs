@@ -5,8 +5,6 @@
     "tb-backend": {
       "component_id": "tb-backend",
       "default_ref": "origin/staging",
-      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__TB_BACKEND_API_FUZZ__TB_BACKEND}",
-      "path_setting": "HOMEBOY_RIG_COMPONENT_PATH__TB_BACKEND_API_FUZZ__TB_BACKEND",
       "extensions": {
         "nodejs": {}
       }
