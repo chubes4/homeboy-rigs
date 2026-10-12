@@ -1,7 +1,7 @@
 {
   "extends": "../studio-combined-base.json",
   "id": "studio-combined",
-  "description": "Studio + Playground combined-fixes dev environment. Requires prepared combined stacks and built local Playground tarballs; run `homeboy stack sync studio-combined` and `homeboy stack sync playground-combined` before `homeboy rig up studio-combined`. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev.",
+  "description": "Studio + Playground combined-fixes dev environment. Requires prepared dev/combined-fixes checkouts and built local Playground tarballs before `homeboy rig up studio-combined`. Source of truth: wiki article projects/studio/studio-playground-cross-repo-dev.",
 
   "bench_workloads": {
     "nodejs": [

@@ -1,6 +1,6 @@
 # homeboy-rigs
 
-Personal `homeboy rig`, `homeboy stack`, and portable bench assets. The repo is organized by the fully qualified GitHub repo or site/workspace that owns the workflow.
+Personal `homeboy rig` and portable bench assets. The repo is organized by the fully qualified GitHub repo or site/workspace that owns the workflow.
 
 A **rig** is a declarative spec for a reproducible local dev environment: components, services, symlinks, patches, and pipelines for `up` / `check` / `down`. See: [homeboy rig docs](https://github.com/Extra-Chill/homeboy/tree/main/docs).
 
@@ -9,7 +9,6 @@ A **rig** is a declarative spec for a reproducible local dev environment: compon
 ```text
 <owner>/<repo-or-site>/
   rigs/<id>/rig.json
-  stacks/    # homeboy stack specs
   bench/     # portable bench workloads used by those rigs
 shared/      # reusable rig helper patterns that are not tied to one owner/repo
 ```
@@ -18,9 +17,7 @@ Examples:
 
 ```text
 Automattic/studio/rigs/studio-combined/rig.json
-Automattic/studio/stacks/studio-combined.json
 Automattic/studio/bench/studio-agent-runtime.bench.mjs
-WordPress/wordpress-playground/stacks/playground-combined.json
 ```
 
 This keeps bench workloads beside the rig that uses them and makes ownership obvious when this repo becomes a shared rig package.
@@ -61,8 +58,6 @@ Install a package subpath with Homeboy's rig package lifecycle:
 homeboy rig install --all https://github.com/chubes4/homeboy-rigs.git//Automattic/studio
 ```
 
-Homeboy installs sibling `stacks/*.json` specs from the selected package subpath together with the rig specs. Re-run the same install command after pulling this repo to refresh both rigs and stacks.
-
 ## Lint
 
 Run Homeboy's package checks through the installed rig before opening rig package PRs:
@@ -100,7 +95,7 @@ separate integration gates invoked through their documented `homeboy rig`,
 
 ## Automattic/studio
 
-`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment for a prepared combined stack. It declares component paths, shared paths, services, resources, and workload dispatch; stack refresh/rebase, PHP-WASM compilation, tarball packaging, and Studio package rewrites are prepared outside the rig.
+`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment for prepared `dev/combined-fixes` checkouts. It declares component paths, shared paths, services, resources, and workload dispatch; combined-branch refresh/rebase, PHP-WASM compilation, tarball packaging, and Studio package rewrites are prepared outside the rig.
 
 `studio-figma-to-wordpress-import` is the adapter rig for the Blocks Engine Figma transformer fixture matrix. Blocks Engine owns fixture discovery, frame selection, transform execution, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy. It expects a Blocks Engine checkout and does not create separate runtime resources.
 
@@ -115,11 +110,9 @@ Useful settings:
 
 `studio-combined` declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
 
-Prepare the stack and local tarball artifacts before using the rig:
+Prepare the `dev/combined-fixes` checkouts and local tarball artifacts before using the rig. Homeboy no longer assembles combined branches from PR lists (`homeboy stack` was removed), so build and rebase those branches with plain git:
 
 ```bash
-homeboy stack sync studio-combined
-homeboy stack sync playground-combined
 npx nx run-many --all --target=package-for-self-hosting -- --hostingBaseUrl=http://127.0.0.1:9724/studio-dev
 ```
 
@@ -373,11 +366,9 @@ homeboy rig install --all ./Automattic/studio
 homeboy rig show studio-agent-claude-trunk
 ```
 
-`stacks/studio-combined.json` rebuilds `fork/dev/combined-fixes` from `origin/trunk` plus Chris's active Automattic/studio local-dev PRs.
-
 ## WordPress/wordpress-playground
 
-`stacks/playground-combined.json` rebuilds `origin/dev/combined-fixes` from `upstream/trunk` plus Chris's active PHP-WASM and worker-pool PRs. TSRMLS fallback defines are owned upstream by WordPress/wordpress-playground#3512; `studio-combined` checks for that upstream source instead of patching Playground files at rig runtime.
+TSRMLS fallback defines are owned upstream by WordPress/wordpress-playground#3512; `studio-combined` checks for that upstream source instead of patching Playground files at rig runtime.
 
 `rigs/playground-cli-diagnostics/rig.json` runs focused Playground CLI repros against the operator-provided WordPress Playground checkout. For a local data-machine-code workspace, that path might be `~/Developer/wordpress-playground`; other checkout layouts should be passed through rig component settings. The first workload captures whether Blueprint `runPHP` fatal errors surface useful diagnostics or collapse to a blank `Error:` line.
 
