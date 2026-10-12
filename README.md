@@ -95,7 +95,7 @@ separate integration gates invoked through their documented `homeboy rig`,
 
 ## Automattic/studio
 
-`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment for a prepared combined stack. It declares component paths, shared paths, services, resources, and workload dispatch; stack refresh/rebase, PHP-WASM compilation, tarball packaging, and Studio package rewrites are prepared outside the rig.
+`rigs/studio-combined/rig.json` is the Studio + Playground combined-fixes dev environment for prepared `dev/combined-fixes` checkouts. It declares component paths, shared paths, services, resources, and workload dispatch; combined-branch refresh/rebase, PHP-WASM compilation, tarball packaging, and Studio package rewrites are prepared outside the rig.
 
 `studio-figma-to-wordpress-import` is the adapter rig for the Blocks Engine Figma transformer fixture matrix. Blocks Engine owns fixture discovery, frame selection, transform execution, and artifacts; this rig only exposes that repo-local entrypoint through Homeboy. It expects a Blocks Engine checkout and does not create separate runtime resources.
 
@@ -110,7 +110,7 @@ Useful settings:
 
 `studio-combined` declares the local tarball server port, touched component paths, and adopted Studio/Playground process patterns in `resources` so concurrent rig commands can see the same ownership assumptions that the pipeline uses. The fixed tarball port remains `9724` because Homeboy `http-static` services currently require an integer port in the rig spec.
 
-Prepare the `dev/combined-fixes` checkouts and local tarball artifacts before using the rig:
+Prepare the `dev/combined-fixes` checkouts and local tarball artifacts before using the rig. Homeboy no longer assembles combined branches from PR lists (`homeboy stack` was removed), so build and rebase those branches with plain git:
 
 ```bash
 npx nx run-many --all --target=package-for-self-hosting -- --hostingBaseUrl=http://127.0.0.1:9724/studio-dev

@@ -16,7 +16,7 @@
   "lifecycle": {
     "cleanup": {
       "intent": "pipeline",
-      "reason": "pipeline.down stops the Studio daemon and tarball server and removes shared-path links created by this rig; component checkouts, dependencies, built artifacts, and prepared stack state remain user-owned resources."
+      "reason": "pipeline.down stops the Studio daemon and tarball server and removes shared-path links created by this rig; component checkouts, dependencies, built artifacts, and prepared combined-branch state remain user-owned resources."
     }
   },
 
