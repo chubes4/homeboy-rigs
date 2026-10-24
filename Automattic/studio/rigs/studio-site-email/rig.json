@@ -1,0 +1,34 @@
+{
+  "id": "studio-site-email",
+  "description": "Lifecycle proof for Studio's shared email inbox (Mailpit): it starts with the first site, is shared, stops with the last site, recovers from a crash, moves off a taken port, and lets sites start when it can't be downloaded, with email landing at each step. Runs the built Studio CLI in an isolated config and daemon. Set HOMEBOY_RIG_COMPONENT_PATH__STUDIO_SITE_EMAIL__STUDIO to the built Studio checkout under test.",
+  "components": {
+    "studio": {
+      "component_id": "studio",
+      "default_ref": "origin/trunk",
+      "extensions": {
+        "nodejs": {}
+      }
+    }
+  },
+  "trace_workloads": {
+    "nodejs": [
+      {
+        "path": "${package.root}/bench/studio-site-email-lifecycle.trace.mjs"
+      }
+    ]
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "check",
+        "label": "Studio CLI is built",
+        "file": "${components.studio.path}/apps/cli/dist/cli/main.mjs"
+      },
+      {
+        "kind": "check",
+        "label": "Studio CLI includes the Mailpit wrapper",
+        "file": "${components.studio.path}/apps/cli/dist/cli/mailpit-daemon.mjs"
+      }
+    ]
+  }
+}
