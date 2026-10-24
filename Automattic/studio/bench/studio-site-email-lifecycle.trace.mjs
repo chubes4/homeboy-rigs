@@ -115,6 +115,13 @@ async function waitForMailpitExit(env) {
 	return Date.now() - started;
 }
 
+// The process daemon: the parent of the Mailpit wrapper, found by this config's ports path.
+async function daemonPid(env) {
+	const { stdout } = await execFileAsync('ps', ['-axo', 'pid=,ppid=,args=']);
+	const wrapper = stdout.split('\n').find((line) => line.includes('mailpit-daemon') && line.includes(portsPath(env)));
+	return wrapper ? Number(wrapper.trim().split(/\s+/)[1]) : undefined;
+}
+
 async function inboxCount(env) {
 	const ports = readPorts(env);
 	if (!ports) return undefined;
@@ -253,7 +260,26 @@ try {
 	check('daemon-stop-leaves-nothing', exitMs >= 0 && exitMs < 5_000 && !readPorts(main),
 		'`site stop --all` leaves no Mailpit process or ports file within 5s', { exit_ms: exitMs });
 
-	// 8. Mailpit can't be downloaded: the site still starts, with a warning.
+	// 8. The process daemon dies outright: Mailpit goes with it, and comes back with the next site.
+	await startSite(main, 'a');
+	const daemon = await daemonPid(main);
+	if (daemon) process.kill(daemon, 'SIGKILL');
+	const orphanExitMs = await waitForMailpitExit(main);
+	check('daemon-crash-leaves-no-mailpit', daemon && orphanExitMs >= 0 && orphanExitMs < 5_000 && !readPorts(main),
+		'When the process daemon is killed, Mailpit exits and its ports file is removed', { daemon, exit_ms: orphanExitMs });
+	const afterCrash = await startSite(main, 'a');
+	check('daemon-crash-recovers', afterCrash.code === 0 && (await mailpitPids(main)).length === 1 && (await sendMailFromSite(main, 'a')),
+		'After the daemon is killed, the next site start brings the inbox back and email lands');
+
+	// 9. Deleting the last running site stops the inbox, as stopping it does.
+	await stopSite(main, 'a');
+	await startSite(main, 'b');
+	const deleteB = await cli(main, ['site', 'delete', '--path', sitePath(main, 'b'), '--files']);
+	const deleteExitMs = await waitForMailpitExit(main);
+	check('inbox-stops-with-last-site-delete', deleteB.code === 0 && deleteExitMs >= 0 && !readPorts(main),
+		'Deleting the last running site stops Mailpit', { code: deleteB.code, exit_ms: deleteExitMs });
+
+	// 10. Mailpit can't be downloaded: the site still starts, with a warning.
 	// Every request off this machine fails; the site's own localhost requests still work.
 	const offlineVars = {
 		NODE_USE_ENV_PROXY: '1',
