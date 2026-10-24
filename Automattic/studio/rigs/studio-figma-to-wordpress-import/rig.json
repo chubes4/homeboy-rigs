@@ -14,7 +14,7 @@
   },
   "lifecycle": {
     "cleanup": {
-      "intent": "manual",
+      "intent": "external",
       "reason": "The rig runs a repo-local fixture matrix against a user-owned Blocks Engine checkout and does not create separate runtime resources."
     }
   },
