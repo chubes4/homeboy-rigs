@@ -1,0 +1,75 @@
+{
+  "id": "studio-pr",
+  "description": "Runs the Studio app from a checkout under test (a pull request's head, for hands-on testing) in dev mode with its own app data (DEV_CONFIG_DIR=/tmp/studio-test), so the user's Studio sites are untouched. Point HOMEBOY_RIG_COMPONENT_PATH__STUDIO_PR__STUDIO at the checkout; Extra-Chill/homeboy#16507 tracks `rig up studio-pr --ref studio=<PR URL>`.",
+  "components": {
+    "studio": {
+      "path": "${env.HOMEBOY_RIG_COMPONENT_PATH__STUDIO_PR__STUDIO}",
+      "remote_url": "https://github.com/Automattic/studio.git"
+    }
+  },
+  "services": {
+    "studio-app": {
+      "kind": "command",
+      "cwd": "${components.studio.path}",
+      "command": "npm run start:test"
+    }
+  },
+  "lifecycle": {
+    "cleanup": {
+      "intent": "pipeline",
+      "reason": "pipeline.down stops the dev app; the checkout, its node_modules and /tmp/studio-test app data stay."
+    }
+  },
+  "pipeline": {
+    "check": [
+      {
+        "kind": "requirement",
+        "label": "Node.js available",
+        "executable": "node"
+      },
+      {
+        "kind": "requirement",
+        "label": "npm available",
+        "executable": "npm"
+      },
+      {
+        "kind": "check",
+        "label": "Studio checkout is available",
+        "file": "${components.studio.path}/apps/studio/package.json"
+      },
+      {
+        "kind": "command",
+        "label": "Node's major version matches the checkout's .nvmrc",
+        "cwd": "${components.studio.path}",
+        "command": "want=$(cut -d. -f1 .nvmrc); have=$(node --version | cut -d. -f1 | tr -d v); [ \"$want\" = \"$have\" ] || { echo \"Studio wants Node $(cat .nvmrc); this shell has $(node --version). Run nvm use in the checkout.\"; exit 1; }",
+        "expect_exit": 0
+      }
+    ],
+    "up": [
+      {
+        "kind": "command",
+        "label": "Install dependencies when the lockfile changed",
+        "cwd": "${components.studio.path}",
+        "command": "lock=$(shasum package-lock.json); [ \"$(cat node_modules/.homeboy-installed-lock 2>/dev/null)\" = \"$lock\" ] || { npm ci --no-audit --no-fund && echo \"$lock\" > node_modules/.homeboy-installed-lock; }",
+        "expect_exit": 0
+      },
+      {
+        "kind": "service",
+        "id": "studio-app",
+        "op": "stop"
+      },
+      {
+        "kind": "service",
+        "id": "studio-app",
+        "op": "start"
+      }
+    ],
+    "down": [
+      {
+        "kind": "service",
+        "id": "studio-app",
+        "op": "stop"
+      }
+    ]
+  }
+}
