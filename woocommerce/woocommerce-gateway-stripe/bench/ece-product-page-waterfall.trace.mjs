@@ -386,7 +386,7 @@ add_action(
 				}
 				$attr_html = "";
 				foreach ( $attrs as $attr_name => $attr_value ) {
-					$attr_html .= " " . esc_attr( $attr_name ) . "=\"" . esc_attr( $attr_value ) . "\"";
+					$attr_html .= " " . esc_attr( $attr_name ) . "=\\"" . esc_attr( $attr_value ) . "\\"";
 				}
 				echo "<link" . $attr_html . ">\n";
 			}
